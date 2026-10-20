@@ -1,0 +1,238 @@
+--- a/RECONCILE_START_HERE_KO.md
++++ b/RECONCILE_START_HERE_KO.md
+@@ -0,0 +1,26 @@
++# Phase 4 오류 진단 수정본 — 새 주문 실행 금지
++
++이 버전은 최초 체결 직후 실패 원인이 해결됐다는 뜻이 아닙니다.
++종료/종료 대기 또는 보유 수량 0인 포지션의 손절·익절 전송을 차단합니다.
++새로 발생하는 상태 대조 오류는 제한된 원인 분류만 기록하며 원문·키를 저장하지 않습니다.
++기존 DB의 과거 오류 원인은 소급 복원할 수 없습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-reconcile 폴더에서 infra가 보이는지 확인합니다.
++2. Docker Desktop을 켭니다. 탐색기 주소창에 cmd를 입력하고 Enter를 누릅니다.
++3. 아래 설치 명령을 실행합니다. 프로젝트 이름을 바꾸지 않아 기존 DB를 유지합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. Healthy 후 아래 DB 조회 명령만 실행합니다. API 키 입력은 없습니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.diagnose_demo_ledger
++
++5. 결과를 대화에 보내주세요. 이는 로컬 DB 조회이며 거래소 주문·취소·연결을 하지 않습니다.
++
++이전 시작 안내서와 주문 실행 예시는 개발 이력입니다. 지금 실행하지 마세요.
++기존 EMERGENCY와 paused 잠금은 해제하지 않습니다. 신규 operation ID를 만들지 않습니다.
++실거래 금지, Phase 5 미시작. API/web은 PAPER, LIVE_TRADING_ENABLED=false입니다.
++DB 볼륨 삭제 및 down -v를 실행하지 마세요. API 키·실제 .env는 포함하지 않습니다.
++
++검증: 이전 수정 테스트 365개 통과. 이번 진단 스크립트는 별도 DB 읽기 전용 테스트로 확인합니다.
++Windows에서의 설치/진단은 사용자가 확인해야 합니다.
+--- a/scripts/diagnose_demo_ledger.py
++++ b/scripts/diagnose_demo_ledger.py
+@@ -0,0 +1,65 @@
++"""Read-only local DEMO ledger diagnostics. No exchange client or credentials."""
++
++import json
++
++from sqlalchemy import create_engine, select
++
++from packages.domain.config import database_url
++from packages.persistence.demo import accounts, events
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++OPERATION = "892f0bd6-66ba-4534-80b3-074039f676fb"
++FIELDS = ("state", "position_state", "filled", "open_quantity", "protected", "exit_state")
++
++
++def main() -> None:
++    engine = create_engine(database_url().get_secret_value(), connect_args={"connect_timeout": 2})
++    try:
++        with engine.connect() as connection:
++            # PostgreSQL enforces read-only for the entire transaction.
++            from sqlalchemy import text
++
++            connection.execute(text("SET TRANSACTION READ ONLY"))
++            state = connection.execute(
++                select(accounts.c.state).where(accounts.c.account_id == ACCOUNT)
++            ).scalar_one()
++            rows = connection.execute(
++                select(events.c.as_of, events.c.kind, events.c.payload)
++                .where(events.c.account_id == ACCOUNT)
++                .order_by(events.c.as_of.desc())
++                .limit(12)
++            ).all()
++            order = state.get("orders", {}).get(OPERATION, {})
++            print(
++                json.dumps(
++                    {
++                        "diagnostic": "LOCAL_DATABASE_READ_ONLY",
++                        "risk_state": state.get("risk_state"),
++                        "paused": state.get("paused"),
++                        "failure_category": state.get(
++                            "reconciliation_failure_code", "NOT_RECORDED_BY_OLD_VERSION"
++                        ),
++                        "order": {key: order.get(key) for key in FIELDS},
++                        "live_trading_enabled": False,
++                    }
++                )
++            )
++            for stamp, kind, payload in reversed(rows):
++                historical = json.loads(payload)
++                print(
++                    json.dumps(
++                        {
++                            "as_of": str(stamp),
++                            "event": kind,
++                            "failure_category": historical.get(
++                                "reconciliation_failure_code", "NOT_RECORDED_BY_OLD_VERSION"
++                            ),
++                        }
++                    )
++                )
++    finally:
++        engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -394,9 +394,18 @@
+     def reconcile(self) -> None:
+         try:
+             self._reconcile_checked()
+-        except DemoFailure:
++        except DemoFailure as exc:
++            # Persist only allowlisted local categories, never raw transport errors.
++            failure_code: Literal["SNAPSHOT_CHANGED", "SNAPSHOT_INVALID", "OTHER_DEMO_FAILURE"] = (
++                "SNAPSHOT_CHANGED"
++                if str(exc) == "DEMO REST snapshots changed mid-reconciliation"
++                else "SNAPSHOT_INVALID"
++                if str(exc) == "Invalid/incomplete DEMO snapshot"
++                else "OTHER_DEMO_FAILURE"
++            )
+ 
+             def failed(ledger: DemoLedger) -> None:
++                ledger.reconciliation_failure_code = failure_code
+                 ledger.reconciled = False
+                 ledger.paused = True
+                 for existing in ledger.orders.values():
+@@ -734,6 +743,11 @@
+     def _protect(self, key: str, kind: str) -> None:
+         def stage(ledger: DemoLedger) -> str | None:
+             order = ledger.orders[key]
++            if (
++                order.position_state in {PositionState.CLOSED, PositionState.EXIT_PENDING}
++                or order.open_quantity <= ZERO
++            ):
++                return None
+             identifier = ("DS-" if kind == "SL" else "DT-") + order.client_id[3:]
+             if identifier in ledger.requests:
+                 return None  # Query the same ID; never repeat an uncertain Algo POST.
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -14,6 +14,9 @@
+ class DemoLedger(Ledger):
+     mode: Literal["DEMO"] = "DEMO"
+     policy: DemoPolicy
++    reconciliation_failure_code: Literal[
++        "NONE", "SNAPSHOT_CHANGED", "SNAPSHOT_INVALID", "OTHER_DEMO_FAILURE"
++    ] = "NONE"
+     stream_ready: bool = False
+     stream_at: datetime | None = None
+     fingerprint: str = ""
+--- a/tests/integration/test_demo_ledger_diagnostic.py
++++ b/tests/integration/test_demo_ledger_diagnostic.py
+@@ -0,0 +1,27 @@
++"""The support diagnostic reads local PG and never acquires a lease or sends requests."""
++
++import json
++
++import scripts.diagnose_demo_ledger as diagnostic
++from tests.integration.test_demo import (
++    enter,
++    system,  # noqa: F401
++)
++
++
++def test_local_diagnostic_preserves_ledger_and_never_calls_exchange(system, monkeypatch, capsys):  # noqa: F811
++    store, c, fake = system
++    sig, _ = enter(system)
++    monkeypatch.setattr(diagnostic, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(diagnostic, "OPERATION", str(sig.signal_id))
++    monkeypatch.setattr(diagnostic, "create_engine", lambda *a, **k: store.engine)
++    before = store.read("DEMO-test").model_dump_json()
++    calls = len(fake.calls)
++    diagnostic.main()
++    lines = capsys.readouterr().out.splitlines()
++    report = json.loads(lines[0])
++    assert report["diagnostic"] == "LOCAL_DATABASE_READ_ONLY"
++    assert report["order"]["state"] == "ACKNOWLEDGED"
++    assert report["live_trading_enabled"] is False
++    assert len(fake.calls) == calls
++    assert store.read("DEMO-test").model_dump_json() == before
+--- a/tests/integration/test_demo_reconcile_diagnostics.py
++++ b/tests/integration/test_demo_reconcile_diagnostics.py
+@@ -0,0 +1,62 @@
++"""Fail-closed diagnostics and protection guards; no remote exchange access."""
++
++import pytest
++
++import services.execution.demo as module
++from integrations.binance_usdm.demo import DemoFailure
++from packages.domain.contracts import PositionState
++from tests.integration.test_demo import (
++    enter,
++    posts,
++    system,  # noqa: F401
++)
++
++
++@pytest.mark.parametrize("blocked", ["closed", "exit_pending", "zero"])
++def test_protection_does_not_post_for_ineligible_position(system, blocked):  # noqa: F811
++    store, c, fake = system
++    sig, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    c.reconcile()
++
++    def block(ledger):
++        current = ledger.orders[str(sig.signal_id)]
++        current.algo_id = None
++        current.tp_algo_id = None
++        ledger.requests = {}
++        if blocked == "closed":
++            current.position_state = PositionState.CLOSED
++        elif blocked == "exit_pending":
++            current.position_state = PositionState.EXIT_PENDING
++        else:
++            current.open_quantity = 0
++
++    store.change(c.lease, "TEST_BLOCK_PROTECTION", block)
++    before = len(posts(fake, "/fapi/v1/algoOrder"))
++    c._protect(str(sig.signal_id), "SL")
++    c._protect(str(sig.signal_id), "TP")
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == before
++
++
++def test_changed_snapshot_retains_emergency_exit_and_safe_reason(system, monkeypatch):  # noqa: F811
++    store, c, fake = system
++    _, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    real = module.snapshot
++    calls = 0
++
++    def changing(*args):
++        nonlocal calls
++        result = real(*args)
++        calls += 1
++        if calls == 2:
++            result.fingerprint = "changed"
++        return result
++
++    monkeypatch.setattr(module, "snapshot", changing)
++    with pytest.raises(DemoFailure, match="changed mid-reconciliation"):
++        c.reconcile()
++    assert store.read("DEMO-test").reconciliation_failure_code == "SNAPSHOT_CHANGED"
++    assert fake.positions["BTCUSDT"] == 0
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 0
++    assert all(p["type"] == "LIMIT" or p.get("reduceOnly") == "true" for p in posts(fake))
