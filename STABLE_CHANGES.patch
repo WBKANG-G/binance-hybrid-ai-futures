@@ -1,0 +1,395 @@
+--- a/STABLE_START_HERE_KO.md
++++ b/STABLE_START_HERE_KO.md
+@@ -0,0 +1,19 @@
++# Phase 4 상태 대조 수정본 — 설치 후 DB 조회만 실행
++
++이번 수정은 포지션이 있는 두 조회에서 주문·수량·진입가·레버리지·담보 배정액·입출금이 같고 평가값만 다른 경우를 구분합니다. 계정 평가액과 사용 가능 잔액은 작은 값, 사용 증거금은 큰 값, 청산가는 포지션 방향에 불리한 값을 사용합니다. 포지션 없는 신규 진입 검사와 필수 필드 검사는 완화하지 않습니다. 과거 실제 오류 원인은 기록 부족으로 미확정입니다.
++
++1. ZIP을 모두 추출합니다. windows-demo-stable 폴더에서 infra 폴더가 보이는 위치로 이동합니다.
++2. Docker Desktop을 켜고 탐색기 주소창에 cmd를 입력해 Enter를 누릅니다.
++3. 아래 설치 명령을 실행합니다. 기존 hybrid-windows 프로젝트와 DB를 그대로 사용합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. 모두 Healthy면 아래 로컬 DB 조회만 실행하고 결과를 대화에 보내주세요. API 키를 입력하지 않습니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.diagnose_demo_ledger
++
++설치는 거래소 주문을 보내지 않습니다. DB 조회는 PostgreSQL 읽기 전용 트랜잭션입니다. 기존 EMERGENCY 및 paused 잠금은 해제하지 않습니다. 예전 주문 실행 명령과 새 operation ID를 실행하지 마세요. 다른 시작 안내서는 개발 이력입니다.
++
++LIVE_TRADING_ENABLED=false와 API/web PAPER를 유지합니다. 실거래 금지, Phase 5 미시작. 키/실제 .env는 포함하지 않습니다. 기존 폴더와 DB를 보존하고 volume 삭제 및 down -v를 실행하지 마세요.
++
++Windows 실제 설치 결과는 확인 대기입니다. 로컬 합성 거래소 재현 테스트 통과가 실제 DEMO 손절/익절 검증 완료를 뜻하지 않습니다.
+--- a/STABLE_VALIDATION_KO.md
++++ b/STABLE_VALIDATION_KO.md
+@@ -0,0 +1,11 @@
++# 상태 대조 수정 범위와 검증
++
++이전 합성 응답 재현에서 가격 평가값만 달라도 전체 fingerprint 비교가 실패하고 긴급 종료되는 경로를 확인했습니다. 실제 Windows의 과거 최초 실패 원인 자체는 기록 부족으로 확정하지 않았습니다.
++
++이번 변경은 ISOLATED 보유 포지션의 두 조회에서 구조적 상태가 동일하고 알려진 단일 주문의 체결 수량과 보유 수량이 정확히 일치하는 경우에만 평가값 변동을 처리합니다. wallet_balance를 별도로 보존하여 실제 지갑 잔액 변화와 미실현 평가손익 변화를 구분합니다. 주문 상태·체결 수량·진입가·담보 배정·레버리지·모드·입출금 등은 exact 비교를 유지합니다. 필수 담보 항목 누락과 잘못된 청산가도 계속 거부합니다.
++
++두 조회 중 계정 평가액과 사용 가능 잔액은 최소, 사용 증거금은 최대, 격리 증거금은 최소, 청산가는 LONG 최대/SHORT 최소를 적용합니다. 낙폭 판단의 최고 평가액은 최대 관측값을 보존합니다. 기존 위험 한도 검사를 그대로 적용하며, 위험을 줄이기 위한 종료를 막지 않습니다. 포지션이 없는 신규 진입과 preview/submit의 전체 fingerprint 검사는 완화하지 않았습니다.
++
++안전 테스트는 수량/지갑/레버리지/담보 배정/진입가/주문 상태/입출금 변경 거부, 필수 필드 누락, 신규 진입 검사의 엄격성, LONG/SHORT 청산가 경계, 위험 한도 초과 잠금, 최고 평가액 보존 등을 확인합니다. 이전 원인 재현 테스트의 평가값 변동 사례는 이제 단일 진입 후 SL/TP가 검증되는 회귀 테스트로 전환했고, 필수 필드 누락에 대한 실패/긴급 종료 검사는 유지했습니다.
++
++실제 Binance 주문 호출은 수행하지 않았습니다. 로컬 PostgreSQL과 합성 거래소, 로컬 WebSocket을 사용했습니다. Windows 실거래소 손절·익절 검증 완료를 의미하지 않습니다. 실거래 금지, Phase 5 미시작. 기존 DB와 EMERGENCY/paused 잠금은 유지합니다. 설치 후에는 로컬 DB 조회만 실행하세요.
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -242,6 +242,7 @@
+     return DemoSnapshot(
+         as_of=now,
+         equity=wallet + unrealized,
++        wallet_balance=wallet,
+         available_balance=available,
+         margin_used=margin,
+         positions=positions,
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -20,6 +20,7 @@
+ )
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_models import DemoLedger, DemoSnapshot
++from services.execution.demo_reconciliation import coherent_snapshot
+ from services.execution.models import Lease, PaperOrder
+ from services.execution.paper import account_risk
+ from services.risk.paper import (
+@@ -455,9 +456,7 @@
+         def query_merge(ledger: DemoLedger) -> None:
+             first = snapshot(self.client, ledger, self.store.now())
+             second = snapshot(self.client, ledger, self.store.now())
+-            if first.fingerprint != second.fingerprint:
+-                raise DemoFailure("DEMO REST snapshots changed mid-reconciliation")
+-            self._merge(ledger, second)
++            self._merge(ledger, coherent_snapshot(first, second, ledger))
+ 
+         self.store.change(self.lease, "DEMO_REST_SNAPSHOT", query_merge)
+         if not self.client.settings.demo_trading_enabled:
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -44,6 +44,7 @@
+ class DemoSnapshot(State):
+     as_of: datetime
+     equity: Decimal
++    wallet_balance: Decimal | None = None
+     available_balance: Decimal
+     margin_used: Decimal
+     positions: dict[str, Decimal]
+--- a/services/execution/demo_reconciliation.py
++++ b/services/execution/demo_reconciliation.py
+@@ -0,0 +1,90 @@
++"""Strict position consistency with conservative mark-dependent valuation bounds."""
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number
++from services.execution.demo_models import DemoLedger, DemoSnapshot
++
++# Immutable wallet balance, collateral allocation, fills, orders, mode, leverage,
++# entry price and transfers remain in the exact structural comparison.
++VALUATION_FIELDS = {
++    "as_of",
++    "fingerprint",
++    "equity",
++    "available_balance",
++    "margin_used",
++    "isolated_margins",
++    "liquidation_prices",
++}
++
++
++def coherent_snapshot(
++    first: DemoSnapshot, second: DemoSnapshot, ledger: DemoLedger
++) -> DemoSnapshot:
++    if first.fingerprint == second.fingerprint:
++        return second
++    error = DemoFailure("DEMO REST snapshots changed mid-reconciliation")
++    if (
++        ledger.margin_mode != "ISOLATED"
++        or first.wallet_balance is None
++        or second.wallet_balance is None
++    ):
++        raise error
++    a = first.model_dump(exclude=VALUATION_FIELDS)
++    b = second.model_dump(exclude=VALUATION_FIELDS)
++    if a != b:
++        raise error
++    # Do not relax flat/new-entry admission, fabricated hash changes, missing
++    # collateral or unowned/manual exposure. Normal merge still checks identity.
++    active = {s: q for s, q in second.positions.items() if q}
++    if not active or all(
++        getattr(first, key) == getattr(second, key)
++        for key in VALUATION_FIELDS - {"as_of", "fingerprint"}
++    ):
++        raise error
++    if (
++        first.isolated_margins.keys() != second.isolated_margins.keys()
++        or first.liquidation_prices.keys() != second.liquidation_prices.keys()
++    ):
++        raise error
++    for symbol, quantity in active.items():
++        owners = [
++            o
++            for o in ledger.orders.values()
++            if o.signal.symbol == symbol and o.position_state.value != "CLOSED"
++        ]
++        if len(owners) != 1:
++            raise error
++        order = owners[0]
++        row = second.orders.get(order.client_id)
++        if not row or quantity * (1 if order.signal.direction == "LONG" else -1) <= 0:
++            raise error
++        if abs(quantity) != signed_number(row["executedQty"]) or abs(quantity) > order.quantity:
++            raise error
++        if any(
++            snap.isolated_wallets.get(symbol, 0) <= 0
++            or snap.isolated_margins.get(symbol, 0) <= 0
++            or snap.liquidation_prices.get(symbol, 0) <= 0
++            for snap in (first, second)
++        ):
++            raise error
++    # Retain the latest exchange fingerprint for subsequent exact admission
++    # checks while evaluating the least favorable values observed in this pair.
++    # A transient higher equity is still a drawdown high-water observation.
++    ledger.high_water = max(ledger.high_water, first.equity, second.equity)
++    return second.model_copy(
++        update={
++            "equity": min(first.equity, second.equity),
++            "available_balance": min(first.available_balance, second.available_balance),
++            "margin_used": max(first.margin_used, second.margin_used),
++            "isolated_margins": {
++                s: min(first.isolated_margins[s], second.isolated_margins[s])
++                for s in second.isolated_margins
++            },
++            "liquidation_prices": {
++                s: (max if active.get(s, 0) > 0 else min)(
++                    first.liquidation_prices[s], second.liquidation_prices[s]
++                )
++                for s in second.liquidation_prices
++            },
++        }
++    )
+--- a/tests/integration/test_demo_fill_snapshot_changes.py
++++ b/tests/integration/test_demo_fill_snapshot_changes.py
+@@ -0,0 +1,88 @@
++"""Reproduce post-fill reconciliation failures with changing exchange responses."""
++
++import json
++from decimal import Decimal
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from tests.integration.test_demo import enter, posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++
++
++@pytest.mark.parametrize("field", ["unrealized", "isolatedMargin", "liquidationPrice"])
++def test_post_fill_market_value_change_now_gets_verified_protection(demo_system, field):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    sig, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    original = c.client.send
++    reads = 0
++
++    def moving(method, path, query, key):
++        nonlocal reads
++        response = original(method, path, query, key)
++        target = "/fapi/v3/account" if field == "unrealized" else "/fapi/v3/positionRisk"
++        if method == "GET" and path == target:
++            reads += 1
++            if reads == 2:
++                data = json.loads(response.body)
++                if field == "unrealized":
++                    data["totalUnrealizedProfit"] = "0.01"
++                else:
++                    for row in data:
++                        if row["symbol"] == "BTCUSDT":
++                            row[field] = str(Decimal(row[field]) + Decimal("0.01"))
++                return fake.response(data, response.status)
++        return response
++
++    c.client.send = moving
++    c.reconcile()
++    ledger = store.read("DEMO-test")
++    current = ledger.orders[str(sig.signal_id)]
++    assert current.filled == order.quantity and current.open_quantity == order.quantity
++    assert current.protected and current.tp_algo_id
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    assert len([p for p in posts(fake) if p["type"] == "LIMIT"]) == 1
++    assert ledger.reconciliation_failure_code == "NONE"
++
++
++def test_unchanged_post_fill_values_create_verified_sl_and_tp(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    sig, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    c.reconcile()
++    current = store.read("DEMO-test").orders[str(sig.signal_id)]
++    assert current.filled == order.quantity
++    assert current.protected and current.tp_algo_id
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++
++
++@pytest.mark.parametrize("field", ["isolatedMargin", "isolatedWallet"])
++def test_missing_post_fill_collateral_also_requires_safe_diagnosis(demo_system, field):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    _, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    original = c.client.send
++
++    def incomplete(method, path, query, key):
++        response = original(method, path, query, key)
++        if method == "GET" and path == "/fapi/v3/positionRisk":
++            data = json.loads(response.body)
++            for row in data:
++                row.pop(field, None)
++            return fake.response(data, response.status)
++        return response
++
++    c.client.send = incomplete
++    with pytest.raises(DemoFailure, match="Invalid/incomplete DEMO snapshot"):
++        c.reconcile()
++    ledger = store.read("DEMO-test")
++    assert ledger.reconciliation_failure_code == "SNAPSHOT_INVALID"
++    assert ledger.risk_state.value == "EMERGENCY" and ledger.paused
++    assert fake.positions["BTCUSDT"] == 0
++    assert not posts(fake, "/fapi/v1/algoOrder")
++    assert len([p for p in posts(fake) if p["type"] == "LIMIT"]) == 1
+--- a/tests/integration/test_demo_valuation_bounds.py
++++ b/tests/integration/test_demo_valuation_bounds.py
+@@ -0,0 +1,131 @@
++"""Valuation drift never relaxes structural checks or improves observed risk bounds."""
++
++from decimal import Decimal as D
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import snapshot
++from services.execution.demo_reconciliation import coherent_snapshot
++from tests.integration.test_demo import enter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++
++
++def observations(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    _, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    ledger = store.read("DEMO-test")
++    first = snapshot(c.client, ledger, store.now())
++    return ledger, first, c
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "quantity",
++        "wallet",
++        "leverage",
++        "collateral",
++        "entry_price",
++        "order_status",
++        "transfer",
++        "missing_margin",
++    ],
++)
++def test_real_state_changes_still_fail_closed(demo_system, change):  # noqa: F811
++    ledger, first, c = observations(demo_system)
++    second = first.model_copy(deep=True)
++    second.fingerprint = "different"
++    second.equity -= D("0.01")
++    if change == "quantity":
++        second.positions["BTCUSDT"] += D("0.001")
++    elif change == "wallet":
++        second.wallet_balance -= D("0.01")
++    elif change == "leverage":
++        second.leverage["BTCUSDT"] = D("3")
++    elif change == "collateral":
++        second.isolated_wallets["BTCUSDT"] += D("1")
++    elif change == "entry_price":
++        second.entry_prices["BTCUSDT"] += D("0.1")
++    elif change == "order_status":
++        next(iter(second.orders.values()))["status"] = "PARTIALLY_FILLED"
++    elif change == "transfer":
++        second.transfers["TRANSFER:unexpected"] = "1"
++    else:
++        second.isolated_margins.pop("BTCUSDT")
++    with pytest.raises(DemoFailure):
++        coherent_snapshot(first, second, ledger)
++
++
++def test_uses_worst_equity_margin_and_long_liquidation(demo_system):  # noqa: F811
++    ledger, first, c = observations(demo_system)
++    second = first.model_copy(deep=True)
++    second.fingerprint = "different"
++    second.equity -= D("1")
++    second.available_balance += D("1")
++    second.margin_used += D("1")
++    second.isolated_margins["BTCUSDT"] += D("1")
++    second.liquidation_prices["BTCUSDT"] += D("1")
++    result = coherent_snapshot(first, second, ledger)
++    assert result.equity == second.equity
++    assert result.available_balance == first.available_balance
++    assert result.margin_used == second.margin_used
++    assert result.isolated_margins == first.isolated_margins
++    assert result.liquidation_prices == second.liquidation_prices
++    assert result.fingerprint == second.fingerprint
++
++
++def test_flat_account_does_not_relax_new_entry_admission(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, _ = system
++    ledger = store.read("DEMO-test")
++    first = snapshot(c.client, ledger, store.now())
++    second = first.model_copy(
++        update={"equity": first.equity - D("0.01"), "fingerprint": "different"}
++    )
++    with pytest.raises(DemoFailure):
++        coherent_snapshot(first, second, ledger)
++
++
++def test_short_uses_lower_liquidation_bound(demo_system):  # noqa: F811
++    ledger, first, c = observations(demo_system)
++    order = next(iter(ledger.orders.values()))
++    order.signal = order.signal.model_copy(
++        update={"direction": "SHORT", "initial_stop_price": D("120"), "target_price": D("90")}
++    )
++    first.positions["BTCUSDT"] = -abs(first.positions["BTCUSDT"])
++    first.liquidation_prices["BTCUSDT"] = D("150")
++    second = first.model_copy(deep=True)
++    second.fingerprint = "different"
++    second.liquidation_prices["BTCUSDT"] = D("149")
++    result = coherent_snapshot(first, second, ledger)
++    assert result.liquidation_prices["BTCUSDT"] == D("149")
++
++
++@pytest.mark.parametrize("field", ["equity", "margin_used", "liquidation_prices"])
++def test_adverse_bound_still_triggers_risk_lock(demo_system, field):  # noqa: F811
++    ledger, first, c = observations(demo_system)
++    second = first.model_copy(deep=True)
++    second.fingerprint = "different"
++    if field == "equity":
++        first.equity = D("1")
++    elif field == "margin_used":
++        first.margin_used = first.equity * 2
++    else:
++        first.liquidation_prices["BTCUSDT"] = D("1000")
++    bounded = coherent_snapshot(first, second, ledger)
++    # Validate real coordinator risk decisions, not only the chosen min/max.
++    c._merge(ledger, bounded)
++    assert ledger.risk_state.value in {"EMERGENCY", "DAILY_LOCK", "WEEKLY_LOCK", "DRAWDOWN_LOCK"}
++
++
++def test_higher_observed_equity_preserves_drawdown_high_water(demo_system):  # noqa: F811
++    ledger, first, c = observations(demo_system)
++    first.equity += D("100")
++    second = first.model_copy(update={"equity": first.equity - D("1"), "fingerprint": "different"})
++    result = coherent_snapshot(first, second, ledger)
++    assert result.equity == second.equity
++    assert ledger.high_water == first.equity
