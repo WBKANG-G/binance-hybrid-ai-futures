@@ -1,0 +1,747 @@
+--- a/DEMO_PRIVATE_CHECK_KO.md
++++ b/DEMO_PRIVATE_CHECK_KO.md
+@@ -1,48 +1,3 @@
+-# Phase 4 Windows DEMO 비공개 연결 검증 준비
++# 이전 검증 안내
+ 
+-실거래 및 Phase 5는 금지합니다. 이 배포는 기존 preflight 수정에 이어 종목 격리와 제한된 실시간 계좌 연결 검사를 추가합니다.
+-
+-## 변경과 안전 경계
+-
+-- 잘못된 규칙은 완화하지 않고 excluded_symbols로 제외합니다. 제외 종목은 진입 예약/제출할 수 없습니다.
+-- 제외 종목의 실제 포지션/활성 일반 주문/활성 Algo 주문/내부 미결 의도가 있으면 계좌 대조를 거부합니다.
+-- --check-private는 먼저 쓰기 비활성 상태로 대조하고 빈 NORMAL 계좌인지 검사한 뒤 session을 시작합니다.
+-- 20초간 연결을 관찰합니다. --watch/--signal/--command/--resume-entries/--initialize와 조합할 수 없습니다.
+-- listenKey 생성/종료를 위해 --enable-demo를 명시하지만 주문 신호는 전달하지 않습니다.
+-- 다른 봇이나 수동거래가 같은 DEMO 계좌를 사용해서는 안 됩니다. 기존 보호가 필요한 포지션이 있는 계좌에 사용하지 마세요.
+-- timeout 종료 시 session cleanup/진입 정지/stream 무효화를 시도합니다. 실패를 숨겨 성공으로 판단하면 안 됩니다.
+-- CONNECTED는 해당 시점의 handshake/REST 대조 성공, OBSERVATION_FINISHED는 관찰 종료입니다. 25분 session 갱신, 실제 체결/SL/TP/복구는 미검증입니다.
+-
+-## 설치
+-
+-Docker Desktop을 켜고 새 ZIP을 모두 추출합니다. infra 폴더가 보이는 위치에서 탐색기 주소창에 cmd를 입력합니다.
+-
+-```cmd
+-docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
+-```
+-
+-같은 프로젝트 이름을 유지하므로 기존 hybrid-windows_postgres_data를 재사용합니다.
+-기존 폴더/DB/볼륨을 삭제하지 마세요. 실제 .env/개인 키 파일은 새 폴더로 복사하지 마세요.
+-새 빌드 Healthy 결과를 확인한 다음 아래 연결 검사로 진행합니다.
+-
+-## 키 숨김 입력과 20초 연결 검사
+-
+-아래 기존 내부 원장은 이 사용자의 선행 preflight에서 인증/대조 NORMAL이 확인된 원장입니다. --initialize를 다시 사용하지 않습니다.
+-
+-```cmd
+-docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -c "import getpass,os,runpy,sys; os.environ['LIVE_TRADING_ENABLED']='false'; os.environ['BINANCE_DEMO_API_KEY']=getpass.getpass('DEMO API Key (hidden): '); os.environ['BINANCE_DEMO_API_SECRET']=getpass.getpass('DEMO Secret (hidden): '); sys.argv=['scripts.run_demo','--config','configs/demo.example.yaml','--account','DEMO-WINDOWS-6d9329cae37d40ada14c0169d38dd07e','--enable-demo','--check-private']; runpy.run_module('scripts.run_demo',run_name='__main__')"
+-```
+-
+-보관한 DEMO key/secret을 차례대로 입력하고 Enter를 누릅니다. 화면에 입력 문자가 보이지 않는 것이 정상입니다.
+-숨김 입력을 사용할 수 없다는 경고가 뜨면 Ctrl+C로 중단하고 키를 입력하지 마세요.
+-키 값/서명/listenKey를 채팅이나 스크린샷으로 보내지 마세요. 오류가 나오면 자동 재실행하지 않습니다.
+-완료 문구 및 오류 결과만 공유합니다. 종료 후 관찰 세션은 계속 실행되는 worker가 아닙니다.
+-
+-## 검증 결과
+-
+-- 관련 Python 테스트 73 passed (9.03초): 실제 PostgreSQL 격리 schema + 합성 거래소 + 실제 localhost WS 포함.
+-- 이후 추가한 제외 종목 진입 거부 테스트 포함 해당 파일 9 passed (0.26초). 전체 서로 다른 검사 74개 통과.
+-- Ruff check/format, mypy 통과.
+-- 실제 Binance private WSS는 클라우드에서 인증 실행하지 않았습니다. Windows에서 후속 확인 필요.
+-- 기존 Windows 공개 REST/WSS PASS 및 읽기 전용 DEMO 인증 NORMAL은 사용자의 선행 화면 증거입니다.
+-- main/기존 ZIP은 변경하지 않습니다. 실제 주문은 이 변경 작업에서 전송하지 않았습니다.
++현재 격리 모드 단계의 안내는 ISOLATED_START_HERE_KO.md를 읽으세요. 기존 Cross 원장은 그대로 보존합니다.
+--- a/ISOLATED_START_HERE_KO.md
++++ b/ISOLATED_START_HERE_KO.md
+@@ -0,0 +1,70 @@
++# Phase 4 Windows 격리(Isolated) 모드 검증
++
++현재 진행할 작업은 주문 없는 DEMO 인증 조회입니다. 실제 주문/Phase 5/실거래를 시작하지 않습니다.
++Binance DEMO의 BTCUSDT를 Isolated·2배로 유지하고, 포지션/미체결 주문이 없는지 확인하세요.
++Cross로 되돌리지 마세요. 이 프로그램은 계좌 마진 모드나 레버리지를 자동 변경하지 않습니다.
++
++## 설치
++
++1. Docker Desktop을 켭니다.
++2. 새 ZIP을 모두 추출한 뒤 windows-demo-isolated 폴더에서 infra가 보이는 위치로 들어갑니다.
++3. 탐색기 주소창에 cmd를 입력하고 Enter를 누릅니다.
++4. 아래 명령으로 갱신합니다. 기존 hybrid-windows 프로젝트와 DB 볼륨을 그대로 사용합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 폴더/DB/볼륨을 삭제하지 마세요. down -v를 실행하지 마세요.
++개인 .env/키 파일은 새 폴더에 복사하지 마세요. API/웹은 기존 PAPER·실거래 비활성 설정을 유지합니다.
++
++## Healthy 확인 후, 새 격리 전용 원장으로 첫 인증 조회
++
++기존 Cross 원장과 섞지 않도록 DEMO-WINDOWS-ISOLATED-BTC-V1이라는 새 내부 원장을 만듭니다.
++동일한 실제 DEMO 계좌를 읽지만 기존 DB 기록은 삭제하거나 바꾸지 않습니다.
++아래 --initialize 명령은 처음 한 번만 사용합니다. 오류가 나면 반복하지 말고 정제 결과만 공유하세요.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -c "import getpass,os,runpy,sys; os.environ['LIVE_TRADING_ENABLED']='false'; os.environ['BINANCE_DEMO_API_KEY']=getpass.getpass('DEMO API Key (hidden): '); os.environ['BINANCE_DEMO_API_SECRET']=getpass.getpass('DEMO Secret (hidden): '); sys.argv=['scripts.run_demo','--config','configs/demo-isolated.example.yaml','--account','DEMO-WINDOWS-ISOLATED-BTC-V1','--initialize']; runpy.run_module('scripts.run_demo',run_name='__main__')"
++```
++
++보관한 DEMO key/secret을 차례대로 입력하고 Enter를 누릅니다. 입력 문자가 표시되지 않는 것이 정상입니다.
++숨김 입력 불가 경고가 나오면 Ctrl+C로 중단하고 키를 입력하지 마세요.
++키 값/서명/listenKey를 채팅/스크린샷으로 보내지 마세요.
++이 명령에는 --enable-demo, --watch, --signal이 없습니다. 주문을 활성화하지 않습니다.
++
++확인할 결과: preflight=READ_ONLY, account_reconciled=true, risk_state=NORMAL,
++margin_mode=ISOLATED, configured_symbols=[BTCUSDT], verified_symbol_settings의 margin_mode=ISOLATED, leverage=2,
++orders_enabled=false, live_trading_enabled=false.
++private_stream_ready=false는 이 읽기 전용 단계에서는 정상입니다.
++
++자동 증거금 추가 설정은 API에서 false임을 확인해야 합니다. 누락/true/알 수 없는 값이면 거부합니다.
++이 경우 설정을 추측하거나 검사 코드를 완화하지 않고 정제 진단을 먼저 확인합니다.
++첫 조회 실패로 원장만 만들어졌다면 --initialize를 반복하지 않습니다.
++후속 조회는 동일 account/config로 --initialize 없이 실행합니다.
++
++## 구현된 안전 경계
++
++- ISOLATED는 명시적인 BTCUSDT 범위만 사용합니다. 다른 종목의 Cross 설정은 자동 변경하지 않습니다.
++- 범위 밖 실제 포지션/미체결 일반·Algo 주문이 있으면 거부합니다.
++- 격리 모드/종목 범위를 원장에 고정하며 기존 Cross 원장의 암묵적 전환을 거부합니다.
++- totalWalletBalance에 isolatedWallet을 더하지 않습니다. availableBalance에 격리 담보를 더하지 않습니다.
++- 마진 사용량은 계좌 initial margin과 격리 담보 합계 중 큰 값으로 보수적으로 계산합니다.
++- 격리 포지션은 양수의 담보/유효 liquidationPrice 증거를 요구합니다. 손절이 청산가격 너머라면 신규 진입을 막고 위험 축소 경로로 연결합니다. 손절 체결 보장은 아닙니다.
++- 주문 전 fresh 계좌 snapshot으로 mode/leverage/잔고/담보 fingerprint 변화를 검사합니다.
++- SL/TP와 일반 주문 ID 분리 및 실제 flat 이후 정리 규칙을 유지합니다.
++- Algo 취소는 원래 client ID로 종목을 조회해 범위를 확인한 뒤 수행합니다.
++- 문제 종목 규칙의 완화/하드코딩 우회, LIVE 활성화, 마진 모드 자동 변경은 하지 않습니다.
++
++## 미완료 항목
++
++실제 격리 DEMO 인증은 Windows에서 후속 검증해야 합니다.
++실제 격리 체결·Algo 지원·SL/TP·청산가격 필드·부분체결·취소·장애 복구는 아직 거래소에서 검증하지 않았습니다.
++이 배포만으로 Phase 4 완료나 실거래 안전성을 주장하지 않습니다.
++공식 최신 문서 3개(account V3/positionRisk V3/symbolConfig)는 이 클라우드에서 CONNECT 403으로 조회 불가했습니다.
++구현의 필드/가정은 합성 계약 테스트 결과이며 실제 API 응답에서 재확인이 필요합니다.
++
++## 다음 순서
++
++위 읽기 전용 결과를 먼저 공유하고, 격리 계좌 설정을 확인한 후 비공개 연결을 다시 검증합니다.
++주문 가격/수량/손절/익절은 아직 입력하지 마세요. 현재 시세/metadata/계좌 상태에 맞춘 별도 검증 신호가 필요합니다.
+--- a/ISOLATED_VALIDATION_KO.md
++++ b/ISOLATED_VALIDATION_KO.md
+@@ -0,0 +1,13 @@
++# 격리 모드 수정 검증 기록
++
++Python 전체: 301 passed / 0 failed / 0 skipped (24.21초).
++명령: TEST_DATABASE_URL=<local dedicated PostgreSQL> python -m pytest -q -p no:cacheprovider
++실제 PostgreSQL 격리 schema 및 localhost WebSocket 사용. 거래소 응답/자격증명은 합성 데이터.
++Ruff check/format 및 변경된 5개 source 파일 mypy 통과.
++프런트엔드/의존성 lockfile/MASTER_SPEC/AGENTS/실거래 위험 설정은 변경 없음.
++초기 실행에서 설정 schema 재생성 누락을 발견해 기존 schema 생성 방식으로 수정했습니다.
++격리 장애 테스트 중 Algo 취소 종목 확인 경로 오류를 발견해 수정하고 전체 재검증했습니다.
++Binance 실계좌/DEMO 인증/주문을 이 클라우드에서 실행하지 않았습니다.
++기존 Windows Cross 기반 인증/연결 성공은 이전 사용자가 제공한 화면 증거이며 새 격리 검증 성공을 의미하지 않습니다.
++최신 공식 문서 3개 조회는 proxy CONNECT 403으로 차단되었습니다. 실제 응답 계약 후속 검증 필요.
++실거래/Phase 5 미착수, main/기존 ZIP 변경 없음.
+--- a/PREFLIGHT_FIX_KO.md
++++ b/PREFLIGHT_FIX_KO.md
+@@ -1,3 +1,3 @@
+-# 이전 preflight 수정 안내
++# 이전 검증 안내
+ 
+-이 배포에는 후속 수정이 포함되어 있습니다. 현재 안전 경계와 실행 방법은 DEMO_PRIVATE_CHECK_KO.md를 읽으세요.
++현재 격리 모드 단계의 안내는 ISOLATED_START_HERE_KO.md를 읽으세요. 기존 Cross 원장은 그대로 보존합니다.
+--- a/configs/demo-isolated.example.yaml
++++ b/configs/demo-isolated.example.yaml
+@@ -0,0 +1,29 @@
++# DEMO-only sandbox assumptions, never LIVE risk approval. Writes default disabled.
++mode: DEMO
++margin_mode: ISOLATED
++symbols: [BTCUSDT]
++demo_trading_enabled: false
++live_trading_enabled: false
++policy:
++  mode: DEMO
++  sandbox_only: true
++  rules_only: true
++  risk:
++    version: demo-sandbox-v1
++    risk_per_trade_pct: '1'
++    max_leverage: '2'
++    max_concurrent_positions: 3
++    max_single_notional_pct: '100'
++    max_total_notional_pct: '150'
++    max_margin_usage_pct: '75'
++    daily_loss_limit_pct: '5'
++    weekly_loss_limit_pct: '10'
++    max_drawdown_pct: '15'
++    max_correlated_risk_pct: '2'
++    max_slippage_pct: '1'
++    max_spread_pct: '1'
++  fee_rate: '0.0004'
++  funding_allowance_rate: '0.0001'
++  stop_slippage_pct: '0.1'
++  max_snapshot_age_seconds: 30
++  week_start_kst: 0
+--- a/configs/demo.schema.json
++++ b/configs/demo.schema.json
+@@ -377,6 +377,23 @@
+     },
+     "policy": {
+       "$ref": "#/$defs/DemoPolicy"
++    },
++    "margin_mode": {
++      "default": "CROSSED",
++      "enum": [
++        "CROSSED",
++        "ISOLATED"
++      ],
++      "title": "Margin Mode",
++      "type": "string"
++    },
++    "symbols": {
++      "default": [],
++      "items": {
++        "type": "string"
++      },
++      "title": "Symbols",
++      "type": "array"
+     }
+   },
+   "required": [
+--- a/docs/phase4-acceptance.md
++++ b/docs/phase4-acceptance.md
+@@ -1,3 +1,6 @@
++> 후속 격리 모드 수정: 현재 Windows 절차는 `ISOLATED_START_HERE_KO.md`를 따릅니다.
++> 아래 Cross 전용 설명과 이전 검증 결과는 당시 기록입니다. 격리 모드 실제 거래소 검증은 아직 미완료입니다.
++
+ # Phase 4 — DEMO 구현·검증 진행 보고서
+ 
+ 검증일: **2026-10-19 UTC**. 사용자 Phase 4 승인 범위에서 구현했다.
+--- a/docs/phase4-architecture.md
++++ b/docs/phase4-architecture.md
+@@ -1,3 +1,6 @@
++> 후속 격리 모드 수정: 현재 Windows 절차는 `ISOLATED_START_HERE_KO.md`를 따릅니다.
++> 아래 Cross 전용 설명과 이전 검증 결과는 당시 기록입니다. 격리 모드 실제 거래소 검증은 아직 미완료입니다.
++
+ # Phase 4 — DEMO 실행·복구 구현과 검증 경계
+ 
+ **구현/로컬 검증과 실제 DEMO 수락 검증을 구분한다.** 현재 REST/WSS는 프록시 403이고 DEMO 키가 없어
+--- a/docs/phase4-resume.md
++++ b/docs/phase4-resume.md
+@@ -1,3 +1,6 @@
++> 후속 격리 모드 수정: 현재 Windows 절차는 `ISOLATED_START_HERE_KO.md`를 따릅니다.
++> 아래 Cross 전용 설명과 이전 검증 결과는 당시 기록입니다. 격리 모드 실제 거래소 검증은 아직 미완료입니다.
++
+ # Phase 4 실제 DEMO 검증 재개
+ 
+ 현재는 **외부 수락 검증 미완료**다. Phase 5를 시작하지 않는다. 모든 단계는 전용 가상 DEMO 계좌만 사용한다.
+--- a/integrations/binance_usdm/demo.py
++++ b/integrations/binance_usdm/demo.py
+@@ -15,7 +15,7 @@
+ from urllib.error import HTTPError, URLError
+ from urllib.request import Request, build_opener
+ 
+-from pydantic import Field, SecretStr
++from pydantic import Field, SecretStr, model_validator
+ 
+ from integrations.binance_usdm.orders import OrderIntent
+ from integrations.binance_usdm.rest import NoRedirect, RESTResponse, prepare_signed_query
+@@ -54,6 +54,20 @@
+     demo_trading_enabled: bool = Field(default=False, strict=True)
+     live_trading_enabled: Literal[False] = False
+     policy: DemoPolicy
++    margin_mode: Literal["CROSSED", "ISOLATED"] = "CROSSED"
++    symbols: tuple[str, ...] = ()
++
++    @model_validator(mode="after")
++    def verify_scope(self) -> "DemoSettings":
++        if self.margin_mode == "ISOLATED" and (
++            not self.symbols
++            or len(set(self.symbols)) != len(self.symbols)
++            or any(
++                not s.isascii() or not s.isalnum() or not s.endswith("USDT") for s in self.symbols
++            )
++        ):
++            raise ValueError("ISOLATED DEMO requires explicit unique USDT symbols")
++        return self
+ 
+ 
+ @dataclass(frozen=True)
+@@ -229,6 +243,20 @@
+             raise ValueError("DEMO signed request is not allowed")
+         if mutation and not self.settings.demo_trading_enabled:
+             raise DemoFailure("DEMO mutations are disabled by default")
++        if mutation and self.settings.symbols:
++            symbol = values.get("symbol")
++            if method == "DELETE" and path == "/fapi/v1/algoOrder":
++                # Algo cancellation identifies the order without a symbol. Query
++                # the immutable client ID first rather than bypassing scope checks.
++                identifier = values.get("clientAlgoId")
++                if not identifier:
++                    raise DemoFailure("Scoped DEMO Algo cancellation requires client ID")
++                algo = self.request("GET", path, {"clientAlgoId": identifier})
++                if not isinstance(algo, dict):
++                    raise DemoFailure("Invalid DEMO Algo scope response")
++                symbol = algo.get("symbol")
++            if symbol not in self.settings.symbols:
++                raise DemoFailure("DEMO mutation symbol outside configured scope")
+         now = self.clock_ms()
+         if (
+             self.synced_at is None
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -86,18 +86,59 @@
+     positions: dict[str, Decimal] = {}
+     entry_prices: dict[str, Decimal] = {}
+     leverage: dict[str, Decimal] = {}
++    margin_types: dict[str, str] = {}
++    isolated_wallets: dict[str, Decimal] = {}
++    isolated_margins: dict[str, Decimal] = {}
++    liquidation_prices: dict[str, Decimal] = {}
++    scope = set(client.settings.symbols)
+     for item in configs:
+-        if item.get("marginType") != "CROSSED":
+-            raise DemoFailure("DEMO cross margin configuration required")
+-        leverage[item["symbol"]] = number(item["leverage"])
++        symbol = item["symbol"]
++        if symbol in margin_types:
++            raise DemoFailure("Duplicate DEMO symbol configuration")
++        actual_mode = item.get("marginType")
++        if actual_mode not in {"CROSSED", "ISOLATED"}:
++            raise DemoFailure("Unknown DEMO margin mode")
++        margin_types[symbol] = actual_mode
++        if not scope or symbol in scope:
++            if actual_mode != client.settings.margin_mode:
++                raise DemoFailure("DEMO margin mode does not match explicit configuration")
++            auto_add = item.get("isAutoAddMargin")
++            if actual_mode == "ISOLATED" and auto_add is not False and auto_add != "false":
++                raise DemoFailure("ISOLATED requires verified automatic margin addition disabled")
++        leverage[symbol] = number(item["leverage"])
++        if (
++            client.settings.margin_mode == "ISOLATED"
++            and symbol in scope
++            and leverage[symbol] > ledger.policy.limit("max_leverage")
++        ):
++            raise DemoFailure("ISOLATED configured leverage exceeds DEMO policy")
++    if scope - margin_types.keys():
++        raise DemoFailure("Missing configured DEMO symbol settings")
+     for row in positions_raw:
+-        if row.get("positionSide") != "BOTH" or row.get("marginType", "cross") != "cross":
++        if row.get("positionSide") != "BOTH":
+             raise DemoFailure("Unsupported DEMO position mode")
+         symbol = row["symbol"]
+         if symbol in positions:
+             raise DemoFailure("Ambiguous DEMO positions")
+         positions[symbol] = signed_number(row["positionAmt"])
+         entry_prices[symbol] = number(row["entryPrice"], allow_zero=True)
++        if positions[symbol]:
++            if scope and symbol not in scope:
++                raise DemoFailure("DEMO position outside configured symbol scope")
++            expected = client.settings.margin_mode
++            if margin_types.get(symbol) != expected:
++                raise DemoFailure("DEMO position margin settings unavailable or mismatched")
++            if "marginType" in row and row["marginType"] != (
++                "isolated" if expected == "ISOLATED" else "cross"
++            ):
++                raise DemoFailure("DEMO position/config margin mismatch")
++            if expected == "ISOLATED":
++                isolated_wallets[symbol] = number(row["isolatedWallet"])
++                isolated_margins[symbol] = number(row["isolatedMargin"], allow_zero=True)
++                liquidation_prices[symbol] = number(row["liquidationPrice"])
++                # A locked isolated wallet cannot fund another entry. Do not add it
++                # to availableBalance or totalWalletBalance (already account totals).
++                margin = max(margin, sum(isolated_wallets.values(), Decimal(0)))
+         # V3 omits leverage: account configuration is queried separately per symbol.
+ 
+     orders = {str(row["clientOrderId"]): pick(row, ORDER_KEYS) for row in regular}
+@@ -108,6 +149,8 @@
+     }
+     if len(orders) != len(regular) or len(algos) != len(algos_raw):
+         raise DemoFailure("Duplicate remote IDs")
++    if scope and any(row["symbol"] not in scope for row in [*orders.values(), *algos.values()]):
++        raise DemoFailure("DEMO open order outside configured symbol scope")
+     for order in ledger.orders.values():
+         if order.client_id not in orders:
+             try:
+@@ -153,6 +196,12 @@
+         unrealized=str(unrealized),
+         available=str(available),
+         margin=str(margin),
++        margin_types=margin_types,
++        leverage={s: str(q) for s, q in leverage.items()},
++        entry_prices={s: str(q) for s, q in entry_prices.items()},
++        isolated_wallets={s: str(q) for s, q in isolated_wallets.items()},
++        isolated_margins={s: str(q) for s, q in isolated_margins.items()},
++        liquidation_prices={s: str(q) for s, q in liquidation_prices.items()},
+     )
+     transfers: dict[str, str] = {}
+     if ledger.income_since_ms is not None:
+@@ -193,4 +242,8 @@
+         algos=algos,
+         fingerprint=fingerprint,
+         transfers=transfers,
++        margin_types=margin_types,
++        isolated_wallets=isolated_wallets,
++        isolated_margins=isolated_margins,
++        liquidation_prices=liquidation_prices,
+     )
+--- a/scripts/run_demo.py
++++ b/scripts/run_demo.py
+@@ -152,6 +152,8 @@
+                 args.account,
+                 DemoLedger(
+                     policy=config.policy,
++                    margin_mode=config.margin_mode,
++                    symbols=config.symbols,
+                     value=AccountValue(as_of=now, initial=Decimal(1)),
+                     daily_base=Decimal(1),
+                     weekly_base=Decimal(1),
+@@ -212,6 +214,15 @@
+                         "live_trading_enabled": False,
+                         "risk_state": ledger.risk_state.value,
+                         "excluded_symbols": coordinator.excluded_symbols,
++                        "margin_mode": config.margin_mode,
++                        "configured_symbols": config.symbols,
++                        "verified_symbol_settings": {
++                            symbol: {
++                                "margin_mode": ledger.margin_types.get(symbol),
++                                "leverage": str(ledger.verified_leverage.get(symbol)),
++                            }
++                            for symbol in config.symbols
++                        },
+                     }
+                 )
+             )
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -51,6 +51,12 @@
+         self.excluded_symbols: dict[str, str] = {}
+         if store.read(lease.account_id).policy != client.settings.policy:
+             raise RiskRejected("DEMO immutable policy mismatch")
++        stored = store.read(lease.account_id)
++        if (
++            stored.margin_mode != client.settings.margin_mode
++            or stored.symbols != client.settings.symbols
++        ):
++            raise RiskRejected("DEMO immutable margin/symbol scope mismatch; use a separate ledger")
+ 
+     def _fresh(self, ledger: DemoLedger) -> None:
+         now = self.store.now()
+@@ -116,6 +122,8 @@
+             raise RiskRejected("DEMO entry reservations disabled in read-only preflight")
+         if signal.environment != TradingMode.DEMO:
+             raise RiskRejected("Only DEMO signals can reach the DEMO coordinator")
++        if self.client.settings.symbols and signal.symbol not in self.client.settings.symbols:
++            raise RiskRejected("DEMO signal outside configured symbol scope")
+         rules = self.rules.get(signal.symbol)
+         if rules is None:
+             raise RiskRejected("DEMO symbol metadata unavailable")
+@@ -210,6 +218,9 @@
+                 self.refresh_metadata()
+                 if order.signal.symbol not in self.rules:
+                     raise DemoFailure("DEMO symbol metadata unavailable before submission")
++                remote = snapshot(self.client, ledger, self.store.now())
++                if remote.fingerprint != ledger.fingerprint:
++                    raise DemoFailure("DEMO account/margin settings changed before submission")
+                 book = self.client.public(
+                     "/fapi/v1/ticker/bookTicker", {"symbol": order.signal.symbol}
+                 )
+@@ -443,6 +454,10 @@
+         )
+         ledger.available_balance, ledger.margin_used = remote.available_balance, remote.margin_used
+         ledger.positions = remote.positions
++        ledger.margin_types = remote.margin_types
++        ledger.verified_leverage = remote.leverage
++        ledger.isolated_wallets = remote.isolated_wallets
++        ledger.isolated_margins = remote.isolated_margins
+         known_orders = {o.client_id for o in ledger.orders.values()} | {
+             o.exit_id for o in ledger.orders.values() if o.exit_id
+         }
+@@ -618,6 +633,23 @@
+             > remote.equity * ledger.policy.limit("max_correlated_risk_pct") / 100
+         ):
+             ledger.risk_state = RiskState.EMERGENCY
++        if self.client.settings.margin_mode == "ISOLATED":
++            for order in active:
++                if not order.open_quantity:
++                    continue
++                symbol = order.signal.symbol
++                liquidation = remote.liquidation_prices.get(symbol, ZERO)
++                stop = order.signal.initial_stop_price
++                unsafe_stop = (
++                    stop <= liquidation if order.signal.direction == "LONG" else stop >= liquidation
++                )
++                if (
++                    remote.isolated_margins.get(symbol, ZERO) <= ZERO
++                    or remote.isolated_wallets.get(symbol, ZERO) <= ZERO
++                    or liquidation <= ZERO
++                    or unsafe_stop
++                ):
++                    ledger.risk_state = RiskState.EMERGENCY
+         ledger.fingerprint = remote.fingerprint
+         ledger.last_reconciled = now
+         ledger.reconciled = (
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -25,6 +25,12 @@
+     net_transfers: Decimal = Decimal(0)
+     income_since_ms: int | None = None
+     requests: dict[str, str] = Field(default_factory=dict)
++    margin_mode: Literal["CROSSED", "ISOLATED"] = "CROSSED"
++    symbols: tuple[str, ...] = ()
++    margin_types: dict[str, str] = Field(default_factory=dict)
++    verified_leverage: dict[str, Decimal] = Field(default_factory=dict)
++    isolated_wallets: dict[str, Decimal] = Field(default_factory=dict)
++    isolated_margins: dict[str, Decimal] = Field(default_factory=dict)
+ 
+ 
+ class DemoSnapshot(State):
+@@ -39,3 +45,7 @@
+     algos: dict[str, dict[str, str]]
+     fingerprint: str
+     transfers: dict[str, str] = Field(default_factory=dict)
++    margin_types: dict[str, str] = Field(default_factory=dict)
++    isolated_wallets: dict[str, Decimal] = Field(default_factory=dict)
++    isolated_margins: dict[str, Decimal] = Field(default_factory=dict)
++    liquidation_prices: dict[str, Decimal] = Field(default_factory=dict)
+--- a/tests/integration/test_demo_isolated.py
++++ b/tests/integration/test_demo_isolated.py
+@@ -0,0 +1,222 @@
++"""Isolated margin contracts with real PostgreSQL and synthetic DEMO responses."""
++
++import json
++from decimal import Decimal as D
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure, DemoSettings
++from integrations.binance_usdm.demo_snapshot import snapshot as remote_snapshot
++from services.execution.demo import DemoCoordinator
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import enter, posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_paper import signal, snapshot
++
++
++@pytest.fixture
++def system(demo_system):  # noqa: F811
++    return demo_system
++
++
++def configure(system):
++    store, old, fake = system
++    controls = {"auto": "false", "mode": "ISOLATED", "liquidation": "50", "wallet": None}
++
++    def send(method, path, query, api_key):
++        response = fake(method, path, query, api_key)
++        data = json.loads(response.body)
++        if path == "/fapi/v3/account" and controls.get("available") is not None:
++            data["availableBalance"] = controls["available"]
++        if path == "/fapi/v1/symbolConfig":
++            for row in data:
++                if row["symbol"] == "BTCUSDT":
++                    row["marginType"] = controls["mode"]
++                    row["isAutoAddMargin"] = controls["auto"]
++        if path == "/fapi/v3/positionRisk":
++            for row in data:
++                row["marginType"] = "isolated"
++                wallet = abs(D(row["positionAmt"])) * D(row["entryPrice"]) / 2
++                row["isolatedWallet"] = (
++                    str(wallet) if controls["wallet"] is None else controls["wallet"]
++                )
++                row["isolatedMargin"] = str(wallet)
++                row["liquidationPrice"] = controls["liquidation"]
++        return fake.response(data, response.status)
++
++    def bind(ledger):
++        ledger.margin_mode = "ISOLATED"
++        ledger.symbols = ("BTCUSDT",)
++
++    store.change(old.lease, "TEST_ISOLATED_NEW_LEDGER", bind)
++    old.client.settings = DemoSettings.model_validate(
++        old.client.settings.model_dump() | {"margin_mode": "ISOLATED", "symbols": ["BTCUSDT"]}
++    )
++    old.client.send = send
++    c = DemoCoordinator(store, old.lease, old.client)
++    c.refresh_metadata()
++    c.connected()
++    return (store, c, fake), controls
++
++
++def test_isolated_fill_protection_restart_and_flatten(system):
++    isolated, _ = configure(system)
++    store, c, fake = isolated
++    sig, order = enter(isolated)
++    fake.fill(order.client_id, order.quantity)
++    c.reconcile()
++    current = store.read("DEMO-test").orders[str(sig.signal_id)]
++    assert current.protected and current.tp_algo_id
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    remote = remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert remote.isolated_wallets["BTCUSDT"] > 0
++    assert remote.margin_used >= remote.isolated_wallets["BTCUSDT"]
++    assert remote.equity == fake.wallet  # No double counting of isolated collateral.
++    restart = DemoCoordinator(store, c.lease, c.client)
++    restart.refresh_metadata()
++    restart.connected()
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    restart.command(uuid4(), "EMERGENCY_FLATTEN")
++    assert fake.positions["BTCUSDT"] == 0
++    assert all(p["type"] == "LIMIT" or p.get("reduceOnly") == "true" for p in posts(fake))
++
++
++@pytest.mark.parametrize("value", [True, "true", None, 0])
++def test_auto_add_margin_must_be_verified_disabled(system, value):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    controls["auto"] = value
++    with pytest.raises(DemoFailure, match="automatic margin addition disabled"):
++        remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert not posts(fake)
++
++
++def test_isolated_mode_change_is_not_accepted(system):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    controls["mode"] = "CROSSED"
++    with pytest.raises(DemoFailure, match="margin mode does not match"):
++        remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert not posts(fake)
++
++
++def test_scope_blocks_other_symbol_reservations_and_mutations(system):
++    isolated, _ = configure(system)
++    _, c, fake = isolated
++    with pytest.raises(RiskRejected, match="outside configured"):
++        c.reserve(signal(symbol="ETHUSDT", environment="DEMO"), snapshot())
++    with pytest.raises(DemoFailure, match="outside configured"):
++        c.client.request("POST", "/fapi/v1/order", {"symbol": "ETHUSDT", "type": "LIMIT"})
++    assert not posts(fake)
++
++
++def test_existing_cross_ledger_cannot_silently_switch_to_isolated(system):
++    store, c, _ = system
++    c.client.settings = DemoSettings.model_validate(
++        c.client.settings.model_dump() | {"margin_mode": "ISOLATED", "symbols": ["BTCUSDT"]}
++    )
++    with pytest.raises(RiskRejected, match="immutable margin"):
++        DemoCoordinator(store, c.lease, c.client)
++
++
++def test_isolated_does_not_treat_locked_wallet_as_available_balance(system):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    controls["available"] = "0"
++    c.reconcile()
++    assert store.read("DEMO-test").value.equity == fake.wallet
++    assert store.read("DEMO-test").available_balance == 0
++    with pytest.raises(RiskRejected, match="reservation/filter/leverage/exposure cap"):
++        c.reserve(signal(environment="DEMO"), snapshot())
++    assert not posts(fake)
++
++
++def test_stop_beyond_liquidation_triggers_risk_reduction(system):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    sig, order = enter(isolated)
++    fake.fill(order.client_id, order.quantity)
++    controls["liquidation"] = "101"
++    c.reconcile()
++    assert fake.positions["BTCUSDT"] == 0
++    assert any(p.get("reduceOnly") == "true" for p in posts(fake))
++
++
++def test_isolated_scope_requires_explicit_symbols(system):
++    _, c, _ = system
++    with pytest.raises(ValueError, match="explicit unique"):
++        DemoSettings.model_validate(
++            c.client.settings.model_dump() | {"margin_mode": "ISOLATED", "symbols": []}
++        )
++
++
++def test_isolated_leverage_cap_is_checked_even_when_flat(system):
++    isolated, _ = configure(system)
++    store, c, fake = isolated
++    fake.leverage = "20"
++    with pytest.raises(DemoFailure, match="leverage exceeds"):
++        remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert not posts(fake)
++
++
++def test_changed_margin_mode_between_reservation_and_submit_sends_no_order(system):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    sig = signal(environment="DEMO")
++    c.reserve(sig, snapshot())
++    controls["mode"] = "CROSSED"
++    with pytest.raises(DemoFailure):
++        c.submit(str(sig.signal_id))
++    assert not posts(fake)
++
++
++def test_isolated_rejects_other_symbol_exposure(system):
++    isolated, _ = configure(system)
++    store, c, fake = isolated
++    fake.positions["ETHUSDT"] = D("1")
++    fake.prices["ETHUSDT"] = D("100")
++    with pytest.raises(DemoFailure, match="outside configured symbol scope"):
++        remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert not posts(fake)
++
++
++def test_filled_isolated_position_requires_positive_verified_collateral(system):
++    isolated, controls = configure(system)
++    store, c, fake = isolated
++    sig, order = enter(isolated)
++    fake.fill(order.client_id, order.quantity)
++    controls["wallet"] = "0"
++    with pytest.raises(ValueError, match="Invalid filter amount"):
++        remote_snapshot(c.client, store.read("DEMO-test"), store.now())
++    assert len(posts(fake)) == 1
++
++
++@pytest.mark.parametrize(
++    "scenario",
++    [
++        "test_demo_lost_response_is_queried_without_resubmit",
++        "test_partial_fill_immediately_has_separate_verified_stop_and_tp",
++        "test_cancel_timeout_keeps_budget_and_late_fill_gets_protection",
++        "test_stop_failure_blocks_and_attempts_reduce_only_exit",
++        "test_tp_fill_verified_flat_before_leftover_stop_removed",
++        "test_emergency_ack_not_flat_and_duplicate_operation_no_second_exit",
++        "test_restart_fences_old_leader_and_recovers_pending_order",
++    ],
++)
++def test_isolated_runs_existing_fault_acceptance_scenarios(system, scenario):
++    from tests.integration import test_demo
++
++    isolated, _ = configure(system)
++    getattr(test_demo, scenario)(isolated)
++
++
++def test_scoped_algo_cleanup_cannot_cancel_other_symbol(system):
++    isolated, _ = configure(system)
++    _, c, fake = isolated
++    fake.algos["foreign-algo"] = {"symbol": "ETHUSDT", "algoStatus": "NEW"}
++    before = len(fake.calls)
++    with pytest.raises(DemoFailure, match="outside configured scope"):
++        c.client.request("DELETE", "/fapi/v1/algoOrder", {"clientAlgoId": "foreign-algo"})
++    assert all(method == "GET" for method, path, params in fake.calls[before:])
++    assert fake.algos["foreign-algo"]["algoStatus"] == "NEW"
+--- a/tests/unit/test_demo_metadata_preflight.py
++++ b/tests/unit/test_demo_metadata_preflight.py
+@@ -19,9 +19,13 @@
+         if f["filterType"] == "LOT_SIZE":
+             f["stepSize"] = "0"
+     info["symbols"].append(bad)
+-    settings = SimpleNamespace(policy="synthetic", demo_trading_enabled=enabled)
++    settings = SimpleNamespace(
++        policy="synthetic", demo_trading_enabled=enabled, margin_mode="CROSSED", symbols=()
++    )
+     client = SimpleNamespace(settings=settings, public=lambda path: info)
+-    store = SimpleNamespace(read=lambda account: SimpleNamespace(policy="synthetic"))
++    store = SimpleNamespace(
++        read=lambda account: SimpleNamespace(policy="synthetic", margin_mode="CROSSED", symbols=())
++    )
+     return DemoCoordinator(store, SimpleNamespace(account_id="DEMO-test"), client), info
+ 
+ 
