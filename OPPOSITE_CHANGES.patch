@@ -1,0 +1,707 @@
+--- a/CHECK-DEMO.cmd
++++ b/CHECK-DEMO.cmd
+@@ -1,15 +1,15 @@
+-@echo off
+-chcp 65001 >nul
+-setlocal
+-cd /d "%~dp0"
+-echo Binance DEMO 공개 REST 및 WebSocket 확인. 키 미사용, 주문 없음.
+-docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -c "import asyncio,json,sys; from scripts.demo_probe import probe; r=asyncio.run(probe()); print(json.dumps(r,indent=2)); sys.exit(0 if r['rest']=='PASS' and r['websocket']=='PASS' else 1)"
+-if errorlevel 1 goto failed
+-echo REST 및 WebSocket 모두 PASS입니다. 키 인증 및 DEMO 주문은 아직 검증하지 않았습니다.
+-pause
+-exit /b 0
+-:failed
+-echo 연결 확인이 완료되지 않았습니다. START-WINDOWS.cmd가 성공했는지 확인하세요.
+-echo 위 결과를 대화에 보내주세요. API 키는 필요 없습니다.
+-pause
+-exit /b 1
++@echo off
++chcp 65001 >nul
++setlocal
++cd /d "%~dp0"
++echo Binance DEMO 공개 REST 및 WebSocket 확인. 키 미사용, 주문 없음.
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -c "import asyncio,json,sys; from scripts.demo_probe import probe; r=asyncio.run(probe()); print(json.dumps(r,indent=2)); sys.exit(0 if r['rest']=='PASS' and r['websocket']=='PASS' else 1)"
++if errorlevel 1 goto failed
++echo REST 및 WebSocket 모두 PASS입니다. 키 인증 및 DEMO 주문은 아직 검증하지 않았습니다.
++pause
++exit /b 0
++:failed
++echo 연결 확인이 완료되지 않았습니다. START-WINDOWS.cmd가 성공했는지 확인하세요.
++echo 위 결과를 대화에 보내주세요. API 키는 필요 없습니다.
++pause
++exit /b 1
+--- a/DEMO_OPPOSITE_OPERATION_ID.txt
++++ b/DEMO_OPPOSITE_OPERATION_ID.txt
+@@ -0,0 +1 @@
++892f0bd6-66ba-4534-80b3-074039f676fb
+--- a/MINIMUM_START_HERE_KO.md
++++ b/MINIMUM_START_HERE_KO.md
+@@ -1,3 +1,5 @@
++> 이전 PASSIVE 검증 절차입니다. 이미 미체결·취소·flat으로 종료된 작업의 ID를 새 방식에 사용하지 마세요. 현재 절차는 OPPOSITE_START_HERE_KO.md를 따릅니다.
++
+ # Phase 4 최소 수량 DEMO 주문 검증
+ 
+ 이 버전에는 실제 Binance DEMO 모의 주문을 전송하는 명령이 있습니다. 실거래는 금지이며 Phase 5는 시작하지 않습니다.
+--- a/OPPOSITE_START_HERE_KO.md
++++ b/OPPOSITE_START_HERE_KO.md
+@@ -0,0 +1,54 @@
++# Phase 4 반대 호가 지정가 DEMO 검증
++
++이전 작업은 미체결·취소·flat으로 끝났습니다. 그 작업 ID는 그대로 보존하고 다른 진입 방식으로 덮어쓰지 않습니다.
++이번 명령은 조회 전용이 아닙니다. 현재 매도 1호가를 가격 상한으로 하는 최소 수량 LONG 지정가 1건을 DEMO에 시도합니다.
++시장가 신규 진입/자동 가격 추격/재호가/추가 진입은 없습니다. 호가 이동·유동성 부족으로 미체결될 수도 있습니다.
++
++## 설치
++
++Docker Desktop을 켜고 새 ZIP을 모두 추출합니다. windows-demo-opposite 폴더에서 infra가 보이는 위치로 들어가
++탐색기 주소창에 cmd를 입력합니다. 아래 명령은 이미지 갱신만 하며 주문을 보내지 않습니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows DB/원장/폴더를 삭제하지 마세요. down -v를 사용하지 마세요.
++실제 .env/개인 키 파일을 새 폴더에 복사하지 않습니다. API/웹은 PAPER·주문 비활성을 유지합니다.
++Binance DEMO는 BTCUSDT Isolated·2배, 포지션/미체결 0개, 다른 봇/수동 거래 없는 상태를 유지합니다.
++
++## Healthy 확인 후 실제 DEMO 검증
++
++아래는 이전 미체결과 구분된 새 작업입니다. 새 ID는 DEMO_OPPOSITE_OPERATION_ID.txt에 저장되어 있습니다.
++실행 전에 기존 미체결 작업이 FINISHED_FLAT으로 끝났는지 확인합니다. 원장을 초기화하지 않습니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -c "import getpass,os,runpy,sys; os.environ['LIVE_TRADING_ENABLED']='false'; os.environ['BINANCE_DEMO_API_KEY']=getpass.getpass('DEMO API Key (hidden): '); os.environ['BINANCE_DEMO_API_SECRET']=getpass.getpass('DEMO Secret (hidden): '); sys.argv=['scripts.run_demo','--config','configs/demo-isolated.example.yaml','--account','DEMO-WINDOWS-ISOLATED-BTC-V1','--enable-demo','--validate-minimum','LONG','--entry-style','OPPOSITE_QUOTE','--operation-id','892f0bd6-66ba-4534-80b3-074039f676fb']; runpy.run_module('scripts.run_demo',run_name='__main__')"
++```
++
++DEMO API Key/Secret을 차례대로 숨김 입력에 넣고 Enter를 누릅니다. 글자가 보이지 않는 것이 정상입니다.
++숨김 입력 불가 경고가 나오면 Ctrl+C로 중단하고 키를 입력하지 마세요.
++키/Secret/서명/listenKey를 채팅이나 스크린샷으로 보내지 마세요.
++입력 후 조회·보호 준비·약 30초 관찰·종료 대조를 기다립니다. 창을 닫거나 절전/수동 거래하지 마세요.
++오류나 UNRESOLVED_DO_NOT_REPEAT이면 새 ID로 반복하지 말고 정제 결과만 공유합니다.
++같은 작업 ID는 기존 작업을 복구하며 추가 진입을 생성하지 않습니다. 가격 방식 변경도 거부합니다.
++
++## 변경된 가격 방식
++
++- 기본 PASSIVE 동작은 유지됩니다. OPPOSITE_QUOTE는 명시적 DEMO 검증 또는 조회 전용 미리보기에서만 선택합니다.
++- LONG은 현재 ask, SHORT는 현재 bid를 그대로 지정가로 사용합니다.
++- 양쪽 호가가 거래소 tick 규칙과 맞아야 합니다. 어긋난 호가에 가격 여유를 더해 주문하지 않습니다.
++- 가격·수량을 한 번 고정하고 전송 전 최신 호가/mark/계좌 상태를 재검사합니다. 실제 주문 가격을 자동으로 올려 따라가지 않습니다.
++- 최소 유효 수량·수량 상한·제출 명목금액 100 USDT 한도·Isolated·2배·LIVE false를 유지합니다.
++- 손절/익절 가정 0.5%/1%와 생성·조회 검증, 미체결 잔량 취소, 필요시 reduce-only 종료 및 실제 flat 확인 절차는 이전과 같습니다.
++- RESERVED_NOT_YET_SUBMITTED의 entry_style=OPPOSITE_QUOTE를 확인하세요.
++
++## 결과 구분
++
++FINISHED_FLAT은 마지막 대조에서 포지션·활성 일반 주문·활성 Algo 주문이 없는 상태를 확인했다는 뜻입니다.
++entry_outcome=UNFILLED이면 체결/보호 주문 검증은 미완료입니다. PARTIAL_FILL과 FULL_FILL도 구분합니다.
++filled_protection_and_flat_verified=true는 실제 체결·SL/TP 주문 상태 조회·flat 종료를 확인했다는 뜻이며
++SL/TP의 실제 trigger 체결이나 Phase 4 전체 완료를 의미하지 않습니다.
++EMERGENCY 잠금이 남으면 자동 해제하지 않습니다. 새 작업으로 우회하지 않습니다.
++
++실제 Binance 실행 전에는 체결 성공/보호 기능 지원을 보장하지 않습니다. 실거래와 Phase 5는 시작하지 않습니다.
+--- a/OPPOSITE_VALIDATION_KO.md
++++ b/OPPOSITE_VALIDATION_KO.md
+@@ -0,0 +1,23 @@
++# 반대 호가 지정가 DEMO 검증 준비 기록
++
++Python 전체: 361 passed / 0 failed / 0 skipped (60.27초).
++실제 PostgreSQL 격리 schema와 localhost WebSocket, 합성 거래소 응답/자격증명을 사용했습니다.
++전체 mypy strict 62 source 통과. 변경 파일 Ruff check/format 통과.
++
++추가 검증:
++- 읽기 전용 LONG=ask / SHORT=bid, 정확한 tick 가격 사용, tick 불일치 거부.
++- LONG/SHORT에서 LIMIT 1회·수량 상한 유지·미체결 취소·체결 후 SL/TP 확인 및 실제 flat 정리.
++- 같은 작업 ID의 방식 변경 거부, 동일 방식 복구 시 가격 추격/추가 진입 없음.
++- 일반 실행에 명시적 반대 호가 옵션을 잘못 혼용하면 인증 전 거부.
++- 거래소 필드 누락/숫자 형식 오류를 DemoFailure로 정제해 기존 최소 positionRisk 위험 축소 경로로 연결.
++  기존 필터 불량 테스트도 동일한 필드 거부와 주문 미전송을 유지하며 예외 종류만 정제된 도메인 오류로 갱신했습니다.
++- 체결 후 격리 담보 필드 누락을 주입해 reduce-only 종료 시도가 실행됨을 확인했습니다.
++
++기본 PASSIVE·TTL·금액/수량 한도·LIVE false·PAPER 기본 API·계좌 마진 모드 자동 변경 금지는 유지합니다.
++main/이전 ZIP/의존성 lockfile/MASTER_SPEC/AGENTS/실거래 위험 설정은 변경하지 않았습니다.
++프런트엔드는 변경/재검증하지 않았습니다.
++
++실제 Windows Binance 관측: 이전 작업은 entry_state=CANCELED / entry_outcome=UNFILLED / FINISHED_FLAT,
++수량 0.0007 BTC, stop/target 미검증, session_error=false였습니다(사용자 화면 증거).
++새 OPPOSITE_QUOTE 실제 Binance 실행은 아직 하지 않았습니다. 체결이나 보호 주문 지원을 보장하지 않습니다.
++Phase 4 전체 완료를 선언하지 않으며 실거래와 Phase 5는 시작하지 않았습니다.
+--- a/START-WINDOWS.cmd
++++ b/START-WINDOWS.cmd
+@@ -1,38 +1,38 @@
+-@echo off
+-chcp 65001 >nul
+-setlocal
+-cd /d "%~dp0"
+-echo [1/4] Docker Desktop 확인 중...
+-docker compose version >nul 2>&1
+-if errorlevel 1 goto missingdocker
+-docker info >nul 2>&1
+-if errorlevel 1 goto notrunning
+-echo [2/4] 실행 설정 확인 중...
+-docker compose -p hybrid-windows -f infra/docker-compose.yml config --quiet
+-if errorlevel 1 goto failed
+-echo [3/4] 설치 및 실행 중. 최초 실행은 인터넷 속도에 따라 오래 걸립니다.
+-docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait --wait-timeout 180
+-if errorlevel 1 goto failed
+-echo [4/4] 실거래 비활성 및 DB 상태 확인 중...
+-docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -c "import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/ready',timeout=10)); assert r['environment']=='PAPER' and r['live_trading_enabled'] is False and r['orders_enabled'] is False and r['database']=='ready'; print('PASS: PAPER, orders disabled, database ready')"
+-if errorlevel 1 goto failed
+-echo.
+-echo 실행 완료. 이 Windows 컴퓨터의 브라우저 주소창에 입력하세요:
+-echo http://localhost:5173
+-echo 다음으로 CHECK-DEMO.cmd를 실행하면 키 없이 공개 연결만 확인합니다.
+-echo 현재 자동매매 및 실거래는 실행되지 않습니다.
+-pause
+-exit /b 0
+-:missingdocker
+-echo Docker Desktop 설치가 필요합니다. WINDOWS_START_HERE.md를 확인하세요.
+-pause
+-exit /b 1
+-:notrunning
+-echo Docker Desktop을 열고 Engine running 상태가 된 뒤 다시 실행하세요.
+-pause
+-exit /b 1
+-:failed
+-echo 실행에 실패했습니다. 이 창의 마지막 오류 부분을 복사해 대화에 보내주세요.
+-echo API 키나 비밀번호는 보내지 마세요. 보안 설정을 끄지 마세요.
+-pause
+-exit /b 1
++@echo off
++chcp 65001 >nul
++setlocal
++cd /d "%~dp0"
++echo [1/4] Docker Desktop 확인 중...
++docker compose version >nul 2>&1
++if errorlevel 1 goto missingdocker
++docker info >nul 2>&1
++if errorlevel 1 goto notrunning
++echo [2/4] 실행 설정 확인 중...
++docker compose -p hybrid-windows -f infra/docker-compose.yml config --quiet
++if errorlevel 1 goto failed
++echo [3/4] 설치 및 실행 중. 최초 실행은 인터넷 속도에 따라 오래 걸립니다.
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait --wait-timeout 180
++if errorlevel 1 goto failed
++echo [4/4] 실거래 비활성 및 DB 상태 확인 중...
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -c "import json,urllib.request; r=json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/ready',timeout=10)); assert r['environment']=='PAPER' and r['live_trading_enabled'] is False and r['orders_enabled'] is False and r['database']=='ready'; print('PASS: PAPER, orders disabled, database ready')"
++if errorlevel 1 goto failed
++echo.
++echo 실행 완료. 이 Windows 컴퓨터의 브라우저 주소창에 입력하세요:
++echo http://localhost:5173
++echo 다음으로 CHECK-DEMO.cmd를 실행하면 키 없이 공개 연결만 확인합니다.
++echo 현재 자동매매 및 실거래는 실행되지 않습니다.
++pause
++exit /b 0
++:missingdocker
++echo Docker Desktop 설치가 필요합니다. WINDOWS_START_HERE.md를 확인하세요.
++pause
++exit /b 1
++:notrunning
++echo Docker Desktop을 열고 Engine running 상태가 된 뒤 다시 실행하세요.
++pause
++exit /b 1
++:failed
++echo 실행에 실패했습니다. 이 창의 마지막 오류 부분을 복사해 대화에 보내주세요.
++echo API 키나 비밀번호는 보내지 마세요. 보안 설정을 끄지 마세요.
++pause
++exit /b 1
+--- a/STOP-WINDOWS.cmd
++++ b/STOP-WINDOWS.cmd
+@@ -1,14 +1,14 @@
+-@echo off
+-chcp 65001 >nul
+-setlocal
+-cd /d "%~dp0"
+-echo 프로그램을 종료합니다. Windows 개발 DB 데이터는 보존합니다.
+-docker compose -p hybrid-windows -f infra/docker-compose.yml down
+-if errorlevel 1 goto failed
+-echo 종료 완료.
+-pause
+-exit /b 0
+-:failed
+-echo 종료 실패. 오류 내용을 확인하세요. DB 삭제 명령은 실행하지 마세요.
+-pause
+-exit /b 1
++@echo off
++chcp 65001 >nul
++setlocal
++cd /d "%~dp0"
++echo 프로그램을 종료합니다. Windows 개발 DB 데이터는 보존합니다.
++docker compose -p hybrid-windows -f infra/docker-compose.yml down
++if errorlevel 1 goto failed
++echo 종료 완료.
++pause
++exit /b 0
++:failed
++echo 종료 실패. 오류 내용을 확인하세요. DB 삭제 명령은 실행하지 마세요.
++pause
++exit /b 1
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -3,7 +3,7 @@
+ import hashlib
+ import json
+ from datetime import datetime
+-from decimal import Decimal
++from decimal import Decimal, InvalidOperation
+ from typing import Any
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+@@ -59,6 +59,15 @@
+ 
+ 
+ def snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++    try:
++        return _snapshot(client, ledger, now)
++    except (KeyError, TypeError, ValueError, InvalidOperation, OverflowError):
++        # Keep malformed financial responses inside the coordinator's existing
++        # fail-closed/minimal-position emergency reconciliation path.
++        raise DemoFailure("Invalid/incomplete DEMO snapshot") from None
++
++
++def _snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
+     mode = client.request("GET", "/fapi/v1/positionSide/dual")
+     assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
+     if (
+--- a/scripts/run_demo.py
++++ b/scripts/run_demo.py
+@@ -116,6 +116,12 @@
+     parser.add_argument("--command", choices=["PAUSE_ENTRIES", "SAFE_STOP", "EMERGENCY_FLATTEN"])
+     parser.add_argument("--operation-id", type=UUID)
+     parser.add_argument(
++        "--entry-style",
++        choices=["PASSIVE", "OPPOSITE_QUOTE"],
++        default="PASSIVE",
++        help="Explicit diagnostic limit-price source; never market conversion",
++    )
++    parser.add_argument(
+         "--validate-minimum",
+         choices=["LONG", "SHORT"],
+         help="One capped DEMO-only operational entry with final flatten verification",
+@@ -134,6 +140,8 @@
+     config = DemoSettings.model_validate(yaml.load(args.config.read_text(), Loader=UniqueKeyLoader))
+     if args.enable_demo:
+         config = DemoSettings.model_validate(config.model_dump() | {"demo_trading_enabled": True})
++    if args.entry_style != "PASSIVE" and not (args.validate_minimum or args.preview_entry):
++        parser.error("--entry-style requires --validate-minimum or read-only --preview-entry")
+     if args.validate_minimum and (
+         not args.enable_demo
+         or not args.operation_id
+@@ -233,9 +241,18 @@
+             )
+         elif args.validate_minimum:
+             client.settings = config
+-            asyncio.run(validate_once(coordinator, args.operation_id, args.validate_minimum))
++            asyncio.run(
++                validate_once(
++                    coordinator,
++                    args.operation_id,
++                    args.validate_minimum,
++                    entry_style=args.entry_style,
++                )
++            )
+         elif args.preview_entry:
+-            print(json.dumps(preview(client, store.read(args.account))))
++            print(
++                json.dumps(preview(client, store.read(args.account), entry_style=args.entry_style))
++            )
+         elif args.check_private:
+             client.settings = config
+             asyncio.run(check_private(coordinator))
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -2,7 +2,7 @@
+ 
+ from decimal import Decimal
+ from hashlib import sha256
+-from typing import Any
++from typing import Any, Literal
+ from uuid import UUID
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoRejected
+@@ -118,9 +118,18 @@
+             raise RiskRejected("Excluded DEMO symbol has exposure; manual review required")
+ 
+     def reserve(
+-        self, signal: Signal, gate: GateSnapshot, *, quantity_cap: Decimal | None = None
++        self,
++        signal: Signal,
++        gate: GateSnapshot,
++        *,
++        quantity_cap: Decimal | None = None,
++        entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "PASSIVE",
+     ) -> PaperOrder:
+         signal = Signal.model_validate(signal.model_dump())
++        if entry_style not in {"PASSIVE", "OPPOSITE_QUOTE"} or (
++            signal.purpose != "DEMO_VALIDATION" and entry_style != "PASSIVE"
++        ):
++            raise RiskRejected("Explicit opposite-quote style is restricted to DEMO validation")
+         if quantity_cap is not None:
+             quantity_cap = number(quantity_cap)
+         if signal.purpose == "DEMO_VALIDATION" and (
+@@ -146,6 +155,8 @@
+                     raise RiskRejected("Conflicting DEMO signal ID")
+                 if ledger.entry_quantity_caps.get(key) != quantity_cap:
+                     raise RiskRejected("Conflicting DEMO quantity cap for existing signal")
++                if ledger.validation_entry_styles.get(key, "PASSIVE") != entry_style:
++                    raise RiskRejected("Conflicting DEMO validation entry style")
+                 return ledger.orders[key].model_copy(deep=True)
+             self._fresh(ledger)
+             # Re-fetch under the same account lock before granting a new reservation.
+@@ -216,6 +227,8 @@
+                 budget=quantity * loss,
+             )
+             ledger.orders[key] = order
++            if signal.purpose == "DEMO_VALIDATION":
++                ledger.validation_entry_styles[key] = entry_style
+             if quantity_cap is not None:
+                 ledger.entry_quantity_caps[key] = quantity_cap
+             return order.model_copy(deep=True)
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -33,6 +33,9 @@
+     isolated_margins: dict[str, Decimal] = Field(default_factory=dict)
+     entry_quantity_caps: dict[str, PositiveDecimal] = Field(default_factory=dict)
+     validation_evidence: dict[str, dict[str, bool]] = Field(default_factory=dict)
++    validation_entry_styles: dict[str, Literal["PASSIVE", "OPPOSITE_QUOTE"]] = Field(
++        default_factory=dict
++    )
+ 
+ 
+ class DemoSnapshot(State):
+--- a/services/execution/demo_preview.py
++++ b/services/execution/demo_preview.py
+@@ -2,7 +2,7 @@
+ 
+ from datetime import UTC, datetime, timedelta
+ from decimal import ROUND_CEILING, Decimal, localcontext
+-from typing import Any
++from typing import Any, Literal
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure
+ from integrations.binance_usdm.demo_snapshot import snapshot
+@@ -21,7 +21,14 @@
+         return (value / step).to_integral_value(rounding=ROUND_CEILING) * step
+ 
+ 
+-def preview(client: DemoClient, ledger: DemoLedger) -> dict[str, Any]:
++def preview(
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "PASSIVE",
++) -> dict[str, Any]:
++    if entry_style not in {"PASSIVE", "OPPOSITE_QUOTE"}:
++        raise PreviewBlocked("Invalid preview entry style")
+     if client.settings.demo_trading_enabled:
+         raise PreviewBlocked("Preview requires writes disabled")
+     if client.settings.margin_mode != "ISOLATED" or client.settings.symbols != ("BTCUSDT",):
+@@ -72,10 +79,16 @@
+     illustrations = []
+     with localcontext() as ctx:
+         ctx.prec = 80
+-        for direction, raw_price in (("LONG", bid), ("SHORT", ask)):
++        quotes = (("LONG", bid), ("SHORT", ask))
++        if entry_style == "OPPOSITE_QUOTE":
++            # No tick padding or price chase: the opposite quote must itself be valid.
++            rules.validate_price(bid)
++            rules.validate_price(ask)
++            quotes = (("LONG", ask), ("SHORT", bid))
++        for direction, raw_price in quotes:
+             price = (
+                 rules.floor_price(raw_price)
+-                if direction == "LONG"
++                if (direction == "LONG") == (entry_style == "PASSIVE")
+                 else ceil_step(raw_price, rules.tick_size)
+             )
+             if price <= 0:
+@@ -158,6 +171,7 @@
+         preview="READ_ONLY_NOT_EXECUTABLE",
+         symbol=symbol,
+         margin_mode="ISOLATED",
++        entry_style=entry_style,
+         leverage=str(leverage),
+         orders_enabled=False,
+         live_trading_enabled=False,
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -20,7 +20,11 @@
+ 
+ 
+ def prepare(
+-    coordinator: DemoCoordinator, operation_id: UUID, direction: Literal["LONG", "SHORT"]
++    coordinator: DemoCoordinator,
++    operation_id: UUID,
++    direction: Literal["LONG", "SHORT"],
++    *,
++    entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "PASSIVE",
+ ) -> tuple[Signal, GateSnapshot, Decimal]:
+     if direction not in {"LONG", "SHORT"}:
+         raise DemoFailure("Validation direction must be explicit")
+@@ -40,7 +44,7 @@
+         clock_ms=client.clock_ms,
+     )
+     observer.sync_clock()
+-    report = preview(observer, ledger)
++    report = preview(observer, ledger, entry_style=entry_style)
+     item = next(row for row in report["illustrations"] if row["direction"] == direction)
+     if Decimal(item["notional_usdt"]) > MAX_TEST_NOTIONAL:
+         raise DemoFailure("Minimum DEMO validation order exceeds 100 USDT test ceiling")
+@@ -103,6 +107,7 @@
+     direction: Literal["LONG", "SHORT"],
+     *,
+     observation_seconds: float = 30,
++    entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "PASSIVE",
+ ) -> None:
+     """Keep the private supervisor active, then cancel residual entry and verify flat.
+ 
+@@ -114,6 +119,7 @@
+         or coordinator.client.settings.margin_mode != "ISOLATED"
+         or coordinator.client.settings.symbols != ("BTCUSDT",)
+         or direction not in {"LONG", "SHORT"}
++        or entry_style not in {"PASSIVE", "OPPOSITE_QUOTE"}
+     ):
+         raise DemoFailure("Validation requires explicit enabled ISOLATED BTCUSDT context")
+     store, lease = coordinator.store, coordinator.lease
+@@ -124,6 +130,7 @@
+     if key in original.orders and (
+         original.orders[key].signal.purpose != "DEMO_VALIDATION"
+         or original.orders[key].signal.direction != direction
++        or original.validation_entry_styles.get(key, "PASSIVE") != entry_style
+     ):
+         raise DemoFailure("Validation operation ID conflict")
+     if key not in original.orders and (
+@@ -141,8 +148,10 @@
+             current = store.read(lease.account_id)
+             if key not in current.orders:
+                 coordinator.resume_entries(uuid5(operation_id, "resume"))
+-                signal, gate, cap = prepare(coordinator, operation_id, direction)
+-                order = coordinator.reserve(signal, gate, quantity_cap=cap)
++                signal, gate, cap = prepare(
++                    coordinator, operation_id, direction, entry_style=entry_style
++                )
++                order = coordinator.reserve(signal, gate, quantity_cap=cap, entry_style=entry_style)
+                 print(
+                     json.dumps(
+                         dict(
+@@ -150,6 +159,7 @@
+                             environment="DEMO",
+                             operation_id=key,
+                             purpose="DEMO_VALIDATION",
++                            entry_style=entry_style,
+                             direction=direction,
+                             quantity=str(order.quantity),
+                             quantity_cap=str(cap),
+--- a/tests/integration/test_demo_isolated.py
++++ b/tests/integration/test_demo_isolated.py
+@@ -187,7 +187,7 @@
+     sig, order = enter(isolated)
+     fake.fill(order.client_id, order.quantity)
+     controls["wallet"] = "0"
+-    with pytest.raises(ValueError, match="Invalid filter amount"):
++    with pytest.raises(DemoFailure, match="Invalid/incomplete DEMO snapshot"):
+         remote_snapshot(c.client, store.read("DEMO-test"), store.now())
+     assert len(posts(fake)) == 1
+ 
+--- a/tests/integration/test_demo_opposite_quote.py
++++ b/tests/integration/test_demo_opposite_quote.py
+@@ -0,0 +1,144 @@
++"""Opposite-quote LIMIT validation preserves caps, idempotency and cancellation."""
++
++import asyncio
++from decimal import Decimal as D
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_preview import preview
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture
++def quote_context(preview_case):  # noqa: F811
++    return preview_case
++
++
++@pytest.fixture
++def order_context(validation_case):  # noqa: F811
++    return validation_case
++
++
++def test_read_only_opposite_quote_uses_exact_ask_for_buy_and_bid_for_sell(quote_context):
++    store, c, fake, _, _ = quote_context
++    before = len(fake.calls)
++    report = preview(c.client, store.read("DEMO-test"), entry_style="OPPOSITE_QUOTE")
++    long, short = report["illustrations"]
++    assert D(long["limit_price"]) == D(report["ask"])
++    assert D(short["limit_price"]) == D(report["bid"])
++    assert all(
++        r["entry_type"] == "LIMIT" and r["quantity"] == r["execution_quantity_cap"]
++        for r in (long, short)
++    )
++    assert all(method == "GET" for method, path, params in fake.calls[before:])
++
++
++def test_quote_not_on_tick_is_rejected_without_padding(quote_context):
++    store, c, _, _, market = quote_context
++    market["ask"] = "100.11"
++    with pytest.raises(ValueError, match="PRICE_FILTER"):
++        preview(c.client, store.read("DEMO-test"), entry_style="OPPOSITE_QUOTE")
++
++
++@pytest.mark.parametrize("direction", ["LONG", "SHORT"])
++def test_opposite_quote_sends_one_limit_with_exact_bound(order_context, direction, monkeypatch):
++    store, c, fake, _ = order_context
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, direction, monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    entry = posts(fake)
++    assert len(entry) == 1 and entry[0]["type"] == "LIMIT"
++    assert D(entry[0]["price"]) == D("100.1" if direction == "LONG" else "100")
++    order = store.read("DEMO-test").orders[str(operation)]
++    assert (
++        D(entry[0]["quantity"])
++        == order.quantity
++        == store.read("DEMO-test").entry_quantity_caps[str(operation)]
++    )
++    assert order.remaining == 0 and order.filled == 0
++    assert store.read("DEMO-test").validation_entry_styles[str(operation)] == "OPPOSITE_QUOTE"
++
++
++def test_changing_style_cannot_reuse_prior_passive_operation(order_context, monkeypatch):
++    store, c, fake, _ = order_context
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    before = len(fake.calls)
++    with pytest.raises(DemoFailure, match="operation ID conflict"):
++        asyncio.run(exercise(c, operation, "LONG", monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    assert len(fake.calls) == before
++
++
++def test_opposite_quote_recovery_does_not_chase_or_resubmit(order_context, monkeypatch):
++    store, c, fake, _ = order_context
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    assert len(posts(fake)) == 1
++
++
++@pytest.mark.parametrize("direction", ["LONG", "SHORT"])
++def test_opposite_quote_fill_keeps_protection_and_verified_flat(
++    order_context, direction, monkeypatch, capsys
++):
++    store, c, fake, options = order_context
++    options["fill"] = True
++    if direction == "SHORT":
++        options["margin_controls"]["liquidation"] = "150"
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, direction, monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    entry = [p for p in posts(fake) if p["type"] == "LIMIT"]
++    assert len(entry) == 1
++    assert D(entry[0]["price"]) == D("100.1" if direction == "LONG" else "100")
++    assert fake.positions["BTCUSDT"] == 0
++    assert store.read("DEMO-test").validation_evidence[str(operation)] == {
++        "stop_verified": True,
++        "target_verified": True,
++    }
++    assert all(p["type"] == "LIMIT" or p.get("reduceOnly") == "true" for p in posts(fake))
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def test_reservation_style_is_immutable_for_same_signal(order_context):
++    import services.execution.demo_validation as validation
++    from services.risk.paper import RiskRejected
++
++    store, c, _, _ = order_context
++    sig, gate, cap = validation.prepare(c, uuid4(), "LONG", entry_style="OPPOSITE_QUOTE")
++    c.reserve(sig, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE")
++    with pytest.raises(RiskRejected, match="entry style"):
++        c.reserve(sig, gate, quantity_cap=cap, entry_style="PASSIVE")
++
++
++def test_missing_collateral_field_after_fill_uses_emergency_reduction(order_context):
++    import json
++
++    from tests.integration.test_paper import signal, snapshot
++
++    store, c, fake, options = order_context
++    candidate = signal(environment="DEMO")
++    order = c.reserve(candidate, snapshot(), quantity_cap=D("0.05"))
++    c.submit(str(candidate.signal_id))
++    fake.fill(order.client_id, order.quantity)
++    send = c.client.send
++
++    def missing_field(method, path, query, key):
++        response = send(method, path, query, key)
++        if path == "/fapi/v3/positionRisk":
++            data = json.loads(response.body)
++            for row in data:
++                row.pop("isolatedMargin", None)
++            return fake.response(data)
++        return response
++
++    c.client.send = missing_field
++    with pytest.raises(DemoFailure, match="Invalid/incomplete DEMO snapshot"):
++        c.reconcile()
++    exits = [p for p in posts(fake) if p["type"] == "MARKET"]
++    assert len(exits) == 1 and exits[0]["reduceOnly"] == "true"
++    assert fake.positions["BTCUSDT"] == 0
+--- a/tests/integration/test_demo_validation.py
++++ b/tests/integration/test_demo_validation.py
+@@ -47,7 +47,7 @@
+     return store, c, fake, options
+ 
+ 
+-async def exercise(c, operation, direction, monkeypatch):
++async def exercise(c, operation, direction, monkeypatch, *, entry_style="PASSIVE"):
+     async def handler(socket):
+         await socket.wait_closed()
+ 
+@@ -63,7 +63,9 @@
+             await session(coordinator, connector=connector, on_ready=on_ready)
+ 
+         monkeypatch.setattr(module, "session", local_session)
+-        await module.validate_once(c, operation, direction, observation_seconds=0.03)
++        await module.validate_once(
++            c, operation, direction, observation_seconds=0.03, entry_style=entry_style
++        )
+ 
+ 
+ def test_unfilled_minimum_validation_cancels_and_verifies_flat(case, monkeypatch, capsys):
+--- a/tests/unit/test_demo_opposite_cli.py
++++ b/tests/unit/test_demo_opposite_cli.py
+@@ -0,0 +1,30 @@
++"""An opposite-quote option does not enable general execution implicitly."""
++
++import os
++import subprocess
++import sys
++
++
++def test_opposite_style_requires_preview_or_explicit_diagnostic():
++    environment = os.environ.copy()
++    environment["LIVE_TRADING_ENABLED"] = "false"
++    environment["TRADING_MODE"] = "PAPER"
++    result = subprocess.run(
++        [
++            sys.executable,
++            "-m",
++            "scripts.run_demo",
++            "--config",
++            "configs/demo-isolated.example.yaml",
++            "--account",
++            "DEMO-no-auth",
++            "--entry-style",
++            "OPPOSITE_QUOTE",
++        ],
++        env=environment,
++        capture_output=True,
++        text=True,
++        timeout=10,
++    )
++    assert result.returncode == 2 and "--entry-style requires" in result.stderr
++    assert "Traceback" not in result.stderr
