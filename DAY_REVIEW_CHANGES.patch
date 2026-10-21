@@ -1,0 +1,570 @@
+--- a/DAY_REVIEW_START_HERE_KO.md
++++ b/DAY_REVIEW_START_HERE_KO.md
+@@ -0,0 +1,22 @@
++# 오늘 손실 기준 복원 가능성 — 읽기 전용 근거 수집
++
++이 단계는 기존 DB와 손실 기준값을 변경하지 않습니다. 안전 잠금 해제, 새 주문, Phase 5도 진행하지 않습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-day-review 폴더에서 infra가 보이는 위치로 들어갑니다.
++2. Docker Desktop을 켜고 탐색기 주소창에 cmd를 입력한 뒤 Enter를 누릅니다.
++3. 아래 설치 명령을 실행합니다. 프로젝트 이름과 DB 볼륨은 기존과 같습니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. 모두 Healthy면 아래 명령을 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_day_boundary
++
++5. DEMO API Key와 DEMO Secret을 차례로 붙여넣고 Enter를 누릅니다. 화면에 입력 내용이 보이지 않는 것이 정상입니다. 키를 채팅에 보내지 마세요.
++6. 마지막 결과를 대화에 보내주세요. DAY_BOUNDARY_EVIDENCE_ONLY는 근거 수집 완료이며 복구 완료가 아닙니다. 오류면 반복 실행하지 말고 결과만 보내주세요.
++
++도구는 오늘 한국 시각 0시부터의 수익/수수료/펀딩/입출금 등 USDT income 내역을 페이지별로 읽고 같은 구간을 재조회합니다. 현재 계정/주문 상태가 조회 중 변하지 않고 비어 있는지 확인합니다. 원래 DB 이벤트에서 정확히 0시의 평가액이 기록된 사례도 제한된 범위에서 찾습니다.
++
++wallet_candidate_usdt_not_approved는 현재 지갑 잔액에서 조회된 순 income을 뺀 역산 후보입니다. 이것만으로 자정 계정 평가액이나 입출금 조정 손실 기준을 확정할 수 없습니다. 자정 미실현 손익과 자정 시점 누적 입출금 기준은 별도로 검증해야 합니다. income 지연·보존 범위·API 내역만으로 입증되지 않는 활동도 검토가 필요합니다. 따라서 recovery_eligible은 항상 false이며 기준을 DB에 쓰지 않습니다. 당시 포지션이 없었다고 자동 가정하지 않습니다.
++
++API/web PAPER, LIVE_TRADING_ENABLED=false. 기존 EMERGENCY/paused/UNKNOWN 기록은 보존됩니다. --apply-review, 예전 주문 명령, 새 ledger, volume 삭제, down -v를 사용하지 마세요. 이 ZIP은 실제 .env·API 키·.git·캐시·의존성 폴더를 포함하지 않습니다.
+--- a/DAY_REVIEW_VALIDATION_KO.md
++++ b/DAY_REVIEW_VALIDATION_KO.md
+@@ -0,0 +1,7 @@
++# 일별 기준 복원 근거 수집 검증
++
++전체 테스트 442개 통과(59.82초), mypy 68개 소스 및 Ruff 전체 lint/173개 파일 format 통과. 실제 PostgreSQL·합성 DEMO 응답·로컬 WS 사용. 실제 Binance 인증/주문 호출 없음.
++
++추가 19개 테스트는 읽기 전용/DB 불변/키 정리/출력 비밀 미포함, 현재 비노출 확인, 구간 재조회 변화 차단, 계정별 정확한 자정 이벤트 탐색, 빈 income이 과거 flat을 증명하지 않음, 자정 equity로 후보를 자동 승인하지 않음, 페이지 끝까지 조회 및 상한 초과 차단, 중복 동일 ID 단일 합산/충돌 차단, 잘못된 자산·유형·수치·시간·ID 및 자정 거래 모호성 차단을 확인했습니다.
++
++추가 코드는 소스의 새 서비스/스크립트/테스트와 안내서뿐입니다. 기존 위험 계산·daily/week baseline·잠금·주문 로직은 변경하지 않았습니다. current wallet - income net은 지갑 후보이며 계정 평가액이나 입출금 조정 기준이 아닙니다. boundary 미실현 손익/당시 누적 입출금 확인을 대신하지 않습니다. 이 단계는 언제나 recovery_eligible=false이며 DB 기준 업데이트/복구 적용/신규 주문을 하지 않습니다. main과 잠금, 과거 미확정 기록을 보존합니다.
+--- a/scripts/review_demo_day_boundary.py
++++ b/scripts/review_demo_day_boundary.py
+@@ -0,0 +1,71 @@
++"""Collect read-only DEMO income evidence. Never writes a daily loss baseline."""
++
++import getpass
++import json
++import os
++import warnings
++from pathlib import Path
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_day_review import DayReviewBlocked, review_day
++
++
++def main() -> None:
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("DAY_EVIDENCE", "LIVE_CONTEXT_FORBIDDEN")
++    stage = "CREDENTIAL_INPUT"
++    engine = None
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++        before = store.read(account)
++        stage = "DAY_EVIDENCE"
++        report = review_day(store, client, before, account_id=account)
++        if store.read(account) != before:
++            raise DayReviewBlocked("DATABASE_CHANGED_DURING_REVIEW")
++        print(json.dumps(report))
++    except DayReviewBlocked as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        if engine is not None:
++            engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_day_review.py
++++ b/services/execution/demo_day_review.py
+@@ -0,0 +1,233 @@
++"""Read-only KST day-boundary evidence. A wallet candidate is never an equity baseline."""
++
++import hashlib
++import json
++from collections import Counter
++from datetime import UTC, datetime, time, timedelta
++from decimal import Decimal, DecimalException
++from zoneinfo import ZoneInfo
++
++from sqlalchemy import select
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.persistence.demo import DemoStore, events
++from services.execution.demo_models import DemoLedger
++
++INCOME_TYPES = frozenset(
++    {
++        "TRANSFER",
++        "WELCOME_BONUS",
++        "REALIZED_PNL",
++        "FUNDING_FEE",
++        "COMMISSION",
++        "INSURANCE_CLEAR",
++        "COMMISSION_REBATE",
++        "API_REBATE",
++    }
++)
++
++
++DAY_REVIEW_CODES = frozenset(
++    [
++        "ACCOUNT_CHANGED_DURING_REVIEW",
++        "BOUNDARY_EVENT_SCAN_INCOMPLETE",
++        "BOUNDARY_TIMESTAMP_AMBIGUOUS",
++        "CONFLICTING_INCOME_ID",
++        "CURRENT_EXPOSURE_OR_OPEN_ORDER",
++        "DATABASE_CHANGED_DURING_REVIEW",
++        "INCOME_PAGINATION_INCOMPLETE",
++        "INCOME_WINDOW_CHANGED",
++        "INVALID_ACCOUNT_SCOPE",
++        "INVALID_BOUNDARY_EVENT",
++        "INVALID_INCOME_ID_OR_TIME",
++        "INVALID_INCOME_NUMBER",
++        "INVALID_INCOME_RESPONSE",
++        "INVALID_READ_ONLY_WINDOW",
++        "NONPOSITIVE_WALLET_CANDIDATE",
++        "READ_ONLY_PAUSED_ISOLATED_CONTEXT_REQUIRED",
++        "UNSUPPORTED_INCOME_ASSET_OR_TYPE",
++        "WALLET_BALANCE_MISSING",
++    ]
++)
++
++
++class DayReviewBlocked(DemoFailure):
++    def __init__(self, code: str):
++        super().__init__(code if code in DAY_REVIEW_CODES else "DAY_EVIDENCE_BLOCKED")
++
++
++def income_window(client: DemoClient, start_ms: int, end_ms: int) -> dict[str, dict[str, str]]:
++    rows: dict[str, dict[str, str]] = {}
++    if client.settings.demo_trading_enabled or start_ms < 0 or end_ms < start_ms:
++        raise DayReviewBlocked("INVALID_READ_ONLY_WINDOW")
++    for page in range(1, 11):
++        raw = client.request(
++            "GET",
++            "/fapi/v1/income",
++            {
++                "startTime": str(start_ms),
++                "endTime": str(end_ms),
++                "page": str(page),
++                "limit": "1000",
++            },
++        )
++        if not isinstance(raw, list) or len(raw) > 1000:
++            raise DayReviewBlocked("INVALID_INCOME_RESPONSE")
++        for item in raw:
++            if (
++                not isinstance(item, dict)
++                or item.get("asset") != "USDT"
++                or not isinstance(item.get("incomeType"), str)
++                or item.get("incomeType") not in INCOME_TYPES
++            ):
++                raise DayReviewBlocked("UNSUPPORTED_INCOME_ASSET_OR_TYPE")
++            stamp = item.get("time")
++            identifier = item.get("tranId")
++            if (
++                type(stamp) is not int
++                or not start_ms <= stamp <= end_ms
++                or type(identifier) not in (int, str)
++                or not str(identifier)
++            ):
++                raise DayReviewBlocked("INVALID_INCOME_ID_OR_TIME")
++            if stamp == start_ms:
++                raise DayReviewBlocked("BOUNDARY_TIMESTAMP_AMBIGUOUS")
++            try:
++                value = signed_number(item.get("income"))
++            except (DemoFailure, DecimalException, ValueError, TypeError):
++                raise DayReviewBlocked("INVALID_INCOME_NUMBER") from None
++            key = str(item["incomeType"]) + ":" + str(identifier)
++            parsed = {
++                "type": str(item["incomeType"]),
++                "income": str(value),
++                "time": str(stamp),
++                "symbol": str(item.get("symbol", "")),
++            }
++            if key in rows and rows[key] != parsed:
++                raise DayReviewBlocked("CONFLICTING_INCOME_ID")
++            rows[key] = parsed
++        if len(raw) < 1000:
++            return rows
++    raise DayReviewBlocked("INCOME_PAGINATION_INCOMPLETE")
++
++
++def exact_boundary_records(
++    store: DemoStore, account_id: str, boundary: datetime, max_age: int
++) -> int:
++    if not account_id.startswith("DEMO-") or len(account_id) > 80:
++        raise DayReviewBlocked("INVALID_ACCOUNT_SCOPE")
++    with store.engine.connect() as connection:
++        payloads = (
++            connection.execute(
++                select(events.c.payload)
++                .where(
++                    events.c.account_id == account_id,
++                    events.c.as_of >= boundary,
++                    events.c.as_of <= boundary + timedelta(seconds=max_age),
++                )
++                .limit(201)
++            )
++            .scalars()
++            .all()
++        )
++    if len(payloads) > 200:
++        raise DayReviewBlocked("BOUNDARY_EVENT_SCAN_INCOMPLETE")
++    found = 0
++    for payload in payloads:
++        try:
++            recorded = DemoLedger.model_validate_json(payload)
++        except ValueError:
++            raise DayReviewBlocked("INVALID_BOUNDARY_EVENT") from None
++        if (
++            recorded.value.as_of == boundary
++            and recorded.last_reconciled == boundary
++            and recorded.reconciled
++        ):
++            found += 1
++    return found
++
++
++def review_day(
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    account_id: str = "DEMO-WINDOWS-ISOLATED-BTC-V1",
++) -> dict[str, object]:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or not ledger.paused
++        or ledger.risk_state.value != "EMERGENCY"
++    ):
++        raise DayReviewBlocked("READ_ONLY_PAUSED_ISOLATED_CONTEXT_REQUIRED")
++    now = store.now()
++    day = now.astimezone(ZoneInfo("Asia/Seoul")).date()
++    boundary = datetime.combine(day, time(), ZoneInfo("Asia/Seoul"))
++    records = exact_boundary_records(
++        store, account_id, boundary, ledger.policy.max_snapshot_age_seconds
++    )
++    start_ms = int(boundary.timestamp() * 1000)
++    first = snapshot(client, ledger, store.now())
++    end_ms = int(store.now().timestamp() * 1000)
++    incomes = income_window(client, start_ms, end_ms)
++    repeated = income_window(client, start_ms, end_ms)
++    if incomes != repeated:
++        raise DayReviewBlocked("INCOME_WINDOW_CHANGED")
++    second = snapshot(client, ledger, store.now())
++    if (
++        second.as_of.astimezone(ZoneInfo("Asia/Seoul")).date() != day
++        or first.fingerprint != second.fingerprint
++    ):
++        raise DayReviewBlocked("ACCOUNT_CHANGED_DURING_REVIEW")
++    if (
++        any(second.positions.values())
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in second.algos.values())
++    ):
++        raise DayReviewBlocked("CURRENT_EXPOSURE_OR_OPEN_ORDER")
++    if second.wallet_balance is None:
++        raise DayReviewBlocked("WALLET_BALANCE_MISSING")
++    net = sum((Decimal(r["income"]) for r in incomes.values()), Decimal(0))
++    net_transfers = sum(
++        (
++            Decimal(r["income"])
++            for r in incomes.values()
++            if r["type"] in {"TRANSFER", "WELCOME_BONUS"}
++        ),
++        Decimal(0),
++    )
++    candidate = second.wallet_balance - net
++    if candidate <= 0:
++        raise DayReviewBlocked("NONPOSITIVE_WALLET_CANDIDATE")
++    evidence_hash = hashlib.sha256(
++        json.dumps(incomes, sort_keys=True, separators=(",", ":")).encode()
++    ).hexdigest()
++    return {
++        "review": "DAY_BOUNDARY_EVIDENCE_ONLY",
++        "day_kst": day.isoformat(),
++        "boundary_kst": boundary.isoformat(),
++        "cutoff_utc": (
++            datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=end_ms)
++        ).isoformat(),
++        "cutoff_ms": end_ms,
++        "stored_day_kst": ledger.daily_key,
++        "current_wallet_usdt": str(second.wallet_balance),
++        "income_net_usdt": str(net),
++        "transfer_and_bonus_net_usdt": str(net_transfers),
++        "income_counts": dict(Counter(r["type"] for r in incomes.values())),
++        "wallet_candidate_usdt_not_approved": str(candidate),
++        "income_evidence_hash": evidence_hash,
++        "exact_boundary_record_count": records,
++        "boundary_unrealized_pnl_verified": False,
++        "boundary_net_deposit_basis_verified": False,
++        "recovery_eligible": False,
++        "reason": "MIDNIGHT_EQUITY_AND_TRANSFER_BASIS_NOT_VERIFIED",
++        "database_changed": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- a/tests/integration/test_demo_day_review.py
++++ b/tests/integration/test_demo_day_review.py
+@@ -0,0 +1,154 @@
++"""Day evidence is GET-only and never mistakes a wallet candidate for equity proof."""
++
++from decimal import Decimal as D
++
++import pytest
++
++from services.execution.demo_day_review import DayReviewBlocked, review_day
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_recovery import recovery  # noqa: F401
++
++
++def row(fake, kind, amount, ident):
++    return {
++        "asset": "USDT",
++        "incomeType": kind,
++        "income": amount,
++        "tranId": ident,
++        "time": int(fake.at.timestamp() * 1000) - 1,
++        "symbol": "BTCUSDT",
++    }
++
++
++def test_day_review_reports_candidate_without_approving_or_writing(recovery):  # noqa: F811
++    store, c, fake = recovery
++    fake.incomes = [row(fake, "COMMISSION", "-0.1", 1), row(fake, "TRANSFER", "100", 2)]
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    report = review_day(store, c.client, store.read("DEMO-test"))
++    assert D(report["wallet_candidate_usdt_not_approved"]) == fake.wallet - D("99.9")
++    assert report["income_counts"] == {"COMMISSION": 1, "TRANSFER": 1}
++    assert report["recovery_eligible"] is False
++    assert report["boundary_unrealized_pnl_verified"] is False
++    assert report["boundary_net_deposit_basis_verified"] is False
++    assert report["orders_enabled"] is False
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_empty_income_does_not_prove_midnight_flat(recovery):  # noqa: F811
++    store, c, fake = recovery
++    report = review_day(store, c.client, store.read("DEMO-test"))
++    assert report["income_counts"] == {}
++    assert D(report["wallet_candidate_usdt_not_approved"]) == fake.wallet
++    assert report["recovery_eligible"] is False
++
++
++def test_changed_income_window_blocks_without_write(recovery):  # noqa: F811
++    store, c, fake = recovery
++    original = c.client.send
++    count = 0
++
++    def changing(method, path, query, key):
++        nonlocal count
++        if path == "/fapi/v1/income":
++            from urllib.parse import parse_qs
++
++            params = parse_qs(query.get_secret_value())
++            # Only mutate the explicit day window, not snapshot transfer pagination.
++            if int(params["startTime"][0]) < int(fake.at.timestamp() * 1000) - 1000:
++                count += 1
++                if count == 2:
++                    return fake.response([row(fake, "COMMISSION", "-0.1", 1)])
++        return original(method, path, query, key)
++
++    c.client.send = changing
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DayReviewBlocked, match="INCOME_WINDOW_CHANGED"):
++        review_day(store, c.client, store.read("DEMO-test"))
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_current_position_blocks_evidence(recovery):  # noqa: F811
++    store, c, fake = recovery
++    fake.positions["BTCUSDT"] = D("0.1")
++    fake.prices["BTCUSDT"] = D("100")
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DayReviewBlocked, match="CURRENT_EXPOSURE_OR_OPEN_ORDER"):
++        review_day(store, c.client, store.read("DEMO-test"))
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++@pytest.mark.parametrize("exact", [True, False])
++def test_existing_midnight_records_are_scoped_and_never_auto_applied(recovery, exact):  # noqa: F811
++    from datetime import datetime, time, timedelta
++    from uuid import uuid4
++    from zoneinfo import ZoneInfo
++
++    from sqlalchemy import insert
++
++    from packages.persistence.demo import events
++    from services.execution.demo_day_review import exact_boundary_records
++
++    store, c, fake = recovery
++    boundary = datetime.combine(
++        fake.at.astimezone(ZoneInfo("Asia/Seoul")).date(), time(), ZoneInfo("Asia/Seoul")
++    )
++    recorded = store.read("DEMO-test").model_copy(deep=True)
++    recorded.value = recorded.value.model_copy(
++        update={"as_of": boundary if exact else boundary + timedelta(microseconds=1)}
++    )
++    recorded.last_reconciled = recorded.value.as_of
++    recorded.reconciled = True
++    with store.engine.begin() as conn:
++        conn.execute(
++            insert(events).values(
++                event_id=str(uuid4()),
++                account_id="DEMO-test",
++                fence=c.lease.fence,
++                as_of=boundary + timedelta(seconds=1),
++                kind="TEST_BOUNDARY_EVIDENCE",
++                payload=recorded.model_dump_json(),
++            )
++        )
++    before = store.read("DEMO-test").model_dump_json()
++    assert exact_boundary_records(store, "DEMO-test", boundary, 10) == int(exact)
++    assert exact_boundary_records(store, "DEMO-other", boundary, 10) == 0
++    report = review_day(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")
++    assert report["exact_boundary_record_count"] == int(exact)
++    assert report["recovery_eligible"] is False
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_day_cli_collects_only_reads_and_keeps_credentials_out_of_output(
++    recovery,  # noqa: F811
++    monkeypatch,
++    capsys,
++):  # noqa: F811
++    import os
++    import sys
++
++    import scripts.review_demo_day_boundary as cli
++
++    store, c, fake = recovery
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    monkeypatch.setattr(sys, "argv", ["review_demo_day_boundary"])
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_INPUT")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    original_read = store.read
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++
++    def no_acquire(*args):
++        raise AssertionError("Evidence must never acquire a lease")
++
++    monkeypatch.setattr(store, "acquire", no_acquire)
++    cli.main()
++    output = capsys.readouterr().out
++    assert "DAY_BOUNDARY_EVIDENCE_ONLY" in output
++    assert "SYNTHETIC_PRIVATE_INPUT" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original_read("DEMO-test").model_dump_json() == before
++    assert all(method == "GET" for method, _, _ in fake.calls[start:])
+--- a/tests/unit/test_demo_income_window.py
++++ b/tests/unit/test_demo_income_window.py
+@@ -0,0 +1,65 @@
++"""Pagination and strict income parsing with no network or persistence."""
++
++from types import SimpleNamespace
++
++import pytest
++
++from services.execution.demo_day_review import DayReviewBlocked, income_window
++
++
++def row(**updates):
++    return dict(
++        {"asset": "USDT", "incomeType": "COMMISSION", "income": "-0.1", "tranId": 1, "time": 101},
++        **updates,
++    )
++
++
++class Client:
++    settings = SimpleNamespace(demo_trading_enabled=False)
++
++    def __init__(self, pages):
++        self.pages = pages
++        self.calls = []
++
++    def request(self, method, path, params):
++        assert method == "GET" and path == "/fapi/v1/income"
++        assert params["startTime"] == "100" and params["endTime"] == "200"
++        self.calls.append(params)
++        return self.pages[min(int(params["page"]) - 1, len(self.pages) - 1)]
++
++
++@pytest.mark.parametrize(
++    "update,code",
++    [
++        ({"asset": "BNB"}, "UNSUPPORTED_INCOME_ASSET_OR_TYPE"),
++        ({"incomeType": "UNKNOWN"}, "UNSUPPORTED_INCOME_ASSET_OR_TYPE"),
++        ({"income": "NaN"}, "INVALID_INCOME_NUMBER"),
++        ({"income": True}, "INVALID_INCOME_NUMBER"),
++        ({"time": True}, "INVALID_INCOME_ID_OR_TIME"),
++        ({"tranId": True}, "INVALID_INCOME_ID_OR_TIME"),
++        ({"time": 99}, "INVALID_INCOME_ID_OR_TIME"),
++        ({"time": 201}, "INVALID_INCOME_ID_OR_TIME"),
++        ({"time": 100}, "BOUNDARY_TIMESTAMP_AMBIGUOUS"),
++    ],
++)
++def test_invalid_income_stops_instead_of_guessing(update, code):
++    with pytest.raises(DayReviewBlocked, match=code):
++        income_window(Client([[row(**update)]]), 100, 200)
++
++
++def test_exact_duplicates_count_once_and_conflicts_block():
++    assert len(income_window(Client([[row(), row()]]), 100, 200)) == 1
++    with pytest.raises(DayReviewBlocked, match="CONFLICTING_INCOME_ID"):
++        income_window(Client([[row(), row(income="-0.2")]]), 100, 200)
++
++
++def test_pagination_reads_to_short_page_and_never_assumes_full_page_complete():
++    full = [row(tranId=i) for i in range(1000)]
++    client = Client([full, []])
++    assert len(income_window(client, 100, 200)) == 1000 and len(client.calls) == 2
++    with pytest.raises(DayReviewBlocked, match="INCOME_PAGINATION_INCOMPLETE"):
++        income_window(Client([full]), 100, 200)
++
++
++def test_unknown_error_text_is_not_exported():
++    assert str(DayReviewBlocked("private-secret-url")) == "DAY_EVIDENCE_BLOCKED"
