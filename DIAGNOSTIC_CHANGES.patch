@@ -1,0 +1,574 @@
+--- a/RECOVERY_DIAGNOSTIC_KO.md
++++ b/RECOVERY_DIAGNOSTIC_KO.md
+@@ -0,0 +1,11 @@
++# 복구 차단 진단 수정
++
++과거의 모든 오류를 하나의 문구로 표시하던 CLI 문제를 수정했습니다. 정책/잠금/잔여 노출/조회 상태/토큰 오류는 허용된 코드로 구분하고 시계·통신·설정·DB 오류도 단계와 코드로 출력합니다. 원문 오류·응답·서명 URL·키는 출력하지 않습니다. KST 일/주 기준 누락은 PERIOD_BASELINE_MISSING 및 과거/현재 날짜만 표시합니다. 날짜는 ISO 날짜 형식과 허용된 필드로 제한합니다.
++
++기존 손실 기준, high_water, 과거 UNKNOWN, 안전 잠금과 거래 게이트를 변경하지 않았습니다. 실제 Windows 오류 원인은 새 진단 결과를 보기 전까지 미확정입니다. 날짜가 달라도 기준값을 현재 잔액으로 덮어쓰거나 새 ledger로 우회하지 않습니다.
++
++새 CLI의 --local-periods는 키/네트워크/lease/DB 변경 없이 날짜와 잠금만 조회합니다. 실제 적용 옵션과 함께 사용할 수 없습니다.
++
++현재 설치본을 바꿀 필요 없이 LOCAL_PERIOD_READ_ONLY_COMMAND.txt의 명령을 현재 windows-demo-recovery 폴더에서 실행할 수도 있습니다. 이 명령은 PostgreSQL READ ONLY 트랜잭션의 SELECT만 실행합니다. API 키 입력 없음, 거래소 접속/주문 없음, 안전 잠금 유지입니다. 결과만 대화에 보내세요.
++
++전체 테스트 423개 통과(52.06초), mypy 66개 소스, Ruff 전체 검사 및 168개 파일 포맷 통과. 실제 PostgreSQL·합성 응답·로컬 WS로 검증했습니다. 원래 복구 차단 테스트는 유지했고 날짜/손실 차단 구분, 원문 비밀 유출 방지, 키 정리, 로컬 모드 키/네트워크/lease 미사용, 적용 옵션 혼용 거부를 추가 확인했습니다. 실제 Binance 호출, 복구 적용, main 변경, Phase 5 시작 없음.
+--- a/scripts/review_demo_recovery.py
++++ b/scripts/review_demo_recovery.py
+@@ -10,16 +10,47 @@
+ 
+ import yaml
+ from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import (
++    DemoClient,
++    DemoCredentials,
++    DemoFailure,
++    DemoRateLimited,
++    DemoSettings,
++)
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
+-from services.execution.demo_recovery import acknowledge_flat_emergency, review
++from services.execution.demo_recovery import (
++    RecoveryBlocked,
++    acknowledge_flat_emergency,
++    local_period_status,
++    review,
++)
+ from services.risk.paper import RiskRejected
++
++
++def blocked(stage: str, code: str, *, periods: dict[str, str] | None = None) -> None:
++    print(
++        json.dumps(
++            {
++                "recovery": "BLOCKED_KEEP_LOCK",
++                "stage": stage,
++                "error_code": code,
++                "periods": periods or {},
++                "next_action": "SHARE_CODE_DO_NOT_RETRY_OR_UNLOCK",
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        ),
++        flush=True,
++    )
++    raise SystemExit(2)
+ 
+ 
+ def main() -> None:
+     parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--local-periods", action="store_true")
+     parser.add_argument("--apply-review")
+     parser.add_argument("--operation-id", type=UUID)
+     parser.add_argument("--acknowledge-unresolved-history", action="store_true")
+@@ -36,26 +67,53 @@
+         parser.error(
+             "Apply requires review token, operation ID and explicit history acknowledgement together"
+         )
++    if args.local_periods:
++        if args.apply_review or args.operation_id or args.acknowledge_unresolved_history:
++            parser.error("Local period check cannot be combined with recovery apply")
++        local_engine = None
++        try:
++            local_engine = create_engine(
++                database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++            )
++            local_store = DemoStore(local_engine)
++            before = local_store.read("DEMO-WINDOWS-ISOLATED-BTC-V1")
++            report = local_period_status(local_store, before)
++            if local_store.read("DEMO-WINDOWS-ISOLATED-BTC-V1") != before:
++                blocked("LOCAL_PERIOD_CHECK", "DATABASE_CHANGED_DURING_REVIEW")
++            print(json.dumps(report))
++        except SQLAlchemyError:
++            blocked("LOCAL_PERIOD_CHECK", "DATABASE_ACCESS_FAILED")
++        except ValueError:
++            blocked("LOCAL_PERIOD_CHECK", "INPUT_OR_CONFIGURATION_INVALID")
++        finally:
++            if local_engine is not None:
++                local_engine.dispose()
++        return
+     engine = None
+     lease = None
+     store = None
++    stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+         os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+         os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+         client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
+         client.sync_clock()
++        stage = "DATABASE_READ"
+         engine = create_engine(
+             database_url().get_secret_value(), connect_args={"connect_timeout": 2}
+         )
+         store = DemoStore(engine)
+         account = "DEMO-WINDOWS-ISOLATED-BTC-V1"
+         if args.apply_review:
++            stage = "RECOVERY_APPLY"
+             lease = store.acquire(account, uuid4())
+             result = acknowledge_flat_emergency(
+                 store,
+@@ -72,9 +130,12 @@
+             )
+         else:
+             before = store.read(account)
++            stage = "RECOVERY_REVIEW"
+             report = review(store, client, before)
+             if store.read(account) != before:
+-                raise DemoFailure("Database changed during review")
++                raise RecoveryBlocked(
++                    "DATABASE_CHANGED_DURING_REVIEW", "Database changed during review"
++                )
+             print(
+                 json.dumps(
+                     {
+@@ -85,10 +146,23 @@
+                     }
+                 )
+             )
+-    except (DemoFailure, RiskRejected, ValueError):
+-        raise SystemExit(
+-            "Recovery review blocked; keep lock and share this status only. No automatic retry."
+-        ) from None
++    except RecoveryBlocked as error:
++        blocked(stage, error.code, periods=error.periods)
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoRateLimited:
++        blocked(stage, "DEMO_RATE_LIMITED")
++    except DemoFailure:
++        blocked(
++            stage,
++            "CLOCK_CHECK_FAILED" if stage == "CLOCK_CHECK" else "DEMO_QUERY_OR_SNAPSHOT_FAILED",
++        )
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except RiskRejected:
++        blocked(stage, "LEASE_OR_RISK_GATE_REJECTED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
+     finally:
+         os.environ.pop("BINANCE_DEMO_API_KEY", None)
+         os.environ.pop("BINANCE_DEMO_API_SECRET", None)
+--- a/services/execution/demo_recovery.py
++++ b/services/execution/demo_recovery.py
+@@ -2,6 +2,7 @@
+ 
+ import hashlib
+ import json
++import re
+ from uuid import UUID
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+@@ -11,7 +12,66 @@
+ from services.execution.demo_models import DemoLedger
+ from services.execution.models import Lease
+ from services.execution.paper import account_risk
+-from services.risk.paper import AccountValue
++from services.risk.paper import AccountValue, period_keys
++
++RECOVERY_BLOCK_CODES = frozenset(
++    {
++        "RECOVERY_CONTEXT_MISMATCH",
++        "RECOVERY_LOCK_STATE_MISMATCH",
++        "LOCAL_EXPOSURE_OR_PENDING_ENTRY",
++        "SNAPSHOT_CHANGED",
++        "EXCHANGE_EXPOSURE_OR_ACTIVE_ORDER",
++        "SETTINGS_OR_TRANSFER_MISMATCH",
++        "REQUEST_AUDIT_LIMIT",
++        "REQUEST_ID_UNSUPPORTED",
++        "REQUEST_IDENTITY_MISMATCH",
++        "REQUEST_ACTIVE_OR_INVALID",
++        "SNAPSHOT_CHANGED_DURING_AUDIT",
++        "OPERATOR_ACKNOWLEDGEMENT_REQUIRED",
++        "RECOVERY_OPERATION_CONFLICT",
++        "REVIEW_TOKEN_CHANGED",
++        "PERIOD_BASELINE_MISSING",
++        "LOSS_OR_ACCOUNT_RISK_BLOCKED",
++        "DATABASE_CHANGED_DURING_REVIEW",
++    }
++)
++
++
++class RecoveryBlocked(DemoFailure):
++    """Allowlisted diagnostic code; never carries a raw private response."""
++
++    def __init__(self, code: str, message: str, *, periods: dict[str, str] | None = None):
++        super().__init__(message)
++        self.code = code if code in RECOVERY_BLOCK_CODES else "RECOVERY_CHECK_BLOCKED"
++        self.periods = {
++            key: value if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else "INVALID_DATE"
++            for key, value in (periods or {}).items()
++            if key in {"stored_day_kst", "current_day_kst", "stored_week_kst", "current_week_kst"}
++        }
++
++
++def local_period_status(store: DemoStore, ledger: DemoLedger) -> dict[str, object]:
++    day, week = period_keys(store.now(), ledger.policy.week_start_kst)
++    periods = RecoveryBlocked(
++        "PERIOD_BASELINE_MISSING",
++        "Local period check",
++        periods={
++            "stored_day_kst": ledger.daily_key,
++            "current_day_kst": day,
++            "stored_week_kst": ledger.weekly_key,
++            "current_week_kst": week,
++        },
++    ).periods
++    return {
++        "recovery": "LOCAL_PERIOD_CHECK_NO_DATABASE_CHANGE",
++        "period_keys_match": (day, week) == (ledger.daily_key, ledger.weekly_key),
++        "periods": periods,
++        "risk_state": ledger.risk_state.value,
++        "paused": ledger.paused,
++        "exchange_checked": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+ 
+ 
+ def review(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
+@@ -23,9 +83,13 @@
+         or ledger.symbols != ("BTCUSDT",)
+         or ledger.policy != client.settings.policy
+     ):
+-        raise DemoFailure("Recovery requires read-only isolated BTCUSDT DEMO context")
++        raise RecoveryBlocked(
++            "RECOVERY_CONTEXT_MISMATCH", "Recovery requires read-only isolated BTCUSDT DEMO context"
++        )
+     if ledger.risk_state != RiskState.EMERGENCY or not ledger.paused:
+-        raise DemoFailure("Recovery applies only to paused EMERGENCY")
++        raise RecoveryBlocked(
++            "RECOVERY_LOCK_STATE_MISMATCH", "Recovery applies only to paused EMERGENCY"
++        )
+     if any(ledger.positions.values()) or any(
+         o.remaining
+         or o.open_quantity
+@@ -33,19 +97,28 @@
+         not in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
+         for o in ledger.orders.values()
+     ):
+-        raise DemoFailure("Local exposure or nonterminal entry prevents recovery")
++        raise RecoveryBlocked(
++            "LOCAL_EXPOSURE_OR_PENDING_ENTRY",
++            "Local exposure or nonterminal entry prevents recovery",
++        )
+     first = snapshot(client, ledger, store.now())
+     second = snapshot(client, ledger, store.now())
+     if first.fingerprint != second.fingerprint:
+-        raise DemoFailure("Recovery snapshots changed")
++        raise RecoveryBlocked("SNAPSHOT_CHANGED", "Recovery snapshots changed")
+     if (
+         any(second.positions.values())
+         or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
+         or any(r["algoStatus"] == "NEW" for r in second.algos.values())
+     ):
+-        raise DemoFailure("Exchange exposure or active orders prevent recovery")
++        raise RecoveryBlocked(
++            "EXCHANGE_EXPOSURE_OR_ACTIVE_ORDER",
++            "Exchange exposure or active orders prevent recovery",
++        )
+     if second.leverage.get("BTCUSDT") != 2 or second.transfers != ledger.income_seen:
+-        raise DemoFailure("Recovery settings/transfers require separate reconciliation")
++        raise RecoveryBlocked(
++            "SETTINGS_OR_TRANSFER_MISMATCH",
++            "Recovery settings/transfers require separate reconciliation",
++        )
+     # Reevaluate loss gates without modifying accounting baselines or the old lock.
+     probe = ledger.model_copy(deep=True)
+     probe.value = AccountValue(
+@@ -57,14 +130,30 @@
+     probe.risk_state = RiskState.NORMAL
+     account_risk(probe, store.now())
+     if probe.risk_state != RiskState.NORMAL:
+-        raise DemoFailure("Loss/day-boundary/risk gate prevents recovery")
++        current_day, current_week = period_keys(store.now(), ledger.policy.week_start_kst)
++        if (current_day, current_week) != (ledger.daily_key, ledger.weekly_key):
++            raise RecoveryBlocked(
++                "PERIOD_BASELINE_MISSING",
++                "Loss/day-boundary/risk gate prevents recovery",
++                periods={
++                    "stored_day_kst": ledger.daily_key,
++                    "current_day_kst": current_day,
++                    "stored_week_kst": ledger.weekly_key,
++                    "current_week_kst": current_week,
++                },
++            )
++        raise RecoveryBlocked(
++            "LOSS_OR_ACCOUNT_RISK_BLOCKED", "Loss/day-boundary/risk gate prevents recovery"
++        )
+     observations: dict[str, str] = {}
+     if len(ledger.requests) > 30:
+-        raise DemoFailure("Too many requests for bounded recovery")
++        raise RecoveryBlocked("REQUEST_AUDIT_LIMIT", "Too many requests for bounded recovery")
+     for identifier in ledger.requests:
+         kind = identifier.split("-", 1)[0]
+         if kind not in {"DE", "DX", "DS", "DT"}:
+-            raise DemoFailure("Unsupported historical request prevents recovery")
++            raise RecoveryBlocked(
++                "REQUEST_ID_UNSUPPORTED", "Unsupported historical request prevents recovery"
++            )
+         algo = kind in {"DS", "DT"}
+         try:
+             raw = client.request(
+@@ -82,7 +171,9 @@
+             or raw.get("symbol") != "BTCUSDT"
+             or raw.get("clientAlgoId" if algo else "clientOrderId") != identifier
+         ):
+-            raise DemoFailure("Historical request identity mismatch")
++            raise RecoveryBlocked(
++                "REQUEST_IDENTITY_MISMATCH", "Historical request identity mismatch"
++            )
+         status = raw.get("algoStatus" if algo else "status")
+         allowed = (
+             {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
+@@ -90,11 +181,15 @@
+             else {"FILLED", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED"}
+         )
+         if status not in allowed:
+-            raise DemoFailure("Active/unknown historical request prevents recovery")
++            raise RecoveryBlocked(
++                "REQUEST_ACTIVE_OR_INVALID", "Active/unknown historical request prevents recovery"
++            )
+         observations[identifier] = str(status)
+     final = snapshot(client, ledger, store.now())
+     if final.fingerprint != second.fingerprint:
+-        raise DemoFailure("Recovery changed during request audit")
++        raise RecoveryBlocked(
++            "SNAPSHOT_CHANGED_DURING_AUDIT", "Recovery changed during request audit"
++        )
+     stable = ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"})
+     token = hashlib.sha256(
+         json.dumps(
+@@ -124,19 +219,26 @@
+     acknowledge_unresolved: bool,
+ ) -> str:
+     if not acknowledge_unresolved or len(expected_token) != 64:
+-        raise DemoFailure("Explicit operator acknowledgement and review token required")
++        raise RecoveryBlocked(
++            "OPERATOR_ACKNOWLEDGEMENT_REQUIRED",
++            "Explicit operator acknowledgement and review token required",
++        )
+ 
+     def apply(ledger: DemoLedger) -> str:
+         key = str(operation_id)
+         if key in ledger.recovery_receipts:
+             if ledger.recovery_receipts[key] != expected_token:
+-                raise DemoFailure("Recovery operation ID conflict")
++                raise RecoveryBlocked(
++                    "RECOVERY_OPERATION_CONFLICT", "Recovery operation ID conflict"
++                )
+             return "ALREADY_RECORDED_NO_ACTION"
+         if key in ledger.operations:
+-            raise DemoFailure("Recovery operation ID conflict")
++            raise RecoveryBlocked("RECOVERY_OPERATION_CONFLICT", "Recovery operation ID conflict")
+         result = review(store, client, ledger)
+         if result["review_token"] != expected_token:
+-            raise DemoFailure("Recovery review changed; no state updated")
++            raise RecoveryBlocked(
++                "REVIEW_TOKEN_CHANGED", "Recovery review changed; no state updated"
++            )
+         ledger.recovery_receipts[key] = expected_token
+         ledger.operations[key] = "ACKNOWLEDGE_FLAT_EMERGENCY"
+         ledger.risk_state = RiskState.NORMAL
+--- a/tests/integration/test_demo_recovery_diagnostics.py
++++ b/tests/integration/test_demo_recovery_diagnostics.py
+@@ -0,0 +1,188 @@
++"""Safe diagnostics preserve all recovery gates and never print raw errors or keys."""
++
++import json
++from datetime import timedelta
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoUnknown
++from services.execution.demo_recovery import RecoveryBlocked, review
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_recovery import recovery  # noqa: F401
++
++
++def test_next_kst_day_reports_missing_baseline_without_changing_database(recovery):  # noqa: F811
++    store, c, fake = recovery
++    before = store.read("DEMO-test").model_dump_json()
++    fake.at += timedelta(days=1)
++    c.client.sync_clock()
++    with pytest.raises(RecoveryBlocked) as result:
++        review(store, c.client, store.read("DEMO-test"))
++    assert result.value.code == "PERIOD_BASELINE_MISSING"
++    assert result.value.periods["stored_day_kst"] != result.value.periods["current_day_kst"]
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_same_day_loss_is_distinct_from_missing_baseline(recovery):  # noqa: F811
++    store, c, fake = recovery
++    before = store.read("DEMO-test").model_dump_json()
++    fake.wallet = 1
++    with pytest.raises(RecoveryBlocked) as result:
++        review(store, c.client, store.read("DEMO-test"))
++    assert result.value.code == "LOSS_OR_ACCOUNT_RISK_BLOCKED"
++    assert not result.value.periods
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def setup_cli(recovery, monkeypatch):  # noqa: F811
++    import sys
++
++    import scripts.review_demo_recovery as cli
++
++    store, c, _ = recovery
++    monkeypatch.setattr(sys, "argv", ["review_demo_recovery"])
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SENSITIVE_SYNTHETIC_KEY")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    original_read = store.read
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++
++    def cannot_acquire(*args):
++        raise AssertionError("Read-only diagnostics must not acquire lease")
++
++    monkeypatch.setattr(store, "acquire", cannot_acquire)
++    return cli
++
++
++@pytest.mark.parametrize("mode", ["period", "query", "clock", "configuration", "database"])
++def test_cli_prints_safe_stage_and_code_then_cleans_credentials(
++    recovery,  # noqa: F811
++    monkeypatch,
++    capsys,
++    mode,
++):  # noqa: F811
++    import os
++
++    from sqlalchemy.exc import SQLAlchemyError
++
++    cli = setup_cli(recovery, monkeypatch)
++    store, c, fake = recovery
++    before = store.read("DEMO-test").model_dump_json()
++    if mode == "period":
++        fake.at += timedelta(days=1)
++    elif mode in {"query", "clock"}:
++
++        def private_error(*args):
++            raise DemoUnknown("SENSITIVE_SYNTHETIC_KEY signed_url_secret")
++
++        monkeypatch.setattr(
++            cli if mode == "query" else c.client,
++            "review" if mode == "query" else "sync_clock",
++            private_error,
++        )
++    elif mode == "configuration":
++
++        def wrong(*args, **kwargs):
++            raise ValueError("SENSITIVE_SYNTHETIC_KEY")
++
++        monkeypatch.setattr(cli.DemoSettings, "model_validate", wrong)
++    else:
++
++        def broken_db(*args, **kwargs):
++            raise SQLAlchemyError("SENSITIVE_SYNTHETIC_KEY")
++
++        monkeypatch.setattr(cli, "create_engine", broken_db)
++    with pytest.raises(SystemExit) as exit_info:
++        cli.main()
++    assert exit_info.value.code == 2
++    text = capsys.readouterr().out
++    assert "SENSITIVE_SYNTHETIC_KEY" not in text and "signed_url_secret" not in text
++    data = json.loads(text)
++    expected = {
++        "period": "PERIOD_BASELINE_MISSING",
++        "query": "DEMO_QUERY_OR_SNAPSHOT_FAILED",
++        "clock": "CLOCK_CHECK_FAILED",
++        "configuration": "INPUT_OR_CONFIGURATION_INVALID",
++        "database": "DATABASE_ACCESS_FAILED",
++    }
++    assert data["error_code"] == expected[mode]
++    assert data["recovery"] == "BLOCKED_KEEP_LOCK"
++    assert data["orders_enabled"] is False and data["live_trading_enabled"] is False
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_period_diagnostics_only_export_dates_and_allowlisted_keys():
++    error = RecoveryBlocked(
++        "PERIOD_BASELINE_MISSING",
++        "private raw message",
++        periods={
++            "stored_day_kst": "secret-value",
++            "current_day_kst": "2026-10-21",
++            "api_key": "secret-value",
++        },
++    )
++    assert error.periods == {"stored_day_kst": "INVALID_DATE", "current_day_kst": "2026-10-21"}
++    assert RecoveryBlocked("untrusted-secret", "private").code == "RECOVERY_CHECK_BLOCKED"
++
++
++@pytest.mark.parametrize("next_day", [False, True])
++def test_local_period_cli_needs_no_keys_or_exchange_and_preserves_lock(
++    recovery,  # noqa: F811
++    monkeypatch,
++    capsys,
++    next_day,
++):
++    import sys
++
++    cli = setup_cli(recovery, monkeypatch)
++    store, c, fake = recovery
++    if next_day:
++        fake.at += timedelta(days=1)
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++
++    def forbidden(*args, **kwargs):
++        raise AssertionError("Local mode must not use keys or network")
++
++    monkeypatch.setattr(cli.getpass, "getpass", forbidden)
++    monkeypatch.setattr(c.client, "send", forbidden)
++    monkeypatch.setattr(sys, "argv", ["review_demo_recovery", "--local-periods"])
++    cli.main()
++    data = json.loads(capsys.readouterr().out)
++    assert data["period_keys_match"] is (not next_day)
++    assert data["recovery"] == "LOCAL_PERIOD_CHECK_NO_DATABASE_CHANGE"
++    assert data["risk_state"] == "EMERGENCY" and data["paused"] is True
++    assert data["exchange_checked"] is False
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert len(fake.calls) == start
++
++
++def test_local_period_mode_cannot_apply_recovery(monkeypatch):
++    import sys
++
++    import scripts.review_demo_recovery as cli
++
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "review_demo_recovery",
++            "--local-periods",
++            "--apply-review",
++            "a" * 64,
++            "--operation-id",
++            "00000000-0000-0000-0000-000000000001",
++            "--acknowledge-unresolved-history",
++        ],
++    )
++
++    def forbidden(*args, **kwargs):
++        raise AssertionError("Must reject before keys or DB access")
++
++    monkeypatch.setattr(cli.getpass, "getpass", forbidden)
++    monkeypatch.setattr(cli, "create_engine", forbidden)
++    with pytest.raises(SystemExit) as result:
++        cli.main()
++    assert result.value.code == 2
