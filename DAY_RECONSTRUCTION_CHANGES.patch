@@ -1,0 +1,959 @@
+--- a/DAY_RECONSTRUCTION_START_HERE_KO.md
++++ b/DAY_RECONSTRUCTION_START_HERE_KO.md
+@@ -0,0 +1,35 @@
++# 사용자 확인을 포함한 USDT 일별 기준 복원 — 미리보기부터 실행
++
++기존 DB가 있는 Galaxybook PC에서 실행합니다. 전체 체결 export 요청은 다시 보내지 않으며, 기존 요청 intent와 export volume을 유지합니다.
++
++이번 경로는 사용자가 '확인된 BTC 종료 체결 이후 현재까지 다른 수동 주문/프로그램/봇 거래가 없다'고 확인한 사실을 수동 근거로 사용합니다. 거래소의 계정 전체 체결 원본을 확보·검증했다는 뜻이 아닙니다. 미리보기와 감사 기록 모두 source=OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE 및 account_wide_exchange_export_verified=false를 표시합니다. 이 한계를 수용하지 않으면 적용하지 않고 잠금을 유지할 수 있습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-day-reconstruction 폴더에서 infra가 보이는 위치로 이동합니다.
++2. Docker Desktop을 켜고 탐색기 주소창에 cmd를 입력한 뒤 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++3. 모두 Healthy면 읽기 전용 미리보기를 실행합니다. 아래 확인 옵션은 실행 시점까지의 추가 거래 없음 진술을 재확인하는 뜻입니다. 실제로 추가 거래가 있었다면 실행하지 말고 알려주세요.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_attested_day --attest-no-other-trades-since-exit
++
++4. DEMO API Key/Secret을 숨김 입력하고 마지막 결과를 대화에 공유합니다. 이 명령은 lease/DB 쓰기/주문/내보내기 생성을 하지 않습니다.
++
++미리보기 조건:
++- 기존 로컬 flat 관측의 계정 포지션0 및 모든 진입 주문 종료·미결/포지션 수량0. 취소 주문의 모순된 기록은 이미 감사 정정되어 있어야 합니다.
++- 서명된 BTC 진입/종료 체결 대조, 알려진 종료 이후 자정 전/오늘의 추가 BTC 체결0, 종료와 같은 밀리초의 다른 체결0.
++- 다른 종목을 포함한 추가 계정 거래 없음은 사용자 확인 근거로 명시하며 거래소 전체 원본 검증으로 승격하지 않습니다.
++- 로컬 추적 시작과 과거 flat 관측이 일관되고 누적 입출금 기준/관련 기록이 모두0인 제한된 경우만 지원합니다.
++- 해당 flat 관측 이후 계정 income을 반복 조회해 아예 비어 있어야 합니다. 순합계만0인 서로 상쇄되는 거래도 차단합니다. 다른 자산/지원하지 않는 유형/불완전 페이지/경계 시각 모호성도 기존 parser가 차단합니다.
++- 현재 single-asset 모드, Isolated BTCUSDT 2x, 포지션/활성 주문0. USDT asset 잔액과 API 총 지갑/마진 잔액 및 과거 flat 평가액이 모두 같고 USDT/총 미실현손익0이어야 합니다. USDC/BTC 보유량을 USDT로 환산하지 않습니다.
++- 현재 KST 일자/거래소 스냅샷이 변하지 않고, 기존 주별 기준은 현재 주와 일치해야 합니다. 기존 일·주 손실/낙폭 한도에 걸리면 재설정하지 않습니다. 고점 정리가 필요한 경우도 별도 검토로 차단합니다.
++
++위 조건이 맞을 때만 사용자의 계속된 flat 확인과 서명된 USDT 현금 근거를 결합하여 해당 자정 조정 평가액 후보를 계산합니다. 예전 관측 value.as_of/last_reconciled를 과거 자정으로 고쳐 쓰지 않습니다. 별도 receipt의 boundary_utc는 수동 근거를 포함해 복원한 평가 기준 시각이며 거래소에서 그 시각에 직접 조회한 값이라는 뜻이 아닙니다.
++
++성공 출력: OPERATOR_ATTESTED_DAY_PREVIEW_NO_DATABASE_CHANGE. old_daily_key/base와 proposed_day_kst/proposed_daily_base_usdt, 수동 근거 사용 여부 및 토큰을 확인합니다. 지금까지의 실제 수치가 그대로라면 후보는4999.85274949 USDT이지만 프로그램이 먼저 검증해야 하며 고정 금액을 강제로 넣지 않습니다.
++
++적용은 별도 단계입니다. --attest-no-other-trades-since-exit와 --accept-operator-evidence, --apply-review TOKEN, --operation-id UUID를 모두 지정해야 합니다. 미리보기 결과를 검토한 뒤 구체적인 적용 명령을 받으세요. 이 문서에 사전 승인된 토큰/자동 적용 명령은 없습니다.
++
++실제 적용 시 같은 근거를 재검증하고 토큰이 일치할 때만 daily_key/daily_base와 감사 receipt/operation을 한 트랜잭션으로 저장합니다. 원래 일자·금액, 기준 시각/관측 시각, 알려진 종료 시각, 사용자 확인 범위, 서명 근거 hash, 수동 source와 거래소 전체 export 미검증 표시를 함께 보관합니다. 같은 작업 ID+토큰은 중복 적용하지 않습니다. lease/fence나 처리시간이 어긋나면 정정 트랜잭션이 롤백되며 별도 lease 감사 이벤트는 남을 수 있습니다.
++
++주별 기준/고점/정책/기존 valuation/입출금 기준/요청/주문/과거 감사 및 export 기록은 유지합니다. EMERGENCY/paused도 유지합니다. 일별 기준 복원은 잠금 해제·UNKNOWN 인정·신규 주문 재개와 다릅니다. recovery_eligible=false로 표시합니다. 실거래 및 Phase5로 넘어가지 않습니다. 오류 시 반복 적용·새 작업 ID·DB/volume 초기화를 하지 말고 코드만 공유하세요. 감사 필드가 추가되므로 적용 후 이 버전 또는 이를 포함하는 이후 버전을 유지하세요.
+--- a/DAY_RECONSTRUCTION_VALIDATION_KO.md
++++ b/DAY_RECONSTRUCTION_VALIDATION_KO.md
+@@ -0,0 +1,17 @@
++# 사용자 확인을 포함한 USDT 일별 기준 복원 검증
++
++전체570개 테스트 통과(89.34초), mypy78개 소스 통과, 전체 Ruff lint/format 검사 통과. 실제 PostgreSQL 및 합성 거래소 응답·로컬WS 사용. 실제 사용자 DB의 기준값 변경/거래소 인증/주문/추가 export 요청은 클라우드에서 수행하지 않았습니다.
++
++근거 방식: 사용자가 확인된 BTC 종료 이후 현재까지 수동 주문이나 다른 프로그램/봇 거래가 없었다고 답했습니다. 이 진술은 사용자 확인 근거입니다. 계정 전체 거래소 원본 검증과 구분하며, 모든 미리보기·적용 출력·감사 receipt에 source=OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE와 account_wide_exchange_export_verified=false를 명시합니다. 사용자 진술만으로 자동 채택하지 않습니다. 기본 미리보기에 명시적 진술 옵션이 필요하고, 실제 채택은 별도로 --accept-operator-evidence와 토큰/고정 작업 ID까지 요구합니다.
++
++계산 경로는 제한적입니다. 기존 평탄 관측과 valuation 시각이 일치하고 순입출금 기준/관련 기록0, 현재 주간 기준 일치, 서명된 알려진 BTC 완전 종료 및 그 이후 BTC 체결0, 관측 이후 income의 반복 조회가 모두 빈 경우만 지원합니다. 현재 single-asset/Isolated BTCUSDT 2x/포지션0/활성 주문0을 확인합니다. 현재 USDT 자산/총지갑/마진 잔액이 과거 관측 평가액과 같고 총/USDT 미실현손익0이어야 합니다. 사용자 flat 확인과 이 서명된 현금 근거를 결합해 그 자정의 조정 USDT 평가액 후보를 도출합니다. 다른 자산을 USDT로 더하지 않습니다. 과거 모든 계정 포지션을 거래소 원본으로 검증했다고 승격하지 않습니다.
++
++기존 일/주 손실·낙폭 한도에 이미 해당하거나 고점 갱신/주간 기준/입출금 정리가 필요하면 차단합니다. 기준을 채택한 probe로 현재 account_risk 게이트도 다시 평가합니다. 원래 account_risk 함수의 정확한 경계 guard 및 위험 규칙은 변경하지 않았습니다. 이 별도 수동 근거 채택 경로는 명시적 수용 후에만 원장의 daily_key/daily_base를 변경합니다. 기존 value.as_of/last_reconciled를 과거 자정으로 조작하지 않습니다. receipt의 boundary는 복원된 평가 기준 시각이며 그 시각 직접 조회를 주장하는 것이 아닙니다.
++
++새31개 테스트는 수동 source/전체원본 미검증 표시, 미리보기 DB·이벤트 불변과 GET-only, 단일 자정 일별 기준+감사 이외의 원장/요청/주문/주별 기준/고점/입출금/관측 시각/EMERGENCY/paused 보존, 원래 일자·금액과 근거 receipt 저장, 중복 적용 방지, 진술·수용 옵션 없는 실행 차단, 잘못된 입출금 기준/추적시각/주간 기준/기존 손실·낙폭/고점 차단, 추가 체결·서로 상쇄돼 순합계0인 income·잔액 변화·USDT 자산 누락/다른 자산 합산/미실현손익 불일치 차단을 검증합니다. 계정/일자/토큰 불일치, old leader fencing, 검토 중 lease 만료 시 기준/receipt/정정 이벤트 롤백, CLI 미리보기 무쓰기/키 정리/수동 source 출력, 명시적 수용 후 별도 적용/잠금 보존도 확인합니다.
++
++토큰은 원본 ledger(lease 획득 시 무효화하는 reconciled/stream_ready 제외), 계정ID, 수동 source, 해당 자정, 알려진 종료 시각, signed 체결/income hash·스냅샷·후보를 묶습니다. 적용 시 GET 근거를 재검토해 토큰이 일치할 때만 lease/fence와 행 잠금 아래 daily_key/daily_base, 별도 receipt/operation을 원자 저장합니다. 상태 점검용 reconciled/stream_ready는 false로 유지합니다. 위험 정책·주별 기준·고점·기존 valuation·순입출금·과거 요청·주문·감사·export intent는 유지합니다. 별도 lease 획득/해제 감사 이벤트는 남을 수 있습니다. 적용 후에도 EMERGENCY/paused 및 recovery_eligible=false입니다.
++
++변경 범위: 새 서비스/CLI/통합 테스트/안내·검증 문서 및 DemoLedger의 기본값 있는 receipt 필드. MASTER_SPEC/AGENTS, 위험·주문·recovery·기존 정정·저장 구현, 의존성 lock, DemoClient, Isolated 설정, Dockerfile/Compose 및 export 코드는 이전ZIP과 바이트 동일합니다. 기존 PostgreSQL 및 export named volume을 그대로 보존합니다. export 생성은 재시도하지 않습니다. API/web PAPER, LIVE=false 유지.
++
++제한: 이 방식은 사용자 확인에 의존합니다. 사용자가 알지 못한 다른 계정 거래/접근을 거래소 전체 원본으로 배제하지 못합니다. 자동 원본 검증 경로라고 주장하지 않습니다. 사용자가 이 한계를 수용하지 않으면 기준을 채택하지 않고 잠금을 유지해야 합니다. 실제 계정의 최신 조건은 Windows 미리보기에서 확인해야 합니다. 다른 입출금·현재주 변경·추가거래·지갑 변화 등이 있으면 이 제한된 경로를 적용하지 않습니다. 실제 사용자 DB 채택, main 변경, 잠금 해제, 실거래, Phase5 진입 없음.
+--- a/scripts/review_demo_attested_day.py
++++ b/scripts/review_demo_attested_day.py
+@@ -0,0 +1,152 @@
++"""Preview an operator-attested daily baseline; explicit source acceptance is required to apply."""
++
++import argparse
++import getpass
++import json
++import os
++import re
++import warnings
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_cancelled_history import CancelledHistoryBlocked
++from services.execution.demo_day_reconstruction import (
++    DayReconstructionBlocked,
++    apply_day_reconstruction,
++    review_day_reconstruction,
++)
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked
++from services.risk.paper import RiskRejected
++
++ACCOUNT_ID = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--attest-no-other-trades-since-exit", action="store_true")
++    parser.add_argument("--accept-operator-evidence", action="store_true")
++    parser.add_argument("--apply-review")
++    parser.add_argument("--operation-id", type=UUID)
++    args = parser.parse_args()
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("DAY_CONTEXT", "LIVE_CONTEXT_FORBIDDEN")
++    if not args.attest_no_other_trades_since_exit:
++        blocked("DAY_ATTESTATION", "EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
++    if (
++        bool(args.apply_review) != args.accept_operator_evidence
++        or bool(args.apply_review) != bool(args.operation_id)
++        or (args.apply_review and not re.fullmatch(r"[0-9a-f]{64}", args.apply_review))
++    ):
++        blocked("DAY_ARGUMENTS", "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED")
++    engine = None
++    lease = None
++    store = None
++    stage = "CREDENTIAL_INPUT"
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = ACCOUNT_ID
++        if args.apply_review:
++            stage = "DAY_APPLY"
++            lease = store.acquire(account, uuid4())
++            result = apply_day_reconstruction(
++                store,
++                lease,
++                client,
++                args.operation_id,
++                args.apply_review,
++                attest_no_other_trades=args.attest_no_other_trades_since_exit,
++                accept_operator_evidence=args.accept_operator_evidence,
++            )
++            after = store.read(account)
++            print(
++                json.dumps(
++                    {
++                        "day_baseline": result,
++                        "source": "OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE",
++                        "account_wide_exchange_export_verified": False,
++                        "operation_id": str(args.operation_id),
++                        "risk_state": after.risk_state.value,
++                        "paused": after.paused,
++                        "unresolved_requests_acknowledged": False,
++                        "daily_baseline_changed": result != "ALREADY_RECORDED_NO_ACTION",
++                        "weekly_base_preserved": True,
++                        "high_water_preserved": True,
++                        "recovery_eligible": False,
++                        "orders_enabled": False,
++                        "live_trading_enabled": False,
++                    }
++                )
++            )
++        else:
++            before = store.read(account)
++            stage = "DAY_PREVIEW"
++            report = review_day_reconstruction(
++                store,
++                client,
++                before,
++                account_id=account,
++                attest_no_other_trades=args.attest_no_other_trades_since_exit,
++            )
++            if store.read(account) != before:
++                raise DayReconstructionBlocked("DATABASE_CHANGED_DURING_REVIEW")
++            print(json.dumps(report))
++    except (
++        DayReconstructionBlocked,
++        CancelledHistoryBlocked,
++        DayReviewBlocked,
++        HistoryBlocked,
++    ) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except RiskRejected:
++        blocked(stage, "LEASE_OR_RISK_GATE_REJECTED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++        except (RiskRejected, SQLAlchemyError):
++            blocked("LEASE_RELEASE", "LEASE_RELEASE_NOT_CONFIRMED_KEEP_LOCK")
++        finally:
++            if engine is not None:
++                engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_day_reconstruction.py
++++ b/services/execution/demo_day_reconstruction.py
+@@ -0,0 +1,259 @@
++"""Explicit operator-attested USDT day baseline; never an exchange-wide proof.
++
++Limited to no income after a verified local flat anchor and an unchanged USDT
++wallet. The account-risk implementation and old valuation timestamps are unchanged;
++locks stay active. The manual evidence source remains explicit in preview and receipt.
++"""
++
++import hashlib
++import json
++import re
++from datetime import UTC, datetime, time
++from decimal import Decimal, DecimalException
++from typing import Final
++from uuid import UUID
++from zoneinfo import ZoneInfo
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.domain.contracts import RiskState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_day_review import income_window
++from services.execution.demo_history_review import review_flat_history
++from services.execution.demo_models import AttestedDayBaseline, DemoLedger
++from services.execution.models import Lease
++from services.execution.paper import account_risk
++from services.risk.paper import AccountValue, period_keys
++
++SOURCE: Final = "OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE"
++OPERATION = "ADOPT_OPERATOR_ATTESTED_USDT_DAY_BASELINE"
++
++
++class DayReconstructionBlocked(DemoFailure):
++    pass
++
++
++def review_day_reconstruction(
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    account_id: str,
++    attest_no_other_trades: bool,
++) -> dict[str, object]:
++    if not attest_no_other_trades:
++        raise DayReconstructionBlocked("EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
++    now = store.now()
++    day, week = period_keys(now, ledger.policy.week_start_kst)
++    anchor = ledger.last_reconciled
++    boundary = datetime.combine(
++        now.astimezone(ZoneInfo("Asia/Seoul")).date(), time(), ZoneInfo("Asia/Seoul")
++    ).astimezone(UTC)
++    if (
++        not account_id.startswith("DEMO-")
++        or client.settings.demo_trading_enabled
++        or client.settings.policy != ledger.policy
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.risk_state.value != "EMERGENCY"
++        or not ledger.paused
++        or anchor is None
++        or ledger.value.as_of != anchor
++        or ledger.daily_key >= day
++        or anchor >= boundary
++    ):
++        raise DayReconstructionBlocked("ATTESTED_DAY_CONTEXT_MISMATCH")
++    if ledger.weekly_key != week:
++        raise DayReconstructionBlocked("WEEK_BASELINE_REQUIRES_SEPARATE_REVIEW")
++    if (
++        ledger.income_since_ms is None
++        or not 0 <= ledger.income_since_ms <= int(anchor.timestamp() * 1000)
++        or ledger.income_seen
++        or ledger.net_transfers != 0
++        or ledger.value.net_deposits != 0
++    ):
++        raise DayReconstructionBlocked("NONZERO_OR_UNKNOWN_TRANSFER_BASIS")
++    first = snapshot(client, ledger, now)
++    history = review_flat_history(store, client, ledger)
++    if (
++        history["last_known_full_exit_fill_found"] is not True
++        or history["btc_trades_after_known_exit_before_boundary"] != 0
++        or history["other_trades_at_exit_timestamp"] != 0
++        or history["btc_trades_at_or_after_boundary"] != 0
++        or history["wallet_change_matches_income"] is not True
++    ):
++        raise DayReconstructionBlocked("BTC_EXIT_AND_HISTORY_NOT_CONFIRMED")
++    start_ms, end_ms = int(anchor.timestamp() * 1000), int(store.now().timestamp() * 1000)
++    incomes = income_window(client, start_ms, end_ms)
++    if incomes != income_window(client, start_ms, end_ms) or incomes:
++        raise DayReconstructionBlocked("POST_ANCHOR_INCOME_NOT_EMPTY_OR_CHANGED")
++    raw = client.request("GET", "/fapi/v3/account")
++    if not isinstance(raw, dict) or not isinstance(raw.get("assets"), list):
++        raise DayReconstructionBlocked("USDT_ASSET_SCOPE_MISSING")
++    usdt = [r for r in raw["assets"] if isinstance(r, dict) and r.get("asset") == "USDT"]
++    if len(usdt) != 1:
++        raise DayReconstructionBlocked("USDT_ASSET_SCOPE_MISSING")
++    try:
++        wallet = signed_number(usdt[0].get("walletBalance"))
++        if (
++            wallet <= 0
++            or signed_number(usdt[0].get("unrealizedProfit")) != 0
++            or signed_number(usdt[0].get("marginBalance")) != wallet
++            or signed_number(raw.get("totalWalletBalance")) != wallet
++            or signed_number(raw.get("totalMarginBalance")) != wallet
++            or signed_number(raw.get("totalUnrealizedProfit")) != 0
++        ):
++            raise DayReconstructionBlocked("USDT_TOTAL_OR_UNREALIZED_MISMATCH")
++    except (DemoFailure, DecimalException, ValueError, TypeError):
++        raise DayReconstructionBlocked("USDT_TOTAL_OR_UNREALIZED_MISMATCH") from None
++    final = snapshot(client, ledger, store.now())
++    if (
++        first.fingerprint != final.fingerprint
++        or first.wallet_balance != wallet
++        or final.wallet_balance != wallet
++        or ledger.value.equity != wallet
++        or any(final.positions.values())
++        or final.leverage.get("BTCUSDT") != 2
++        or period_keys(store.now(), ledger.policy.week_start_kst) != (day, week)
++    ):
++        raise DayReconstructionBlocked("ACCOUNT_OR_DAY_CHANGED")
++    candidate = wallet  # This path requires an explicitly verified zero net-deposit basis.
++    for base, cap in (
++        (ledger.daily_base, "daily_loss_limit_pct"),
++        (ledger.weekly_base, "weekly_loss_limit_pct"),
++        (ledger.high_water, "max_drawdown_pct"),
++    ):
++        if (base - candidate) / base * 100 >= ledger.policy.limit(cap):
++            raise DayReconstructionBlocked("EXISTING_LOSS_LIMIT_REACHED")
++    if ledger.high_water < candidate:
++        raise DayReconstructionBlocked("HIGH_WATER_REQUIRES_SEPARATE_REVIEW")
++    probe = ledger.model_copy(deep=True)
++    probe.daily_key, probe.daily_base = day, candidate
++    probe.value = AccountValue(
++        as_of=store.now(),
++        initial=ledger.value.initial,
++        realized=wallet - ledger.value.initial,
++        net_deposits=Decimal(0),
++    )
++    probe.risk_state = RiskState.NORMAL
++    account_risk(probe, store.now())
++    if probe.risk_state != RiskState.NORMAL:
++        raise DayReconstructionBlocked("RECONSTRUCTED_RISK_GATES_FAILED")
++    payload = {
++        "account_id": account_id,
++        "source": SOURCE,
++        "boundary": boundary.isoformat(),
++        "ledger": ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"}),
++        "history_hash": history["evidence_hash"],
++        "snapshot": final.fingerprint,
++        "candidate": str(candidate),
++        "post_anchor_income": incomes,
++        "known_exit": history["last_known_full_exit_fill_utc"],
++    }
++    evidence = hashlib.sha256(
++        json.dumps(
++            {
++                "history": history["evidence_hash"],
++                "incomes": incomes,
++                "snapshot": final.fingerprint,
++            },
++            sort_keys=True,
++        ).encode()
++    ).hexdigest()
++    token = hashlib.sha256(
++        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
++    ).hexdigest()
++    return {
++        "review": "OPERATOR_ATTESTED_DAY_PREVIEW_NO_DATABASE_CHANGE",
++        "account_id": account_id,
++        "source": SOURCE,
++        "review_token": token,
++        "old_daily_key": ledger.daily_key,
++        "old_daily_base_usdt": str(ledger.daily_base),
++        "proposed_day_kst": day,
++        "boundary_utc": boundary.isoformat(),
++        "proposed_daily_base_usdt": str(candidate),
++        "net_deposit_basis_usdt": "0",
++        "anchor_utc": anchor.isoformat(),
++        "known_exit_utc": history["last_known_full_exit_fill_utc"],
++        "attested_until_utc": store.now().isoformat(),
++        "signed_evidence_hash": evidence,
++        "exchange_fingerprint": final.fingerprint,
++        "account_wide_exchange_export_verified": False,
++        "operator_attestation_used": True,
++        "weekly_base_preserved": True,
++        "high_water_preserved": True,
++        "old_valuation_timestamp_preserved": True,
++        "requests_preserved": True,
++        "risk_state": ledger.risk_state.value,
++        "paused": ledger.paused,
++        "database_changed": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++        "recovery_eligible": False,
++    }
++
++
++def apply_day_reconstruction(
++    store: DemoStore,
++    lease: Lease,
++    client: DemoClient,
++    operation_id: UUID,
++    expected_token: str,
++    *,
++    attest_no_other_trades: bool,
++    accept_operator_evidence: bool,
++) -> str:
++    if (
++        not attest_no_other_trades
++        or not accept_operator_evidence
++        or not re.fullmatch(r"[0-9a-f]{64}", expected_token)
++    ):
++        raise DayReconstructionBlocked("EXPLICIT_MANUAL_SOURCE_ACCEPTANCE_REQUIRED")
++    if client.settings.demo_trading_enabled:
++        raise DayReconstructionBlocked("READ_ONLY_CLIENT_REQUIRED")
++
++    def apply(ledger: DemoLedger) -> str:
++        key = str(operation_id)
++        receipt = ledger.attested_day_baselines.get(key)
++        if receipt is not None:
++            if receipt.review_token != expected_token or ledger.operations.get(key) != OPERATION:
++                raise DayReconstructionBlocked("DAY_OPERATION_CONFLICT")
++            return "ALREADY_RECORDED_NO_ACTION"
++        if (
++            key in ledger.operations
++            or key in ledger.recovery_receipts
++            or key in ledger.cancelled_exposure_corrections
++        ):
++            raise DayReconstructionBlocked("DAY_OPERATION_CONFLICT")
++        report = review_day_reconstruction(
++            store,
++            client,
++            ledger,
++            account_id=lease.account_id,
++            attest_no_other_trades=attest_no_other_trades,
++        )
++        if report["review_token"] != expected_token:
++            raise DayReconstructionBlocked("DAY_PREVIEW_CHANGED")
++        receipt = AttestedDayBaseline(
++            review_token=expected_token,
++            source=SOURCE,
++            boundary_utc=datetime.fromisoformat(str(report["boundary_utc"])),
++            baseline_usdt=Decimal(str(report["proposed_daily_base_usdt"])),
++            old_daily_key=ledger.daily_key,
++            old_daily_base=ledger.daily_base,
++            anchor_utc=datetime.fromisoformat(str(report["anchor_utc"])),
++            known_exit_utc=datetime.fromisoformat(str(report["known_exit_utc"])),
++            attested_until_utc=store.now(),
++            signed_evidence_hash=str(report["signed_evidence_hash"]),
++            exchange_fingerprint=str(report["exchange_fingerprint"]),
++        )
++        ledger.daily_key, ledger.daily_base = str(report["proposed_day_kst"]), receipt.baseline_usdt
++        ledger.attested_day_baselines[key] = receipt
++        ledger.operations[key] = OPERATION
++        ledger.reconciled = ledger.stream_ready = False
++        return "OPERATOR_ATTESTED_DAILY_BASELINE_ADOPTED_KEEP_LOCK"
++
++    return store.change(lease, "DEMO_OPERATOR_ATTESTED_DAY_BASELINE", apply)
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -17,6 +17,21 @@
+     exchange_fingerprint: str
+     corrected_at: datetime
+     original_orders: dict[str, PaperOrder]
++
++
++class AttestedDayBaseline(State):
++    review_token: str
++    source: Literal["OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE"]
++    boundary_utc: datetime
++    baseline_usdt: PositiveDecimal
++    old_daily_key: str
++    old_daily_base: PositiveDecimal
++    anchor_utc: datetime
++    known_exit_utc: datetime
++    attested_until_utc: datetime
++    signed_evidence_hash: str
++    exchange_fingerprint: str
++    account_wide_exchange_export_verified: Literal[False] = False
+ 
+ 
+ class DemoLedger(Ledger):
+@@ -39,6 +54,7 @@
+     cancelled_exposure_corrections: dict[str, CancelledExposureCorrection] = Field(
+         default_factory=dict
+     )
++    attested_day_baselines: dict[str, AttestedDayBaseline] = Field(default_factory=dict)
+     requests: dict[str, str] = Field(default_factory=dict)
+     request_no_send_evidence: dict[
+         str,
+--- a/tests/integration/test_demo_day_reconstruction.py
++++ b/tests/integration/test_demo_day_reconstruction.py
+@@ -0,0 +1,449 @@
++"""Manual-source provenance is explicit; signed evidence overrides the attestation."""
++
++import json
++from datetime import timedelta
++from decimal import Decimal
++from urllib.parse import parse_qs
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import select
++
++from integrations.binance_usdm.demo import DemoFailure
++from packages.persistence.demo import events
++from services.execution.demo_cancelled_correction import apply_correction, review_correction
++from services.execution.demo_day_reconstruction import (
++    SOURCE,
++    DayReconstructionBlocked,
++    apply_day_reconstruction,
++    review_day_reconstruction,
++)
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction, event_count  # noqa: F401
++from tests.unit.test_demo_trade_history_window import row
++
++
++@pytest.fixture
++def day_case(correction):  # noqa: F811
++    store, c, fake, sig, order, rows = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    apply_correction(store, c.lease, c.client, uuid4(), token)
++    # Synthetic fees were charged before the flat anchor. Nothing changed after it.
++    fake.wallet -= Decimal("0.14725051")
++
++    def fees_at_anchor(ledger):
++        ledger.value = ledger.value.model_copy(update={"realized": -Decimal("0.14725051")})
++
++    store.change(c.lease, "TEST_FEES_AT_VERIFIED_ANCHOR", fees_at_anchor)
++    original = c.client.send
++    raw_updates = {}
++    incomes = []
++
++    def send(method, path, query, key):
++        assert method == "GET"
++        assert path not in {"/fapi/v1/trade/asyn", "/fapi/v1/trade/asyn/id"}
++        if path == "/fapi/v1/income":
++            params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            return fake.response(
++                [
++                    r
++                    for r in incomes
++                    if int(params["startTime"]) <= r["time"] <= int(params["endTime"])
++                ]
++            )
++        result = original(method, path, query, key)
++        if path == "/fapi/v3/account":
++            raw = json.loads(result.body)
++            raw["totalMarginBalance"] = str(fake.wallet)
++            raw["assets"] = [
++                {
++                    "asset": "USDT",
++                    "walletBalance": str(fake.wallet),
++                    "marginBalance": str(fake.wallet),
++                    "unrealizedProfit": "0",
++                },
++                {"asset": "USDC", "walletBalance": "5000", "unrealizedProfit": "0"},
++                {"asset": "BTC", "walletBalance": "0.01", "unrealizedProfit": "0"},
++            ]
++            raw.update(raw_updates)
++            return fake.response(raw)
++        return result
++
++    c.client.send = send
++    return store, c, fake, rows, incomes, raw_updates
++
++
++def review(case, attest=True, account="DEMO-test"):
++    store, c, *_ = case
++    return review_day_reconstruction(
++        store, c.client, store.read("DEMO-test"), account_id=account, attest_no_other_trades=attest
++    )
++
++
++def apply(case, token, op=None, attest=True, accept=True, lease=None):
++    store, c, *_ = case
++    return apply_day_reconstruction(
++        store,
++        lease or c.lease,
++        c.client,
++        op or uuid4(),
++        token,
++        attest_no_other_trades=attest,
++        accept_operator_evidence=accept,
++    )
++
++
++def test_preview_is_conditional_manual_source_not_exchange_wide_proof(day_case):
++    store, c, fake, *_ = day_case
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    start = len(fake.calls)
++    report = review(day_case)
++    assert report["source"] == SOURCE
++    assert report["operator_attestation_used"] is True
++    assert report["account_wide_exchange_export_verified"] is False
++    assert report["proposed_daily_base_usdt"] == "9999.85274949"
++    assert report["old_daily_base_usdt"] == "10000"
++    assert report["proposed_day_kst"] == "2026-10-21"
++    assert report["boundary_utc"] == "2026-10-20T15:00:00+00:00"
++    assert report["recovery_eligible"] is False
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++    assert all(method == "GET" for method, _, _ in fake.calls[start:])
++
++
++def test_apply_changes_only_day_basis_and_audit_keeps_lock_and_old_valuation(day_case):
++    store, c, *_ = day_case
++    before = store.read("DEMO-test")
++    report = review(day_case)
++    op = uuid4()
++    assert (
++        apply(day_case, report["review_token"], op)
++        == "OPERATOR_ATTESTED_DAILY_BASELINE_ADOPTED_KEEP_LOCK"
++    )
++    after = store.read("DEMO-test")
++    excluded = {
++        "daily_key",
++        "daily_base",
++        "attested_day_baselines",
++        "operations",
++        "reconciled",
++        "stream_ready",
++    }
++    assert before.model_dump(exclude=excluded) == after.model_dump(exclude=excluded)
++    assert after.value == before.value and after.last_reconciled == before.last_reconciled
++    assert after.orders == before.orders and after.requests == before.requests
++    assert after.weekly_base == before.weekly_base and after.high_water == before.high_water
++    assert after.daily_key == "2026-10-21" and after.daily_base == Decimal("9999.85274949")
++    assert after.risk_state.value == "EMERGENCY" and after.paused
++    receipt = after.attested_day_baselines[str(op)]
++    assert receipt.old_daily_key == before.daily_key and receipt.old_daily_base == before.daily_base
++    assert receipt.source == SOURCE and receipt.account_wide_exchange_export_verified is False
++    assert receipt.anchor_utc == before.last_reconciled
++    with store.engine.connect() as conn:
++        payload = conn.execute(
++            select(events.c.payload).where(events.c.kind == "DEMO_OPERATOR_ATTESTED_DAY_BASELINE")
++        ).scalar_one()
++    assert SOURCE in payload and report["review_token"] in payload
++    assert apply(day_case, report["review_token"], op) == "ALREADY_RECORDED_NO_ACTION"
++    assert store.read("DEMO-test") == after
++
++
++@pytest.mark.parametrize("attest,accept", [(False, True), (True, False), (False, False)])
++def test_explicit_operator_attestation_and_source_acceptance_are_both_required(
++    day_case, attest, accept
++):
++    store, c, fake, *_ = day_case
++    token = review(day_case)["review_token"]
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    with pytest.raises(DayReconstructionBlocked, match="MANUAL_SOURCE_ACCEPTANCE"):
++        apply(day_case, token, attest=attest, accept=accept)
++    assert len(fake.calls) == start
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_no_preview_attestation_means_no_network(day_case):
++    fake = day_case[2]
++    start = len(fake.calls)
++    with pytest.raises(DayReconstructionBlocked, match="ATTESTATION_REQUIRED"):
++        review(day_case, attest=False)
++    assert len(fake.calls) == start
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "net_transfer",
++        "deposit",
++        "transfer_record",
++        "tracking",
++        "week",
++        "daily_loss",
++        "weekly_loss",
++        "drawdown",
++        "high_water",
++    ],
++)
++def test_unknown_basis_or_existing_risk_limits_cannot_be_reset(day_case, change):
++    store, c, *_ = day_case
++
++    def modify(ledger):
++        if change == "net_transfer":
++            ledger.net_transfers = Decimal(1)
++        elif change == "deposit":
++            ledger.value = ledger.value.model_copy(update={"net_deposits": Decimal(1)})
++        elif change == "transfer_record":
++            ledger.income_seen["TRANSFER:1"] = "0"
++        elif change == "tracking":
++            ledger.income_since_ms = None
++        elif change == "week":
++            ledger.weekly_key = "2026-10-12"
++        elif change == "daily_loss":
++            ledger.daily_base = Decimal(20000)
++        elif change == "weekly_loss":
++            ledger.weekly_base = Decimal(20000)
++        elif change == "drawdown":
++            ledger.high_water = Decimal(20000)
++        elif change == "high_water":
++            ledger.high_water = Decimal(9999)
++
++    store.change(c.lease, "TEST_UNAPPROVABLE_BASIS", modify)
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DayReconstructionBlocked):
++        review(day_case)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "new_trade",
++        "net_zero_income",
++        "wallet",
++        "missing_asset",
++        "foreign_assets_in_total",
++        "usdt_unrealized",
++    ],
++)
++def test_signed_disagreement_blocks_even_if_user_attests_no_trades(day_case, change):
++    store, c, fake, rows, incomes, updates = day_case
++    if change == "new_trade":
++        rows.append(row(id=3, time=int(fake.at.timestamp() * 1000)))
++    elif change == "net_zero_income":
++        stamp = int(fake.at.timestamp() * 1000) - 1000
++        incomes.extend(
++            [
++                {
++                    "asset": "USDT",
++                    "incomeType": "COMMISSION",
++                    "income": "-0.1",
++                    "time": stamp,
++                    "tranId": 101,
++                },
++                {
++                    "asset": "USDT",
++                    "incomeType": "REALIZED_PNL",
++                    "income": "0.1",
++                    "time": stamp,
++                    "tranId": 102,
++                },
++            ]
++        )
++    elif change == "wallet":
++        fake.wallet += 1
++    elif change == "missing_asset":
++        updates["assets"] = []
++    elif change == "foreign_assets_in_total":
++        updates["totalWalletBalance"] = str(fake.wallet + 5000)
++    elif change == "usdt_unrealized":
++        updates["assets"] = [
++            {
++                "asset": "USDT",
++                "walletBalance": str(fake.wallet),
++                "marginBalance": str(fake.wallet),
++                "unrealizedProfit": "1",
++            }
++        ]
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DemoFailure):
++        review(day_case)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_stale_token_and_wrong_account_roll_back(day_case):
++    store, c, *_ = day_case
++    token = review(day_case, account="DEMO-other")["review_token"]
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    with pytest.raises(DayReconstructionBlocked, match="PREVIEW_CHANGED"):
++        apply(day_case, token)
++    assert store.read("DEMO-test").model_dump_json() == before and event_count(store) == count
++
++
++def test_expiry_after_review_rolls_back_baseline_and_receipt(day_case, monkeypatch):
++    import services.execution.demo_day_reconstruction as module
++
++    store, c, fake, *_ = day_case
++    token = review(day_case)["review_token"]
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    original = module.review_day_reconstruction
++
++    def delayed(*args, **kwargs):
++        result = original(*args, **kwargs)
++        fake.at += timedelta(seconds=61)
++        return result
++
++    monkeypatch.setattr(module, "review_day_reconstruction", delayed)
++    with pytest.raises(RiskRejected, match="outlived lease"):
++        apply(day_case, token)
++    assert store.read("DEMO-test").model_dump_json() == before and event_count(store) == count
++
++
++def test_new_kst_day_invalidates_preview_even_with_fresh_lease(day_case):
++    store, c, fake, *_ = day_case
++    token = review(day_case)["review_token"]
++    store.release(c.lease)
++    fake.at += timedelta(days=1)
++    c.client.sync_clock()
++    fresh = store.acquire("DEMO-test", uuid4())
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DayReconstructionBlocked, match="PREVIEW_CHANGED"):
++        apply(day_case, token, lease=fresh)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_operation_receipt_cannot_be_reused_with_another_token(day_case):
++    store, c, *_ = day_case
++    token = review(day_case)["review_token"]
++    op = uuid4()
++    apply(day_case, token, op)
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(DayReconstructionBlocked, match="OPERATION_CONFLICT"):
++        apply(day_case, "f" * 64, op)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_old_leader_is_fenced_before_any_manual_adoption(day_case):
++    store, c, *_ = day_case
++    token = review(day_case)["review_token"]
++    old = c.lease
++    store.release(old)
++    store.acquire("DEMO-test", uuid4())
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(RiskRejected, match="fenced"):
++        apply(day_case, token, lease=old)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_cli_preview_exposes_manual_source_without_lease_or_database_write(
++    day_case, monkeypatch, capsys
++):
++    import os
++    import sys
++
++    import scripts.review_demo_attested_day as cli
++
++    store, c, *_ = day_case
++    original = store.read
++    before = original("DEMO-test").model_dump_json()
++    count = event_count(store)
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(
++        sys, "argv", ["review_demo_attested_day", "--attest-no-other-trades-since-exit"]
++    )
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++
++    def no_write(*args):
++        raise AssertionError("Preview must not acquire, change or release")
++
++    monkeypatch.setattr(store, "acquire", no_write)
++    monkeypatch.setattr(store, "change", no_write)
++    monkeypatch.setattr(store, "release", no_write)
++    cli.main()
++    output = capsys.readouterr().out
++    assert SOURCE in output and "OPERATOR_ATTESTED_DAY_PREVIEW_NO_DATABASE_CHANGE" in output
++    assert '"account_wide_exchange_export_verified": false' in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original("DEMO-test").model_dump_json() == before and event_count(store) == count
++
++
++@pytest.mark.parametrize(
++    "arguments",
++    [
++        [],
++        [
++            "--attest-no-other-trades-since-exit",
++            "--apply-review",
++            "f" * 64,
++            "--operation-id",
++            "8fae5b75-99a8-40a8-9371-50f962728dc8",
++        ],
++        ["--attest-no-other-trades-since-exit", "--accept-operator-evidence"],
++    ],
++)
++def test_cli_requires_attestation_and_separate_acceptance_before_apply(
++    monkeypatch, capsys, arguments
++):
++    import sys
++
++    import scripts.review_demo_attested_day as cli
++
++    monkeypatch.setattr(sys, "argv", ["review_demo_attested_day", *arguments])
++
++    def no_prompt(*args):
++        raise AssertionError("Invalid flags must not ask keys")
++
++    monkeypatch.setattr(cli.getpass, "getpass", no_prompt)
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++    assert "BLOCKED_KEEP_LOCK" in capsys.readouterr().out
++
++
++def test_cli_apply_requires_acceptance_and_preserves_emergency(day_case, monkeypatch, capsys):
++    import sys
++
++    import scripts.review_demo_attested_day as cli
++
++    store, c, *_ = day_case
++    token = review(day_case)["review_token"]
++    op = uuid4()
++    original_read, original_acquire = store.read, store.acquire
++    before = original_read("DEMO-test")
++    store.release(c.lease)
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "review_demo_attested_day",
++            "--attest-no-other-trades-since-exit",
++            "--accept-operator-evidence",
++            "--apply-review",
++            token,
++            "--operation-id",
++            str(op),
++        ],
++    )
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(store, "acquire", lambda account, owner: original_acquire(account, owner))
++    cli.main()
++    output = capsys.readouterr().out
++    assert "OPERATOR_ATTESTED_DAILY_BASELINE_ADOPTED_KEEP_LOCK" in output and SOURCE in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    after = original_read("DEMO-test")
++    assert after.value == before.value and after.requests == before.requests
++    assert after.paused and after.risk_state.value == "EMERGENCY"
++    assert str(op) in after.attested_day_baselines
