@@ -1,0 +1,876 @@
+--- a/TRADE_EXPORT_START_HERE_KO.md
++++ b/TRADE_EXPORT_START_HERE_KO.md
+@@ -0,0 +1,33 @@
++# 전체 체결 내보내기 요청 — Phase 4 근거 수집
++
++기존 DB가 있는 Galaxybook PC에서 실행합니다. 기존 PostgreSQL 데이터·손실 기준·비상 잠금을 유지합니다. 이번 도구는 전체 계정 체결 파일을 요청하기 위한 것이며, 주문 실행/복구 적용/잠금 해제/일별 기준 변경을 하지 않습니다.
++
++공식 Binance 커넥터는 trade export 생성이 UI와 API 합산 월5회로 제한된다고 안내합니다. 데모 서버의 지원과 실제 한도는 사용자 환경에서 아직 확인하지 못했습니다. --request-export는 이 한도를 사용할 수 있는 생성 요청 한 번을 명시적으로 실행합니다. 자동 생성이나 재시도는 없습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-trade-export 폴더에서 infra가 보이는 위치를 엽니다.
++2. Docker Desktop을 켜고 탐색기 주소창에 cmd를 입력합니다.
++3. 실행합니다. 기존 hybrid-windows_postgres_data는 유지하고, 요청 기록용 hybrid-windows_demo_export_data만 별도로 추가합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. 모두 Healthy면 전체 체결 내보내기를 한 번 요청합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.request_demo_trade_export --request-export
++
++5. DEMO API Key/Secret을 숨김 입력하고 마지막 결과 화면만 공유합니다. 키나 요청 기록 파일은 보내지 마세요.
++
++--request-export 없이 실행하면 생성 요청이나 키 입력 없이 PLAN_ONLY_NO_EXPORT_REQUEST로 조회 계획만 보여줍니다. 요청 구간은 기존 입출금 추적을 시작한 날의 KST00부터 요청 직전 확인한 UTC cutoff까지이며, symbol 필터를 보내지 않습니다. 최대365일로 제한합니다. 현재 계정의 Isolated BTCUSDT 2x/포지션0/활성 주문0과 원장에 있는 과거 진입 주문의 ID·방향·수량·가격·체결량을 대조합니다. 잘못된 키 계정이나 미정리 노출을 발견하면 생성 전에 중단합니다.
++
++JOB_REQUESTED_NOT_DOWNLOADED는 서버가 downloadId를 돌려줬다는 뜻입니다. 파일을 받았거나 이력의 완전성을 검증했다는 뜻은 아닙니다. 생성 요청 전에 로컬 intent를 동기 저장하고 성공 시 ID를 덧붙입니다. 같은 저장 기록이 있으면 ALREADY_REQUESTED_NO_NEW_JOB으로 새 작업을 생성하지 않습니다. 시간초과/잘못된 응답/지원 불명 오류면 intent가 남으며 재생성을 차단합니다.
++
++요청이 정상 접수된 뒤 기존 작업 상태만 확인하는 명령은 아래와 같습니다. 이 명령은 생성 API를 호출하지 않으며 한 번만 조회합니다. 자동 반복 조회하지 않습니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.request_demo_trade_export --status-existing
++
++PROCESSING이면 아직 준비 중입니다. LINK_READY_NOT_DOWNLOADED이면 링크가 준비되어 비공개 로컬 기록에 저장됐지만 파일은 받지 않은 상태입니다. 출력에는 URL 전체·경로·쿼리 토큰을 넣지 않고 호스트만 표시합니다. 링크는 공식 커넥터 안내상24시간 만료입니다. 링크의 호스트와 실제 원본 파일 형식은 후속 단계에서 검증해야 하며 임의 링크를 자동으로 따라가지 않습니다.
++
++오류면 생성 요청을 반복하거나 기록/볼륨을 삭제하지 말고 결과 코드만 공유하세요. API가 DEMO에서 지원되지 않을 가능성도 있습니다. 실패를 '요청이 절대 생성되지 않았다'는 뜻으로 처리하지 않습니다. POST/DELETE/PUT export, 실거래 호스트 또는 임의 주소 요청은 허용하지 않습니다.
++
++요청 기록은 /app/demo-export-state/request.json(전용 volume)에 저장합니다. 폴더는0700, 파일은0600이며 컨테이너를 다시 만들어도 volume이 보존되면 기록이 남습니다. 동시 생성도 파일의 배타적 생성으로 하나만 허용합니다. DB/lease/기존 감사 기록에는 쓰지 않습니다. 요청 기록에는 다운로드 URL이 포함될 수 있으므로 파일을 대화에 올리지 마세요. volume 삭제/down -v/임의 기록 초기화/과거 버전으로 되돌리기를 하지 마세요.
++
++이 단계의 모든 출력은 recovery_eligible=false, historical_completeness_verified=false입니다. 원본 체결 파일이 없고 자정 계정 전체 포지션/누적 입출금 기준도 미검증이므로 일별 기준값 복원이나 Phase5로 넘어가지 않습니다.
+--- a/TRADE_EXPORT_VALIDATION_KO.md
++++ b/TRADE_EXPORT_VALIDATION_KO.md
+@@ -0,0 +1,19 @@
++# 전체 체결 내보내기 요청 도구 검증
++
++전체 테스트 539개 통과(73.25초), mypy 76개 소스 통과, 전체 Ruff lint/format 검사 통과. 실제 PostgreSQL과 합성 거래소 응답·로컬 WS 사용. 실제 사용자의 Binance 인증/내보내기 생성/주문 호출은 수행하지 않았습니다. 클라우드에서 export quota를 사용하지 않았습니다.
++
++공식 근거: Binance 공식 GitHub 커넥터 binance/binance-futures-connector-python의 commit a6bfbbf10fe2c1b4eb76fc24ffb82eb94bf9df89, binance/um_futures/account.py의 download_trade_asyn/async_download_trade_id 함수(1000~1041행). GET /fapi/v1/trade/asyn(startTime,endTime), GET /fapi/v1/trade/asyn/id(downloadId), UI/API 공유 월5회 생성, 최대1년 구간, 링크24시간 만료가 명시돼 있습니다. 공식 웹 문서는 이 환경의 CONNECT403 제한으로 열리지 않아 공식 GitHub 소스를 직접 읽었습니다. DEMO 서버 지원과 실제 응답/한도는 아직 확인하지 못했습니다.
++
++새 테스트 30개는 생성 전 intent 파일 동기 저장, 동시 생성 최대1개, 같은 저장 기록으로 재실행 시 새 생성 없음, 시간초과/잘못된 응답/후속 기록 저장 실패 시 intent 유지 및 재생성 금지, 기존 ID 상태 조회와 링크 비출력/비추적, 잘못된 ID/상태/비HTTPS·사용자정보·포트 링크 차단, symlink/권한/손상 기록 차단, 현재 노출·과거 주문 신원 불일치·쓰기 활성 문맥 차단, 생성 API의 symbol 없는 시간 범위와 KST 추적 시작일00부터 cutoff까지의 구간, CLI 기본 계획의 키 입력/DB 변경/lease/생성 없음, 명시적 생성의 DB·이벤트 불변/GET-only/키 정리/오류 마스킹을 확인합니다. export 경로의 POST/PUT/DELETE 및 실거래 전체 URL 요청도 네트워크 전에 차단합니다.
++
++정상 생성 시에도 JOB_REQUESTED_NOT_DOWNLOADED일 뿐이며 원본 파일 확보/과거 체결 완전성/자정 평가액을 검증한 것이 아닙니다. 상태 조회는 한 번만 수행하고 자동 polling/새 생성/실제 링크 다운로드를 하지 않습니다. 링크는 HTTPS 구조만 확인해 전용 비공개 로컬 기록에 보관하고, 출력에는 호스트만 표시합니다. 해당 다운로드 호스트의 허용 여부와 원본 파일 스키마/시간대/기간/계정 범위는 후속 확인이 필요합니다.
++
++요청 파일은 생성 전에 O_EXCL/O_NOFOLLOW로 배타적 생성하고 파일 및 디렉터리를 fsync합니다. receipt 교체는 같은 디렉터리의 임시 파일을 fsync 후 원자 교체합니다. 디렉터리0700/파일0600·소유자·정규 파일 여부를 확인합니다. 별도 named volume으로 컨테이너 재생성 후에도 보존하도록 구성했습니다. Docker 오프라인 검증에서 UID10001, 디렉터리0700, 파일0600 및 두 컨테이너 사이 내용 유지가 통과했습니다. 이 마운트 초기화 실험에는 이미 캐시된 PostgreSQL 이미지를 기반으로 만든 임시 이미지/볼륨을 사용했고 모두 정리했습니다. 실제 Python 앱 이미지는 클라우드에서 재빌드하지 않았으므로 사용자의 Healthy 및 파일 접근 결과로 최종 확인해야 합니다.
++
++변경: DemoClient의 GET allowlist에 공식 export 두 경로 추가, 새 서비스/CLI/통합 테스트/문서, api Dockerfile에 비공개 디렉터리 생성, Compose에 전용 demo_export_data volume 마운트. 새 volume은 hybrid-windows_demo_export_data입니다. 기존 PostgreSQL의 hybrid-windows_postgres_data 및 환경/포트/서비스/위험 설정은 유지합니다. API/web은 PAPER/LIVE=false이며 자동 export worker는 추가하지 않았습니다.
++
++기존 주문/정정/recovery/위험 계산/원장 모델/저장 구현/손실 기준/MASTER_SPEC/AGENTS/의존성 lock/Isolated 설정은 이전 ZIP과 바이트 동일합니다. 내보내기는 사용자 명령으로만 요청합니다. 기존 DemoClient의 서명/redirect 차단/실거래 호스트 차단과 API 키 마스킹을 유지하고 생산 호스트로 fallback하지 않습니다. 사용자 DB/원장/lease/과거 요청/손실 기준/비상 잠금을 바꾸지 않습니다. 별도 export 기록 파일을 저장하는 행위와 서버 보고서 생성 요청은 있습니다.
++
++제한: DEMO가 export API를 지원하지 않거나 권한/한도/응답 오류가 있을 수 있습니다. 결과가 불명확하면 이를 생성되지 않았다는 뜻으로 처리하지 않고 기록을 보존하여 자동 재생성을 막습니다. 기록 volume을 삭제하거나 다른 volume/PC를 사용하면 로컬 중복 방지를 잃으므로 기존 PC·프로젝트·volume을 유지해야 합니다. 이 도구만으로 월 전체 quota 사용 횟수를 조회/확정하지는 않습니다. 현 단계는 항상 recovery_eligible=false/historical_completeness_verified=false이며, 실제 파일을 받은 뒤 범위·내용·입출금/자정 평가액을 추가 검증해야 합니다. main 변경, 실거래, Phase5 진입 없음.
++
++공식 소스 URL: https://github.com/binance/binance-futures-connector-python/blob/a6bfbbf10fe2c1b4eb76fc24ffb82eb94bf9df89/binance/um_futures/account.py#L1000
+--- a/infra/api.Dockerfile
++++ b/infra/api.Dockerfile
+@@ -18,6 +18,7 @@
+ COPY --chown=10001:10001 scripts scripts
+ COPY --chown=10001:10001 migrations migrations
+ COPY --chown=10001:10001 alembic.ini alembic.ini
++RUN install -d -o 10001 -g 10001 -m 0700 /app/demo-export-state
+ USER 10001:10001
+ EXPOSE 8000
+ CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -25,6 +25,7 @@
+       APP_CONFIG_FILE: configs/paper.example.yaml
+       DATABASE_URL: postgresql+psycopg://dev:dev@db:5432/hybrid
+     ports: ["127.0.0.1:8000:8000"]
++    volumes: ["demo_export_data:/app/demo-export-state"]
+     depends_on:
+       db: {condition: service_healthy}
+     healthcheck:
+@@ -50,3 +51,4 @@
+     restart: "no"
+ volumes:
+   postgres_data:
++  demo_export_data:
+--- a/integrations/binance_usdm/demo.py
++++ b/integrations/binance_usdm/demo.py
+@@ -46,6 +46,8 @@
+         "/fapi/v1/algoOrder",
+         "/fapi/v1/openAlgoOrders",
+         "/fapi/v1/userTrades",
++        "/fapi/v1/trade/asyn",
++        "/fapi/v1/trade/asyn/id",
+     }
+ )
+ 
+--- a/scripts/request_demo_trade_export.py
++++ b/scripts/request_demo_trade_export.py
+@@ -0,0 +1,93 @@
++"""Plan, explicitly request once, or inspect an existing DEMO trade export job."""
++
++import argparse
++import getpass
++import json
++import os
++import warnings
++from pathlib import Path
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_trade_export import ExportBlocked, plan, request_export, status_export
++
++ACCOUNT_ID = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++JOURNAL = Path("/app/demo-export-state/request.json")
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    action = parser.add_mutually_exclusive_group()
++    action.add_argument("--request-export", action="store_true")
++    action.add_argument("--status-existing", action="store_true")
++    args = parser.parse_args()
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("EXPORT_CONTEXT", "LIVE_CONTEXT_FORBIDDEN")
++    stage = "DATABASE_READ"
++    engine = None
++    try:
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        before = store.read(ACCOUNT_ID)
++        if not args.request_export and not args.status_existing:
++            report = {
++                "export": "PLAN_ONLY_NO_EXPORT_REQUEST",
++                **plan(before, store.now(), ACCOUNT_ID),
++                "creation_limit": "FIVE_PER_MONTH_SHARED_WITH_UI",
++                "journal_file": str(JOURNAL),
++                "database_changed": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++                "recovery_eligible": False,
++            }
++        else:
++            stage = "CREDENTIAL_INPUT"
++            warnings.simplefilter("error", getpass.GetPassWarning)
++            os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++            os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++            stage = "CONFIGURATION"
++            cfg = DemoSettings.model_validate(
++                yaml.load(
++                    Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++                )
++            ).model_copy(update={"demo_trading_enabled": False})
++            client = DemoClient(cfg, DemoCredentials.from_environment())
++            stage = "CLOCK_CHECK"
++            client.sync_clock()
++            stage = "EXPORT_REQUEST" if args.request_export else "EXPORT_STATUS"
++            report = (request_export if args.request_export else status_export)(
++                store, client, before, ACCOUNT_ID, JOURNAL
++            )
++        if store.read(ACCOUNT_ID) != before:
++            raise ExportBlocked("DATABASE_CHANGED_KEEP_EXPORT_JOURNAL")
++        print(json.dumps(report), flush=True)
++    except ExportBlocked as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "EXPORT_QUERY_FAILED_NO_AUTOMATIC_RETRY")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        if engine is not None:
++            engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_trade_export.py
++++ b/services/execution/demo_trade_export.py
+@@ -0,0 +1,325 @@
++"""One explicitly requested account-wide export job, never a baseline or unlock.
++
++The official connector documents five trade-export creations/month (UI and API
++shared). A local intent is durably recorded BEFORE GET /trade/asyn. Any ambiguous
++outcome blocks regeneration; status uses only the already recorded download ID.
++"""
++
++import hashlib
++import json
++import os
++import re
++import stat
++import tempfile
++from datetime import UTC, datetime, time
++from pathlib import Path
++from typing import Any
++from urllib.parse import urlsplit
++from uuid import UUID, uuid4
++from zoneinfo import ZoneInfo
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.domain.contracts import OrderState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_models import DemoLedger
++
++
++class ExportBlocked(DemoFailure):
++    pass
++
++
++def plan(ledger: DemoLedger, now: datetime, account_id: str) -> dict[str, Any]:
++    if (
++        not account_id.startswith("DEMO-")
++        or len(account_id) > 80
++        or not ledger.paused
++        or ledger.risk_state.value != "EMERGENCY"
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.income_since_ms is None
++    ):
++        raise ExportBlocked("EXPORT_CONTEXT_MISMATCH")
++    if not 0 <= ledger.income_since_ms <= int(now.timestamp() * 1000):
++        raise ExportBlocked("EXPORT_WINDOW_OUT_OF_BOUNDS")
++    tracking = datetime.fromtimestamp(ledger.income_since_ms / 1000, UTC)
++    start = datetime.combine(
++        tracking.astimezone(ZoneInfo("Asia/Seoul")).date(), time(), ZoneInfo("Asia/Seoul")
++    )
++    start_ms, end_ms = int(start.timestamp() * 1000), int(now.timestamp() * 1000)
++    if not 0 <= end_ms - start_ms <= 365 * 86400000:
++        raise ExportBlocked("EXPORT_WINDOW_OUT_OF_BOUNDS")
++    identity = {
++        key: {
++            "client_id": order.client_id,
++            "server_id": order.server_order_id,
++            "symbol": order.signal.symbol,
++            "quantity": str(order.quantity),
++        }
++        for key, order in ledger.orders.items()
++    }
++    if not 1 <= len(identity) <= 30:
++        raise ExportBlocked("EXPORT_ACCOUNT_IDENTITY_MISSING")
++    digest = hashlib.sha256(
++        json.dumps({"account_id": account_id, "orders": identity}, sort_keys=True).encode()
++    ).hexdigest()
++    return {
++        "account_id": account_id,
++        "account_binding": digest,
++        "start_ms": start_ms,
++        "end_ms": end_ms,
++        "start_kst": start.isoformat(),
++        "end_utc": now.astimezone(UTC).isoformat(),
++    }
++
++
++def _private_directory(path: Path) -> None:
++    try:
++        path.mkdir(mode=0o700, exist_ok=True)
++        info = path.lstat()
++        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
++            raise ExportBlocked("EXPORT_JOURNAL_DIRECTORY_NOT_PRIVATE")
++    except OSError:
++        raise ExportBlocked("EXPORT_JOURNAL_IO_FAILED") from None
++
++
++def _read(path: Path) -> dict[str, Any]:
++    try:
++        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
++        with os.fdopen(fd, "r") as stream:
++            info = os.fstat(stream.fileno())
++            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
++                raise ExportBlocked("EXPORT_JOURNAL_NOT_PRIVATE")
++            raw = stream.read(16385)
++        result = json.loads(raw)
++        if (
++            len(raw) > 16384
++            or not isinstance(result, dict)
++            or type(result.get("version")) is not int
++            or result["version"] != 1
++        ):
++            raise ValueError("Invalid journal")
++        UUID(result["request_id"])
++        if (
++            not isinstance(result.get("account_id"), str)
++            or not isinstance(result.get("account_binding"), str)
++            or not re.fullmatch(r"[0-9a-f]{64}", result["account_binding"])
++            or type(result.get("start_ms")) is not int
++            or type(result.get("end_ms")) is not int
++            or result["start_ms"] < 0
++            or not 0 <= result["end_ms"] - result["start_ms"] <= 365 * 86400000
++            or result.get("phase") not in {"INTENT_RECORDED", "JOB_REQUESTED", "LINK_READY"}
++        ):
++            raise ValueError("Invalid journal")
++        if result["phase"] != "INTENT_RECORDED":
++            _identifier(result.get("download_id"))
++        return result
++    except (OSError, ValueError, UnicodeError, KeyError, TypeError, AttributeError):
++        raise ExportBlocked("EXPORT_JOURNAL_INVALID_DO_NOT_RECREATE") from None
++
++
++def _sync_directory(path: Path) -> None:
++    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
++    try:
++        os.fsync(fd)
++    finally:
++        os.close(fd)
++
++
++def _save(path: Path, record: dict[str, Any]) -> None:
++    temp_name = None
++    try:
++        with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as stream:
++            temp_name = stream.name
++            json.dump(record, stream)
++            stream.flush()
++            os.fsync(stream.fileno())
++        os.replace(temp_name, path)
++        temp_name = None
++        _sync_directory(path.parent)
++    except OSError:
++        raise ExportBlocked("EXPORT_JOURNAL_IO_FAILED_KEEP_INTENT") from None
++    finally:
++        if temp_name is not None:
++            Path(temp_name).unlink(missing_ok=True)
++
++
++def _preflight(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> None:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.policy != ledger.policy
++        or client.settings.symbols != ledger.symbols
++        or client.settings.margin_mode != ledger.margin_mode
++    ):
++        raise ExportBlocked("EXPORT_READ_ONLY_CLIENT_REQUIRED")
++    if any(ledger.positions.values()) or any(
++        o.open_quantity
++        or o.remaining
++        or o.state
++        not in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++        for o in ledger.orders.values()
++    ):
++        raise ExportBlocked("EXPORT_LOCAL_EXPOSURE_OR_PENDING_ORDER")
++    first = snapshot(client, ledger, store.now())
++    second = snapshot(client, ledger, store.now())
++    if first.fingerprint != second.fingerprint:
++        raise ExportBlocked("EXPORT_ACCOUNT_CHANGED")
++    if (
++        any(second.positions.values())
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in second.algos.values())
++        or second.leverage.get("BTCUSDT") != 2
++    ):
++        raise ExportBlocked("EXPORT_CURRENT_EXPOSURE_OR_SETTINGS_MISMATCH")
++    for order in ledger.orders.values():
++        row = second.orders.get(order.client_id)
++        if (
++            row is None
++            or row["clientOrderId"] != order.client_id
++            or order.server_order_id is None
++            or row["orderId"] != order.server_order_id
++            or row["symbol"] != order.signal.symbol
++            or row["positionSide"] != "BOTH"
++            or row["side"] != ("BUY" if order.signal.direction == "LONG" else "SELL")
++            or row["type"] != "LIMIT"
++            or row["reduceOnly"] != "false"
++            or row["status"] != order.state.value
++            or signed_number(row["executedQty"]) != order.filled
++            or signed_number(row["origQty"]) != order.quantity
++            or signed_number(row["price"]) != order.signal.suggested_limit_price
++        ):
++            raise ExportBlocked("EXPORT_ORIGINAL_ACCOUNT_ORDERS_NOT_CONFIRMED")
++
++
++def _identifier(value: object) -> str:
++    if type(value) not in (str, int) or not re.fullmatch(
++        r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", str(value)
++    ):
++        raise ExportBlocked("EXPORT_INVALID_DOWNLOAD_ID_KEEP_INTENT")
++    return str(value)
++
++
++def _bound(record: dict[str, Any], proposed: dict[str, Any]) -> None:
++    if (
++        record.get("account_binding") != proposed["account_binding"]
++        or record.get("account_id") != proposed["account_id"]
++    ):
++        raise ExportBlocked("EXPORT_JOURNAL_ACCOUNT_MISMATCH")
++
++
++def _public(record: dict[str, Any], status: str) -> dict[str, Any]:
++    return {
++        "export": status,
++        "request_id": record.get("request_id"),
++        "download_id": record.get("download_id"),
++        "start_ms": record.get("start_ms"),
++        "end_ms": record.get("end_ms"),
++        "trade_scope": "ACCOUNT_WIDE_EXPORT_REQUEST",
++        "file_downloaded": False,
++        "historical_completeness_verified": False,
++        "database_changed": False,
++        "recovery_eligible": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def request_export(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger, account_id: str, journal: Path
++) -> dict[str, Any]:
++    if client.settings.demo_trading_enabled:
++        raise ExportBlocked("EXPORT_READ_ONLY_CLIENT_REQUIRED")
++    proposed = plan(ledger, store.now(), account_id)
++    _private_directory(journal.parent)
++    if journal.exists() or journal.is_symlink():
++        previous = _read(journal)
++        _bound(previous, proposed)
++        if previous.get("download_id") is not None:
++            _identifier(previous["download_id"])
++            return _public(previous, "ALREADY_REQUESTED_NO_NEW_JOB")
++        raise ExportBlocked("EXPORT_INTENT_EXISTS_DO_NOT_REPEAT")
++    _preflight(store, client, ledger)
++    record = {
++        "version": 1,
++        "request_id": str(uuid4()),
++        **proposed,
++        "phase": "INTENT_RECORDED",
++        "download_id": None,
++    }
++    try:
++        fd = os.open(journal, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
++        with os.fdopen(fd, "w") as stream:
++            json.dump(record, stream)
++            stream.flush()
++            os.fsync(stream.fileno())
++        _sync_directory(journal.parent)
++    except OSError:
++        raise ExportBlocked("EXPORT_INTENT_NOT_EXCLUSIVELY_RECORDED") from None
++    try:
++        raw = client.request(
++            "GET",
++            "/fapi/v1/trade/asyn",
++            {"startTime": str(record["start_ms"]), "endTime": str(record["end_ms"])},
++        )
++        if not isinstance(raw, dict):
++            raise ExportBlocked("EXPORT_INVALID_RESPONSE_KEEP_INTENT")
++        record["download_id"] = _identifier(raw.get("downloadId"))
++    except DemoFailure:
++        # The durable intent remains. No resend even after a timeout or an
++        # unavailable DEMO endpoint; do not classify failure as 'never requested'.
++        raise ExportBlocked("EXPORT_REQUEST_UNRESOLVED_DO_NOT_REPEAT") from None
++    record["phase"] = "JOB_REQUESTED"
++    _save(journal, record)
++    return _public(record, "JOB_REQUESTED_NOT_DOWNLOADED")
++
++
++def status_export(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger, account_id: str, journal: Path
++) -> dict[str, Any]:
++    if client.settings.demo_trading_enabled:
++        raise ExportBlocked("EXPORT_READ_ONLY_CLIENT_REQUIRED")
++    proposed = plan(ledger, store.now(), account_id)
++    _private_directory(journal.parent)
++    record = _read(journal)
++    _bound(record, proposed)
++    identifier = _identifier(record.get("download_id"))
++    _preflight(store, client, ledger)
++    try:
++        raw = client.request("GET", "/fapi/v1/trade/asyn/id", {"downloadId": identifier})
++        if (
++            not isinstance(raw, dict)
++            or _identifier(raw.get("downloadId")) != identifier
++            or not isinstance(raw.get("status"), str)
++        ):
++            raise ExportBlocked("EXPORT_INVALID_STATUS_RESPONSE")
++        status = raw["status"].lower()
++        if status not in {"processing", "completed", "failed"}:
++            raise ExportBlocked("EXPORT_UNKNOWN_STATUS")
++        result = _public(
++            record, "LINK_READY_NOT_DOWNLOADED" if status == "completed" else status.upper()
++        )
++        if status == "completed":
++            url = raw.get("url")
++            if not isinstance(url, str) or len(url) > 8192 or any(ord(c) < 33 for c in url):
++                raise ExportBlocked("EXPORT_INVALID_LINK")
++            parsed = urlsplit(url)
++            host = parsed.hostname
++            if (
++                parsed.scheme != "https"
++                or not host
++                or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host)
++                or parsed.username
++                or parsed.password
++                or parsed.port not in (None, 443)
++                or parsed.fragment
++            ):
++                raise ExportBlocked("EXPORT_INVALID_LINK")
++            record["download_url"] = url
++            record["phase"] = "LINK_READY"
++            _save(journal, record)
++            result.update(download_host=host, download_link_saved_locally=True)
++        return result
++    except ExportBlocked:
++        raise
++    except (DemoFailure, ValueError):
++        raise ExportBlocked("EXPORT_STATUS_QUERY_FAILED_NO_RECREATE") from None
+--- a/tests/integration/test_demo_trade_export.py
++++ b/tests/integration/test_demo_trade_export.py
+@@ -0,0 +1,355 @@
++"""GET-only export quota and privacy protection with PostgreSQL and synthetic replies."""
++
++import json
++import os
++from concurrent.futures import ThreadPoolExecutor
++from datetime import timedelta
++from decimal import Decimal
++from urllib.parse import parse_qs
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoUnknown
++from packages.domain.contracts import RiskState
++from services.execution.demo_trade_export import ExportBlocked, request_export, status_export
++from tests.integration.test_demo import enter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import event_count
++from tests.integration.test_demo_isolated import configure
++
++
++@pytest.fixture
++def export_case(demo_system, tmp_path):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    sig, order = enter(system)
++    c.cancel(str(sig.signal_id))
++
++    def lock(ledger):
++        ledger.paused = True
++        ledger.risk_state = RiskState.EMERGENCY
++
++    store.change(c.lease, "TEST_LOCK_EXPORT", lock)
++    fake.at += timedelta(days=2)
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": False})
++    journal = tmp_path / "private" / "request.json"
++    counts = {"create": 0, "status": 0}
++    replies = {
++        "create": {"downloadId": "job-123"},
++        "status": {"downloadId": "job-123", "status": "processing"},
++    }
++    original = c.client.send
++
++    def send(method, path, query, key):
++        assert method == "GET"
++        if path in {"/fapi/v1/trade/asyn", "/fapi/v1/trade/asyn/id"}:
++            params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            action = "create" if path.endswith("asyn") else "status"
++            counts[action] += 1
++            fake.calls.append((method, path, {}))
++            if action == "create":
++                assert json.loads(journal.read_text())["phase"] == "INTENT_RECORDED"
++                assert set(params) == {
++                    "startTime",
++                    "endTime",
++                    "timestamp",
++                    "recvWindow",
++                    "signature",
++                }
++                assert int(params["startTime"]) < int(params["endTime"])
++            else:
++                assert params["downloadId"] == "job-123"
++            reply = replies[action]
++            if isinstance(reply, Exception):
++                raise reply
++            return fake.response(reply)
++        return original(method, path, query, key)
++
++    c.client.send = send
++    c.client.sync_clock()
++    return store, c, fake, journal, counts, replies, order
++
++
++def request(case):
++    store, c, _, journal, _, _, _ = case
++    return request_export(store, c.client, store.read("DEMO-test"), "DEMO-test", journal)
++
++
++def status(case):
++    store, c, _, journal, _, _, _ = case
++    return status_export(store, c.client, store.read("DEMO-test"), "DEMO-test", journal)
++
++
++def test_intent_before_network_and_repeated_request_never_creates_another_job(export_case):
++    store, c, fake, journal, counts, _, _ = export_case
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    start = len(fake.calls)
++    result = request(export_case)
++    assert result["export"] == "JOB_REQUESTED_NOT_DOWNLOADED"
++    assert result["download_id"] == "job-123"
++    assert result["historical_completeness_verified"] is False
++    assert result["recovery_eligible"] is False
++    assert request(export_case)["export"] == "ALREADY_REQUESTED_NO_NEW_JOB"
++    assert counts == {"create": 1, "status": 0}
++    assert journal.stat().st_mode & 0o777 == 0o600
++    assert journal.parent.stat().st_mode & 0o777 == 0o700
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++    assert all(method == "GET" for method, _, _ in fake.calls[start:])
++
++
++def test_timeout_is_not_retried_even_when_called_again(export_case):
++    *_, replies, _ = export_case
++    replies["create"] = DemoUnknown("SYNTHETIC_PRIVATE_RESPONSE")
++    with pytest.raises(ExportBlocked, match="EXPORT_REQUEST_UNRESOLVED_DO_NOT_REPEAT"):
++        request(export_case)
++    with pytest.raises(ExportBlocked, match="EXPORT_INTENT_EXISTS_DO_NOT_REPEAT"):
++        request(export_case)
++    assert export_case[4]["create"] == 1
++
++
++@pytest.mark.parametrize(
++    "reply",
++    [
++        {},
++        [],
++        {"downloadId": None},
++        {"downloadId": True},
++        {"downloadId": "../bad"},
++        {"downloadId": "x" * 129},
++    ],
++)
++def test_malformed_creation_reply_keeps_intent_without_retry(export_case, reply):
++    export_case[5]["create"] = reply
++    with pytest.raises(ExportBlocked):
++        request(export_case)
++    with pytest.raises(ExportBlocked, match="INTENT_EXISTS"):
++        request(export_case)
++    assert export_case[4]["create"] == 1
++
++
++def test_receipt_write_failure_preserves_intent_and_prevents_regeneration(export_case, monkeypatch):
++    import services.execution.demo_trade_export as module
++
++    def broken(*args):
++        raise OSError("SYNTHETIC_PRIVATE_FAILURE")
++
++    monkeypatch.setattr(module.os, "replace", broken)
++    with pytest.raises(ExportBlocked, match="KEEP_INTENT"):
++        request(export_case)
++    with pytest.raises(ExportBlocked, match="INTENT_EXISTS"):
++        request(export_case)
++    assert export_case[4]["create"] == 1
++    assert json.loads(export_case[3].read_text())["download_id"] is None
++
++
++def test_concurrent_requests_create_at_most_one_job(export_case):
++    def run():
++        try:
++            return request(export_case)["export"]
++        except ExportBlocked:
++            return "BLOCKED"
++
++    with ThreadPoolExecutor(max_workers=2) as pool:
++        results = list(pool.map(lambda _: run(), range(2)))
++    assert "JOB_REQUESTED_NOT_DOWNLOADED" in results
++    assert export_case[4]["create"] == 1
++
++
++def test_status_checks_existing_job_once_without_creating_or_fetching_url(export_case):
++    request(export_case)
++    assert status(export_case)["export"] == "PROCESSING"
++    assert export_case[4] == {"create": 1, "status": 1}
++    secret_url = "https://download.binance.com/report.zip?token=SYNTHETIC_PRIVATE_LINK"
++    export_case[5]["status"] = {"downloadId": "job-123", "status": "completed", "url": secret_url}
++    result = status(export_case)
++    assert result["export"] == "LINK_READY_NOT_DOWNLOADED"
++    assert result["download_host"] == "download.binance.com"
++    assert "SYNTHETIC_PRIVATE_LINK" not in json.dumps(result)
++    assert json.loads(export_case[3].read_text())["download_url"] == secret_url
++    assert export_case[3].stat().st_mode & 0o777 == 0o600
++    assert export_case[4] == {"create": 1, "status": 2}
++
++
++@pytest.mark.parametrize(
++    "reply",
++    [
++        {"downloadId": "other", "status": "processing"},
++        {"downloadId": "job-123", "status": "SYNTHETIC_PRIVATE_VALUE"},
++        {"downloadId": "job-123", "status": "completed", "url": "http://binance.com/file"},
++        {
++            "downloadId": "job-123",
++            "status": "completed",
++            "url": "https://user:password@binance.com/file",
++        },
++        {"downloadId": "job-123", "status": "completed", "url": "https://binance.com:444/file"},
++    ],
++)
++def test_invalid_status_or_link_is_never_exposed_or_followed(export_case, reply):
++    request(export_case)
++    export_case[5]["status"] = reply
++    with pytest.raises(ExportBlocked):
++        status(export_case)
++    assert export_case[4] == {"create": 1, "status": 1}
++    assert "download_url" not in json.loads(export_case[3].read_text())
++
++
++@pytest.mark.parametrize(
++    "problem", ["symlink_directory", "symlink_file", "broad_permissions", "corrupt_journal"]
++)
++def test_untrusted_local_journal_blocks_without_recreating(export_case, tmp_path, problem):
++    journal = export_case[3]
++    if problem == "symlink_directory":
++        target = tmp_path / "target"
++        target.mkdir(mode=0o700)
++        journal.parent.symlink_to(target, target_is_directory=True)
++    elif problem == "symlink_file":
++        journal.parent.mkdir(mode=0o700)
++        target = tmp_path / "target.json"
++        target.write_text("{}")
++        journal.symlink_to(target)
++    else:
++        request(export_case)
++        if problem == "broad_permissions":
++            journal.chmod(0o644)
++        else:
++            journal.write_text("not-json")
++    before = export_case[4]["create"]
++    with pytest.raises(ExportBlocked):
++        request(export_case)
++    assert export_case[4]["create"] == before
++
++
++@pytest.mark.parametrize(
++    "problem", ["current_position", "missing_entry", "wrong_entry_identity", "enabled_client"]
++)
++def test_preflight_blocks_exposure_wrong_account_or_write_client_before_job(export_case, problem):
++    _, c, fake, journal, counts, _, order = export_case
++    if problem == "current_position":
++        fake.positions["BTCUSDT"] = Decimal("0.001")
++        fake.prices["BTCUSDT"] = Decimal(100)
++    elif problem == "missing_entry":
++        del fake.orders[order.client_id]
++    elif problem == "wrong_entry_identity":
++        fake.orders[order.client_id]["orderId"] = "wrong"
++    else:
++        c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": True})
++    with pytest.raises(ExportBlocked):
++        request(export_case)
++    assert counts["create"] == 0 and not journal.exists()
++
++
++def test_new_routes_are_get_only_and_never_redirect_to_production(export_case):
++    _, c, fake, _, _, _, _ = export_case
++    before = len(fake.calls)
++    for method in ("POST", "DELETE", "PUT"):
++        for path in ("/fapi/v1/trade/asyn", "/fapi/v1/trade/asyn/id"):
++            with pytest.raises(ValueError):
++                c.client.request(method, path, {})
++    with pytest.raises(ValueError):
++        c.client.request("GET", "https://fapi.binance.com/fapi/v1/trade/asyn", {})
++    assert len(fake.calls) == before
++
++
++def test_cli_plan_does_not_prompt_acquire_write_or_create_journal(export_case, monkeypatch, capsys):
++    import sys
++
++    import scripts.request_demo_trade_export as cli
++
++    store, _, _, journal, counts, _, _ = export_case
++    original = store.read
++    before = original("DEMO-test").model_dump_json()
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(cli, "JOURNAL", journal)
++    monkeypatch.setattr(sys, "argv", ["request_demo_trade_export"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++
++    def forbidden(*args):
++        raise AssertionError("Plan must not prompt, acquire or change")
++
++    monkeypatch.setattr(cli.getpass, "getpass", forbidden)
++    monkeypatch.setattr(store, "acquire", forbidden)
++    monkeypatch.setattr(store, "change", forbidden)
++    cli.main()
++    assert "PLAN_ONLY_NO_EXPORT_REQUEST" in capsys.readouterr().out
++    assert not journal.exists() and counts["create"] == 0
++    assert original("DEMO-test").model_dump_json() == before
++
++
++def test_cli_explicit_request_clears_keys_and_keeps_database_unchanged(
++    export_case, monkeypatch, capsys
++):
++    import sys
++
++    import scripts.request_demo_trade_export as cli
++
++    store, c, _, journal, counts, _, _ = export_case
++    original = store.read
++    before = original("DEMO-test").model_dump_json()
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(cli, "JOURNAL", journal)
++    monkeypatch.setattr(sys, "argv", ["request_demo_trade_export", "--request-export"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    cli.main()
++    output = capsys.readouterr().out
++    assert "JOB_REQUESTED_NOT_DOWNLOADED" in output and "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert counts["create"] == 1
++    assert original("DEMO-test").model_dump_json() == before
++
++
++def test_plan_covers_full_kst_initial_tracking_day_and_existing_cutoff(export_case):
++    from services.execution.demo_trade_export import plan
++
++    store, c, _, _, _, _, _ = export_case
++    result = plan(store.read("DEMO-test"), store.now(), "DEMO-test")
++    assert result["start_kst"] == "2026-10-19T00:00:00+09:00"
++    assert result["end_ms"] == int(store.now().timestamp() * 1000)
++    assert request(export_case)["start_ms"] == result["start_ms"]
++    assert status(export_case)["start_ms"] == result["start_ms"]
++
++
++def test_cli_creation_failure_hides_private_errors_and_preserves_intent(
++    export_case, monkeypatch, capsys
++):
++    import sys
++
++    import scripts.request_demo_trade_export as cli
++
++    store, c, _, journal, counts, replies, _ = export_case
++    replies["create"] = DemoUnknown("https://example.invalid/?SYNTHETIC_PRIVATE_LINK")
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(cli, "JOURNAL", journal)
++    monkeypatch.setattr(sys, "argv", ["request_demo_trade_export", "--request-export"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++    output = capsys.readouterr().out
++    assert "EXPORT_REQUEST_UNRESOLVED_DO_NOT_REPEAT" in output
++    assert "SYNTHETIC_PRIVATE" not in output and "https://" not in output
++    assert counts["create"] == 1
++    assert json.loads(journal.read_text())["phase"] == "INTENT_RECORDED"
++    assert "BINANCE_DEMO_API_KEY" not in os.environ
++
++
++def test_journal_survives_new_client_process_context_without_regenerating(export_case):
++    store, c, _, journal, counts, _, _ = export_case
++    request(export_case)
++    # A new Path and deserialized ledger represent another invocation. No
++    # in-memory retry counter is needed to suppress a second creation.
++    from pathlib import Path
++
++    result = request_export(
++        store, c.client, store.read("DEMO-test"), "DEMO-test", Path(str(journal))
++    )
++    assert result["export"] == "ALREADY_REQUESTED_NO_NEW_JOB"
++    assert counts["create"] == 1
