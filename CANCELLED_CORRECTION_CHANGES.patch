@@ -1,0 +1,782 @@
+--- a/CANCELLED_CORRECTION_START_HERE_KO.md
++++ b/CANCELLED_CORRECTION_START_HERE_KO.md
+@@ -0,0 +1,28 @@
++# 취소·미체결 주문의 잘못된 로컬 포지션 기록 정정
++
++기존 DB가 있는 Galaxybook PC에서 실행합니다. 이번 설치에는 미리보기와 적용 기능이 함께 들어 있습니다. 우선 미리보기 결과를 공유하고, 그 토큰으로 적용할 때는 다시 설치할 필요가 없습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-cancelled-correction 폴더에서 infra가 보이는 위치로 들어갑니다.
++2. Docker Desktop이 켜진 상태에서 탐색기 주소창에 cmd를 입력합니다.
++3. 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. 모두 Healthy면 변경 전 미리보기를 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_cancelled_correction
++
++5. DEMO API Key/Secret을 숨김 입력하고 마지막 결과를 대화에 공유합니다. 키는 대화에 보내지 마세요. 기본 실행은 DB 읽기와 거래소 GET만 수행하며 lease 획득/DB 변경/주문 실행이 없습니다.
++
++성공 출력은 correction=REVIEW_ONLY_NO_DATABASE_CHANGE입니다. proposed_orders에 변경될 주문과 세 필드가 표시됩니다.
++- open_quantity: 잘못 배정된 수량 → 0
++- actual_risk: 잘못 배정된 포지션의 위험 금액 → 0
++- position_state: EXIT_PENDING → CLOSED (해당 주문이 소유한 포지션이 없다는 뜻)
++
++entry_state=CANCELED, filled=0, remaining=0, exit_state=UNKNOWN 및 exit_id, 실제 체결한 다른 주문, 과거 UNKNOWN/SUBMITTING 요청, 정책/계정 평가액/일·주 기준/고점/입출금/관측 시각은 유지합니다. EMERGENCY/paused도 유지합니다. CLOSED를 실제 종료 체결의 증거로 사용하지 않습니다.
++
++review_token은 비밀키가 아니라 검토 대상 계정·원본 기록·거래소 스냅샷·체결/income 근거·KST 일/주를 묶은 확인값입니다. 적용하려면 이 토큰과 고정 UUID 작업 ID를 명시해야 하며, 적용 시 다시 GET 검증합니다. --apply-correction TOKEN --operation-id UUID 두 옵션을 모두 지정하지 않으면 적용하지 않습니다. 이 문서에는 자동 적용 명령이나 사전 승인된 토큰이 없습니다.
++
++적용은 계정 lease/fence와 행 잠금 아래에서 진행하며, 정정 전 주문 전체와 근거 해시/시각/토큰을 감사 기록에 함께 저장합니다. 처리 중 잠금이 만료되거나 근거가 바뀌면 정정 트랜잭션은 롤백됩니다. 잠금 획득/해제의 별도 감사 이벤트는 남을 수 있습니다. 같은 작업 ID와 토큰을 다시 주면 ALREADY_RECORDED_NO_ACTION으로 중복 정정하지 않습니다. 오류 시 임의 재실행·새 작업 ID 발급을 하지 말고 코드만 공유하세요.
++
++적용 후에도 recovery_eligible=false, orders_enabled=false, live_trading_enabled=false이며 실거래와 Phase 5를 시작하지 않습니다. 자정 평가액 문제와 미확정 요청에 대한 별도 검토는 남아 있습니다. DB 초기화, 새 ledger, volume 삭제, down -v, 예전 주문 명령을 실행하지 마세요. 적용을 시도한 뒤에는 감사 필드가 추가되므로 이 버전 또는 이를 포함한 이후 버전을 계속 사용하세요.
+--- a/CANCELLED_CORRECTION_VALIDATION_KO.md
++++ b/CANCELLED_CORRECTION_VALIDATION_KO.md
+@@ -0,0 +1,15 @@
++# 취소·미체결 주문의 로컬 포지션 기록 정정 검증
++
++전체 테스트 509개 통과(79.81초). mypy 74개 소스 통과. 전체 Ruff lint/190개 파일 format 검사 통과. 실제 PostgreSQL과 합성 거래소 응답·로컬 WS를 사용했으며 실제 사용자의 Binance 인증/주문 또는 DB 정정은 수행하지 않았습니다.
++
++새 테스트 25개는 기본 미리보기의 DB·이벤트 불변과 GET-only, 제안 필드의 명시, 정정 시 정확히 세 주문 필드만 변경됨, 나머지 주문/과거 요청/정책/평가액/일·주 기준/고점/입출금/관측 시각/EMERGENCY/paused 보존, 정정 전 주문 전체를 포함한 감사 receipt, 같은 작업 ID·토큰의 중복 정정 방지, 상충 토큰/기존 작업 ID 충돌 차단을 검증합니다.
++
++또한 원본 기록·지갑·체결 이력·날짜·대상 계정·토큰이 바뀌거나 원래 취소 주문에서 체결량이 발견되거나 주문이 조회되지 않거나 실제 포지션이 생기면 차단합니다. 알려진 종료 체결을 찾지 못하거나 그 이후·종료와 같은 밀리초·오늘의 추가 BTC 체결이 있으면 정정 대상으로 승인하지 않습니다. old leader fencing과 재검토 중 lease 만료 시 정정·receipt·정정 감사 이벤트 롤백을 확인했습니다. CLI의 명시적 적용 분리, 기본 실행 시 lease/쓰기 없음, 잘못된 적용 옵션의 키 입력 전 차단, 키 미출력/환경 정리도 확인했습니다.
++
++기본 명령은 읽기 전용 미리보기입니다. 적용 시에는 미리보기의 64자리 토큰과 UUID 작업 ID가 모두 필요합니다. 토큰은 대상 계정, 원본 ledger(lease가 무효화하는 reconciled/stream_ready 제외), 거래소 스냅샷, 체결/income 근거, KST 일/주를 묶습니다. 적용은 lease/fence와 행 잠금 아래에서 같은 GET 검증을 재수행하고, 토큰이 일치할 때만 한 트랜잭션으로 수량/위험 금액/포지션 상태를 정정하며 원본 주문과 근거를 영수증에 보관합니다. 적용용 lease 획득/해제는 별도 감사 이벤트를 남길 수 있습니다.
++
++정정 필드는 해당 취소 주문의 open_quantity=0, actual_risk=0, position_state=CLOSED 세 개입니다. entry_state=CANCELED, filled=0, remaining=0, exit_state=UNKNOWN, exit_id와 모든 기존 요청 상태는 보존합니다. 다른 실제 체결 주문은 바꾸지 않습니다. ledger의 reconciled/stream_ready는 false로 유지하고 EMERGENCY/paused는 해제하지 않습니다. 새 감사 필드는 기본값이 있어 이전 ledger를 읽을 수 있으며, 원래 이벤트를 수정·삭제하지 않습니다.
++
++변경 범위: 새 정정 서비스/CLI/통합 테스트/안내서/검증 문서, DemoLedger의 감사 receipt 필드, 기존 읽기 전용 cancelled-history 결과에 검증 스냅샷 fingerprint 추가. 원래 주문 실행 코드, history guard, recovery 적용 코드, PostgreSQL 저장/lease 구현, 위험 계산, MASTER_SPEC/AGENTS/의존성 lock/Compose/Isolated 설정은 이전 ZIP과 바이트 동일합니다. Compose는 PAPER/LIVE=false와 기존 hybrid-windows_postgres_data 볼륨을 유지합니다.
++
++제한: 실제 DB 정정은 아직 실행하지 않았습니다. 사용자의 최신 미리보기 토큰으로 별도 적용해야 합니다. 정정 후에도 recovery_eligible=false이며 과거 UNKNOWN/SUBMITTING 요청과 자정 평가액/손실 기준 문제는 남습니다. BTC 이력만으로 모든 종목의 과거 포지션이나 자정 계정 평가액을 증명하지 않습니다. main 변경, 실거래, Phase 5 시작 없음.
+--- a/scripts/review_demo_cancelled_correction.py
++++ b/scripts/review_demo_cancelled_correction.py
+@@ -0,0 +1,130 @@
++"""Preview a narrow local DEMO correction; applying requires its explicit token and ID."""
++
++import argparse
++import getpass
++import json
++import os
++import re
++import warnings
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_cancelled_correction import (
++    CancelledCorrectionBlocked,
++    apply_correction,
++    review_correction,
++)
++from services.execution.demo_cancelled_history import CancelledHistoryBlocked
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked
++from services.risk.paper import RiskRejected
++
++ACCOUNT_ID = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--apply-correction")
++    parser.add_argument("--operation-id", type=UUID)
++    args = parser.parse_args()
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("CORRECTION_CONTEXT", "LIVE_CONTEXT_FORBIDDEN")
++    if bool(args.apply_correction) != bool(args.operation_id) or (
++        args.apply_correction and not re.fullmatch(r"[0-9a-f]{64}", args.apply_correction)
++    ):
++        blocked("CORRECTION_ARGUMENTS", "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED")
++    engine = None
++    lease = None
++    store = None
++    stage = "CREDENTIAL_INPUT"
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = ACCOUNT_ID
++        if args.apply_correction:
++            stage = "CORRECTION_APPLY"
++            lease = store.acquire(account, uuid4())
++            result = apply_correction(
++                store, lease, client, args.operation_id, args.apply_correction
++            )
++            after = store.read(account)
++            print(
++                json.dumps(
++                    {
++                        "correction": result,
++                        "operation_id": str(args.operation_id),
++                        "risk_state": after.risk_state.value,
++                        "paused": after.paused,
++                        "unresolved_requests_acknowledged": False,
++                        "risk_baselines_changed": False,
++                        "recovery_eligible": False,
++                        "orders_enabled": False,
++                        "live_trading_enabled": False,
++                    }
++                )
++            )
++        else:
++            before = store.read(account)
++            stage = "CORRECTION_PREVIEW"
++            report = review_correction(store, client, before, account_id=account)
++            if store.read(account) != before:
++                raise CancelledCorrectionBlocked("DATABASE_CHANGED_DURING_REVIEW")
++            print(json.dumps(report))
++    except (
++        CancelledCorrectionBlocked,
++        CancelledHistoryBlocked,
++        DayReviewBlocked,
++        HistoryBlocked,
++    ) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except RiskRejected:
++        blocked(stage, "LEASE_OR_RISK_GATE_REJECTED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++        except (RiskRejected, SQLAlchemyError):
++            blocked("LEASE_RELEASE", "LEASE_RELEASE_NOT_CONFIRMED_KEEP_LOCK")
++        finally:
++            if engine is not None:
++                engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_cancelled_correction.py
++++ b/services/execution/demo_cancelled_correction.py
+@@ -0,0 +1,138 @@
++"""Audited correction of proven unfilled cancelled-entry local exposure only.
++
++This does not acknowledge unknown requests, reset risk baselines or unlock DEMO.
++"""
++
++import hashlib
++import json
++import re
++from decimal import Decimal
++from uuid import UUID
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from packages.domain.contracts import PositionState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_cancelled_history import review_cancelled_history
++from services.execution.demo_models import CancelledExposureCorrection, DemoLedger
++from services.execution.models import Lease
++from services.risk.paper import period_keys
++
++OPERATION = "CORRECT_CANCELLED_UNFILLED_EXPOSURE"
++
++
++class CancelledCorrectionBlocked(DemoFailure):
++    pass
++
++
++def review_correction(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger, *, account_id: str
++) -> dict[str, object]:
++    if not account_id.startswith("DEMO-"):
++        raise CancelledCorrectionBlocked("DEMO_ACCOUNT_NAMESPACE_REQUIRED")
++    report = review_cancelled_history(store, client, ledger)
++    if report["wallet_change_matches_income"] is not True:
++        raise CancelledCorrectionBlocked("WALLET_HISTORY_NOT_RECONCILED")
++    if (
++        report["last_known_full_exit_fill_found"] is not True
++        or report["btc_trades_after_known_exit_before_boundary"] != 0
++        or report["other_trades_at_exit_timestamp"] != 0
++        or report["btc_trades_at_or_after_boundary"] != 0
++    ):
++        raise CancelledCorrectionBlocked("LEGACY_EXIT_HISTORY_NOT_CONFIRMED")
++    keys = sorted(key for key, order in ledger.orders.items() if order.open_quantity)
++    if not 1 <= len(keys) <= 10:
++        raise CancelledCorrectionBlocked("CORRECTION_ORDER_LIMIT")
++    # Lease acquisition only invalidates these flags. It must not change the
++    # preimage bound to the operator's preview token.
++    preimage = ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"})
++    payload = {
++        "operation": OPERATION,
++        "account_id": account_id,
++        "ledger": preimage,
++        "evidence_hash": report["evidence_hash"],
++        "exchange_fingerprint": report["validated_exchange_fingerprint"],
++        "day_week_kst": period_keys(store.now(), ledger.policy.week_start_kst),
++        "order_keys": keys,
++    }
++    token = hashlib.sha256(
++        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
++    ).hexdigest()
++    return {
++        "correction": "REVIEW_ONLY_NO_DATABASE_CHANGE",
++        "account_id": account_id,
++        "review_token": token,
++        "evidence_hash": report["evidence_hash"],
++        "exchange_fingerprint": report["validated_exchange_fingerprint"],
++        "proposed_orders": [
++            {
++                "order_key": key,
++                "open_quantity_before": str(ledger.orders[key].open_quantity),
++                "open_quantity_after": "0",
++                "actual_risk_before": str(ledger.orders[key].actual_risk),
++                "actual_risk_after": "0",
++                "position_state_before": ledger.orders[key].position_state.value,
++                "position_state_after": "CLOSED",
++                "entry_state_preserved": ledger.orders[key].state.value,
++                "filled_preserved": str(ledger.orders[key].filled),
++                "exit_state_preserved": ledger.orders[key].exit_state,
++            }
++            for key in keys
++        ],
++        "risk_state": ledger.risk_state.value,
++        "paused": ledger.paused,
++        "unresolved_requests_acknowledged": False,
++        "risk_baselines_changed": False,
++        "recovery_eligible": False,
++        "database_changed": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def apply_correction(
++    store: DemoStore,
++    lease: Lease,
++    client: DemoClient,
++    operation_id: UUID,
++    expected_token: str,
++) -> str:
++    if not re.fullmatch(r"[0-9a-f]{64}", expected_token):
++        raise CancelledCorrectionBlocked("CORRECTION_REVIEW_TOKEN_REQUIRED")
++    # This guard also applies on the idempotent receipt path.
++    if client.settings.demo_trading_enabled:
++        raise CancelledCorrectionBlocked("READ_ONLY_CLIENT_REQUIRED")
++
++    def apply(ledger: DemoLedger) -> str:
++        key = str(operation_id)
++        receipt = ledger.cancelled_exposure_corrections.get(key)
++        if receipt is not None:
++            if receipt.review_token != expected_token or ledger.operations.get(key) != OPERATION:
++                raise CancelledCorrectionBlocked("CORRECTION_OPERATION_CONFLICT")
++            return "ALREADY_RECORDED_NO_ACTION"
++        if key in ledger.operations or key in ledger.recovery_receipts:
++            raise CancelledCorrectionBlocked("CORRECTION_OPERATION_CONFLICT")
++        report = review_correction(store, client, ledger, account_id=lease.account_id)
++        if report["review_token"] != expected_token:
++            raise CancelledCorrectionBlocked("CORRECTION_REVIEW_CHANGED")
++        keys = [key for key, order in ledger.orders.items() if order.open_quantity]
++        originals = {key: ledger.orders[key].model_copy(deep=True) for key in keys}
++        for order_key in keys:
++            order = ledger.orders[order_key]
++            order.open_quantity = Decimal(0)
++            order.actual_risk = Decimal(0)
++            order.position_state = PositionState.CLOSED
++            # Entry CANCELED, filled=0, exit UNKNOWN and every request stay intact.
++        ledger.cancelled_exposure_corrections[key] = CancelledExposureCorrection(
++            review_token=expected_token,
++            evidence_hash=str(report["evidence_hash"]),
++            exchange_fingerprint=str(report["exchange_fingerprint"]),
++            corrected_at=store.now(),
++            original_orders=originals,
++        )
++        ledger.operations[key] = OPERATION
++        ledger.reconciled = ledger.stream_ready = False
++        # risk_state, paused, value, last_reconciled, baselines, high_water,
++        # transfers, request states and protection identities are untouched.
++        return "LOCAL_CANCELLED_EXPOSURE_CORRECTED_KEEP_LOCK"
++
++    return store.change(lease, "DEMO_CANCELLED_EXPOSURE_CORRECTED", apply)
+--- a/services/execution/demo_cancelled_history.py
++++ b/services/execution/demo_cancelled_history.py
+@@ -103,6 +103,7 @@
+     report.update(
+         review="LEGACY_CANCELLED_HISTORY_EVIDENCE_ONLY",
+         confirmed_cancelled_zero_fill_orders=len(keys),
++        validated_exchange_fingerprint=final.fingerprint,
+         local_cancelled_exposure_records_unchanged=True,
+         local_ledger_repaired=False,
+         unresolved_requests_acknowledged=False,
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -7,8 +7,16 @@
+ from pydantic import Field
+ 
+ from packages.domain.config import NonNegativeDecimal, PositiveDecimal
+-from services.execution.models import Ledger, State
++from services.execution.models import Ledger, PaperOrder, State
+ from services.risk.paper import DemoPolicy
++
++
++class CancelledExposureCorrection(State):
++    review_token: str
++    evidence_hash: str
++    exchange_fingerprint: str
++    corrected_at: datetime
++    original_orders: dict[str, PaperOrder]
+ 
+ 
+ class DemoLedger(Ledger):
+@@ -28,6 +36,9 @@
+     net_transfers: Decimal = Decimal(0)
+     income_since_ms: int | None = None
+     recovery_receipts: dict[str, str] = Field(default_factory=dict)
++    cancelled_exposure_corrections: dict[str, CancelledExposureCorrection] = Field(
++        default_factory=dict
++    )
+     requests: dict[str, str] = Field(default_factory=dict)
+     request_no_send_evidence: dict[
+         str,
+--- a/tests/integration/test_demo_cancelled_correction.py
++++ b/tests/integration/test_demo_cancelled_correction.py
+@@ -0,0 +1,416 @@
++"""Real PostgreSQL audit, fencing and rollback with synthetic signed DEMO truth."""
++
++from datetime import timedelta
++from decimal import Decimal
++from urllib.parse import parse_qs
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import func, select
++
++from packages.domain.contracts import PositionState
++from packages.persistence.demo import events
++from services.execution.demo_cancelled_correction import (
++    CancelledCorrectionBlocked,
++    apply_correction,
++    review_correction,
++)
++from services.execution.demo_cancelled_history import CancelledHistoryBlocked
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import enter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++from tests.unit.test_demo_trade_history_window import row
++
++
++@pytest.fixture
++def correction(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    past_sig, past = enter(system)
++    c.cancel(str(past_sig.signal_id))
++    sig, current = enter(system)
++    fake.fill(current.client_id, current.quantity)
++    c.reconcile()
++    entry_stamp = int(fake.at.timestamp() * 1000)
++    fake.at += timedelta(seconds=1)
++    c.command(uuid4(), "EMERGENCY_FLATTEN")
++    c.reconcile()
++    state = store.read("DEMO-test")
++    closed = state.orders[str(sig.signal_id)]
++    assert closed.position_state == PositionState.CLOSED
++    exit_order = fake.orders[closed.exit_id]
++    rows = [
++        row(
++            id=1,
++            orderId=fake.orders[current.client_id]["orderId"],
++            time=entry_stamp,
++            qty=str(current.quantity),
++            commission="0",
++        ),
++        row(
++            id=2,
++            orderId=exit_order["orderId"],
++            time=int(fake.at.timestamp() * 1000),
++            side="SELL",
++            qty=str(current.quantity),
++            commission="0",
++        ),
++    ]
++
++    def legacy(ledger):
++        order = ledger.orders[str(past_sig.signal_id)]
++        assert order.filled == 0 and order.remaining == 0
++        order.open_quantity = order.quantity
++        order.actual_risk = order.quantity * Decimal(100)
++        order.position_state = PositionState.EXIT_PENDING
++        order.exit_state = "UNKNOWN"
++        ledger.requests["DX-old-ambiguous"] = "SUBMITTING"
++        ledger.requests["DS-old-ambiguous"] = "UNKNOWN"
++
++    store.change(c.lease, "TEST_OLD_CANCELLED_EXPOSURE", legacy)
++    fake.at += timedelta(days=2)
++    store.release(c.lease)
++    c.lease = store.acquire("DEMO-test", uuid4())
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": False})
++    original = c.client.send
++
++    def send(method, path, query, key):
++        assert method == "GET", "Correction must never send exchange mutations"
++        if path == "/fapi/v1/userTrades":
++            params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            fake.calls.append((method, path, {}))
++            return fake.response(
++                [r for r in rows if int(params["startTime"]) <= r["time"] <= int(params["endTime"])]
++            )
++        return original(method, path, query, key)
++
++    c.client.send = send
++    c.client.sync_clock()
++    return store, c, fake, past_sig, past, rows
++
++
++def event_count(store):
++    with store.engine.connect() as conn:
++        return conn.execute(select(func.count()).select_from(events)).scalar_one()
++
++
++def test_preview_does_not_write_and_proposes_exact_exposure_changes(correction):
++    store, c, fake, sig, past, _ = correction
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    start = len(fake.calls)
++    report = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")
++    proposal = report["proposed_orders"][0]
++    assert proposal["order_key"] == str(sig.signal_id)
++    assert proposal["open_quantity_before"] == str(past.quantity)
++    assert proposal["open_quantity_after"] == "0"
++    assert proposal["position_state_after"] == "CLOSED"
++    assert proposal["exit_state_preserved"] == "UNKNOWN"
++    assert report["correction"] == "REVIEW_ONLY_NO_DATABASE_CHANGE"
++    assert report["recovery_eligible"] is False
++    assert report["paused"] is True and report["risk_state"] == "EMERGENCY"
++    assert len(report["review_token"]) == 64
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++
++
++def test_apply_is_atomic_audited_narrow_and_idempotent(correction):
++    store, c, fake, sig, _, _ = correction
++    before = store.read("DEMO-test")
++    token = review_correction(store, c.client, before, account_id="DEMO-test")["review_token"]
++    op = uuid4()
++    start = len(fake.calls)
++    result = apply_correction(store, c.lease, c.client, op, token)
++    assert result == "LOCAL_CANCELLED_EXPOSURE_CORRECTED_KEEP_LOCK"
++    after = store.read("DEMO-test")
++    exclude = {
++        "orders",
++        "operations",
++        "cancelled_exposure_corrections",
++        "reconciled",
++        "stream_ready",
++    }
++    assert after.model_dump(exclude=exclude) == before.model_dump(exclude=exclude)
++    for key, order in before.orders.items():
++        if key == str(sig.signal_id):
++            expected = order.model_copy(deep=True)
++            expected.open_quantity = expected.actual_risk = Decimal(0)
++            expected.position_state = PositionState.CLOSED
++            assert after.orders[key] == expected
++        else:
++            assert after.orders[key] == order
++    assert after.requests == before.requests
++    assert after.risk_state.value == "EMERGENCY" and after.paused
++    assert not after.reconciled and not after.stream_ready
++    receipt = after.cancelled_exposure_corrections[str(op)]
++    assert receipt.original_orders == {str(sig.signal_id): before.orders[str(sig.signal_id)]}
++    assert receipt.review_token == token
++    assert len(receipt.evidence_hash) == len(receipt.exchange_fingerprint) == 64
++    with store.engine.connect() as conn:
++        audit = conn.execute(
++            select(events.c.payload).where(events.c.kind == "DEMO_CANCELLED_EXPOSURE_CORRECTED")
++        ).scalar_one()
++    assert str(op) in audit and token in audit
++    assert apply_correction(store, c.lease, c.client, op, token) == "ALREADY_RECORDED_NO_ACTION"
++    assert store.read("DEMO-test") == after
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++
++
++@pytest.mark.parametrize(
++    "change",
++    ["ledger", "wallet", "history", "token", "operation", "filled", "not_found", "position"],
++)
++def test_stale_or_conflicting_evidence_rolls_back(correction, change):
++    store, c, fake, sig, past, rows = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    op = uuid4()
++    if change == "ledger":
++        store.change(
++            c.lease,
++            "TEST_NEW_REQUEST",
++            lambda ledger: ledger.requests.update({"DX-another": "UNKNOWN"}),
++        )
++    elif change == "wallet":
++        fake.wallet += 1
++    elif change == "history":
++        rows[0]["commission"] = "0.02"
++    elif change == "token":
++        token = "f" * 64
++    elif change == "operation":
++        store.change(
++            c.lease,
++            "TEST_OTHER_OPERATION",
++            lambda ledger: ledger.operations.update({str(op): "OTHER"}),
++        )
++    elif change == "filled":
++        fake.orders[past.client_id]["executedQty"] = "0.001"
++    elif change == "not_found":
++        del fake.orders[past.client_id]
++    elif change == "position":
++        fake.positions["BTCUSDT"] = Decimal("0.001")
++        fake.prices["BTCUSDT"] = Decimal(100)
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    with pytest.raises((CancelledCorrectionBlocked, CancelledHistoryBlocked)):
++        apply_correction(store, c.lease, c.client, op, token)
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++
++
++def test_lease_expiry_during_review_rolls_back_receipt_and_correction(correction, monkeypatch):
++    import services.execution.demo_cancelled_correction as module
++
++    store, c, fake, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    before = store.read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    original = module.review_correction
++
++    def delayed(*args, **kwargs):
++        result = original(*args, **kwargs)
++        fake.at += timedelta(seconds=61)
++        return result
++
++    monkeypatch.setattr(module, "review_correction", delayed)
++    with pytest.raises(RiskRejected, match="outlived lease"):
++        apply_correction(store, c.lease, c.client, uuid4(), token)
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++
++
++def test_new_lease_preserves_token_but_old_leader_is_fenced(correction):
++    store, c, _, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    old = c.lease
++    store.release(old)
++    new = store.acquire("DEMO-test", uuid4())
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(RiskRejected, match="fenced"):
++        apply_correction(store, old, c.client, uuid4(), token)
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert (
++        apply_correction(store, new, c.client, uuid4(), token)
++        == "LOCAL_CANCELLED_EXPOSURE_CORRECTED_KEEP_LOCK"
++    )
++
++
++def test_repeat_with_conflicting_token_cannot_reuse_receipt(correction):
++    store, c, _, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    op = uuid4()
++    apply_correction(store, c.lease, c.client, op, token)
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(CancelledCorrectionBlocked, match="OPERATION_CONFLICT"):
++        apply_correction(store, c.lease, c.client, op, "f" * 64)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++@pytest.mark.parametrize(
++    "change", ["missing_exit", "later_trade", "simultaneous_trade", "today_trade"]
++)
++def test_incomplete_or_additional_trade_history_cannot_authorize_correction(correction, change):
++    store, c, fake, _, _, rows = correction
++    if change == "missing_exit":
++        rows.clear()
++    else:
++        stamp = rows[1]["time"]
++        if change == "later_trade":
++            stamp += 10
++        elif change == "today_trade":
++            stamp = int(fake.at.timestamp() * 1000)
++        rows.append(row(id=3, orderId=999, time=stamp))
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(CancelledCorrectionBlocked, match="LEGACY_EXIT_HISTORY_NOT_CONFIRMED"):
++        review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_cli_default_preview_has_no_lease_or_writes(correction, monkeypatch, capsys):
++    import os
++    import sys
++
++    import scripts.review_demo_cancelled_correction as cli
++
++    store, c, _, _, _, _ = correction
++    original_read = store.read
++    before = original_read("DEMO-test").model_dump_json()
++    count = event_count(store)
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(sys, "argv", ["review_demo_cancelled_correction"])
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++
++    def no_write(*args):
++        raise AssertionError("Preview may not acquire, change or release")
++
++    for name in ("acquire", "change", "release"):
++        monkeypatch.setattr(store, name, no_write)
++    cli.main()
++    output = capsys.readouterr().out
++    assert "REVIEW_ONLY_NO_DATABASE_CHANGE" in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ
++    assert "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original_read("DEMO-test").model_dump_json() == before
++    assert event_count(store) == count
++
++
++def test_cli_explicit_apply_is_separate_and_keeps_emergency(correction, monkeypatch, capsys):
++    import sys
++
++    import scripts.review_demo_cancelled_correction as cli
++
++    store, c, _, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    op = uuid4()
++    requests = store.read("DEMO-test").requests
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    store.release(c.lease)
++    original_read, original_acquire = store.read, store.acquire
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "review_demo_cancelled_correction",
++            "--apply-correction",
++            token,
++            "--operation-id",
++            str(op),
++        ],
++    )
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++    monkeypatch.setattr(
++        store, "acquire", lambda account, owner: original_acquire("DEMO-test", owner)
++    )
++    cli.main()
++    output = capsys.readouterr().out
++    assert "LOCAL_CANCELLED_EXPOSURE_CORRECTED_KEEP_LOCK" in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    after = original_read("DEMO-test")
++    assert after.paused and after.risk_state.value == "EMERGENCY"
++    assert str(op) in after.cancelled_exposure_corrections
++    assert after.requests == requests
++
++
++@pytest.mark.parametrize(
++    "arguments",
++    [
++        ["--apply-correction", "bad"],
++        ["--operation-id", "f0e4fc1d-bb7d-4de0-9c91-fce24bc6a445"],
++        ["--apply-correction", "BAD", "--operation-id", "f0e4fc1d-bb7d-4de0-9c91-fce24bc6a445"],
++    ],
++)
++def test_cli_incomplete_apply_blocks_before_secret_input(monkeypatch, capsys, arguments):
++    import sys
++
++    import scripts.review_demo_cancelled_correction as cli
++
++    monkeypatch.setattr(sys, "argv", ["review_demo_cancelled_correction", *arguments])
++
++    def no_prompt(*args):
++        raise AssertionError("Invalid arguments must not prompt")
++
++    monkeypatch.setattr(cli.getpass, "getpass", no_prompt)
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++    assert "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED" in capsys.readouterr().out
++
++
++def test_changed_day_invalidates_token_even_with_fresh_lease(correction):
++    store, c, fake, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    store.release(c.lease)
++    fake.at += timedelta(days=1)
++    c.client.sync_clock()
++    new = store.acquire("DEMO-test", uuid4())
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(CancelledCorrectionBlocked, match="CORRECTION_REVIEW_CHANGED"):
++        apply_correction(store, new, c.client, uuid4(), token)
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_write_enabled_client_cannot_apply_even_with_valid_preview(correction):
++    store, c, fake, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-test")[
++        "review_token"
++    ]
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": True})
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    with pytest.raises(CancelledCorrectionBlocked, match="READ_ONLY_CLIENT_REQUIRED"):
++        apply_correction(store, c.lease, c.client, uuid4(), token)
++    assert store.read("DEMO-test").model_dump_json() == before
++    assert len(fake.calls) == start
++
++
++def test_token_is_bound_to_original_account_namespace(correction):
++    store, c, _, _, _, _ = correction
++    token = review_correction(store, c.client, store.read("DEMO-test"), account_id="DEMO-other")[
++        "review_token"
++    ]
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(CancelledCorrectionBlocked, match="CORRECTION_REVIEW_CHANGED"):
++        apply_correction(store, c.lease, c.client, uuid4(), token)
++    assert store.read("DEMO-test").model_dump_json() == before
