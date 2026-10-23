@@ -1,0 +1,667 @@
+--- a/HISTORY_REVIEW_START_HERE_KO.md
++++ b/HISTORY_REVIEW_START_HERE_KO.md
+@@ -0,0 +1,30 @@
++# 마지막 종료 이후 이력 확인 — 기존 DB가 있는 이전 PC에서 실행
++
++새 PC의 빈 DB에서는 실행하지 마세요. 이전 PC의 기존 DB와 EMERGENCY/paused/미확정 기록을 유지합니다. 이번 단계는 거래소 GET 조회와 로컬 DB 읽기만 하며, 기준값 저장·복구 적용·주문 실행을 하지 않습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-history-review 폴더에서 infra가 보이는 위치로 들어갑니다.
++2. Docker Desktop을 켜고 탐색기 주소창에 cmd를 입력한 뒤 Enter를 누릅니다.
++3. 설치 명령을 실행합니다. 기존 hybrid-windows 프로젝트와 DB 볼륨을 사용합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++4. 모두 Healthy면 아래 조회 명령을 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_flat_history
++
++5. DEMO API Key와 DEMO Secret을 차례로 붙여넣고 Enter를 누릅니다. 입력 내용은 보이지 않는 것이 정상입니다. 키를 대화에 보내지 마세요.
++6. 마지막 결과를 대화에 보내주세요. FLAT_HISTORY_EVIDENCE_ONLY는 근거 수집 완료이며 복구 완료가 아닙니다. 오류면 반복 실행하지 말고 화면만 보내주세요.
++
++주요 결과:
++- last_known_full_exit_fill_found: 기존 종료 주문과 실제 체결 ID/방향/수량을 대조했는지 여부.
++- btc_trades_after_known_exit_before_boundary: 확인된 종료 매도 이후부터 오늘 0시 전까지의 BTCUSDT 추가 체결 건수. 종료 체결을 찾지 못하면 null이며 0으로 간주하지 않습니다.
++- other_trades_at_exit_timestamp: 종료 체결과 같은 밀리초의 다른 주문 체결. 정확한 선후 관계는 단정하지 않습니다.
++- btc_trades_at_or_after_boundary: 오늘 0시 이후 BTCUSDT 체결 건수.
++- account_income_counts: 조회 구간의 계정 USDT 수익/수수료/펀딩/입출금 건수. 자정 전후 건수도 구분합니다.
++- wallet_change_matches_income: 기록상 마지막 flat 관측 이후의 지갑 변화와 해당 구간 income 합계가 맞는지 여부. 지연되거나 누락된 기록은 별도 검토가 필요합니다.
++
++기존 종료 직후와 마지막 flat 관측 사이의 구간이 빠지지 않도록 진입 신호의 닫힌 봉 시각까지 조회 범위를 넓혀 실제 종료 체결도 찾습니다. 조회는 최대 7일 구간으로 제한하고 1일 이하 구간으로 나눕니다. 한 응답이 한도 1000건이면 시간 구간을 재분할하여 조회합니다. 같은 밀리초에 한도만큼 몰리거나 요청 예산을 넘으면 누락을 추정하지 않고 중단합니다. 같은 이력을 재조회해 변화 여부도 확인합니다.
++
++BTCUSDT 체결 조회만으로 모든 다른 종목의 과거 포지션이 없었다고 증명할 수는 없습니다. 따라서 account_wide_position_history_verified와 recovery_eligible은 false입니다. 이 결과만으로 자정 계정 평가액을 확정하거나 일별 기준을 쓰지 않습니다. 과거 UNKNOWN도 성공/실패로 바꾸지 않습니다.
++
++API/web PAPER, LIVE_TRADING_ENABLED=false 유지. 실거래 및 Phase 5 금지. --apply-review, 예전 주문 명령, 새 ledger, volume 삭제, down -v를 사용하지 마세요. 실제 .env·키·.git·캐시·의존성 폴더는 ZIP에 포함하지 않습니다.
+--- a/HISTORY_REVIEW_VALIDATION_KO.md
++++ b/HISTORY_REVIEW_VALIDATION_KO.md
+@@ -0,0 +1,11 @@
++# 종료 이후 체결 이력 조회 검증
++
++전체 테스트 462개 통과(60.92초), mypy 70개 소스 통과, Ruff 전체 lint/179개 파일 format 통과. 실제 PostgreSQL·합성 거래소 응답·로컬 WS 사용. 실제 Binance 인증/주문 호출은 수행하지 않았습니다.
++
++새 테스트 20개는 GET-only/DB 불변/키 정리 및 출력 비밀 미포함, 같은 내역의 재조회 변화 차단, BTCUSDT 범위와 자정 이전/이후 구분, 실제 종료 주문의 ID·방향·수량 대조 및 종료와 같은 밀리초의 다른 체결 표시, 1000건 응답의 시간 구간 재분할, 단일 밀리초 포화와 요청 예산·최대 기간 초과 차단, 중복 동일 ID 단일 집계 및 충돌 거부, 잘못된 종목/포지션 모드/수수료 자산/수치/시간/ID 차단을 확인했습니다.
++
++새 서비스와 CLI/테스트/안내서를 추가했으며 기존 위험 계산·일/주 손실 기준·잠금·주문 코드는 변경하지 않았습니다. 마지막 로컬 flat 관측만을 실제 종료 시각으로 오인하지 않도록 이전 신호 시점부터 체결 이력을 읽고, broker 종료 주문과 실제 체결을 찾아 비교합니다. 종료 체결이 확인되지 않으면 추가 체결 건수는 null로 남깁니다.
++
++이 조회는 BTCUSDT 체결과 계정 USDT income 근거입니다. 다른 모든 종목의 과거 포지션/자정 미실현 손익이나 API 지연/보존 한계까지 입증하지 않습니다. 따라서 항상 recovery_eligible=false이며 기준값·잠금·미확정 기록을 변경하지 않습니다. 다른 PC의 빈 DB가 아닌 기존 DB가 있는 이전 PC에서 실행해야 합니다.
++
++main 변경, 실제 주문, 복구 적용, Phase 5 시작 없음.
+--- a/scripts/review_demo_flat_history.py
++++ b/scripts/review_demo_flat_history.py
+@@ -0,0 +1,72 @@
++"""Read-only trade/income history since the last recorded local flat snapshot."""
++
++import getpass
++import json
++import os
++import warnings
++from pathlib import Path
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked, review_flat_history
++
++
++def main() -> None:
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("FLAT_HISTORY_EVIDENCE", "LIVE_CONTEXT_FORBIDDEN")
++    stage = "CREDENTIAL_INPUT"
++    engine = None
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++        before = store.read(account)
++        stage = "FLAT_HISTORY_EVIDENCE"
++        report = review_flat_history(store, client, before)
++        if store.read(account) != before:
++            raise DayReviewBlocked("DATABASE_CHANGED_DURING_REVIEW")
++        print(json.dumps(report))
++    except (DayReviewBlocked, HistoryBlocked) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        if engine is not None:
++            engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_history_review.py
++++ b/services/execution/demo_history_review.py
+@@ -0,0 +1,269 @@
++"""Bounded GET-only history evidence, never a daily baseline or lock reset."""
++
++import hashlib
++import json
++from collections import Counter
++from datetime import UTC, datetime, time, timedelta
++from decimal import Decimal, DecimalException
++from zoneinfo import ZoneInfo
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.domain.contracts import OrderState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_day_review import income_window
++from services.execution.demo_models import DemoLedger
++
++CODES = frozenset(
++    {
++        "INVALID_HISTORY_WINDOW",
++        "HISTORY_QUERY_LIMIT",
++        "INVALID_TRADE_RESPONSE",
++        "TRADE_WINDOW_SATURATED",
++        "INVALID_TRADE_IDENTITY",
++        "INVALID_TRADE_TIME",
++        "INVALID_TRADE_NUMBER",
++        "CONFLICTING_TRADE_ID",
++        "HISTORY_CHANGED",
++        "ACCOUNT_CHANGED",
++        "CURRENT_EXPOSURE",
++        "INVALID_LOCAL_FLAT_ANCHOR",
++        "READ_ONLY_CONTEXT_REQUIRED",
++        "ANCHOR_AFTER_BOUNDARY",
++        "WALLET_MISSING",
++    }
++)
++
++
++class HistoryBlocked(DemoFailure):
++    def __init__(self, code: str):
++        super().__init__(code if code in CODES else "HISTORY_EVIDENCE_BLOCKED")
++
++
++def trades_window(client: DemoClient, start_ms: int, end_ms: int) -> dict[str, dict[str, str]]:
++    if (
++        client.settings.demo_trading_enabled
++        or start_ms < 0
++        or not 0 <= end_ms - start_ms <= 7 * 86400000
++    ):
++        raise HistoryBlocked("INVALID_HISTORY_WINDOW")
++    pending = []
++    cursor = start_ms
++    while cursor <= end_ms:
++        end = min(end_ms, cursor + 86400000 - 1)
++        pending.append((cursor, end))
++        cursor = end + 1
++    result: dict[str, dict[str, str]] = {}
++    calls = 0
++    while pending:
++        left, right = pending.pop()
++        calls += 1
++        if calls > 40:
++            raise HistoryBlocked("HISTORY_QUERY_LIMIT")
++        raw = client.request(
++            "GET",
++            "/fapi/v1/userTrades",
++            {"symbol": "BTCUSDT", "startTime": str(left), "endTime": str(right), "limit": "1000"},
++        )
++        if not isinstance(raw, list) or len(raw) > 1000:
++            raise HistoryBlocked("INVALID_TRADE_RESPONSE")
++        if len(raw) == 1000:
++            if left == right:
++                raise HistoryBlocked("TRADE_WINDOW_SATURATED")
++            middle = (left + right) // 2
++            pending.extend([(left, middle), (middle + 1, right)])
++            continue
++        for row in raw:
++            if (
++                not isinstance(row, dict)
++                or row.get("symbol") != "BTCUSDT"
++                or row.get("positionSide") != "BOTH"
++                or row.get("side") not in ("BUY", "SELL")
++                or row.get("commissionAsset") != "USDT"
++                or type(row.get("id")) not in (int, str)
++                or not str(row.get("id")).isdigit()
++                or type(row.get("orderId")) not in (int, str)
++                or not str(row.get("orderId")).isdigit()
++            ):
++                raise HistoryBlocked("INVALID_TRADE_IDENTITY")
++            stamp = row.get("time")
++            if type(stamp) is not int or not left <= stamp <= right:
++                raise HistoryBlocked("INVALID_TRADE_TIME")
++            try:
++                qty = signed_number(row.get("qty"))
++                price = signed_number(row.get("price"))
++                commission = signed_number(row.get("commission"))
++                pnl = signed_number(row.get("realizedPnl"))
++                if qty <= 0 or price <= 0 or commission < 0:
++                    raise ValueError("Invalid trade amount")
++            except (DemoFailure, DecimalException, ValueError, TypeError):
++                raise HistoryBlocked("INVALID_TRADE_NUMBER") from None
++            item = {
++                "time": str(stamp),
++                "side": str(row["side"]),
++                "order_id": str(row["orderId"]),
++                "quantity": str(qty),
++                "price": str(price),
++                "commission": str(commission),
++                "realized_pnl": str(pnl),
++            }
++            key = str(row["id"])
++            if key in result and result[key] != item:
++                raise HistoryBlocked("CONFLICTING_TRADE_ID")
++            result[key] = item
++    return result
++
++
++def review_flat_history(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger
++) -> dict[str, object]:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or not ledger.paused
++        or ledger.risk_state.value != "EMERGENCY"
++    ):
++        raise HistoryBlocked("READ_ONLY_CONTEXT_REQUIRED")
++    anchor = ledger.last_reconciled
++    if (
++        anchor is None
++        or ledger.value.as_of != anchor
++        or any(ledger.positions.values())
++        or any(
++            o.open_quantity
++            or o.remaining
++            or o.state
++            not in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++            for o in ledger.orders.values()
++        )
++    ):
++        raise HistoryBlocked("INVALID_LOCAL_FLAT_ANCHOR")
++    now = store.now()
++    boundary = datetime.combine(
++        now.astimezone(ZoneInfo("Asia/Seoul")).date(), time(), ZoneInfo("Asia/Seoul")
++    )
++    if anchor >= boundary:
++        raise HistoryBlocked("ANCHOR_AFTER_BOUNDARY")
++    anchor_ms = int(anchor.timestamp() * 1000)
++    # Include the recorded entry signal window so the prior closing fill itself
++    # can be found, rather than silently omitting the gap before the flat anchor.
++    window_start = min(
++        [anchor, *(o.signal.signal_closed_candle_at for o in ledger.orders.values())]
++    )
++    start_ms = int(window_start.timestamp() * 1000)
++    first = snapshot(client, ledger, store.now())
++    end_ms = int(store.now().timestamp() * 1000)
++    trades = trades_window(client, start_ms, end_ms)
++    incomes = income_window(client, start_ms, end_ms)
++    if trades != trades_window(client, start_ms, end_ms) or incomes != income_window(
++        client, start_ms, end_ms
++    ):
++        raise HistoryBlocked("HISTORY_CHANGED")
++    second = snapshot(client, ledger, store.now())
++    if (
++        first.fingerprint != second.fingerprint
++        or second.as_of.astimezone(ZoneInfo("Asia/Seoul")).date()
++        != now.astimezone(ZoneInfo("Asia/Seoul")).date()
++    ):
++        raise HistoryBlocked("ACCOUNT_CHANGED")
++    if (
++        any(second.positions.values())
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in second.algos.values())
++    ):
++        raise HistoryBlocked("CURRENT_EXPOSURE")
++    if second.wallet_balance is None:
++        raise HistoryBlocked("WALLET_MISSING")
++    boundary_ms = int(boundary.timestamp() * 1000)
++    net = sum((Decimal(r["income"]) for r in incomes.values()), Decimal(0))
++    net_since_anchor = sum(
++        (Decimal(r["income"]) for r in incomes.values() if int(r["time"]) >= anchor_ms), Decimal(0)
++    )
++    delta = second.wallet_balance - ledger.value.equity
++    verified_exits: list[int] = []
++    verified_exit_order_ids: set[str] = set()
++    for order in ledger.orders.values():
++        remote = second.orders.get(order.exit_id or "")
++        if (
++            not remote
++            or remote["status"] != "FILLED"
++            or remote["reduceOnly"] != "true"
++            or remote["clientOrderId"] != order.exit_id
++            or remote["symbol"] != order.signal.symbol
++            or remote["positionSide"] != "BOTH"
++            or remote["side"] != ("SELL" if order.signal.direction == "LONG" else "BUY")
++            or order.filled <= 0
++        ):
++            continue
++        matched = [r for r in trades.values() if r["order_id"] == remote["orderId"]]
++        if (
++            matched
++            and sum((Decimal(r["quantity"]) for r in matched), Decimal(0)) == order.filled
++            and signed_number(remote["executedQty"]) == order.filled
++            and all(
++                r["side"] == ("SELL" if order.signal.direction == "LONG" else "BUY")
++                for r in matched
++            )
++        ):
++            stamp = max(int(r["time"]) for r in matched)
++            if stamp <= anchor_ms:
++                verified_exits.append(stamp)
++                verified_exit_order_ids.add(remote["orderId"])
++    exit_ms = max(verified_exits) if verified_exits else None
++    digest = hashlib.sha256(
++        json.dumps(
++            {"trades": trades, "incomes": incomes}, sort_keys=True, separators=(",", ":")
++        ).encode()
++    ).hexdigest()
++    return {
++        "review": "FLAT_HISTORY_EVIDENCE_ONLY",
++        "local_flat_anchor_utc": anchor.isoformat(),
++        "query_start_utc": window_start.isoformat(),
++        "last_known_full_exit_fill_found": exit_ms is not None,
++        "last_known_full_exit_fill_utc": (
++            datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=exit_ms)
++        ).isoformat()
++        if exit_ms is not None
++        else None,
++        "btc_trades_after_known_exit_before_boundary": sum(
++            exit_ms < int(r["time"]) < boundary_ms for r in trades.values()
++        )
++        if exit_ms is not None
++        else None,
++        "other_trades_at_exit_timestamp": sum(
++            int(r["time"]) == exit_ms and r["order_id"] not in verified_exit_order_ids
++            for r in trades.values()
++        )
++        if exit_ms is not None
++        else None,
++        "boundary_kst": boundary.isoformat(),
++        "cutoff_utc": (
++            datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=end_ms)
++        ).isoformat(),
++        "trade_scope": "BTCUSDT_ONLY",
++        "btc_trades_before_boundary": sum(int(r["time"]) < boundary_ms for r in trades.values()),
++        "btc_trades_at_or_after_boundary": sum(
++            int(r["time"]) >= boundary_ms for r in trades.values()
++        ),
++        "account_income_counts": dict(Counter(r["type"] for r in incomes.values())),
++        "account_income_before_boundary_counts": dict(
++            Counter(r["type"] for r in incomes.values() if int(r["time"]) < boundary_ms)
++        ),
++        "account_income_at_or_after_boundary_counts": dict(
++            Counter(r["type"] for r in incomes.values() if int(r["time"]) >= boundary_ms)
++        ),
++        "account_income_net_usdt": str(net),
++        "wallet_change_since_local_anchor_usdt": str(delta),
++        "account_income_since_local_anchor_net_usdt": str(net_since_anchor),
++        "wallet_change_matches_income": delta == net_since_anchor,
++        "evidence_hash": digest,
++        "account_wide_position_history_verified": False,
++        "recovery_eligible": False,
++        "reason": "BTC_HISTORY_IS_NOT_ACCOUNT_WIDE_MIDNIGHT_EQUITY_PROOF",
++        "database_changed": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- a/tests/integration/test_demo_flat_history_review.py
++++ b/tests/integration/test_demo_flat_history_review.py
+@@ -0,0 +1,164 @@
++"""GET-only history across a local flat anchor preserves the entire ledger."""
++
++from datetime import timedelta
++from urllib.parse import parse_qs
++
++import pytest
++
++from services.execution.demo_history_review import HistoryBlocked, review_flat_history
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_recovery import recovery  # noqa: F401
++
++
++@pytest.fixture
++def history(recovery):  # noqa: F811
++    store, c, fake = recovery
++    anchor = store.read("DEMO-test").last_reconciled
++    fake.at += timedelta(days=2)
++    c.client.sync_clock()
++    original = c.client.send
++    rows = []
++
++    def send(method, path, query, key):
++        if path == "/fapi/v1/userTrades":
++            assert method == "GET"
++            params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            fake.calls.append((method, path, {}))
++            return fake.response(
++                [
++                    r
++                    for r in rows
++                    if int(params["startTime"]) <= r["time"] <= int(params["endTime"])
++                ][:1000]
++            )
++        return original(method, path, query, key)
++
++    c.client.send = send
++    return store, c, fake, rows, anchor
++
++
++def test_empty_history_is_evidence_only_not_account_wide_flat_proof(history):
++    store, c, fake, _, _ = history
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    report = review_flat_history(store, c.client, store.read("DEMO-test"))
++    assert (
++        report["btc_trades_before_boundary"] == 0 and report["btc_trades_at_or_after_boundary"] == 0
++    )
++    assert report["wallet_change_matches_income"] is True
++    assert report["trade_scope"] == "BTCUSDT_ONLY"
++    assert (
++        report["account_wide_position_history_verified"] is False
++        and report["recovery_eligible"] is False
++    )
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_additional_fill_is_counted_without_changing_state(history):
++    from tests.unit.test_demo_trade_history_window import row
++
++    store, c, _, rows, anchor = history
++    rows.append(row(time=int((anchor + timedelta(seconds=1)).timestamp() * 1000)))
++    before = store.read("DEMO-test").model_dump_json()
++    report = review_flat_history(store, c.client, store.read("DEMO-test"))
++    assert report["btc_trades_before_boundary"] == 1
++    assert report["recovery_eligible"] is False
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_changed_history_blocks_without_writes(history, monkeypatch):
++    import services.execution.demo_history_review as module
++
++    store, c, _, _, _ = history
++    count = 0
++
++    def changing(*args):
++        nonlocal count
++        count += 1
++        return {} if count == 1 else {"different": {}}
++
++    monkeypatch.setattr(module, "trades_window", changing)
++    before = store.read("DEMO-test").model_dump_json()
++    with pytest.raises(HistoryBlocked, match="HISTORY_CHANGED"):
++        review_flat_history(store, c.client, store.read("DEMO-test"))
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_cli_history_does_not_acquire_lease_or_emit_keys(history, monkeypatch, capsys):
++    import os
++
++    import scripts.review_demo_flat_history as cli
++
++    store, c, fake, _, _ = history
++    before = store.read("DEMO-test").model_dump_json()
++    start = len(fake.calls)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    original_read = store.read
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++
++    def no_lease(*args):
++        raise AssertionError("Read-only history must not acquire")
++
++    monkeypatch.setattr(store, "acquire", no_lease)
++    cli.main()
++    output = capsys.readouterr().out
++    assert "FLAT_HISTORY_EVIDENCE_ONLY" in output and "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original_read("DEMO-test").model_dump_json() == before
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++
++
++@pytest.mark.parametrize("same_millisecond", [False, True])
++def test_window_includes_previous_exit_and_flags_additional_or_simultaneous_trade(
++    demo_system,  # noqa: F811
++    same_millisecond,
++):
++    from uuid import uuid4
++
++    from tests.integration.test_demo import enter
++    from tests.integration.test_demo_isolated import configure
++    from tests.unit.test_demo_trade_history_window import row
++
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    sig, order = enter(system)
++    fake.fill(order.client_id, order.quantity)
++    c.reconcile()
++    c.command(uuid4(), "EMERGENCY_FLATTEN")
++    c.reconcile()  # Query the completed exit; its ACK alone is not proof of flat.
++    state = store.read("DEMO-test")
++    closed = state.orders[str(sig.signal_id)]
++    assert closed.position_state.value == "CLOSED"
++    exit_order = fake.orders[closed.exit_id]
++    anchor = state.last_reconciled
++    stamp = int(anchor.timestamp() * 1000)
++    rows = [
++        row(id=1, orderId=exit_order["orderId"], time=stamp, side="SELL", qty=str(closed.filled)),
++        row(id=2, orderId=999, time=stamp if same_millisecond else stamp + 10),
++    ]
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": False})
++    fake.at += timedelta(days=2)
++    c.client.sync_clock()
++    original = c.client.send
++
++    def send(method, path, query, key):
++        if path == "/fapi/v1/userTrades":
++            assert method == "GET"
++            params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            return fake.response(
++                [r for r in rows if int(params["startTime"]) <= r["time"] <= int(params["endTime"])]
++            )
++        return original(method, path, query, key)
++
++    c.client.send = send
++    before = store.read("DEMO-test").model_dump_json()
++    report = review_flat_history(store, c.client, store.read("DEMO-test"))
++    assert report["last_known_full_exit_fill_found"] is True
++    assert report["btc_trades_after_known_exit_before_boundary"] == (0 if same_millisecond else 1)
++    assert report["other_trades_at_exit_timestamp"] == (1 if same_millisecond else 0)
++    assert report["recovery_eligible"] is False
++    assert store.read("DEMO-test").model_dump_json() == before
+--- a/tests/unit/test_demo_trade_history_window.py
++++ b/tests/unit/test_demo_trade_history_window.py
+@@ -0,0 +1,103 @@
++"""No cursor guessing: saturated time windows split or fail closed."""
++
++from types import SimpleNamespace
++
++import pytest
++
++from services.execution.demo_history_review import HistoryBlocked, trades_window
++
++
++def row(**updates):
++    return dict(
++        {
++            "symbol": "BTCUSDT",
++            "positionSide": "BOTH",
++            "side": "BUY",
++            "commissionAsset": "USDT",
++            "id": 1,
++            "orderId": 2,
++            "time": 150,
++            "qty": "0.001",
++            "price": "100",
++            "commission": "0.01",
++            "realizedPnl": "0",
++        },
++        **updates,
++    )
++
++
++class Client:
++    settings = SimpleNamespace(demo_trading_enabled=False)
++
++    def __init__(self, rows):
++        self.rows = rows
++        self.calls = []
++
++    def request(self, method, path, params):
++        assert method == "GET" and path == "/fapi/v1/userTrades"
++        assert (
++            params["symbol"] == "BTCUSDT" and params["limit"] == "1000" and "fromId" not in params
++        )
++        self.calls.append(params)
++        return self.rows(params) if callable(self.rows) else self.rows
++
++
++@pytest.mark.parametrize(
++    "updates,code",
++    [
++        ({"symbol": "ETHUSDT"}, "INVALID_TRADE_IDENTITY"),
++        ({"positionSide": "LONG"}, "INVALID_TRADE_IDENTITY"),
++        ({"commissionAsset": "BNB"}, "INVALID_TRADE_IDENTITY"),
++        ({"id": True}, "INVALID_TRADE_IDENTITY"),
++        ({"time": True}, "INVALID_TRADE_TIME"),
++        ({"time": 201}, "INVALID_TRADE_TIME"),
++        ({"qty": "0"}, "INVALID_TRADE_NUMBER"),
++        ({"price": "NaN"}, "INVALID_TRADE_NUMBER"),
++        ({"commission": "-1"}, "INVALID_TRADE_NUMBER"),
++    ],
++)
++def test_invalid_trade_rows_block(updates, code):
++    with pytest.raises(HistoryBlocked, match=code):
++        trades_window(Client([row(**updates)]), 100, 200)
++
++
++def test_saturated_window_is_split_without_skipping_equal_timestamps():
++    data = [row(id=i, time=101 if i < 500 else 199) for i in range(1001)]
++
++    def fetch(params):
++        return [r for r in data if int(params["startTime"]) <= r["time"] <= int(params["endTime"])][
++            :1000
++        ]
++
++    client = Client(fetch)
++    assert len(trades_window(client, 100, 200)) == 1001
++    assert len(client.calls) == 3
++
++
++def test_single_millisecond_saturation_never_returns_partial_results():
++    with pytest.raises(HistoryBlocked, match="TRADE_WINDOW_SATURATED"):
++        trades_window(Client([row()] * 1000), 150, 150)
++
++
++def test_duplicates_deduplicate_but_conflicting_identity_is_rejected():
++    assert len(trades_window(Client([row(), row()]), 100, 200)) == 1
++    with pytest.raises(HistoryBlocked, match="CONFLICTING_TRADE_ID"):
++        trades_window(Client([row(), row(qty="0.002")]), 100, 200)
++
++
++def test_history_span_and_request_budget_are_bounded():
++    client = Client([])
++    with pytest.raises(HistoryBlocked, match="INVALID_HISTORY_WINDOW"):
++        trades_window(client, 0, 8 * 86400000)
++    assert not client.calls
++    full = [row()] * 1000
++
++    def saturated(params):
++        return full if int(params["endTime"]) > int(params["startTime"]) else []
++
++    with pytest.raises(HistoryBlocked, match="HISTORY_QUERY_LIMIT"):
++        trades_window(Client(saturated), 0, 86400000)
++
++
++def test_unknown_private_error_text_is_not_exported():
++    assert str(HistoryBlocked("private-key-url")) == "HISTORY_EVIDENCE_BLOCKED"
