@@ -1,0 +1,535 @@
+--- a/CANCELLED_REVIEW_START_HERE_KO.md
++++ b/CANCELLED_REVIEW_START_HERE_KO.md
+@@ -0,0 +1,24 @@
++# 취소 주문의 과거 수량 오배정 — 읽기 전용 이력 검토
++
++기존 DB가 있는 WBKANG_Galaxybook PC에서 실행하세요. 새 PC의 빈 DB에는 기존 거래 이력이 없습니다.
++
++이번 수정은 비상 조회 시 체결량 0인 종료 주문에 다른 거래의 포지션을 배정하지 않도록 합니다. 귀속을 알 수 없는 실제 포지션도 EMERGENCY/paused 상태를 유지합니다. 이미 잘못 저장된 기록을 자동 수정하거나 UNKNOWN을 성공/실패로 바꾸지 않습니다.
++
++1. ZIP을 모두 추출하고 windows-demo-cancelled-review 폴더의 infra가 보이는 위치에서 탐색기 주소창에 cmd를 입력합니다.
++2. Docker Desktop이 켜진 상태에서 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++
++3. 모두 Healthy면 아래 명령을 실행합니다.
++
++    docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_cancelled_history
++
++4. DEMO API Key와 DEMO Secret을 숨김 입력하고 마지막 결과를 대화에 보내주세요. 키를 대화에 보내지 마세요. 오류면 반복하지 말고 오류 코드만 공유하세요.
++
++도구는 현재 포지션/활성 주문이 없고 Isolated 2x임을 확인합니다. 로컬의 CANCELED/filled=0/remaining=0/open_quantity=원수량/EXIT_PENDING/exit_state=UNKNOWN 모양만 대상으로, 거래소 원래 clientOrderId와 serverOrderId, 종목/방향/유형/수량/가격, 실제 CANCELED/체결량 0을 반복 조회하여 대조합니다. 거래소에서 찾지 못한 주문은 미체결로 추정하지 않습니다.
++
++확인된 경우 메모리의 분석용 사본에서만 해당 취소 주문의 수량을 제외해 기존 체결/income 이력 조회를 진행합니다. 조회 전후 거래소 스냅샷의 일치와 DB 불변을 확인합니다. 원본 기록, 과거 UNKNOWN/SUBMITTING, 평가액/손실 기준/일자, EMERGENCY/paused는 보존합니다. 분석용 사본은 주문 실행이나 복구 적용에 전달하지 않습니다.
++
++성공 출력은 LEGACY_CANCELLED_HISTORY_EVIDENCE_ONLY입니다. local_ledger_repaired=false, unresolved_requests_acknowledged=false, recovery_eligible=false가 정상입니다. legacy_observation_anchor_utc는 모순이 있는 과거 로컬 관측 시각이며, 정상 flat 기록으로 확정했다는 뜻이 아닙니다. 자정 평가액과 모든 종목의 과거 포지션을 입증하지 않으며, 이번 결과만으로 기준값을 저장하거나 잠금을 해제하지 않습니다.
++
++새 주문, 예전 run_demo 명령, --apply-review, DB 초기화, 새 ledger 생성, down -v를 실행하지 마세요. 기존 hybrid-windows DB 볼륨을 유지합니다. API/web은 PAPER, LIVE_TRADING_ENABLED=false이며 Phase 5를 시작하지 않습니다.
+--- a/CANCELLED_REVIEW_VALIDATION_KO.md
++++ b/CANCELLED_REVIEW_VALIDATION_KO.md
+@@ -0,0 +1,17 @@
++# 취소 주문 수량 오배정 수정 및 읽기 전용 이력 조회 검증
++
++전체 484개 테스트 통과(103.92초). mypy 72개 소스 통과. Ruff 전체 lint/186개 파일 format 검사 통과. 실제 PostgreSQL과 합성 거래소 응답, 로컬 WS를 사용했습니다. 실제 Binance 인증·주문 호출은 클라우드에서 수행하지 않았습니다.
++
++기존 코드에 새 회귀 테스트를 적용하면 4개가 실패했습니다. 수정 코드에서는 모두 통과하고 기존 테스트도 통과합니다. 실제 사용자 DB를 테스트 목적으로 수정하지 않았습니다.
++
++수정: 비상 포지션 조회에서 체결량 0인 종료 주문에 같은 종목의 다른 포지션을 배정하지 않습니다. 기존에 저장된 모순된 기록은 자동 변경하지 않습니다. 귀속할 수 없는 실제 포지션도 EMERGENCY/paused를 유지하고 취소 주문에 임의 배정해 시장가 종료하지 않습니다. 신규 진입의 LIMIT 전용 규칙과 실제 체결 주문의 비상 reduce-only 종료 경로는 유지합니다.
++
++새 읽기 전용 도구는 사용자 캡처의 제한된 모양(CANCELED, filled/remaining=0, open_quantity=원수량, EXIT_PENDING, UNKNOWN, protected=false)만 대상으로 합니다. 원래 clientOrderId/serverOrderId/종목/방향/모드/유형/가격/수량과 거래소 취소·체결량 0을 반복 대조합니다. 현재 포지션·활성 일반/조건부 주문은 모두 없어야 하고 Isolated 2x여야 합니다. 찾을 수 없는 원래 주문을 미체결로 간주하지 않습니다.
++
++거래소 근거가 일치할 때 메모리의 분석용 사본에서만 그 취소 주문의 open_quantity를 제외해 기존 GET-only 이력 조회를 수행합니다. 분석용 사본은 주문 실행/잠금 해제/복구 적용에 전달하지 않습니다. 기존 flat-history 서비스의 원래 guard는 변경하지 않았습니다. 결과에서 모순된 기록 시각을 local_flat_anchor 대신 legacy_observation_anchor로 명시합니다. local_ledger_repaired=false, recovery_eligible=false입니다.
++
++새 테스트 22개는 취소/거절/만료 주문에 대한 오배정 방지와 귀속 불명 포지션의 잠금 유지, GET-only/lease·쓰기 금지, 원본 DB·입력 객체·미확정 요청·손실 기준·잠금 불변, 키 미출력 및 환경 정리, 거래소 ID·방향·가격·수량·체결량·상태 불일치/주문 not-found/로컬 모양 불일치/현재 노출/스냅샷 변화/쓰기 활성 문맥 차단을 확인합니다.
++
++변경 범위: services/execution/demo.py의 비상 귀속 guard, 해당 회귀 테스트, 새 조회 서비스·CLI·통합 테스트, 안내·검증 문서. MASTER_SPEC/AGENTS/의존성 lock/Compose/Isolated 설정/위험 기준/복구 적용 코드는 보존합니다. Compose 검증 결과 API는 PAPER/LIVE=false이고 기존 hybrid-windows_postgres_data 볼륨을 사용합니다.
++
++제한: 실제 사용자의 과거 취소 주문은 새 도구 실행 결과로 확인해야 합니다. DB의 과거 수량 모순과 UNKNOWN/SUBMITTING은 이번에 복구하지 않습니다. BTCUSDT 체결 내역은 모든 종목의 과거 포지션/자정 평가액을 증명하지 않으며 일별 손실 기준의 복원 근거로 단독 사용하지 않습니다. main 변경, 실거래, Phase 5 시작 없음.
+--- a/scripts/review_demo_cancelled_history.py
++++ b/scripts/review_demo_cancelled_history.py
+@@ -0,0 +1,76 @@
++"""GET-only history evidence for a legacy cancelled-entry exposure anomaly."""
++
++import getpass
++import json
++import os
++import warnings
++from pathlib import Path
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_cancelled_history import (
++    CancelledHistoryBlocked,
++    review_cancelled_history,
++)
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked
++
++
++def main() -> None:
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("CANCELLED_HISTORY_EVIDENCE", "LIVE_CONTEXT_FORBIDDEN")
++    stage = "CREDENTIAL_INPUT"
++    engine = None
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++        before = store.read(account)
++        stage = "CANCELLED_HISTORY_EVIDENCE"
++        report = review_cancelled_history(store, client, before)
++        if store.read(account) != before:
++            raise DayReviewBlocked("DATABASE_CHANGED_DURING_REVIEW")
++        print(json.dumps(report))
++    except (DayReviewBlocked, HistoryBlocked, CancelledHistoryBlocked) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        if engine is not None:
++            engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -419,8 +419,15 @@
+                     rows = self.client.request("GET", "/fapi/v3/positionRisk")
+                     if not isinstance(rows, list):
+                         raise DemoFailure("Invalid emergency position response")
++                    if any(signed_number(row["positionAmt"]) for row in rows):
++                        # Unattributed exchange exposure still keeps the emergency lock.
++                        ledger.risk_state = RiskState.EMERGENCY
+                     for order in ledger.orders.values():
+-                        if order.position_state == PositionState.CLOSED:
++                        if order.position_state == PositionState.CLOSED or (
++                            order.state in TERMINAL and order.filled == ZERO
++                        ):
++                            # A terminal unfilled entry cannot own a later trade's position.
++                            # Preserve existing ambiguous records for an explicit audited review.
+                             continue
+                         for row in rows:
+                             if (
+--- a/services/execution/demo_cancelled_history.py
++++ b/services/execution/demo_cancelled_history.py
+@@ -0,0 +1,112 @@
++"""GET-only evidence for legacy cancelled entries carrying impossible local exposure.
++
++Only a temporary history-analysis copy is adjusted. Stored orders, unresolved
++requests, risk baselines and locks are never repaired or acknowledged here.
++"""
++
++from decimal import Decimal
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.domain.contracts import OrderState, PositionState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_history_review import review_flat_history
++from services.execution.demo_models import DemoLedger, DemoSnapshot
++
++
++class CancelledHistoryBlocked(DemoFailure):
++    pass
++
++
++def _confirm_cancelled(ledger: DemoLedger, remote: DemoSnapshot, keys: list[str]) -> None:
++    if (
++        any(remote.positions.values())
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in remote.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in remote.algos.values())
++        or remote.leverage.get("BTCUSDT") != 2
++        or remote.margin_types.get("BTCUSDT") != "ISOLATED"
++    ):
++        raise CancelledHistoryBlocked("CURRENT_EXPOSURE_OR_SETTINGS_MISMATCH")
++    for key in keys:
++        order = ledger.orders[key]
++        row = remote.orders.get(order.client_id)
++        if (
++            row is None
++            or row["status"] != "CANCELED"
++            or row["clientOrderId"] != order.client_id
++            or order.server_order_id is None
++            or row["orderId"] != order.server_order_id
++            or row["symbol"] != "BTCUSDT"
++            or row["symbol"] != order.signal.symbol
++            or row["side"] != ("BUY" if order.signal.direction == "LONG" else "SELL")
++            or row["positionSide"] != "BOTH"
++            or row["type"] != "LIMIT"
++            or row["reduceOnly"] != "false"
++            or signed_number(row["origQty"]) != order.quantity
++            or signed_number(row["executedQty"]) != 0
++            or signed_number(row["price"]) != order.signal.suggested_limit_price
++        ):
++            raise CancelledHistoryBlocked("CANCELLED_ZERO_FILL_NOT_CONFIRMED")
++
++
++def review_cancelled_history(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger
++) -> dict[str, object]:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.policy != client.settings.policy
++        or not ledger.paused
++        or ledger.risk_state.value != "EMERGENCY"
++        or ledger.last_reconciled is None
++        or ledger.value.as_of != ledger.last_reconciled
++        or any(ledger.positions.values())
++    ):
++        raise CancelledHistoryBlocked("LEGACY_HISTORY_CONTEXT_MISMATCH")
++    keys = [key for key, order in ledger.orders.items() if order.open_quantity]
++    if not keys or any(
++        order.state != OrderState.CANCELED
++        or order.filled != 0
++        or order.remaining != 0
++        or order.signal.symbol != "BTCUSDT"
++        or order.open_quantity != order.quantity
++        or order.position_state != PositionState.EXIT_PENDING
++        or order.exit_state != "UNKNOWN"
++        or order.protected
++        for key in keys
++        for order in [ledger.orders[key]]
++    ):
++        raise CancelledHistoryBlocked("LEGACY_CANCELLED_SHAPE_MISMATCH")
++    original = ledger.model_dump_json()
++    first = snapshot(client, ledger, store.now())
++    _confirm_cancelled(ledger, first, keys)
++    second = snapshot(client, ledger, store.now())
++    _confirm_cancelled(ledger, second, keys)
++    if first.fingerprint != second.fingerprint:
++        raise CancelledHistoryBlocked("CANCELLED_HISTORY_SNAPSHOT_CHANGED")
++    # This projection is solely for GET-only history evidence. No coordinator,
++    # recovery acknowledgement, lease or store.change receives it.
++    projection = ledger.model_copy(deep=True)
++    for key in keys:
++        projection.orders[key].open_quantity = Decimal(0)
++    report = review_flat_history(store, client, projection)
++    final = snapshot(client, ledger, store.now())
++    _confirm_cancelled(ledger, final, keys)
++    if first.fingerprint != final.fingerprint:
++        raise CancelledHistoryBlocked("CANCELLED_HISTORY_SNAPSHOT_CHANGED")
++    if ledger.model_dump_json() != original:
++        raise CancelledHistoryBlocked("LOCAL_INPUT_CHANGED")
++    report["legacy_observation_anchor_utc"] = report.pop("local_flat_anchor_utc")
++    report.update(
++        review="LEGACY_CANCELLED_HISTORY_EVIDENCE_ONLY",
++        confirmed_cancelled_zero_fill_orders=len(keys),
++        local_cancelled_exposure_records_unchanged=True,
++        local_ledger_repaired=False,
++        unresolved_requests_acknowledged=False,
++        risk_state=ledger.risk_state.value,
++        paused=ledger.paused,
++    )
++    return report
+--- a/tests/integration/test_demo_cancelled_history.py
++++ b/tests/integration/test_demo_cancelled_history.py
+@@ -0,0 +1,188 @@
++"""Legacy anomalies remain in PostgreSQL while GET-only evidence is collected."""
++
++from datetime import timedelta
++from decimal import Decimal
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from packages.domain.contracts import PositionState, RiskState
++from services.execution.demo_cancelled_history import (
++    CancelledHistoryBlocked,
++    review_cancelled_history,
++)
++from services.execution.demo_history_review import HistoryBlocked, review_flat_history
++from tests.integration.test_demo import enter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++
++
++@pytest.fixture
++def legacy(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    sig, order = enter(system)
++    c.cancel(str(sig.signal_id))
++
++    def legacy_state(ledger):
++        o = ledger.orders[str(sig.signal_id)]
++        assert o.filled == 0 and o.remaining == 0
++        o.open_quantity = o.quantity
++        o.position_state = PositionState.EXIT_PENDING
++        o.exit_state = "UNKNOWN"
++        ledger.paused = True
++        ledger.risk_state = RiskState.EMERGENCY
++        ledger.requests["DX-legacy-unknown"] = "SUBMITTING"
++
++    store.change(c.lease, "TEST_REPRODUCE_OLD_ANOMALY", legacy_state)
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": False})
++    original = c.client.send
++
++    def send(method, path, query, key):
++        assert method == "GET"
++        if path == "/fapi/v1/userTrades":
++            fake.calls.append((method, path, {}))
++            return fake.response([])
++        return original(method, path, query, key)
++
++    c.client.send = send
++    fake.at += timedelta(days=2)
++    c.client.sync_clock()
++    return store, c, fake, sig, order
++
++
++def test_review_preserves_anomaly_requests_baselines_and_lock(legacy):
++    store, c, fake, _, _ = legacy
++    before = store.read("DEMO-test")
++    serial = before.model_dump_json()
++    start = len(fake.calls)
++    with pytest.raises(HistoryBlocked, match="INVALID_LOCAL_FLAT_ANCHOR"):
++        review_flat_history(store, c.client, before)
++    report = review_cancelled_history(store, c.client, before)
++    assert report["review"] == "LEGACY_CANCELLED_HISTORY_EVIDENCE_ONLY"
++    assert report["confirmed_cancelled_zero_fill_orders"] == 1
++    assert report["local_ledger_repaired"] is False
++    assert report["unresolved_requests_acknowledged"] is False
++    assert report["recovery_eligible"] is False
++    assert report["paused"] is True and report["risk_state"] == "EMERGENCY"
++    assert "local_flat_anchor_utc" not in report
++    assert "legacy_observation_anchor_utc" in report
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert before.model_dump_json() == serial
++    assert store.read("DEMO-test").model_dump_json() == serial
++
++
++@pytest.mark.parametrize(
++    "field,value",
++    [
++        ("executedQty", "0.001"),
++        ("status", "FILLED"),
++        ("orderId", "wrong"),
++        ("origQty", "999"),
++        ("price", "1"),
++        ("side", "SELL"),
++        ("reduceOnly", "true"),
++        ("positionSide", "LONG"),
++    ],
++)
++def test_remote_identity_or_zero_fill_disagreement_blocks(legacy, field, value):
++    store, c, fake, _, order = legacy
++    before = store.read("DEMO-test").model_dump_json()
++    fake.orders[order.client_id][field] = value
++    with pytest.raises(DemoFailure):
++        # Snapshot parsing may reject the invalid row before the identity guard.
++        review_cancelled_history(store, c.client, store.read("DEMO-test"))
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++@pytest.mark.parametrize(
++    "field,value",
++    [
++        ("filled", Decimal("0.001")),
++        ("remaining", Decimal("0.001")),
++        ("open_quantity", Decimal("0.001")),
++        ("exit_state", "FILLED"),
++    ],
++)
++def test_other_local_shapes_are_not_projected(legacy, field, value):
++    store, c, fake, sig, _ = legacy
++    state = store.read("DEMO-test")
++    setattr(state.orders[str(sig.signal_id)], field, value)
++    start = len(fake.calls)
++    with pytest.raises(CancelledHistoryBlocked, match="LEGACY_CANCELLED_SHAPE_MISMATCH"):
++        review_cancelled_history(store, c.client, state)
++    assert len(fake.calls) == start
++
++
++def test_current_exposure_blocks(legacy):
++    store, c, fake, _, _ = legacy
++    fake.positions["BTCUSDT"] = Decimal("0.001")
++    fake.prices["BTCUSDT"] = Decimal("100")
++    with pytest.raises(CancelledHistoryBlocked, match="CURRENT_EXPOSURE"):
++        review_cancelled_history(store, c.client, store.read("DEMO-test"))
++
++
++def test_cli_has_no_lease_or_writes_and_clears_credentials(legacy, monkeypatch, capsys):
++    import os
++
++    import scripts.review_demo_cancelled_history as cli
++
++    store, c, fake, _, _ = legacy
++    original_read = store.read
++    before = original_read("DEMO-test").model_dump_json()
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda settings, credentials: c.client)
++    monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++
++    def no_write(*args):
++        raise AssertionError("Read-only evidence must not acquire or change")
++
++    monkeypatch.setattr(store, "acquire", no_write)
++    monkeypatch.setattr(store, "change", no_write)
++    cli.main()
++    output = capsys.readouterr().out
++    assert "LEGACY_CANCELLED_HISTORY_EVIDENCE_ONLY" in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ
++    assert "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original_read("DEMO-test").model_dump_json() == before
++
++
++def test_missing_remote_order_is_not_treated_as_never_filled(legacy):
++    store, c, fake, _, order = legacy
++    del fake.orders[order.client_id]
++    with pytest.raises(CancelledHistoryBlocked, match="CANCELLED_ZERO_FILL_NOT_CONFIRMED"):
++        review_cancelled_history(store, c.client, store.read("DEMO-test"))
++
++
++def test_snapshot_change_during_evidence_blocks(legacy, monkeypatch):
++    import services.execution.demo_cancelled_history as module
++
++    store, c, _, _, _ = legacy
++    before = store.read("DEMO-test").model_dump_json()
++    original = module.snapshot
++    calls = 0
++
++    def changed(*args):
++        nonlocal calls
++        remote = original(*args)
++        calls += 1
++        if calls == 2:
++            remote.fingerprint = "changed"
++        return remote
++
++    monkeypatch.setattr(module, "snapshot", changed)
++    with pytest.raises(CancelledHistoryBlocked, match="SNAPSHOT_CHANGED"):
++        review_cancelled_history(store, c.client, store.read("DEMO-test"))
++    assert store.read("DEMO-test").model_dump_json() == before
++
++
++def test_write_enabled_context_blocks_before_network(legacy):
++    store, c, fake, _, _ = legacy
++    c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": True})
++    start = len(fake.calls)
++    with pytest.raises(CancelledHistoryBlocked, match="CONTEXT_MISMATCH"):
++        review_cancelled_history(store, c.client, store.read("DEMO-test"))
++    assert len(fake.calls) == start
+--- a/tests/integration/test_demo_reconcile_diagnostics.py
++++ b/tests/integration/test_demo_reconcile_diagnostics.py
+@@ -60,3 +60,81 @@
+     assert fake.positions["BTCUSDT"] == 0
+     assert len(posts(fake, "/fapi/v1/algoOrder")) == 0
+     assert all(p["type"] == "LIMIT" or p.get("reduceOnly") == "true" for p in posts(fake))
++
++
++@pytest.mark.parametrize("terminal", ["CANCELED", "REJECTED", "EXPIRED"])
++def test_emergency_fallback_never_assigns_position_to_terminal_unfilled_entry(
++    system,  # noqa: F811
++    monkeypatch,
++    terminal,
++):
++    from packages.domain.contracts import OrderState
++
++    store, c, fake = system
++    old_signal, old = enter(system)
++    c.cancel(str(old_signal.signal_id))
++
++    def set_terminal(ledger):
++        ledger.orders[str(old_signal.signal_id)].state = OrderState(terminal)
++
++    store.change(c.lease, "TEST_TERMINAL_UNFILLED", set_terminal)
++    fake.orders[old.client_id]["status"] = terminal
++    c.reconcile()
++    new_signal, current = enter(system)
++    fake.fill(current.client_id, current.quantity)
++    original = module.snapshot
++    calls = 0
++
++    def changing(*args):
++        nonlocal calls
++        result = original(*args)
++        calls += 1
++        if calls == 2:
++            result.fingerprint = "changed"
++        return result
++
++    monkeypatch.setattr(module, "snapshot", changing)
++    with pytest.raises(DemoFailure, match="changed mid-reconciliation"):
++        c.reconcile()
++    state = store.read("DEMO-test")
++    past = state.orders[str(old_signal.signal_id)]
++    assert past.filled == 0 and past.open_quantity == 0 and past.exit_id is None
++    assert past.state == OrderState(terminal)
++    assert fake.positions["BTCUSDT"] == 0
++    assert state.orders[str(new_signal.signal_id)].exit_id is not None
++    assert state.paused and state.risk_state.value == "EMERGENCY"
++    exits = [p for p in posts(fake) if p.get("reduceOnly") == "true"]
++    assert len(exits) == 1
++
++
++def test_unattributed_position_keeps_emergency_without_assigning_cancelled_order(
++    system,  # noqa: F811
++    monkeypatch,
++):
++    from decimal import Decimal
++
++    store, c, fake = system
++    sig, old = enter(system)
++    c.cancel(str(sig.signal_id))
++    fake.positions["BTCUSDT"] = old.quantity
++    fake.prices["BTCUSDT"] = Decimal("100")
++    original = module.snapshot
++    calls = 0
++
++    def changing(*args):
++        nonlocal calls
++        result = original(*args)
++        calls += 1
++        if calls == 2:
++            result.fingerprint = "changed"
++        return result
++
++    monkeypatch.setattr(module, "snapshot", changing)
++    start = len(posts(fake))
++    with pytest.raises(DemoFailure, match="changed mid-reconciliation"):
++        c.reconcile()
++    ledger = store.read("DEMO-test")
++    assert ledger.paused and ledger.risk_state.value == "EMERGENCY"
++    assert ledger.orders[str(sig.signal_id)].open_quantity == 0
++    assert fake.positions["BTCUSDT"] == old.quantity
++    assert len(posts(fake)) == start
