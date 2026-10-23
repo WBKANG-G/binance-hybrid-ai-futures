@@ -1,0 +1,470 @@
+--- a/FLAT_CONFIRMATION_START_HERE_KO.md
++++ b/FLAT_CONFIRMATION_START_HERE_KO.md
+@@ -0,0 +1,31 @@
++# DEMO 청산 확인 지연 수정 적용
++
++기존 원장이 있는 Galaxybook PC에서 사용합니다. 새 폴더에 ZIP을 추출하고 해당 폴더 주소창에서 cmd를 실행하세요. 기존 PostgreSQL 및 demo_export_data 볼륨을 그대로 사용합니다. down -v, 초기화, 새 계정 생성, export 생성 재실행을 하지 않습니다.
++
++## 1. 이미지 적용
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++프로젝트명 hybrid-windows를 유지합니다. 이 명령은 일별/주별 기준이나 비상 잠금을 해제하지 않습니다.
++
++## 2. 기존 검증 기록 확인 — API 키 불필요, DB 읽기 전용
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -c "import json; from sqlalchemy import create_engine,select,text; from packages.domain.config import database_url; from packages.persistence.demo import accounts; from services.execution.demo import DemoCoordinator; e=create_engine(database_url().get_secret_value(),connect_args={'connect_timeout':2}); c=e.connect(); c.execute(text('SET TRANSACTION READ ONLY')); d=c.execute(select(accounts.c.state).where(accounts.c.account_id=='DEMO-WINDOWS-ISOLATED-BTC-V1')).scalar_one(); k='9e4674fb-8d83-4c72-af25-0c5cded1e7e6'; o=d['orders'][k]; print(json.dumps({'check':'LOCAL_COMPLETION_READ_ONLY','flat_confirmation_available':hasattr(DemoCoordinator,'confirm_flat'),'risk_state':d['risk_state'],'paused':d['paused'],'position_state':o['position_state'],'open_quantity':o['open_quantity'],'exit_state':o['exit_state'],'validation_evidence':d.get('validation_evidence',{}).get(k,{}),'stored_day_kst':d['daily_key'],'orders_enabled':False,'live_trading_enabled':False})); c.close(); e.dispose()"
++```
++
++결과를 공유해 주세요.flat_confirmation_available=true, 기존 주문의 CLOSED/open_quantity=0/exit_state=FILLED 및 stop_verified/target_verified=true를 확인합니다. 로컬 저장 기록 확인이며 새로운 거래소 조회는 아닙니다.
++
++## 変更内容
++
++기존 검증에는 청산 POST 접수 직후 포지션이 아직 남아 보이면 확인을 일찍 끝내 UNKNOWN이 되는 경로가 있었습니다. 수정판은 동일한 청산 의도를 한 번 실행한 뒤 기존 주문 ID를 최대 4회, 간격 1초로 관측합니다. 각 관측에는 기존 HTTP 타임아웃이 적용되므로 전체 실행 시간이 4초라는 뜻은 아닙니다. 관측 중 신규 진입 POST나 청산 POST 재전송은 하지 않습니다.
++
++포지션 0만으로 통과하지 않습니다. 기존 정리 주문의 FILLED, 원래 주문과 수량의 정합성, 로컬 잔여 수량 0과 대조 완료가 필요합니다. 이 조건을 확인한 뒤 알려진 잔여 SL/TP만 취소하고, 다시 조회해 조건 주문도 0인지 확인합니다. ACK/UNKNOWN/주문 불명/잔여 주문/조회 실패/lease 만료는 성공으로 처리하지 않습니다. 세션 종료 후에도 같은 lease가 유효한지 확인하며, 만료된 lease를 되살리지 않습니다.
++
++출력에 completion_stage와 completion_failure를 추가했습니다. 예외 원문·키·서명·URL은 출력하지 않습니다.
++
++## 이번 실제 계정 결과의 취급
++
++기존 사용자 검증은 SL/TP 등록 확인에 성공했고, 별도의 동일 ID 정리 명령으로 VERIFIED_FLAT이 됐습니다. 이를 수정판 자동 종료의 실제 DEMO 성공 실적으로 바꾸지 않습니다. 이 ZIP 적용으로 새 주문은 제출하지 않습니다. 새 DEMO 검증, 일자 경계·기준 확인과 나머지 Phase4 인수 확인은 별도 단계입니다. LIVE와 Phase5는 시작하지 않습니다.
+--- a/FLAT_CONFIRMATION_VALIDATION_KO.md
++++ b/FLAT_CONFIRMATION_VALIDATION_KO.md
+@@ -0,0 +1,18 @@
++# Phase4 DEMO 지연 청산 확인 수정 검증
++
++검증: 전체 584개 테스트 통과(108.54초), mypy 78개 소스 통과, Ruff 전체 lint/format 통과. 실제 PostgreSQL과 합성 거래소 및 localhost WebSocket을 사용했습니다. 클라우드에서 실제 DEMO 인증·주문·사용자 DB 변경을 하지 않았습니다.
++
++이전 배포 ZIP: binance-hybrid-ai-futures-windows-day-reconstruction.zip
++SHA256: 9f3eee8504d176a118b584d19e4ac525a018e53b72f94e814753f88abcb1792e
++
++재현: 원본 부모 구현의 두 실행 파일을 바이트 그대로 별도 임시 복사본에 복원한 뒤, 같은 합성 거래소의 청산 체결이 POST ACK 후 세 번째 포지션 조회에 나타나는 테스트를 실행했습니다. 부모는 stop_verified=true/target_verified=true/session_error=false지만 EXIT_PENDING/UNRESOLVED_DO_NOT_REPEAT로 실패했습니다(1 failed, 1.01초). 수정판은 동일 테스트에서 청산 POST 1회만으로 종료를 확인합니다. 사용자 최초 실행 때 숨겨진 예외의 정확한 원인이 이 지연 하나라고 단정하지 않습니다. 앞으로는 완료 단계/허용 목록 실패 분류를 출력합니다.
++
++새 14개 테스트: 첫째/둘째/마지막 확인에서 체결되는 경우; 외부 관측으로 늦게 체결되는 실제 순서 재현; 끝내 체결되지 않는 경우 정확히 4회 후 미확정 유지; 포지션0이지만 종료 체결 불명이면 보호 취소와 성공 차단; 조회 오류/보호 취소 실패/lease 만료; 청산 응답 유실 후 원래 ID 조회(청산 POST 추가 없음); 읽기 전용 설정에서 취소 없음; 소유하지 않은 활성 보호 주문이 있으면 삭제·통과 차단; 일시정지되지 않은 원장이나 만료 후 교체된 leader에서 조회·변경 차단; 조건 주문 상태가 UNKNOWN이면 청산 완료로 보고하지 않음. 기존 부분 체결, 중복 작업, 보호 실패, 원장 복구, 일자 기준·정정·내보내기 보호 테스트를 모두 유지했습니다.
++
++수정 범위: services/execution/demo_validation.py의 종료 확인 단계와 오류 분류, services/execution/demo.py의 새 confirm_flat 관측 메서드, 새 통합 테스트 및 두 문서입니다. 기존 command/신규 진입/청산 제출/보호 등록/원장 merge 동작, MASTER_SPEC/AGENTS, 위험 정책, 일자 경계 guard, DemoClient 전송, 설정·의존성·Dockerfile/Compose·DB 모델·영속화·기존 복구/정정/export 코드는 부모 ZIP과 동일합니다. 기존 메서드 내부의 전송·위험 규칙을 바꾸지 않았습니다.
++
++종료 절차: 세션 종료 후 같은 fenced lease를 갱신하고 일시정지를 기록한 뒤, 필요한 경우 안정적인 finish 작업 ID로 청산 명령을 한 번 실행합니다. 이후 최대4회(사이 간격1초), 기존 ID와 두 스냅샷 정합성을 확인하며 신규 진입/청산 POST는 재전송하지 않습니다. 확인 단계는 GET와 DB 감사 갱신만 수행합니다. 충분한 로컬·원격 청산 근거가 있을 때만 기존 CLOSED 주문의 잔여 SL/TP를 DELETE하고 다시 원격 조회로 미체결 보호0을 확인합니다. 알려지지 않은 청산을 성공으로 추정하거나 미확정 과거 요청을 소거하지 않습니다. 각 관측 전 lease를 검증하고 갱신하며, 만료된 잠금을 되살리지 않습니다. 기존 HTTP 타임아웃 및 fencing을 유지하고 전체 네트워크 시간을 정확히 4초라고 보장하지 않습니다.
++
++사용자 기존 결과: 0.0007 BTC 진입 체결과 SL/TP 등록 확인은 됐지만 최초 자동 종료는 미완료였습니다. 동일 정리 ID의 별도 명령으로 VERIFIED_FLAT이 됐습니다. 이를 수정판 자동 종료 실적으로 승격하지 않습니다. 실제 최신 원격 상태는 별도 Windows 점검 대상입니다. 이번 설치 후 안내 명령은 PostgreSQL READ ONLY 트랜잭션으로 해당 기존 주문과 저장된 보호 확인만 읽습니다. 과거 일별 기준·복구 영수증·비상 잠금·paused와 export intent는 보존하며 새로운 진입/기준 채택/복구 승인/export 생성은 실행하지 않습니다.
++
++남은 제한: 실제 DEMO에서 수정판 자동 종료를 새로 검증하지 않았습니다. 부분 체결·연결 단절·재시작 등 Phase4 실제 인수 항목이 남아 있습니다. main/실거래/Phase5를 변경하거나 시작하지 않습니다.
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -953,6 +953,54 @@
+ 
+         self.store.change(self.lease, "DEMO_VERIFIED_FLAT_CLEANUP", effect)
+ 
++    def confirm_flat(self) -> str:
++        """Query existing intents; never submit/cancel an entry or submit an exit.
++
++        Leftover protection is removed only after both exchange and local history
++        establish flat. An ACK, a missing order, or a zero position alone is insufficient.
++        """
++
++        def observe(ledger: DemoLedger) -> bool:
++            if not ledger.paused:
++                raise DemoFailure("Flat confirmation requires paused entries")
++            first = snapshot(self.client, ledger, self.store.now())
++            second = snapshot(self.client, ledger, self.store.now())
++            remote = coherent_snapshot(first, second, ledger)
++            self._merge(ledger, remote)
++            return bool(
++                ledger.reconciled
++                and not any(remote.positions.values())
++                and not any(
++                    row["status"] in {"NEW", "PARTIALLY_FILLED"} for row in remote.orders.values()
++                )
++                and all(not o.remaining and not o.open_quantity for o in ledger.orders.values())
++            )
++
++        if not self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_QUERY", observe):
++            return "UNKNOWN"
++        if self.client.settings.demo_trading_enabled:
++            for key, order in self.store.read(self.lease.account_id).orders.items():
++                if order.position_state == PositionState.CLOSED:
++                    self._cleanup(key)
++
++        def verify(ledger: DemoLedger) -> bool:
++            if not observe(ledger):
++                return False
++            remote = snapshot(self.client, ledger, self.store.now())
++            return bool(
++                remote.fingerprint == ledger.fingerprint
++                and all(
++                    row["algoStatus"] in {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++                    for row in remote.algos.values()
++                )
++            )
++
++        return (
++            "VERIFIED_FLAT"
++            if self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_CHECK", verify)
++            else "UNKNOWN"
++        )
++
+     def command(self, operation_id: UUID, command: str) -> str:
+         if command not in {"PAUSE_ENTRIES", "SAFE_STOP", "EMERGENCY_FLATTEN"}:
+             raise ValueError("Invalid DEMO command")
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -7,16 +7,31 @@
+ from typing import Literal
+ from uuid import UUID, uuid5
+ 
++from sqlalchemy.exc import SQLAlchemyError
++
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure
+-from integrations.binance_usdm.demo_snapshot import snapshot
+ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import Signal, TradingMode
+ from services.execution.demo import DemoCoordinator
+ from services.execution.demo_preview import preview
+ from services.execution.demo_stream import session
+-from services.risk.paper import GateSnapshot
++from services.risk.paper import GateSnapshot, RiskRejected
+ 
+ MAX_TEST_NOTIONAL = Decimal("100")  # DEMO-only hard ceiling, never LIVE configuration.
++FLAT_CONFIRMATION_ATTEMPTS = 4
++FLAT_CONFIRMATION_INTERVAL_SECONDS = 1
++
++
++async def confirm_exit(coordinator: DemoCoordinator) -> str:
++    """Bounded observation after one flatten intent. No command/POST retries."""
++    for attempt in range(FLAT_CONFIRMATION_ATTEMPTS):
++        if attempt:
++            await asyncio.sleep(FLAT_CONFIRMATION_INTERVAL_SECONDS)
++        await asyncio.to_thread(coordinator.store.renew, coordinator.lease)
++        result = await asyncio.to_thread(coordinator.confirm_flat)
++        if result == "VERIFIED_FLAT":
++            return result
++    return "UNKNOWN"
+ 
+ 
+ def prepare(
+@@ -206,9 +221,13 @@
+             await task
+         except (asyncio.CancelledError, Exception):
+             pass
+-    # No automatic POST retry. The stable flatten operation queries any UNKNOWN exit.
++    # The stream heartbeat has stopped. Renew the same fenced lease before finalization.
++    # Only one flatten command; delayed fills are observed without resubmitting exits.
+     result = "UNKNOWN"
++    completion_stage = "PAUSE_ENTRIES"
++    completion_failure = "NONE"
+     try:
++        await asyncio.to_thread(store.renew, lease)
+         await asyncio.to_thread(
+             coordinator.command, uuid5(operation_id, "finish-pause"), "PAUSE_ENTRIES"
+         )
+@@ -216,38 +235,26 @@
+         if any(before_exit.positions.values()) or any(
+             o.open_quantity for o in before_exit.orders.values()
+         ):
+-            result = await asyncio.to_thread(
++            completion_stage = "FLATTEN_REQUEST"
++            await asyncio.to_thread(store.renew, lease)
++            await asyncio.to_thread(
+                 coordinator.command, uuid5(operation_id, "finish"), "EMERGENCY_FLATTEN"
+             )
+-        else:
+-            result = (
+-                "VERIFIED_FLAT"
+-                if all(not o.remaining for o in before_exit.orders.values())
+-                else "UNKNOWN"
+-            )
+-        final = await asyncio.to_thread(store.read, lease.account_id)
+-        remote = await asyncio.to_thread(snapshot, coordinator.client, final, store.now())
+-        # A close acknowledgement is not a fill. Only after a fresh snapshot
+-        # proves zero exposure may the same durable operation reconcile/clean up.
+-        if (
+-            result == "UNKNOWN"
+-            and not any(remote.positions.values())
+-            and not any(
+-                row["status"] in {"NEW", "PARTIALLY_FILLED"} for row in remote.orders.values()
+-            )
+-        ):
+-            result = await asyncio.to_thread(
+-                coordinator.command, uuid5(operation_id, "finish"), "EMERGENCY_FLATTEN"
+-            )
+-            final = await asyncio.to_thread(store.read, lease.account_id)
+-            remote = await asyncio.to_thread(snapshot, coordinator.client, final, store.now())
+-        if (
+-            any(remote.positions.values())
+-            or any(row["status"] in {"NEW", "PARTIALLY_FILLED"} for row in remote.orders.values())
+-            or any(row["algoStatus"] == "NEW" for row in remote.algos.values())
+-        ):
+-            result = "UNKNOWN"
++        completion_stage = "FLAT_CONFIRMATION"
++        result = await confirm_exit(coordinator)
++        if result != "VERIFIED_FLAT":
++            completion_failure = "FLAT_NOT_CONFIRMED"
++    except RiskRejected:
++        completion_failure = "LEASE_OR_RISK_GATE_REJECTED"
++        result = "UNKNOWN"
++    except DemoFailure:
++        completion_failure = "DEMO_QUERY_OR_CLEANUP_FAILED"
++        result = "UNKNOWN"
++    except SQLAlchemyError:
++        completion_failure = "DATABASE_ACCESS_FAILED"
++        result = "UNKNOWN"
+     except Exception:
++        completion_failure = "OTHER_COMPLETION_FAILURE"
+         result = "UNKNOWN"
+     final = store.read(lease.account_id)
+     order = final.orders.get(key)
+@@ -285,6 +292,8 @@
+                 ),
+                 filled_protection_and_flat_verified=acceptance,
+                 session_error=failure,
++                completion_stage=completion_stage,
++                completion_failure=completion_failure,
+                 live_trading_enabled=False,
+             )
+         ),
+--- a/tests/integration/test_demo_flat_confirmation.py
++++ b/tests/integration/test_demo_flat_confirmation.py
+@@ -0,0 +1,239 @@
++"""Delayed close acceptance uses bounded queries, never another exit submission."""
++
++import asyncio
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++
++import services.execution.demo_validation as module
++from integrations.binance_usdm.demo import DemoFailure, DemoUnknown
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture
++def case(validation_case):  # noqa: F811
++    return validation_case
++
++
++@pytest.fixture(autouse=True)
++def fast_poll(monkeypatch):
++    monkeypatch.setattr(module, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0, raising=False)
++
++
++def test_exchange_fill_after_first_post_ack_observation(case, monkeypatch, capsys):
++    """Regression also runs against the unchanged parent implementation."""
++    store, c, fake, options = case
++    options["fill"] = True
++    fake.defer_exit = True
++    transport = c.client.send
++    reads = []
++
++    def send(method, path, query, key):
++        exits = [k for k, o in fake.orders.items() if o["type"] == "MARKET"]
++        if exits and path == "/fapi/v3/positionRisk":
++            reads.append(path)
++            if len(reads) == 3:
++                fake.close(exits[0])
++        return transport(method, path, query, key)
++
++    c.client.send = send
++    asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert len(reads) >= 3
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
++    assert all(a["algoStatus"] != "NEW" for a in fake.algos.values())
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def delayed(case, monkeypatch, *, close_at=None, missing_fill=False):
++    store, c, fake, options = case
++    options["fill"] = True
++    fake.defer_exit = True
++    confirm = c.confirm_flat
++    queries = []
++
++    def observe():
++        queries.append(len(fake.calls))
++        if close_at == len(queries):
++            key = next(k for k, o in fake.orders.items() if o["type"] == "MARKET")
++            if missing_fill:
++                fake.positions["BTCUSDT"] = 0
++                fake.prices["BTCUSDT"] = 0
++            else:
++                fake.close(key)
++        return confirm()
++
++    monkeypatch.setattr(c, "confirm_flat", observe)
++    return store, c, fake, queries
++
++
++@pytest.mark.parametrize("close_at", [1, 2, 4])
++def test_delayed_fill_is_confirmed_without_another_post(case, monkeypatch, capsys, close_at):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=close_at)
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    order = store.read("DEMO-test").orders[str(operation)]
++    assert len(queries) == close_at
++    assert order.position_state.value == "CLOSED" and order.open_quantity == 0
++    assert order.exit_state == "FILLED"
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
++    assert all(
++        m == "GET" or (m == "DELETE" and p == "/fapi/v1/algoOrder")
++        for m, p, _ in fake.calls[queries[0] :]
++    )
++    assert all(a["algoStatus"] != "NEW" for a in fake.algos.values())
++    assert store.read("DEMO-test").paused
++    assert store.read("DEMO-test").risk_state.value == "EMERGENCY"
++    output = capsys.readouterr().out
++    assert '"filled_protection_and_flat_verified": true' in output
++    assert '"completion_failure": "NONE"' in output
++
++
++def test_pending_exit_stops_after_bounded_queries(case, monkeypatch, capsys):
++    store, c, fake, queries = delayed(case, monkeypatch)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert len(queries) == 4
++    assert fake.positions["BTCUSDT"] != 0
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
++    assert all(m == "GET" for m, _, _ in fake.calls[queries[0] :])
++    assert '"completion_failure": "FLAT_NOT_CONFIRMED"' in capsys.readouterr().out
++
++
++def test_zero_position_without_close_fill_cannot_remove_protection_or_pass(case, monkeypatch):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=1, missing_fill=True)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert len(queries) == 4
++    assert all(m == "GET" for m, _, _ in fake.calls[queries[0] :])
++    assert all(a["algoStatus"] == "NEW" for a in fake.algos.values())
++    assert all(o.open_quantity for o in store.read("DEMO-test").orders.values())
++
++
++@pytest.mark.parametrize("failure", ["query", "cleanup", "lease"])
++def test_completion_failures_are_sanitized_and_do_not_retry_posts(
++    case, monkeypatch, capsys, failure
++):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=1)
++    transport = c.client.send
++
++    def send(method, path, query, key):
++        if queries:
++            if failure == "query":
++                raise DemoFailure("SECRET-PRIVATE-URL")
++            if failure == "cleanup" and method == "DELETE":
++                raise DemoFailure("SECRET-PRIVATE-URL")
++        return transport(method, path, query, key)
++
++    c.client.send = send
++    if failure == "lease":
++        renew = store.renew
++
++        def reject(lease):
++            if any(o["type"] == "MARKET" for o in fake.orders.values()):
++                fake.at += timedelta(seconds=61)
++            renew(lease)
++
++        monkeypatch.setattr(store, "renew", reject)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
++    output = capsys.readouterr().out
++    assert "SECRET-PRIVATE-URL" not in output
++    assert '"filled_protection_and_flat_verified": false' in output
++    if failure == "lease":
++        assert '"completion_failure": "LEASE_OR_RISK_GATE_REJECTED"' in output
++    elif failure == "query":
++        assert '"completion_failure": "DEMO_QUERY_OR_CLEANUP_FAILED"' in output
++
++
++def test_lost_exit_reply_is_queried_not_resubmitted(case, monkeypatch, capsys):
++    store, c, fake, options = case
++    options["fill"] = True
++    transport = c.client.send
++
++    def send(method, path, query, key):
++        response = transport(method, path, query, key)
++        if (
++            method == "POST"
++            and path == "/fapi/v1/order"
++            and any(o["type"] == "MARKET" for o in fake.orders.values())
++        ):
++            raise DemoUnknown("synthetic lost exit reply")
++        return response
++
++    c.client.send = send
++    asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def test_read_only_confirmation_does_not_delete_protection(case, monkeypatch):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=1)
++    original = c.confirm_flat
++
++    def readonly():
++        c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": False})
++        return original()
++
++    monkeypatch.setattr(c, "confirm_flat", readonly)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert all(m == "GET" for m, _, _ in fake.calls[queries[0] :])
++    assert all(a["algoStatus"] == "NEW" for a in fake.algos.values())
++
++
++def test_foreign_active_protection_blocks_confirmation_without_deleting_it(case, monkeypatch):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=1)
++    original = c.confirm_flat
++
++    def foreign():
++        if not queries:
++            row = dict(next(iter(fake.algos.values())))
++            row.update(clientAlgoId="foreign-protection", algoId="9999")
++            fake.algos["foreign-protection"] = row
++        return original()
++
++    monkeypatch.setattr(c, "confirm_flat", foreign)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert fake.algos["foreign-protection"]["algoStatus"] == "NEW"
++    assert all(m == "GET" for m, _, _ in fake.calls[queries[0] :])
++
++
++def test_unpaused_or_fenced_confirmation_cannot_query_or_mutate(case):
++    store, c, fake, _ = case
++    store.change(c.lease, "TEST_PAUSE", lambda ledger: setattr(ledger, "paused", False))
++    start = len(fake.calls)
++    with pytest.raises(DemoFailure, match="paused"):
++        c.confirm_flat()
++    assert len(fake.calls) == start
++    fake.at += timedelta(seconds=61)
++    store.acquire("DEMO-test", uuid4())
++    from services.risk.paper import RiskRejected
++
++    with pytest.raises(RiskRejected):
++        c.confirm_flat()
++    assert len(fake.calls) == start
++
++
++def test_unknown_protection_status_cannot_be_reported_flat(case, monkeypatch, capsys):
++    store, c, fake, queries = delayed(case, monkeypatch, close_at=1)
++    transport = c.client.send
++
++    def send(method, path, query, key):
++        response = transport(method, path, query, key)
++        if queries and method == "DELETE" and path == "/fapi/v1/algoOrder":
++            for row in fake.algos.values():
++                row["algoStatus"] = "UNKNOWN"
++        return response
++
++    c.client.send = send
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    assert '"filled_protection_and_flat_verified": false' in capsys.readouterr().out
++    assert len([p for p in posts(fake) if p["type"] == "MARKET"]) == 1
