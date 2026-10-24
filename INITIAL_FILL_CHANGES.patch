@@ -1,0 +1,753 @@
+--- /dev/null
++++ b/INITIAL_FILL_START_HERE_KO.md
+@@ -0,0 +1,37 @@
++# 최초 체결 반영 지연의 제한된 검증과 불일치 진단
++
++직전 실행은 FINISHED_FLAT/CLOSED로 종료됐지만 SL·TP 확인은 false였고 세션 오류가 있었습니다. 감사 기록은 보호 요청 전에 SNAPSHOT_CHANGED가 발생해 비상 청산했음을 보여줍니다. 최초 두 응답의 구체적인 필드 값은 이전 버전에 보존되지 않았으므로 실제 원래 차이를 확정한 것은 아닙니다. 이 버전은 정상 최초 체결 지연의 제한된 검증과 불일치 필드 이름 진단을 추가합니다.
++
++## 1. 기존 Galaxybook PC의 새 폴더에 설치
++
++ZIP을 풀고 windows-demo-initial-fill-fix 폴더를 열어 주소창에 cmd를 입력하세요. CMD 경로가 새 폴더로 끝나는지 확인한 뒤 실행합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++프로젝트명 hybrid-windows와 기존 PostgreSQL/demo_export_data 볼륨을 유지합니다. 초기화, down -v, export 재요청, 과거 일별 기준 재적용은 하지 않습니다. 이전 worker 대기·운영 조회·시각/기준 수정은 모두 포함합니다.
++
++## 2. 주문 없는 복구 검토
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_recovery
++```
++
++DEMO 키는 숨김 입력하고 결과만 공유하세요. 키/Secret을 채팅에 보내지 않습니다. 이 명령은 기본 조회 전용이며 기준 변경·복구 승인·신규 주문을 하지 않습니다. 결과 확인 뒤 필요하면 별도 토큰으로 복구를 승인하고 새 DEMO 검증을 진행합니다. 이 ZIP 적용 자체는 잠금을 해제하지 않습니다.
++
++## 제한된 최초 체결 처리
++
++원래 coherent_snapshot의 엄격한 두 응답 비교는 그대로입니다. 그 비교가 달랐을 때만, 쓰기 활성인 ISOLATED BTCUSDT의 최소 수량 DEMO_VALIDATION 주문 한 건에 대해 제한된 경로를 사용할 수 있습니다. 로컬은 체결0/ENTRY_PENDING이며 다른 노출·활성 의도가 없어야 하고, 기존 수량 cap/명목금액100 USDT 이하여야 합니다. 일반 전략, 이미 열린 포지션의 변경, 다중·불명확한 체결에는 적용하지 않습니다.
++
++추가 스냅샷은 딱1번입니다. 두 번째·세 번째 응답은 원래 coherent_snapshot을 통과해야 합니다. 원래 주문 ID의 signed userTrades 한 건을 조회해 서버 주문ID·방향·수량·가격·USDT 수수료·최근 시각·실현손익0을 대조합니다. 현재 현금은 진입 전 평가액에서 해당 수수료를 뺀 금액과 정확히 같아야 합니다. 수수료도 기존 정책의 예상 상한 이내여야 합니다. 동일 주문의 실제 초기 체결/수수료 변화가 관측되어야 하며 단순 해시 변화는 허용하지 않습니다.
++
++다른 주문·활성 보호·입출금·설정/레버리지 변화나 양의 포지션이 유지되는 동안의 별도 격리 담보 변화는 차단합니다. 처음 체결에 따른 포지션0→예약 수량 이내 포지션과 최초 담보 배정만 구분합니다. 다른 반영 지연/복수 체결은 이 경로에서 임의로 추정하지 않고 차단합니다. 최초·후속 조회의 가장 불리한 평가/가용잔액/증거금/청산가와 고점 관측을 보존하고 원래 위험·보호 검사로 이어갑니다. 새 진입이나 주문 재전송은 하지 않습니다. 근거가 부족하면 기존 비상 청산을 유지합니다.
++
++## 감사/출력
++
++initial_fill_settlements에는 해당 작업의 근거 해시가 기록됩니다. initial_fill_settled는 현재 작업에서 그 검증이 있었는지 표시합니다. last_reconciliation_mismatch_fields는 마지막 불일치의 필드 이름만, reconciliation_settle_reason은 마지막 추가 검증의 허용된 결과 분류만 표시합니다. 과거 필드 이름이 남아 있을 수 있으므로 현재 위험 상태와 현재 작업 플래그를 함께 봅니다. 원본 응답/키/서명/URL은 출력하지 않습니다.
++
++세션 오류가 finally 정리 중 취소에 가려져도 전체 검증을 성공으로 처리하지 않도록 실패 여부를 보존합니다. 정상적인 관찰 종료 취소와 오류 종료를 구분합니다.
++
++정책·시세/계정 신선도·원래 두 조회 비교·lease/fencing·주문 수량과 가격·SL/TP 규칙은 그대로입니다. 이 단계는 실제 새 자동 진입·보호·청산 성공 확인이나 Phase4 전체 완료를 뜻하지 않으며, LIVE/Phase5를 시작하지 않습니다.
+--- /dev/null
++++ b/INITIAL_FILL_VALIDATION_KO.md
+@@ -0,0 +1,33 @@
++# 최초 DEMO 체결 반영 지연: 검증 기록
++
++## 실제 캡처로 확인된 내용과 한계
++
++작업 88fe67c5-b91d-4cd1-8b3b-3b5e183ea615는 진입 체결 후 SL/TP 요청 전에 SNAPSHOT_CHANGED로 차단됐습니다. 비상 reduce-only 종료 후 CLOSED/FINISHED_FLAT였지만 보호 확인은 false이고 세션 오류가 있어 자동 검증 성공이 아닙니다. 기존 worker 대기 수정 뒤 completion_failure와 completion_database_failure는 NONE이었습니다.
++
++최초 두 REST 응답의 실제 필드 값은 이전 버전에 보존되지 않았습니다. 포지션 전파 지연과 수수료 반영 지연은 가능한 정상 변화를 재현한 것이며 실제 사용자 원래 원인으로 확정하지 않습니다. 실제 시세/네트워크/거래소에서 새 버전이 통과했음을 주장하지 않습니다.
++
++## 원래 코드 재현과 수정 검증
++
++동일한 신규 테스트를 부모 버전의 demo.py/demo_models.py/demo_validation.py로 되돌린 복사본에서 실행했습니다. 포지션 최초 반영 지연과 수수료 최초 반영 지연 2개 모두 기존 SNAPSHOT_CHANGED 정리 경로로 끝나 SL/TP 확인 실패: 2 failed, 1.31초. 코드 차이의 효과를 확인하는 합성 재현입니다.
++
++수정판 신규 18개 테스트는 통과했습니다(집중 실행 6.43초). 실제 PostgreSQL, 로컬 WebSocket, 합성 DEMO 응답을 사용합니다. 정상 LONG 포지션 전파 지연·수수료 지연, 부분 체결 뒤 잔량 취소와 단일 reduce-only 종료, SHORT 방향을 확인합니다. 현금·입출금·레버리지·제3조회 불안정·다른 주문/보호·증거 불일치·수수료/실현손익/자산 오류·복수/누락/오래된 체결은 계속 차단합니다. 실패 시 보호 성공으로 처리하지 않고 잠금과 reduce-only 종료를 확인합니다.
++
++세션 오류가 finally 정리 중 관찰 제한시간 취소와 겹치는 재현도 포함합니다. 보호가 확인되고 최종 포지션이 0이더라도 오류가 있었다면 session_error=true, 전체 검증 실패로 남깁니다.
++
++## 변경 범위와 불변 조건
++
++새 helper와 신규 통합 테스트를 추가하고 기존 실행·모델·세션·검증 출력 4개 파일을 수정했습니다. 모델 추가 필드는 기본값을 제공하며 DB 스키마 변경은 없습니다. 이전 로컬 데이터/요청/일별·주별 기준/고점은 재작성하지 않습니다.
++
++원래 coherent_snapshot 파일, 거래소 SDK와 스냅샷 생성, account_risk, 저장소/fencing, run_demo CLI, 정책·설정·Docker/Compose·잠금 파일·export 관련 파일은 부모 ZIP과 바이트 단위로 동일합니다. 최초 체결 검증은 기존 비교에 실패한 경우에만 별도 제한된 경로로 실행하며 제3조회 한 번과 signed 단일 체결을 요구합니다. 일반 전략이나 기존 포지션 변경·복수 체결을 추정해 통과시키지 않습니다. 보수적인 평가액/증거금/청산가와 고점 관측을 유지합니다.
++
++진단은 마지막 불일치의 필드 이름, 허용된 결과 분류, 현재 작업의 추가 검증 여부와 근거 해시만 보존합니다. 원본 응답/서명/키/개인 URL은 저장·출력하지 않습니다.
++
++## 전체 검증 결과
++
++- 전체 pytest: 700 passed in 144.23s (0:02:24), TEST_DATABASE_URL을 실제 로컬 PostgreSQL로 지정.
++- Ruff check: All checks passed. Ruff format --check: 221 files already formatted.
++- mypy: Success, no issues found in 81 source files.
++- 부모 ZIP의 엄격한 대조/위험/저장소/설정 파일 바이트 동일 여부와 새 ZIP의 전 파일 SHA-256/CRC/누락 여부를 패키징 시 검사합니다.
++- GitHub main은 64e9e7b3d833824c763a2a0f2df1493300744121 그대로이며 별도 전송 브랜치로 게시합니다.
++
++클라우드에서 인증된 Binance 주문은 실행하지 않았습니다. ZIP 설치 후 실제 계정의 복구 검토 결과를 먼저 확인해야 합니다. 새 자동 진입·SL/TP·종료 성공, Phase4 전체 수락, LIVE/Phase5 승인을 대신하지 않습니다.
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -21,7 +21,8 @@
+     TradingMode,
+ )
+ from packages.persistence.demo import DemoStore
+-from services.execution.demo_models import DemoLedger, DemoSnapshot
++from services.execution.demo_initial_fill import InitialFillBlocked, settle_initial_fill
++from services.execution.demo_models import DemoLedger, DemoSnapshot, InitialFillSettleReason
+ from services.execution.demo_reconciliation import coherent_snapshot
+ from services.execution.models import Lease, PaperOrder
+ from services.execution.paper import account_risk
+@@ -51,6 +52,7 @@
+ class DemoCoordinator:
+     def __init__(self, store: DemoStore, lease: Lease, client: DemoClient):
+         self.store, self.lease, self.client = store, lease, client
++        self.session_failed = False
+         self.rules: dict[str, SymbolRules] = {}
+         self.excluded_symbols: dict[str, str] = {}
+         if store.read(lease.account_id).policy != client.settings.policy:
+@@ -395,8 +397,10 @@
+         )
+ 
+     def reconcile(self) -> None:
++        mismatch: list[str] = []
++        settle_reason: list[InitialFillSettleReason] = []
+         try:
+-            self._reconcile_checked()
++            self._reconcile_checked(mismatch, settle_reason)
+         except DemoFailure as exc:
+             # Persist only allowlisted local categories, never raw transport errors.
+             failure_code: Literal["SNAPSHOT_CHANGED", "SNAPSHOT_INVALID", "OTHER_DEMO_FAILURE"] = (
+@@ -409,6 +413,10 @@
+ 
+             def failed(ledger: DemoLedger) -> None:
+                 ledger.reconciliation_failure_code = failure_code
++                if mismatch:
++                    ledger.last_reconciliation_mismatch_fields = tuple(mismatch)
++                if settle_reason:
++                    ledger.reconciliation_settle_reason = settle_reason[0]
+                 ledger.reconciled = False
+                 ledger.paused = True
+                 for existing in ledger.orders.values():
+@@ -457,7 +465,11 @@
+                 self._flatten()
+             raise
+ 
+-    def _reconcile_checked(self) -> None:
++    def _reconcile_checked(
++        self,
++        mismatch: list[str] | None = None,
++        settle_reason: list[InitialFillSettleReason] | None = None,
++    ) -> None:
+         self.store.change(
+             self.lease, "DEMO_RECONCILING", lambda ledger: setattr(ledger, "reconciled", False)
+         )
+@@ -466,7 +478,37 @@
+             self.client.sync_clock()
+             first = snapshot(self.client, ledger, self.store.now())
+             second = snapshot(self.client, ledger, self.store.now())
+-            self._merge(ledger, coherent_snapshot(first, second, ledger))
++            try:
++                coherent = coherent_snapshot(first, second, ledger)
++            except DemoFailure as original:
++                fields = [
++                    k
++                    for k in type(first).model_fields
++                    if k not in {"as_of", "fingerprint"} and getattr(first, k) != getattr(second, k)
++                ]
++                if mismatch is not None:
++                    mismatch[:] = sorted(fields)
++                try:
++                    coherent, key, evidence = settle_initial_fill(
++                        first,
++                        second,
++                        ledger,
++                        self.client,
++                        lambda: snapshot(self.client, ledger, self.store.now()),
++                    )
++                except InitialFillBlocked as blocked:
++                    if settle_reason is not None:
++                        settle_reason[:] = [blocked.code]
++                    raise original from None
++                except (DemoFailure, ValueError, KeyError, TypeError):
++                    if settle_reason is not None:
++                        settle_reason[:] = ["FILL_PROOF_MISMATCH"]
++                    raise original from None
++                ledger.initial_fill_settlements[key] = evidence
++                ledger.last_reconciliation_mismatch_fields = tuple(mismatch or ())
++                ledger.reconciliation_failure_code = "NONE"
++                ledger.reconciliation_settle_reason = "VERIFIED_INITIAL_FILL"
++            self._merge(ledger, coherent)
+ 
+         self.store.change(self.lease, "DEMO_REST_SNAPSHOT", query_merge)
+         if not self.client.settings.demo_trading_enabled:
+--- /dev/null
++++ b/services/execution/demo_initial_fill.py
+@@ -0,0 +1,226 @@
++"""Narrow initial DEMO-validation fill proof, not a relaxation of coherent_snapshot."""
++
++import hashlib
++import json
++from collections.abc import Callable
++from decimal import Decimal
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number
++from packages.domain.contracts import OrderState, PositionState, RiskState, TradingMode
++from services.execution.demo_models import DemoLedger, DemoSnapshot, InitialFillSettleReason
++from services.execution.demo_reconciliation import coherent_snapshot
++
++
++class InitialFillBlocked(DemoFailure):
++    def __init__(self, code: InitialFillSettleReason):
++        self.code = code
++        super().__init__("Initial fill evidence not verified")
++
++
++def settle_initial_fill(
++    first: DemoSnapshot,
++    second: DemoSnapshot,
++    ledger: DemoLedger,
++    client: DemoClient,
++    third_read: Callable[[], DemoSnapshot],
++) -> tuple[DemoSnapshot, str, str]:
++    candidates = [
++        (key, order)
++        for key, order in ledger.orders.items()
++        if order.remaining or order.open_quantity
++    ]
++    if (
++        not client.settings.demo_trading_enabled
++        or client.settings.policy != ledger.policy
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.risk_state != RiskState.NORMAL
++        or ledger.paused
++        or any(ledger.positions.values())
++        or len(candidates) != 1
++    ):
++        raise InitialFillBlocked("NOT_ELIGIBLE")
++    key, order = candidates[0]
++    if (
++        order.signal.environment != TradingMode.DEMO
++        or order.signal.purpose != "DEMO_VALIDATION"
++        or order.signal.symbol != "BTCUSDT"
++        or order.state not in {OrderState.SUBMITTING, OrderState.ACKNOWLEDGED, OrderState.UNKNOWN}
++        or order.position_state != PositionState.ENTRY_PENDING
++        or order.filled
++        or order.open_quantity
++        or order.remaining != order.quantity
++        or order.algo_id
++        or order.tp_algo_id
++        or order.exit_id
++        or ledger.entry_quantity_caps.get(key) != order.quantity
++        or order.notional > Decimal(100)
++    ):
++        raise InitialFillBlocked("NOT_ELIGIBLE")
++    third = third_read()  # Exactly one extra observation; never submit/retry an order.
++    probe = ledger.model_copy(deep=True)
++    try:
++        bounded = coherent_snapshot(second, third, probe)
++    except DemoFailure:
++        raise InitialFillBlocked("UNSTABLE_THIRD") from None
++
++    def active(snap: DemoSnapshot) -> dict[str, Decimal]:
++        return {symbol: quantity for symbol, quantity in snap.positions.items() if quantity}
++
++    def prices(snap: DemoSnapshot) -> dict[str, Decimal]:
++        return {symbol: snap.entry_prices[symbol] for symbol in active(snap)}
++
++    direction = 1 if order.signal.direction == "LONG" else -1
++    row = third.orders.get(order.client_id)
++    if not row:
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    quantity = signed_number(row["executedQty"])
++    expected_status = "FILLED" if quantity == order.quantity else "PARTIALLY_FILLED"
++    if (
++        not 0 < quantity <= order.quantity
++        or active(third) != {"BTCUSDT": quantity * direction}
++        or prices(third) != {"BTCUSDT": signed_number(row["avgPrice"])}
++        or row["status"] != expected_status
++        or (direction == 1 and signed_number(row["avgPrice"]) > order.signal.suggested_limit_price)
++        or (direction == -1 and signed_number(row["avgPrice"]) < order.signal.suggested_limit_price)
++        or (order.server_order_id is not None and row["orderId"] != order.server_order_id)
++    ):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    immutable = {
++        "clientOrderId": order.client_id,
++        "orderId": row["orderId"],
++        "symbol": "BTCUSDT",
++        "side": "BUY" if direction == 1 else "SELL",
++        "type": "LIMIT",
++        "reduceOnly": "false",
++        "positionSide": "BOTH",
++        "origQty": str(order.quantity),
++        "price": str(order.signal.suggested_limit_price),
++    }
++    other = {k: v for k, v in first.orders.items() if k != order.client_id}
++    if any(v["status"] in {"NEW", "PARTIALLY_FILLED"} for v in other.values()):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    for snap in (first, second, third):
++        own = snap.orders.get(order.client_id)
++        if (
++            not own
++            or any(
++                (signed_number(own[k]) != signed_number(value))
++                if k in {"origQty", "price"}
++                else own[k] != value
++                for k, value in immutable.items()
++            )
++            or signed_number(own["executedQty"]) not in {Decimal(0), quantity}
++            or own["status"]
++            != ("NEW" if signed_number(own["executedQty"]) == 0 else expected_status)
++            or {k: v for k, v in snap.orders.items() if k != order.client_id} != other
++            or snap.algos != first.algos
++            or any(
++                v["algoStatus"] not in {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++                for v in snap.algos.values()
++            )
++            or snap.margin_types != ledger.margin_types
++            or snap.leverage != ledger.verified_leverage
++            or snap.transfers != ledger.income_seen
++            or active(snap) not in ({}, {"BTCUSDT": quantity * direction})
++        ):
++            raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        if active(snap):
++            if (
++                prices(snap) != prices(third)
++                or snap.isolated_wallets != third.isolated_wallets
++                or snap.isolated_wallets.get("BTCUSDT", 0) <= 0
++                or snap.isolated_margins.get("BTCUSDT", 0) <= 0
++                or snap.liquidation_prices.get("BTCUSDT", 0) <= 0
++            ):
++                raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    try:
++        fills = client.request(
++            "GET",
++            "/fapi/v1/userTrades",
++            {"symbol": "BTCUSDT", "orderId": row["orderId"], "limit": "1000"},
++        )
++    except DemoFailure:
++        raise InitialFillBlocked("PROOF_QUERY_FAILED") from None
++    # This narrow path supports one signed execution only. More complex partial
++    # histories still require the ordinary stable-pair path or fail closed.
++    if not isinstance(fills, list) or len(fills) != 1 or not isinstance(fills[0], dict):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    fill = fills[0]
++    stamp = fill.get("time")
++    now_ms = client.clock_ms() + client.offset
++    commission = signed_number(fill.get("commission"))
++    if (
++        fill.get("symbol") != "BTCUSDT"
++        or str(fill.get("orderId")) != row["orderId"]
++        or fill.get("positionSide") != "BOTH"
++        or fill.get("side") != immutable["side"]
++        or fill.get("commissionAsset") != "USDT"
++        or commission < 0
++        or commission > quantity * signed_number(row["avgPrice"]) * ledger.policy.fee_rate
++        or not str(fill.get("id", "")).isdigit()
++        or isinstance(fill.get("id"), bool)
++        or type(stamp) is not int
++        or not 0 <= now_ms - stamp <= ledger.policy.max_snapshot_age_seconds * 1000
++        or signed_number(fill.get("qty")) != quantity
++        or signed_number(fill.get("price")) != signed_number(row["avgPrice"])
++        or signed_number(fill.get("realizedPnl")) != 0
++    ):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    before_cash = ledger.value.equity
++    after_cash = before_cash - commission
++    if (
++        third.wallet_balance != after_cash
++        or first.wallet_balance not in {before_cash, after_cash}
++        or second.wallet_balance not in {before_cash, after_cash}
++        or (first.wallet_balance == after_cash and second.wallet_balance != after_cash)
++    ):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    # Require an observable initial fill/fee transition, not arbitrary drift of
++    # a previously open position or fabricated fingerprint changes.
++    if not (
++        active(first) != active(second)
++        or first.orders[order.client_id]["executedQty"]
++        != second.orders[order.client_id]["executedQty"]
++        or first.wallet_balance != second.wallet_balance
++    ):
++        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    active_views = [s for s in (first, second, third) if active(s)]
++    bounded = bounded.model_copy(
++        update={
++            "equity": min(s.equity for s in (first, second, third)),
++            "available_balance": min(s.available_balance for s in (first, second, third)),
++            "margin_used": max(s.margin_used for s in (first, second, third)),
++            "isolated_margins": {
++                "BTCUSDT": min(s.isolated_margins["BTCUSDT"] for s in active_views)
++            },
++            "liquidation_prices": {
++                "BTCUSDT": (max if direction == 1 else min)(
++                    s.liquidation_prices["BTCUSDT"] for s in active_views
++                )
++            },
++        }
++    )
++    ledger.high_water = max(
++        ledger.high_water, probe.high_water, first.equity, second.equity, third.equity
++    )
++    evidence = hashlib.sha256(
++        json.dumps(
++            {
++                "order": key,
++                "trade": str(fill["id"]),
++                "time": stamp,
++                "quantity": str(quantity),
++                "price": str(fill["price"]),
++                "commission": str(commission),
++                "first": first.fingerprint,
++                "second": second.fingerprint,
++                "third": third.fingerprint,
++            },
++            sort_keys=True,
++        ).encode()
++    ).hexdigest()
++    return bounded, key, evidence
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -9,6 +9,15 @@
+ from packages.domain.config import NonNegativeDecimal, PositiveDecimal
+ from services.execution.models import Ledger, PaperOrder, State
+ from services.risk.paper import DemoPolicy
++
++type InitialFillSettleReason = Literal[
++    "NONE",
++    "NOT_ELIGIBLE",
++    "UNSTABLE_THIRD",
++    "FILL_PROOF_MISMATCH",
++    "PROOF_QUERY_FAILED",
++    "VERIFIED_INITIAL_FILL",
++]
+ 
+ 
+ class CancelledExposureCorrection(State):
+@@ -58,6 +67,9 @@
+     reconciliation_failure_code: Literal[
+         "NONE", "SNAPSHOT_CHANGED", "SNAPSHOT_INVALID", "OTHER_DEMO_FAILURE"
+     ] = "NONE"
++    last_reconciliation_mismatch_fields: tuple[str, ...] = ()
++    reconciliation_settle_reason: InitialFillSettleReason = "NONE"
++    initial_fill_settlements: dict[str, str] = Field(default_factory=dict)
+     stream_ready: bool = False
+     stream_at: datetime | None = None
+     fingerprint: str = ""
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -71,6 +71,7 @@
+ ) -> None:
+     """One session. Caller may restart after backoff; a reconnect always reconciles first."""
+     store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    coordinator.session_failed = False
+     key = store.change(lease, "DEMO_SESSION_CREATE", lambda ledger: client.listen_key("POST"))
+     if key is None:
+         raise DemoFailure("DEMO private session unavailable")
+@@ -113,6 +114,7 @@
+                     await settled_call(coordinator.connected)
+                 await settled_call(coordinator.expire)
+     except Exception:
++        coordinator.session_failed = True
+         try:
+             await settled_call(coordinator.disconnect)
+         except Exception:
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -267,6 +267,10 @@
+             await task
+         except (asyncio.CancelledError, Exception):
+             pass
++    if coordinator.session_failed or session_failure != "NONE":
++        failure = True
++        if session_failure == "NONE":
++            session_failure = "DEMO_SESSION_OR_QUERY_FAILED"
+     # The stream heartbeat has stopped. Renew the same fenced lease before finalization.
+     # Only one flatten command; delayed fills are observed without resubmitting exits.
+     result = "UNKNOWN"
+@@ -346,6 +350,9 @@
+                 completion_stage=completion_stage,
+                 completion_failure=completion_failure,
+                 completion_database_failure=completion_database_failure,
++                last_reconciliation_mismatch_fields=final.last_reconciliation_mismatch_fields,
++                reconciliation_settle_reason=final.reconciliation_settle_reason,
++                initial_fill_settled=key in final.initial_fill_settlements,
+                 live_trading_enabled=False,
+             )
+         ),
+--- /dev/null
++++ b/tests/integration/test_demo_initial_fill_settlement.py
+@@ -0,0 +1,281 @@
++"""A known single initial execution may settle once, without weakening ordinary pairing."""
++
++import asyncio
++import json
++from decimal import Decimal
++from urllib.parse import parse_qs
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture(autouse=True)
++def fast_confirmation(monkeypatch):
++    import services.execution.demo_validation as module
++
++    monkeypatch.setattr(module, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0)
++
++
++@pytest.fixture
++def fill_case(validation_case):  # noqa: F811
++    store, c, fake, options = validation_case
++    options["fill"] = True
++    original = c.client.send
++    state = {"entry": None, "reads": 0, "mode": "positions", "proof": None}
++
++    def send(method, path, query, key):
++        params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++        if path == "/fapi/v1/userTrades":
++            fake.calls.append((method, path, params))
++            proof = dict(state["proof"])
++            if state["mode"] == "stale_proof":
++                proof["time"] -= 31000
++            if state["mode"] == "wrong_proof":
++                proof["orderId"] = "9999"
++            if state["mode"] == "wrong_fee":
++                proof["commission"] = "0.02"
++            if state["mode"] == "realized_pnl":
++                proof["realizedPnl"] = "1"
++            if state["mode"] == "foreign_asset":
++                proof["commissionAsset"] = "BTC"
++            if state["mode"] == "multi_fill":
++                return fake.response([proof, dict(proof, id=2)])
++            if state["mode"] == "missing_proof":
++                return fake.response([])
++            return fake.response([proof])
++        if (
++            state["entry"]
++            and path == "/fapi/v3/account"
++            and state["mode"] == "unstable_third"
++            and state["reads"] == 2
++        ):
++            fake.wallet -= Decimal(1)
++        response = original(method, path, query, key)
++        if method == "POST" and path == "/fapi/v1/order" and params["type"] == "LIMIT":
++            state["entry"] = params["newClientOrderId"]
++            raw = fake.orders[state["entry"]]
++            fee = (
++                Decimal(raw["executedQty"])
++                * Decimal(raw["avgPrice"])
++                * c.client.settings.policy.fee_rate
++                / 2
++            )
++            state["proof"] = dict(
++                symbol="BTCUSDT",
++                orderId=raw["orderId"],
++                id=1,
++                time=int(fake.at.timestamp() * 1000),
++                positionSide="BOTH",
++                side=raw["side"],
++                commissionAsset="USDT",
++                commission=str(fee),
++                realizedPnl="0",
++                qty=raw["executedQty"],
++                price=raw["avgPrice"],
++            )
++            fake.wallet -= fee
++            if state["mode"] == "cash_mismatch":
++                fake.wallet -= Decimal(1)
++            if state["mode"] == "foreign_order":
++                fake.orders["foreign-entry"] = dict(
++                    raw,
++                    clientOrderId="foreign-entry",
++                    orderId="9999",
++                    status="NEW",
++                    executedQty="0",
++                    avgPrice="0",
++                )
++            if state["mode"] == "foreign_algo":
++                fake.algos["foreign-stop"] = dict(
++                    symbol="BTCUSDT",
++                    clientAlgoId="foreign-stop",
++                    algoId="9999",
++                    side="SELL",
++                    orderType="STOP_MARKET",
++                    algoStatus="NEW",
++                    triggerPrice="99",
++                    closePosition=True,
++                    positionSide="BOTH",
++                    workingType="MARK_PRICE",
++                    priceProtect=False,
++                    algoType="CONDITIONAL",
++                )
++            if state["mode"] == "transfer":
++                fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=9, income="1"))
++        if state["entry"] and path == "/fapi/v3/positionRisk":
++            state["reads"] += 1
++            if state["reads"] == 1 and state["mode"] != "wallet":
++                data = json.loads(response.body)
++                return fake.response([r for r in data if r["symbol"] != "BTCUSDT"])
++            if state["mode"] == "leverage" and state["reads"] == 2:
++                fake.leverage = "3"
++        if (
++            state["entry"]
++            and path == "/fapi/v3/account"
++            and state["mode"] == "wallet"
++            and state["reads"] == 0
++        ):
++            data = json.loads(response.body)
++            data["totalWalletBalance"] = str(fake.wallet + Decimal(state["proof"]["commission"]))
++            return fake.response(data)
++        return response
++
++    c.client.send = send
++    return store, c, fake, options, state
++
++
++@pytest.mark.parametrize("mode", ["positions", "wallet"])
++def test_initial_position_propagation_with_signed_fill_gets_sl_tp_and_finishes_flat(
++    fill_case, monkeypatch, capsys, mode
++):
++    store, c, fake, options, state = fill_case
++    state["mode"] = mode
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    ledger = store.read("DEMO-test")
++    assert str(operation) in ledger.initial_fill_settlements
++    assert ledger.validation_evidence[str(operation)] == {
++        "stop_verified": True,
++        "target_verified": True,
++    }
++    assert ledger.orders[str(operation)].position_state.value == "CLOSED"
++    assert ledger.reconciliation_settle_reason == "VERIFIED_INITIAL_FILL"
++    assert (
++        "positions" if mode == "positions" else "wallet_balance"
++    ) in ledger.last_reconciliation_mismatch_fields
++    assert len(posts(fake)) == 2 and len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    output = capsys.readouterr().out
++    assert '"initial_fill_settled": true' in output
++    assert '"filled_protection_and_flat_verified": true' in output
++
++
++@pytest.mark.parametrize(
++    "mode",
++    [
++        "cash_mismatch",
++        "transfer",
++        "leverage",
++        "unstable_third",
++        "wrong_proof",
++        "wrong_fee",
++        "realized_pnl",
++        "foreign_asset",
++        "multi_fill",
++        "missing_proof",
++        "stale_proof",
++        "foreign_order",
++        "foreign_algo",
++    ],
++)
++def test_unexplained_changes_and_incomplete_proof_still_exit_without_acceptance(
++    fill_case, monkeypatch, capsys, mode
++):
++    store, c, fake, options, state = fill_case
++    state["mode"] = mode
++    operation = uuid4()
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    ledger = store.read("DEMO-test")
++    assert str(operation) not in ledger.initial_fill_settlements
++    assert fake.positions["BTCUSDT"] == 0
++    assert ledger.paused and ledger.risk_state.value == "EMERGENCY"
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 0
++    assert len(posts(fake)) == 2
++    assert sum(path == "/fapi/v1/userTrades" for _, path, _ in fake.calls) <= 1
++    assert ledger.last_reconciliation_mismatch_fields
++    assert '"filled_protection_and_flat_verified": false' in capsys.readouterr().out
++
++
++def test_partial_initial_execution_is_protected_then_residual_canceled_before_exit(
++    fill_case, monkeypatch, capsys
++):
++    store, c, fake, options, state = fill_case
++    options["fill_quantity"] = Decimal("0.02")
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    order = store.read("DEMO-test").orders[str(operation)]
++    assert order.filled == Decimal("0.02") and order.remaining == 0 and order.open_quantity == 0
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def test_short_initial_fill_keeps_direction_and_single_reduce_exit(fill_case, monkeypatch, capsys):
++    store, c, fake, options, state = fill_case
++    options["margin_controls"]["liquidation"] = "150"
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "SHORT", monkeypatch, entry_style="OPPOSITE_QUOTE"))
++    assert str(operation) in store.read("DEMO-test").initial_fill_settlements
++    assert posts(fake)[0]["side"] == "SELL"
++    assert posts(fake)[-1]["side"] == "BUY" and posts(fake)[-1]["reduceOnly"] == "true"
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def test_session_error_cannot_be_hidden_by_timeout_during_finally_cleanup(
++    fill_case, monkeypatch, capsys
++):
++    import threading
++    import time
++    from contextlib import asynccontextmanager
++
++    from websockets.asyncio.client import connect
++    from websockets.asyncio.server import serve
++
++    import services.execution.demo_stream as stream
++    import services.execution.demo_validation as module
++
++    store, c, fake, options, state = fill_case
++    command = c.command
++    delayed = threading.Event()
++
++    def pause(operation, action):
++        if action == "PAUSE_ENTRIES" and not delayed.is_set():
++            delayed.set()
++            time.sleep(0.15)
++        return command(operation, action)
++
++    monkeypatch.setattr(c, "command", pause)
++
++    async def run():
++        ready = asyncio.Event()
++        loop = asyncio.get_running_loop()
++
++        async def handler(socket):
++            await ready.wait()
++            await socket.send(
++                json.dumps(
++                    {"e": "UNRECOGNIZED_PRIVATE_EVENT", "E": int(fake.at.timestamp() * 1000)}
++                )
++            )
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            async def failing_session(coordinator, *, on_ready):
++                def callback():
++                    on_ready()
++                    loop.call_soon_threadsafe(ready.set)
++
++                await stream.session(coordinator, connector=connector, on_ready=callback)
++
++            monkeypatch.setattr(module, "session", failing_session)
++            with pytest.raises(DemoFailure):
++                await module.validate_once(c, uuid4(), "LONG", observation_seconds=0.05)
++
++    asyncio.run(run())
++    assert fake.positions["BTCUSDT"] == 0 and len(posts(fake)) == 2
++    output = capsys.readouterr().out
++    assert '"session_error": true' in output
++    assert '"filled_protection_and_flat_verified": false' in output
