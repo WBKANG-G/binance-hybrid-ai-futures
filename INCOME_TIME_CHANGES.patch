@@ -1,0 +1,292 @@
+--- a/INCOME_TIME_START_HERE_KO.md
++++ b/INCOME_TIME_START_HERE_KO.md
+@@ -0,0 +1,35 @@
++# 체결·income 시각 정밀도 차이 수정
++
++이번 캡처의 체결 시각은 2026-10-23T14:58:56.723Z인데 income 수수료·실현손익은 2026-10-23T14:58:56.000Z였습니다. 금액은 수수료 -0.02288622 USDT, 실현손익 -0.06111000 USDT로 일치합니다. 이전 버전이 밀리초 동등성을 요구해 차단한 경우를 보완했습니다.
++
++## 1. 기존 Galaxybook PC의 새 폴더에 설치
++
++ZIP을 풀고 windows-demo-income-time-fix 폴더를 엽니다. 탐색기 주소창에 cmd를 입력하고 경로 끝이 새 폴더인지 확인하세요.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 프로젝트명 hybrid-windows와 PostgreSQL/demo_export_data 볼륨을 보존합니다. 초기화, down -v, export 재요청은 하지 않습니다. 이전 자동 청산 확인 수정과 일별 검토 절차도 포함합니다.
++
++## 2. 기존과 같은 미리보기 명령
++
++해당 청산 이후 별도 수동/다른 봇 거래·입출금이 없다는 확인이 계속 맞을 때 실행하세요.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_exit_day --attest-no-activity-since-exit
++```
++
++DEMO 키는 숨김 입력하고 결과만 공유해 주세요. 키나 Secret을 채팅에 보내지 않습니다. 성공은 EXIT_ANCHORED_DAY_PREVIEW_NO_DATABASE_CHANGE입니다. income_time_basis=SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP와 exit_income_second_start_utc가 출력됩니다. 미리보기에는 주문 제출/취소, lease 획득, 기준 저장이나 잠금 해제가 없습니다.
++
++## 대조 방식
++
++마지막 실제 청산 체결이 포함된 초를 정수 연산으로 구합니다. income 시각은 그 초의 정확한 시작(예: .000) 또는 해당 검증된 청산 체결의 실제 밀리초(예: .723)만 허용합니다. +/-1초 같은 임의의 시간 허용 오차는 없습니다. 같은 초의 검증된 청산 주문 외 BTC 체결이나 그 이후 체결이 있으면 차단합니다. 같은 초의 income도 해당 청산 수수료·실현손익과 개별 금액 및 건수가 맞아야 합니다. 다른 종류/자산/심볼, 추가 금액0 기록, 상쇄 기록, 누락 기록이나 지원하지 않는 집계 형태는 계속 차단합니다.
++
++정밀한 실제 청산 시각과 자정 이후 원래 관측 시각을 그대로 유지합니다. 적용 receipt에는 대조 방식도 남깁니다. 구버전 receipt에 이 필드가 없으면 EXACT_FILL_TIMESTAMP로 읽어 기존 출처를 바꾸지 않습니다.
++
++## 기준 저장은 결과 확인 뒤 별도
++
++이 경로는 사용자 확인과 서명된 BTC 체결·USDT income·현재 자산을 결합한 수동 출처 방식입니다. 계정 전체 거래소 원본 검증은 false입니다. 모든 조건을 통과했을 때만 일별 후보를 제안합니다. 실제 저장은 별도 사용자 근거 수용 옵션·토큰·고정 작업 ID를 필요로 하며, 저장 후에도 주별 기준/고점/원래 관측 시각/과거 요청·주문·receipt/EMERGENCY/paused를 보존합니다. 이전 미리보기 실패로 DB 기준은 변경되지 않았습니다.
++
++실제 DEMO 추가 주문이나 LIVE/Phase5 진행은 하지 않습니다.
+--- a/INCOME_TIME_VALIDATION_KO.md
++++ b/INCOME_TIME_VALIDATION_KO.md
+@@ -0,0 +1,20 @@
++# income 시각 정밀도 차이 수정 검증
++
++전체 650개 테스트 통과(113.04초). 이전 관련44개+새22개=66개 통합 테스트 통과(26.42초). 새 테스트 fixture의 수수료를 실제 캡처 값으로 맞춘 뒤 전체650개를 다시 통과했습니다. mypy80개 소스 및 전체 Ruff lint/format 통과. 실제PostgreSQL, 합성 거래소와 localhost WebSocket을 사용했습니다. 실제 사용자 DB나 DEMO 계정에 접근하거나 주문을 내지 않았습니다.
++
++부모 ZIP: binance-hybrid-ai-futures-windows-exit-day-review.zip
++SHA256: 1440202e275d9a4519fda050afe17ea8a1ccc7d066cb63559c4e926654b74f46
++
++관측 근거: 사용자 signed userTrades 기록의 청산 시각은 2026-10-23T14:58:56.723Z입니다. 별도 GET income 조회에서 수수료 -0.02288622와 실현손익 -0.06111000 USDT가 같은 초의 시작 2026-10-23T14:58:56.000Z로 반환됐습니다. 이전 구현은 tail을 정확한 체결 밀리초 이후로만 잡아 해당 정상 기록을 누락하고 EXIT_INCOME_DOES_NOT_MATCH_FILLS를 반환했습니다. 모든 Binance 응답이 항상 초 단위라고 단정하지 않습니다. 관측된 이 표현과 기존 정밀 시각 표현을 모두 지원합니다.
++
++재현 검증: 부모 ZIP에서 서비스/모델 두 파일을 바이트 그대로 복원한 별도 임시 복사본에서, .723 체결과 .000 income 및 동일 실제 수수료·손익 형태를 실행했습니다. 이전 구현은 사용자의 오류와 같은 EXIT_INCOME_DOES_NOT_MATCH_FILLS로 실패했습니다(1 failed,1.15초). 수정판에서는 같은 회귀 테스트를 통과합니다.
++
++새 대조: 마지막 청산의 정수 밀리초를 1000으로 나누어 정확한 초 시작을 계산합니다. 같은 초의 검증된 청산 주문 외 BTC 체결은 차단합니다. income은 그 초의 시작 시각 또는 그 초에 속하는 검증된 청산 체결의 실제 시각만 허용합니다. +/-1초나 임의 시간 오차를 허용하지 않습니다. 같은 초의 검증된 청산 체결에 대한 수수료·실현손익을 모두 포함하여 개별 금액/건수/총합을 대조합니다. 실제 개별 체결과 맞지 않는 임의 집계는 허용하지 않습니다. 다른 income 종류/심볼/자산, 추가0·상쇄·누락·불일치와 청산 이후 기록은 계속 차단합니다.
++
++정확한 known_exit_utc와 원래 observation_utc는 바꾸지 않습니다. preview에 income_time_basis=SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP 및 exit_income_second_start_utc를 명시하고 새 채택 receipt에도 대조 방식을 기록합니다. 구버전 receipt에 새 필드가 없으면 EXACT_FILL_TIMESTAMP를 기본으로 해 과거 출처를 새 방식으로 바꾸지 않습니다. 대조 방식은 토큰의 근거에도 포함됩니다. 원래 사용자 확인 기반 source와 account_wide_exchange_export_verified=false는 보존합니다.
++
++새22개 테스트: 초 단위 기록+밀리초 체결의 실제 응답 형태와 GET-only/DB 불변, 실제 적용 시 정밀 청산·관측 시각과 잠금/원장·요청 보존 및 receipt 방식 저장/이전 receipt 읽기, 허용하지 않는 인접시각4가지, 같은 초 또는 이후의 다른 체결7가지, 금액/손익/추가0/상쇄/다른심볼/입출금/누락7가지, 정확한 시각과 초 시작의 혼합 표현, 동일 초의 복수 체결 각각의 수수료·손익 확인 및 임의 집계 차단. 기존628개 테스트는 삭제하거나 완화하지 않았습니다.
++
++변경 범위: 기존 demo_exit_day_review 서비스의 income 시각 대조 및 근거 출력/receipt 속성, ExitAnchoredDayBaseline의 기본값 있는 대조 방식 필드, 새 통합 테스트와 시작·검증 문서. 기존 CLI, DemoCoordinator 및 자동 청산 확인, 위험 규칙/account_risk/정확한 자정 guard, 원장·이전 복구·기준·정정/export 로직, SDK 전송·설정·Dockerfile/Compose/DB 테이블·영속화·의존성·AGENTS/MASTER_SPEC는 부모 ZIP과 동일합니다. DB/볼륨을 초기화하지 않습니다. main/실거래/Phase5 변경 없음.
++
++다음 Windows 실행은 기존과 같은 미리보기입니다. 이 단계에 주문·취소·lease 획득·기준 채택·잠금 해제는 없습니다. 모든 최신 조건 통과 후에만 후보를 제안하며 실제 저장에는 별도 수용·토큰·고정 작업 ID가 필요합니다. 이전 실패는 기준을 변경하지 않았습니다. 이후에도 사용자 확인과 제한된 서명 근거를 결합하는 수동 출처 방식이며 계정 전체 과거 거래소 원본 증명은 아닙니다. 수정된 자동 종료의 실제 DEMO 재검증도 아직 별도 항목입니다.
+--- a/services/execution/demo_exit_day_review.py
++++ b/services/execution/demo_exit_day_review.py
+@@ -157,15 +157,22 @@
+         for row in trades.values()
+     ):
+         raise ExitDayBlocked("OTHER_BTC_ACTIVITY_AT_OR_AFTER_EXIT")
+-    tail = [r for r in incomes.values() if int(r["time"]) >= exit_ms]
++    # Income may be timestamped at the beginning of the fill's second. This is
++    # an exact bucket match, not a +/- time tolerance. Any other BTC trade in
++    # that bucket makes attribution ambiguous and must block this narrow path.
++    second_ms = exit_ms // 1000 * 1000
++    if any(int(r["time"]) >= second_ms and r["order_id"] not in exit_ids for r in trades.values()):
++        raise ExitDayBlocked("OTHER_BTC_ACTIVITY_IN_EXIT_SECOND")
++    closing = [r for r in trades.values() if int(r["time"]) >= second_ms]
++    allowed_income_times = {second_ms, *(int(r["time"]) for r in closing)}
++    tail = [r for r in incomes.values() if int(r["time"]) >= second_ms]
+     if any(
+-        int(r["time"]) != exit_ms
++        int(r["time"]) not in allowed_income_times
+         or r["symbol"] != "BTCUSDT"
+         or r["type"] not in {"COMMISSION", "REALIZED_PNL"}
+         for r in tail
+     ):
+         raise ExitDayBlocked("POST_EXIT_INCOME_OR_FLOW")
+-    closing = [r for r in trades.values() if int(r["time"]) == exit_ms]
+     expected_fee = -sum((Decimal(r["commission"]) for r in closing), Decimal(0))
+     expected_pnl = sum((Decimal(r["realized_pnl"]) for r in closing), Decimal(0))
+     for kind, expected in (("COMMISSION", expected_fee), ("REALIZED_PNL", expected_pnl)):
+@@ -247,6 +254,7 @@
+         "ledger": ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"}),
+         "signed_evidence": evidence,
+         "candidate": str(wallet),
++        "income_time_basis": "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP",
+     }
+     token = hashlib.sha256(
+         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+@@ -271,6 +279,10 @@
+         "exchange_fingerprint": final.fingerprint,
+         "post_exit_btc_trades": 0,
+         "post_exit_income_records": 0,
++        "income_time_basis": "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP",
++        "exit_income_second_start_utc": (
++            datetime(1970, 1, 1, tzinfo=UTC) + timedelta(milliseconds=second_ms)
++        ).isoformat(),
+         "account_wide_exchange_export_verified": False,
+         "operator_attestation_used": True,
+         "weekly_base_preserved": True,
+@@ -339,6 +351,7 @@
+             attested_until_utc=store.now(),
+             signed_evidence_hash=str(report["signed_evidence_hash"]),
+             exchange_fingerprint=str(report["exchange_fingerprint"]),
++            income_time_basis="SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP",
+         )
+         ledger.daily_key, ledger.daily_base = str(report["proposed_day_kst"]), receipt.baseline_usdt
+         ledger.exit_anchored_day_baselines[key] = receipt
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -47,6 +47,9 @@
+     signed_evidence_hash: str
+     exchange_fingerprint: str
+     account_wide_exchange_export_verified: Literal[False] = False
++    income_time_basis: Literal["EXACT_FILL_TIMESTAMP", "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP"] = (
++        "EXACT_FILL_TIMESTAMP"
++    )
+ 
+ 
+ class DemoLedger(Ledger):
+--- a/tests/integration/test_demo_income_time_precision.py
++++ b/tests/integration/test_demo_income_time_precision.py
+@@ -0,0 +1,161 @@
++"""Actual DEMO response shape: fill at .723, matching income at .000."""
++
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++
++from services.execution.demo_exit_day_review import ExitDayBlocked
++from services.execution.demo_models import ExitAnchoredDayBaseline
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction, event_count  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case as parent_case  # noqa: F401
++from tests.integration.test_demo_exit_day_review import apply, review
++from tests.integration.test_demo_exit_day_review import exit_case as base_precision_case  # noqa: F401
++
++
++@pytest.fixture
++def precision_case(base_precision_case):  # noqa: F811
++    _, _, _, rows, incomes, _ = base_precision_case
++    rows[-1]["commission"] = "0.02288622"
++    incomes[0]["income"] = "-0.02288622"
++    return base_precision_case
++
++
++def truncate(case):
++    store, c, fake, rows, incomes, raw = case
++    second = rows[-1]["time"] // 1000 * 1000
++    for r in incomes:
++        r["time"] = second
++    return second
++
++
++def test_second_truncated_income_matches_precise_signed_fill_without_writes(precision_case):
++    store, c, fake, rows, *_ = precision_case
++    assert rows[-1]["time"] % 1000 == 723
++    truncate(precision_case)
++    before = store.read("DEMO-test")
++    count = event_count(store)
++    start = len(fake.calls)
++    report = review(precision_case)
++    assert report["known_exit_utc"].endswith("56.723000+00:00")
++    assert report["exit_income_second_start_utc"].endswith("56+00:00")
++    assert report["income_time_basis"] == "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP"
++    assert report["account_wide_exchange_export_verified"] is False
++    assert report["proposed_daily_base_usdt"] == str(before.value.equity)
++    assert store.read("DEMO-test") == before and event_count(store) == count
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++
++
++def test_precision_basis_receipt_is_audited_without_rewriting_observation(precision_case):
++    store, c, fake, *_ = precision_case
++    truncate(precision_case)
++    before = store.read("DEMO-test")
++    operation = uuid4()
++    assert apply(precision_case, review(precision_case)["review_token"], operation=operation) == (
++        "EXIT_ANCHORED_DAILY_BASELINE_ADOPTED_KEEP_LOCK"
++    )
++    after = store.read("DEMO-test")
++    receipt = after.exit_anchored_day_baselines[str(operation)]
++    assert receipt.known_exit_utc.microsecond == 723000
++    assert receipt.observation_utc == before.last_reconciled
++    assert after.value == before.value and after.last_reconciled == before.last_reconciled
++    assert after.requests == before.requests and after.orders == before.orders
++    assert after.paused and after.risk_state.value == "EMERGENCY"
++    assert receipt.income_time_basis == "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP"
++    legacy = receipt.model_dump()
++    legacy.pop("income_time_basis")
++    assert (
++        ExitAnchoredDayBaseline.model_validate(legacy).income_time_basis == "EXACT_FILL_TIMESTAMP"
++    )
++
++
++@pytest.mark.parametrize("offset", [-1000, 1, 500, 1000])
++def test_no_general_time_tolerance_for_income(precision_case, offset):
++    second = truncate(precision_case)
++    store, c, fake, rows, incomes, *_ = precision_case
++    incomes[0]["time"] = second + offset
++    with pytest.raises(ExitDayBlocked):
++        review(precision_case)
++
++
++@pytest.mark.parametrize("offset", [0, 100, 722, 723, 724, 999, 1000])
++def test_other_btc_trade_in_bucket_or_later_remains_blocked(precision_case, offset):
++    second = truncate(precision_case)
++    store, c, fake, rows, *_ = precision_case
++    other = dict(rows[-1])
++    other.update(id=900, orderId=9999, time=second + offset)
++    rows.append(other)
++    with pytest.raises(ExitDayBlocked):
++        review(precision_case)
++
++
++@pytest.mark.parametrize(
++    "change",
++    ["fee", "pnl", "extra_zero", "offsetting", "foreign_symbol", "transfer", "missing_fee"],
++)
++def test_second_precision_does_not_relax_amount_or_activity_guards(precision_case, change):
++    truncate(precision_case)
++    store, c, fake, rows, incomes, *_ = precision_case
++    if change == "fee":
++        incomes[0]["income"] = "-0.01"
++    elif change == "pnl":
++        incomes[1]["income"] = "0"
++    elif change == "extra_zero":
++        extra = dict(incomes[0], tranId="900", income="0")
++        incomes.append(extra)
++    elif change == "offsetting":
++        incomes.extend(
++            [
++                dict(incomes[1], tranId="901", income="1"),
++                dict(incomes[1], tranId="902", income="-1"),
++            ]
++        )
++    elif change == "foreign_symbol":
++        incomes[0]["symbol"] = "ETHUSDT"
++    elif change == "transfer":
++        incomes.append(dict(incomes[0], tranId="903", incomeType="TRANSFER", income="0"))
++    elif change == "missing_fee":
++        incomes.pop(0)
++    with pytest.raises(ExitDayBlocked):
++        review(precision_case)
++
++
++def test_precise_and_second_timestamps_can_coexist_for_same_known_exit(precision_case):
++    store, c, fake, rows, incomes, *_ = precision_case
++    incomes[0]["time"] = rows[-1]["time"] // 1000 * 1000
++    assert review(precision_case)["post_exit_income_records"] == 0
++
++
++def test_multiple_fills_in_second_require_all_individual_fee_and_pnl_records(precision_case):
++    store, c, fake, rows, incomes, *_ = precision_case
++    second = truncate(precision_case)
++    original = rows[-1]
++    quantity = Decimal(original["qty"])
++    original.update(qty=str(quantity / 2), commission="0.01", realizedPnl="-0.02")
++    other = dict(original, id=900, time=second + 700, commission="0.02", realizedPnl="-0.03")
++    rows.append(other)
++    incomes[:] = [
++        dict(
++            asset="USDT",
++            symbol="BTCUSDT",
++            time=second,
++            tranId=str(i),
++            incomeType=kind,
++            income=amount,
++        )
++        for i, (kind, amount) in enumerate(
++            [
++                ("COMMISSION", "-0.01"),
++                ("COMMISSION", "-0.02"),
++                ("REALIZED_PNL", "-0.02"),
++                ("REALIZED_PNL", "-0.03"),
++            ],
++            start=100,
++        )
++    ]
++    assert review(precision_case)["income_time_basis"] == "SECOND_BUCKET_OR_EXACT_FILL_TIMESTAMP"
++    incomes[0]["income"] = "-0.03"
++    incomes.pop(1)
++    with pytest.raises(ExitDayBlocked, match="EXIT_INCOME_DOES_NOT_MATCH_FILLS"):
++        review(precision_case)
