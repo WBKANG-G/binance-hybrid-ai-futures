@@ -1,0 +1,661 @@
+--- a/WORKER_DRAIN_START_HERE_KO.md
++++ b/WORKER_DRAIN_START_HERE_KO.md
+@@ -0,0 +1,29 @@
++# 종료 시 진행 중인 DB 처리 대기와 기존 청산 확인
++
++이번 사용자 거래소 조회는 포지션/일반 미체결/조건부 미체결 모두0, 기존 청산 주문 FILLED/0.0007 BTC입니다. 로컬만 EXIT_PENDING/ACKNOWLEDGED에 남아 있습니다. 이번 단계는 새 주문 없이 기존 종료를 대조하고 로컬 기록을 반영합니다. 자동 종료가 최초 실행에서 성공한 것으로 과거 기록을 바꾸지 않습니다.
++
++## 1. 기존 Galaxybook PC의 새 폴더에 설치
++
++ZIP을 풀고 windows-demo-worker-drain-fix 폴더를 열어 주소창에 cmd를 입력합니다. CMD 경로가 새 폴더로 끝나는지 확인하세요.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows 프로젝트와 PostgreSQL/export 볼륨, 일별/주별 기준·고점·복구 기록을 유지합니다. 초기화, down -v, export 요청, 과거 일별 기준 재적용을 하지 않습니다.
++
++## 2. 기존 청산만 확인
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -c "import getpass,os,runpy,sys; from services.execution.demo_stream import settled_call; os.environ['LIVE_TRADING_ENABLED']='false'; os.environ['BINANCE_DEMO_API_KEY']=getpass.getpass('DEMO API Key (hidden): '); os.environ['BINANCE_DEMO_API_SECRET']=getpass.getpass('DEMO Secret (hidden): '); sys.argv=['scripts.run_demo','--config','configs/demo-isolated.example.yaml','--account','DEMO-WINDOWS-ISOLATED-BTC-V1','--enable-demo','--confirm-flat']; runpy.run_module('scripts.run_demo',run_name='__main__')"
++```
++
++목표는 completion_confirmation=VERIFIED_FLAT입니다. 마지막 결과를 공유하세요. API 키/Secret은 숨김 입력하고 채팅에 보내지 않습니다. 이 명령에는 신규 진입이나 청산 POST가 없습니다. 기존 원래 ID의 체결·현재 포지션·미체결을 확인하며, 실제로 청산이 입증된 경우에만 기존 잔여 보호를 취소할 수 있습니다. 로컬 상태와 대조 감사 기록은 갱신됩니다. 포지션이 남아 있거나 종료가 불명확하면 UNKNOWN으로 끝내고 청산 POST를 새로 제출하지 않습니다. EMERGENCY/paused를 해제하거나 주문을 재개하지 않습니다.
++
++## 수정 내용
++
++asyncio의 to_thread를 기다리는 비동기 작업을 취소해도 실행 중인 스레드는 멈추지 않습니다. 기존 종료 경로는 그 스레드가 DB 행 잠금을 잡은 상태에서 다음 일시정지/정리를 시작할 수 있었습니다. 수정판은 진행 중인 스레드가 완료 또는 실패할 때까지 기다린 다음 취소를 전달하고 finally 정리를 시작합니다. 반복 취소 요청에도 스레드를 남기지 않습니다. 네트워크/lease/행 잠금 시간 제한은 늘리지 않고 그대로 둡니다.
++
++DB 오류는 SQL·파라미터 원문 대신 DATABASE_LOCK_TIMEOUT/DEADLOCK/CONNECTION_FAILED/OTHER_DATABASE_FAILURE 같은 허용 분류만 출력합니다. validation 출력의 completion_database_failure도 확인할 수 있습니다.
++
++이전 조회 지연·시각 정밀도·일별 기준 관련 수정은 포함되어 있습니다. 실제 수정판의 새로운 자동 진입·보호·청산 검증은 기존 종료 확인 후 별도로 진행합니다. LIVE/Phase5를 시작하지 않습니다.
+--- a/WORKER_DRAIN_VALIDATION_KO.md
++++ b/WORKER_DRAIN_VALIDATION_KO.md
+@@ -0,0 +1,24 @@
++# DB 작업 취소 후 스레드 완료 대기 및 기존 청산 확인 검증
++
++전체682개 테스트 통과(134.32초). 새15개 테스트 통과(11.61초), 기존667개를 삭제하거나 완화하지 않았습니다. mypy80개 소스와 전체Ruff lint/format 통과. 실제PostgreSQL 및 localhost WebSocket/합성 거래소를 사용했습니다. 클라우드에서 실제 DEMO 인증·주문·사용자 DB 갱신은 하지 않았습니다.
++
++부모 ZIP: binance-hybrid-ai-futures-windows-runtime-fix.zip
++SHA256: 9ca1f039dab9ab87202064a21a9859d2fb5ef9ccc2947fe16eb982e233e44daf
++
++사용자 관측: 작업3f197232-fd91-4201-83d0-e3539ea633cf의0.0007 BTC 진입/SL·TP 확인은 성공했지만, OBSERVATION/session_failure=NONE/session_error=false 이후 PAUSE_ENTRIES에서 DATABASE_ACCESS_FAILED로 종료했습니다. 별도 동일 정리 작업ID d925cbab-7f96-5fda-b5bd-2e7c5002a9b9로 청산을 요청한 뒤, signed 조회에서 거래소 포지션/일반·조건부 미체결0 및 해당 종료 FILLED/0.0007을 확인했습니다. 로컬은 EXIT_PENDING/ACKNOWLEDGED에 남아 있습니다. 실제 최초 SQLSTATE는 당시 출력에 없으므로 특정 코드를 수집했다고 주장하지 않습니다.
++
++재현: 부모 ZIP의 session/validation/CLI 파일을 바이트 그대로 복원한 임시 복사본에서 실제PG 행 잠금을 잡은 event 처리 중 비동기 세션을 취소했습니다. 기존 코드에서 SQLSTATE55P03 행 잠금 시간 초과와 일시정지 실패가 발생했습니다. 전체 validation 경로에서도 사용자의 출력과 동일한 PROTECTED/stop_verified=true/target_verified=true/session_error=false/completion_stage=PAUSE_ENTRIES/completion_failure=DATABASE_ACCESS_FAILED를 재현했습니다(2 failed,10.47초). 수정판에서는 같은 두 테스트가 통과합니다. 이는 해당 경합 경로의 직접 재현이며 실제 사용자 DB의 원래 SQLSTATE를 확정하는 것은 아닙니다.
++
++원인/수정: asyncio.to_thread를 기다리는 작업만 취소해도 실행 중인 동기 스레드는 계속됩니다. 세션 finally의 일시정지·disconnect와 바깥 validation의 정리가 아직 행 잠금을 잡은 worker와 충돌할 수 있었습니다. settled_call은 별도 worker task를 shield하고 취소를 받으면 완료/실패를 먼저 기다린 다음 취소를 다시 전달합니다. 반복 취소도 worker를 남기지 않습니다. worker 예외는 비밀정보를 출력하지 않고 소비하며, 정상 실행의 반환값과 예외는 보존합니다. 세션의 모든 기존 to_thread 경로에 적용했습니다. 동기 session 생성은 원래대로입니다.
++
++시간 제한/안전: 새 주문이나 POST 재전송 경로를 추가하지 않았습니다. 행 잠금2초, lease/fencing, 네트워크 제한, clock/RTT/시세/계정·스트림 신선도·위험 한도는 그대로입니다. 취소 시 스레드를 중간에 죽이거나 row-lock 보호를 해제하고 다음 작업을 강행하지 않습니다. 진행 중인 bounded 동기 작업을 먼저 마치므로 사용자에게 보이는 종료 대기는 작업이 실제로 끝날 때까지 길어질 수 있습니다. 만료된 lease를 되살리지 않습니다.
++
++DB 분류: SQLAlchemy 예외의 SQLSTATE를 허용 목록으로만 해석해 DATABASE_LOCK_TIMEOUT/DEADLOCK/CONNECTION_FAILED/OTHER_DATABASE_FAILURE를 출력합니다. 원래 completion_failure=DATABASE_ACCESS_FAILED와 별도로 completion_database_failure를 추가했습니다. CLI의 DB 오류도 같은 허용 분류만 출력합니다. SQL·파라미터·키·서명·URL·원래 SQLSTATE는 출력하지 않습니다.
++
++기존 종료 확인 utility: --confirm-flat은 명시적 --enable-demo와 ISOLATED BTCUSDT 범위를 요구하고 다른 실행/초기화/시그널/작업ID 옵션과 혼합할 수 없습니다. 초기 대조는 쓰기 비활성 client로 수행해 보호/청산 POST가 나가지 않게 하고, 이후 기존 confirm_exit/confirm_flat의 전체 원래 ID 조회와 평탄 확인 및 필요한 잔여 보호 DELETE만 수행합니다. 진입이나 청산 POST는 없습니다. 포지션이 남으면 UNKNOWN이며 새 청산을 생성하지 않습니다. DB의 종료 상태/대조 감사는 갱신하지만 EMERGENCY/paused를 해제하지 않습니다. 이 명령을 새로운 자동 진입·청산 검증 성공이라고 처리하지 않습니다.
++
++새15개 테스트: 실제PG lock 중 취소 후 정리 순서,7초 진행 중인 event worker 취소 시 전체validation 단일 진입·청산 완료 및 잠금 오류 없음, 반복 취소·worker 성공/실패2종의 완료 대기, 취소 없는 결과/예외 보존, SQLSTATE4종의 안전한 분류, CLI 기존 ACK를 체결로 갱신(새 주문 없음), 포지션이 남은 CLI 확인에서 추가 청산 불가, 명시적 활성화·단일 동작 옵션 강제3종, CLI DB 오류의 허용 분류 및 SQL/키 미노출. 기존 원장·위험·일별/복구·초 정밀도·시세/지연·미확정 보호/주문·부분 체결·중복 방지 검증도 유지했습니다.
++
++변경 범위: demo_stream의 settled_call과 세션 호출 대기, demo_validation의 DB 오류 분류·추가 출력, run_demo의 확인 전용 옵션과 DB 오류 분류, 새 통합 테스트 및 시작/검증 문서. DemoCoordinator/운영·전체snapshot/주문 구성·수량/신선도/시각/위험 규칙, DB 모델·테이블·영속화, 일별 기준·복구·정정·export 서비스, SDK·호스트·allowlist, Dockerfile/Compose/설정/의존성 및 AGENTS/MASTER_SPEC는 부모 ZIP과 동일합니다.
++
++다음 Windows 동작은 새 이미지 적용과 기존 종료 확인입니다. 원래 DB·일별/주별 기준·고점·이전 복구/정정/기준 receipt·export intent를 유지하며 새 진입, 기준 재채택, 잠금 해제, export 재요청이나 LIVE/Phase5 진행을 하지 않습니다. 수정판의 새로운 실제 DEMO 자동 진입·종료 검증은 그 이후 별도입니다. main 변경 없음.
+--- a/scripts/run_demo.py
++++ b/scripts/run_demo.py
+@@ -21,7 +21,7 @@
+ from services.execution.demo_models import DemoLedger
+ from services.execution.demo_preview import PreviewBlocked, preview
+ from services.execution.demo_stream import session
+-from services.execution.demo_validation import validate_once
++from services.execution.demo_validation import confirm_exit, database_failure, validate_once
+ from services.risk.paper import AccountValue, GateSnapshot, RiskRejected, period_keys
+ 
+ 
+@@ -108,6 +108,11 @@
+         "--preview-entry", action="store_true", help="Read-only non-executable order illustrations"
+     )
+     parser.add_argument(
++        "--confirm-flat",
++        action="store_true",
++        help="Confirm existing exit fills and clean leftover protection; no entry or exit POST",
++    )
++    parser.add_argument(
+         "--signal", type=Path, help="One explicit DEMO Signal + GateSnapshot; requires --watch"
+     )
+     parser.add_argument(
+@@ -153,6 +158,7 @@
+         or args.preview_entry
+         or args.quantity_cap is not None
+         or args.resume_entries
++        or args.confirm_flat
+     ):
+         parser.error(
+             "--validate-minimum requires --enable-demo and --operation-id; no other actions"
+@@ -169,17 +175,42 @@
+         or args.command
+         or args.resume_entries
+         or args.initialize
++        or args.confirm_flat
+     ):
+         parser.error("--preview-entry requires writes disabled and no other execution flags")
+     if (
+-        args.watch or args.check_private or args.command or args.signal
++        args.watch or args.check_private or args.command or args.signal or args.confirm_flat
+     ) and not config.demo_trading_enabled:
+         parser.error("DEMO writes require explicit --enable-demo or a reviewed DEMO config")
+     if args.check_private and (
+-        args.watch or args.signal or args.command or args.resume_entries or args.initialize
++        args.watch
++        or args.signal
++        or args.command
++        or args.resume_entries
++        or args.initialize
++        or args.confirm_flat
+     ):
+         parser.error(
+             "--check-private cannot initialize, submit signals, resume or execute commands"
++        )
++    if args.confirm_flat and (
++        not args.enable_demo
++        or args.watch
++        or args.signal
++        or args.command
++        or args.resume_entries
++        or args.initialize
++        or args.check_private
++        or args.preview_entry
++        or args.validate_minimum
++        or args.operation_id
++        or args.quantity_cap is not None
++        or args.entry_style != "PASSIVE"
++        or config.margin_mode != "ISOLATED"
++        or config.symbols != ("BTCUSDT",)
++    ):
++        parser.error(
++            "--confirm-flat requires explicit enabled ISOLATED BTCUSDT and no other actions"
+         )
+     if args.resume_entries and (not args.watch or not args.operation_id):
+         parser.error("--resume-entries requires --watch and a stable --operation-id")
+@@ -220,7 +251,7 @@
+         # session mutations; ordinary enabled reconciliation may protect open positions.
+         initial_config = (
+             config.model_copy(update={"demo_trading_enabled": False})
+-            if args.check_private or args.validate_minimum
++            if args.check_private or args.validate_minimum or args.confirm_flat
+             else config
+         )
+         client = DemoClient(initial_config, credentials)
+@@ -239,6 +270,24 @@
+                     }
+                 )
+             )
++        elif args.confirm_flat:
++            client.settings = config
++            result = asyncio.run(confirm_exit(coordinator))
++            ledger = store.read(args.account)
++            print(
++                json.dumps(
++                    {
++                        "completion_confirmation": result,
++                        "environment": "DEMO",
++                        "risk_state": ledger.risk_state.value,
++                        "paused": ledger.paused,
++                        "orders_enabled": False,
++                        "live_trading_enabled": False,
++                    }
++                )
++            )
++            if result != "VERIFIED_FLAT":
++                raise DemoFailure("Existing completion is unresolved; no entry or exit submitted")
+         elif args.validate_minimum:
+             client.settings = config
+             asyncio.run(
+@@ -311,7 +360,18 @@
+     except KeyboardInterrupt:
+         # No silent assumption of flat. On restart the new leader must reconcile.
+         print("DEMO supervisor stopped; inspect positions/protection and reconcile before entry")
+-    except (DemoFailure, RiskRejected, SQLAlchemyError, ValueError, KeyError, OSError):
++    except SQLAlchemyError as error:
++        raise SystemExit(
++            json.dumps(
++                {
++                    "operation": "BLOCKED",
++                    "database_failure": database_failure(error),
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            )
++        ) from None
++    except (DemoFailure, RiskRejected, ValueError, KeyError, OSError):
+         raise SystemExit(
+             "DEMO operation blocked or unresolved; inspect sanitized ledger/status, network and runtime credential bindings"
+         ) from None
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -15,6 +15,29 @@
+ 
+ from integrations.binance_usdm.demo import WS_HOST, DemoFailure
+ from services.execution.demo import DemoCoordinator
++
++
++async def settled_call[T](function: Callable[..., T], *args: Any) -> T:
++    """Drain an in-flight thread before cancellation starts another DB operation.
++
++    Cancelling to_thread's awaiter does not stop the worker or release its row
++    lock. Shield it and consume completion before the caller's finally cleanup.
++    Repeated cancellation must not strand the worker either.
++    """
++    worker = asyncio.create_task(asyncio.to_thread(function, *args))
++    try:
++        return await asyncio.shield(worker)
++    except asyncio.CancelledError:
++        while not worker.done():
++            try:
++                await asyncio.shield(worker)
++            except asyncio.CancelledError:
++                continue
++            except Exception:
++                break
++        if not worker.cancelled():
++            worker.exception()  # Consume failure without logging any private details.
++        raise
+ 
+ 
+ class Connection(Protocol):
+@@ -54,17 +77,17 @@
+     renewed = store.now()
+     try:
+         async with connector(client.private_url(key)) as websocket:
+-            await asyncio.to_thread(coordinator.connected)
++            await settled_call(coordinator.connected)
+             if on_ready:
+-                await asyncio.to_thread(store.renew, lease)
+-                await asyncio.to_thread(client.sync_clock)
+-                await asyncio.to_thread(on_ready)
++                await settled_call(store.renew, lease)
++                await settled_call(client.sync_clock)
++                await settled_call(on_ready)
+             count = 0
+             while max_messages is None or count < max_messages:
+-                await asyncio.to_thread(store.renew, lease)
+-                await asyncio.to_thread(client.sync_clock)
++                await settled_call(store.renew, lease)
++                await settled_call(client.sync_clock)
+                 if store.now() - renewed >= timedelta(minutes=25):
+-                    await asyncio.to_thread(
++                    await settled_call(
+                         store.change,
+                         lease,
+                         "DEMO_SESSION_RENEW",
+@@ -82,29 +105,29 @@
+                     raw = json.loads(message, parse_float=Decimal, parse_constant=reject_constant)
+                     if not isinstance(raw, dict):
+                         raise DemoFailure("Invalid DEMO event object")
+-                    await asyncio.to_thread(coordinator.event, raw)
++                    await settled_call(coordinator.event, raw)
+                     count += 1
+                 except TimeoutError:
+                     pong = await websocket.ping()
+                     await asyncio.wait_for(pong, timeout=5)
+-                    await asyncio.to_thread(coordinator.connected)
+-                await asyncio.to_thread(coordinator.expire)
++                    await settled_call(coordinator.connected)
++                await settled_call(coordinator.expire)
+     except Exception:
+         try:
+-            await asyncio.to_thread(coordinator.disconnect)
++            await settled_call(coordinator.disconnect)
+         except Exception:
+             pass  # Durable leader acquisition also invalidates stream readiness.
+         raise DemoFailure("DEMO private connection/session failed; entries blocked") from None
+     finally:
+         # Session closure never cancels SL/TP. Fencing prevents a stale worker deleting a new leader's key.
+         try:
+-            await asyncio.to_thread(client.sync_clock)
+-            await asyncio.to_thread(coordinator.command, uuid4(), "PAUSE_ENTRIES")
++            await settled_call(client.sync_clock)
++            await settled_call(coordinator.command, uuid4(), "PAUSE_ENTRIES")
+         except Exception:
+             pass
+         try:
+-            await asyncio.to_thread(coordinator.disconnect)
+-            await asyncio.to_thread(
++            await settled_call(coordinator.disconnect)
++            await settled_call(
+                 store.change,
+                 lease,
+                 "DEMO_SESSION_CLOSE",
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -22,6 +22,17 @@
+ FLAT_CONFIRMATION_INTERVAL_SECONDS = 1
+ 
+ 
++def database_failure(error: SQLAlchemyError) -> str:
++    state = getattr(getattr(error, "orig", None), "sqlstate", None)
++    if state == "55P03":
++        return "DATABASE_LOCK_TIMEOUT"
++    if state == "40P01":
++        return "DATABASE_DEADLOCK"
++    if state in {"08000", "08001", "08003", "08004", "08006", "08007", "08P01"}:
++        return "DATABASE_CONNECTION_FAILED"
++    return "OTHER_DATABASE_FAILURE"
++
++
+ def safe_failure(error: Exception) -> str:
+     """Allowlisted categories only; never return raw exception text or private URLs."""
+     if isinstance(error, DemoRateLimited):
+@@ -35,7 +46,7 @@
+     if isinstance(error, RiskRejected):
+         return "LEASE_OR_RISK_GATE_REJECTED"
+     if isinstance(error, SQLAlchemyError):
+-        return "DATABASE_ACCESS_FAILED"
++        return database_failure(error)
+     if isinstance(error, DemoFailure):
+         return "DEMO_SESSION_OR_QUERY_FAILED"
+     return "OTHER_VALIDATION_FAILURE"
+@@ -261,6 +272,7 @@
+     result = "UNKNOWN"
+     completion_stage = "PAUSE_ENTRIES"
+     completion_failure = "NONE"
++    completion_database_failure = "NONE"
+     try:
+         await asyncio.to_thread(store.renew, lease)
+         await asyncio.to_thread(coordinator.client.sync_clock)
+@@ -286,8 +298,9 @@
+     except DemoFailure:
+         completion_failure = "DEMO_QUERY_OR_CLEANUP_FAILED"
+         result = "UNKNOWN"
+-    except SQLAlchemyError:
++    except SQLAlchemyError as error:
+         completion_failure = "DATABASE_ACCESS_FAILED"
++        completion_database_failure = database_failure(error)
+         result = "UNKNOWN"
+     except Exception:
+         completion_failure = "OTHER_COMPLETION_FAILURE"
+@@ -332,6 +345,7 @@
+                 session_failure=session_failure,
+                 completion_stage=completion_stage,
+                 completion_failure=completion_failure,
++                completion_database_failure=completion_database_failure,
+                 live_trading_enabled=False,
+             )
+         ),
+--- a/tests/integration/test_demo_worker_drain.py
++++ b/tests/integration/test_demo_worker_drain.py
+@@ -0,0 +1,318 @@
++"""Real PG row-lock races caused by cancellation of a running to_thread callback."""
++
++import asyncio
++import json
++import threading
++from contextlib import asynccontextmanager
++from types import SimpleNamespace
++from uuid import uuid4
++
++import pytest
++from sqlalchemy.exc import OperationalError, SQLAlchemyError
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++import services.execution.demo_stream as stream
++import services.execution.demo_validation as validation
++from integrations.binance_usdm.demo import DemoFailure
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as base_worker_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture
++def validation_case(base_worker_case):  # noqa: F811
++    return base_worker_case
++
++
++def hold_callback(store, coordinator, monkeypatch, started, release):
++    original = store.change
++    errors = []
++
++    def change(*args):
++        try:
++            return original(*args)
++        except SQLAlchemyError as error:
++            errors.append(getattr(getattr(error, "orig", None), "sqlstate", None))
++            raise
++
++    def event(raw):
++        def held(ledger):
++            started.set()
++            assert release.wait(12), "test must release its real PostgreSQL row lock"
++
++        store.change(coordinator.lease, "TEST_IN_FLIGHT_EVENT", held)
++
++    monkeypatch.setattr(store, "change", change)
++    monkeypatch.setattr(coordinator, "event", event)
++    return errors
++
++
++def test_cancelled_session_waits_for_row_lock_worker_before_pause(validation_case, monkeypatch):
++    store, c, fake, _ = validation_case
++    store.change(c.lease, "TEST_UNPAUSE", lambda ledger: setattr(ledger, "paused", False))
++    started, release = threading.Event(), threading.Event()
++    errors = hold_callback(store, c, monkeypatch, started, release)
++
++    async def run():
++        async def handler(socket):
++            await socket.send(
++                json.dumps({"e": "ACCOUNT_UPDATE", "E": int(fake.at.timestamp() * 1000)})
++            )
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            task = asyncio.create_task(stream.session(c, connector=connector))
++            try:
++                assert await asyncio.to_thread(started.wait, 5)
++                task.cancel()
++                asyncio.get_running_loop().call_later(2.4, release.set)
++                with pytest.raises(asyncio.CancelledError):
++                    await task
++            finally:
++                release.set()
++
++    asyncio.run(run())
++    assert errors == []
++    assert store.read("DEMO-test").paused
++    assert not store.read("DEMO-test").stream_ready
++
++
++def test_validation_cancel_during_db_event_finishes_without_lock_timeout(
++    validation_case, monkeypatch, capsys
++):
++    store, c, fake, options = validation_case
++    options["fill"] = True
++    started, release = threading.Event(), threading.Event()
++    errors = hold_callback(store, c, monkeypatch, started, release)
++
++    async def run():
++        ready = asyncio.Event()
++        loop = asyncio.get_running_loop()
++
++        async def handler(socket):
++            await ready.wait()
++            await socket.send(
++                json.dumps({"e": "ACCOUNT_UPDATE", "E": int(fake.at.timestamp() * 1000)})
++            )
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            async def local_session(coordinator, *, on_ready):
++                def callback():
++                    on_ready()
++                    loop.call_soon_threadsafe(ready.set)
++
++                await stream.session(coordinator, connector=connector, on_ready=callback)
++
++            monkeypatch.setattr(validation, "session", local_session)
++
++            async def unlock():
++                assert await asyncio.to_thread(started.wait, 5)
++                await asyncio.sleep(7)
++                release.set()
++
++            unlock_task = asyncio.create_task(unlock())
++            try:
++                await validation.validate_once(c, uuid4(), "LONG", observation_seconds=0.2)
++            finally:
++                release.set()
++                await unlock_task
++
++    asyncio.run(run())
++    assert errors == []
++    assert len(posts(fake)) == 2
++    assert fake.positions["BTCUSDT"] == 0
++    output = capsys.readouterr().out
++    assert '"filled_protection_and_flat_verified": true' in output
++    assert '"completion_database_failure": "NONE"' in output
++
++
++@pytest.mark.parametrize("worker_fails", [False, True])
++def test_repeated_cancellation_drains_worker_without_exposing_failure(worker_fails):
++    started, release, finished = threading.Event(), threading.Event(), threading.Event()
++
++    def work():
++        started.set()
++        assert release.wait(5)
++        finished.set()
++        if worker_fails:
++            raise RuntimeError("SECRET-SIGNATURE-AND-URL")
++        return 17
++
++    async def run():
++        task = asyncio.create_task(stream.settled_call(work))
++        assert await asyncio.to_thread(started.wait, 2)
++        task.cancel()
++        await asyncio.sleep(0.01)
++        task.cancel()
++        await asyncio.sleep(0.01)
++        assert not task.done()
++        release.set()
++        with pytest.raises(asyncio.CancelledError):
++            await task
++        assert finished.is_set()
++
++    asyncio.run(run())
++
++
++def test_uncancelled_worker_result_and_error_are_preserved():
++    async def run():
++        assert await stream.settled_call(lambda: 17) == 17
++
++        def fail():
++            raise ValueError("synthetic failure")
++
++        with pytest.raises(ValueError, match="synthetic"):
++            await stream.settled_call(fail)
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize(
++    "state,expected",
++    [
++        ("55P03", "DATABASE_LOCK_TIMEOUT"),
++        ("40P01", "DATABASE_DEADLOCK"),
++        ("08006", "DATABASE_CONNECTION_FAILED"),
++        ("PRIVATE", "OTHER_DATABASE_FAILURE"),
++    ],
++)
++def test_database_classification_never_contains_sql_or_private_parameters(state, expected):
++    error = OperationalError("SECRET-SQL", {"key": "SECRET-KEY"}, SimpleNamespace(sqlstate=state))
++    assert validation.database_failure(error) == expected
++    assert validation.safe_failure(error) == expected
++
++
++def cli_setup(case, monkeypatch):
++    import scripts.run_demo as cli
++
++    store, c, fake, _ = case
++    monkeypatch.setenv("BINANCE_DEMO_API_KEY", "synthetic-key")
++    monkeypatch.setenv("BINANCE_DEMO_API_SECRET", "synthetic-secret")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli.yaml, "load", lambda *a, **k: c.client.settings.model_dump())
++
++    def client(settings, credentials):
++        c.client.settings = settings
++        return c.client
++
++    monkeypatch.setattr(cli, "DemoClient", client)
++    monkeypatch.setattr(
++        "sys.argv",
++        [
++            "review",
++            "--config",
++            "configs/demo-isolated.example.yaml",
++            "--account",
++            "DEMO-test",
++            "--enable-demo",
++            "--confirm-flat",
++        ],
++    )
++    return cli
++
++
++def test_confirm_flat_cli_updates_stale_local_ack_without_order_posts(
++    validation_case, monkeypatch, capsys
++):
++    store, c, fake, options = validation_case
++    options["fill"] = True
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++
++    def stale(ledger):
++        order = ledger.orders[str(operation)]
++        from packages.domain.contracts import PositionState
++
++        order.position_state, order.open_quantity = PositionState.EXIT_PENDING, order.filled
++        order.exit_state = "ACKNOWLEDGED"
++        ledger.requests[order.exit_id] = "ACKNOWLEDGED"
++
++    store.change(c.lease, "TEST_STALE_LOCAL_EXIT_ACK", stale)
++    store.release(c.lease)
++    cli = cli_setup(validation_case, monkeypatch)
++    count = len(posts(fake))
++    cli.main()
++    assert len(posts(fake)) == count
++    assert store.read("DEMO-test").orders[str(operation)].open_quantity == 0
++    assert store.read("DEMO-test").orders[str(operation)].exit_state == "FILLED"
++    assert store.read("DEMO-test").paused
++    assert '"completion_confirmation": "VERIFIED_FLAT"' in capsys.readouterr().out
++
++
++def test_confirm_flat_cli_cannot_close_an_open_position_or_submit_any_order(
++    validation_case, monkeypatch, capsys
++):
++    store, c, fake, options = validation_case
++    options["fill"], fake.defer_exit = True, True
++    monkeypatch.setattr(validation, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    store.release(c.lease)
++    cli = cli_setup(validation_case, monkeypatch)
++    count = len(posts(fake))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert len(posts(fake)) == count and fake.positions["BTCUSDT"] != 0
++    assert '"completion_confirmation": "UNKNOWN"' in capsys.readouterr().out
++
++
++@pytest.mark.parametrize(
++    "extra", [[], ["--enable-demo", "--watch"], ["--enable-demo", "--operation-id", str(uuid4())]]
++)
++def test_confirm_flat_requires_explicit_scope_and_cannot_mix_actions(monkeypatch, extra):
++    import scripts.run_demo as cli
++
++    def no_credentials():
++        raise AssertionError("invalid args must not load credentials")
++
++    monkeypatch.setattr(cli.DemoCredentials, "from_environment", no_credentials)
++    monkeypatch.setattr(
++        "sys.argv",
++        [
++            "review",
++            "--config",
++            "configs/demo-isolated.example.yaml",
++            "--account",
++            "DEMO-test",
++            "--confirm-flat",
++            *extra,
++        ],
++    )
++    with pytest.raises(SystemExit):
++        cli.main()
++
++
++def test_confirm_cli_reports_only_allowlisted_database_reason(validation_case, monkeypatch):
++    store, c, fake, _ = validation_case
++    cli = cli_setup(validation_case, monkeypatch)
++
++    def fail(*args):
++        raise OperationalError(
++            "SECRET-SQL", {"key": "SECRET-KEY"}, SimpleNamespace(sqlstate="55P03")
++        )
++
++    monkeypatch.setattr(store, "acquire", fail)
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    message = str(error.value)
++    assert "DATABASE_LOCK_TIMEOUT" in message
++    assert "SECRET" not in message and "55P03" not in message
