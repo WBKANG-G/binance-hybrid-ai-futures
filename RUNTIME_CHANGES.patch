@@ -1,0 +1,624 @@
+--- a/RUNTIME_START_HERE_KO.md
++++ b/RUNTIME_START_HERE_KO.md
+@@ -0,0 +1,35 @@
++# 과거 청산 조회 누적으로 인한 DEMO 준비 지연 수정
++
++사용자 실패 작업 ID는 3f197232-fd91-4201-83d0-e3539ea633cf입니다. 해당 작업은 예약 생성 전 실패했으며 원장에 주문이 생성되지 않았고 NORMAL/paused 상태였습니다. 이번에는 수정판에서 같은 작업 ID로 검증을 이어갑니다. 임의로 다른 작업 ID를 만들어 반복하지 않습니다.
++
++## 1. 기존 Galaxybook PC 새 폴더에 설치
++
++ZIP을 풀고 windows-demo-runtime-fix 폴더를 열어 주소창에 cmd를 입력하세요. CMD 경로가 새 폴더로 끝나는지 확인한 뒤 실행합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++같은 hybrid-windows 프로젝트/DB/export 볼륨을 유지합니다. 초기화, down -v, 과거 기준 적용/복구 승인/export 재요청을 하지 않습니다. 기존 청산 확인·일별 기준·income 시각 수정도 포함합니다.
++
++## 2. 같은 작업의 최소 수량 DEMO 검증
++
++아래 명령은 실제 DEMO LONG 지정가 진입을 수행합니다. 격리 BTCUSDT 범위, 거래소 최소 수량과 명목금액100 USDT 상한, 기존 위험 규칙을 유지합니다. 신규 진입은 LIMIT이며 관찰 후 정리를 위한 MARKET은 reduce-only입니다. 약30초 관찰 후 체결/보호/잔여 주문·포지션 정리를 확인합니다. 설치 버전을 확인하는 import가 키 입력 전에 수행됩니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -c "import getpass,os,runpy,sys; from integrations.binance_usdm.demo_snapshot import operational_snapshot; os.environ['LIVE_TRADING_ENABLED']='false'; os.environ['BINANCE_DEMO_API_KEY']=getpass.getpass('DEMO API Key (hidden): '); os.environ['BINANCE_DEMO_API_SECRET']=getpass.getpass('DEMO Secret (hidden): '); sys.argv=['scripts.run_demo','--config','configs/demo-isolated.example.yaml','--account','DEMO-WINDOWS-ISOLATED-BTC-V1','--enable-demo','--validate-minimum','LONG','--entry-style','OPPOSITE_QUOTE','--operation-id','3f197232-fd91-4201-83d0-e3539ea633cf']; runpy.run_module('scripts.run_demo',run_name='__main__')"
++```
++
++마지막 결과를 공유하세요. 목표는 FINISHED_FLAT과 filled_protection_and_flat_verified=true입니다. 체결이 없거나 session_error=true이면 보호까지 성공한 것으로 처리하지 않습니다. 미확정/실패면 추가 실행 없이 결과를 공유합니다. 키와 Secret은 공유하지 않습니다.
++
++## 변경 방식
++
++운영 중에도 매번 현재 전체 포지션·일반/조건부 미체결·계정/마진 설정·income을 조회합니다. 로컬 원장이 이미 완료를 검증한 주문이고 잔여·노출·위험·보호가0이며, 해당 ID가 새 미체결 목록에도 없을 때만 개별 과거 진입/청산/보호 조회를 생략합니다. 채워진 주문은 확인된 FILLED 종료가 필요하며, 미체결 종료는 exit_id 없음/NONE이어야 합니다. UNKNOWN/SUBMITTING/부분 체결/보호 중인 주문과 동일 ID가 원격에 다시 나타나는 경우는 원래 조회를 유지합니다. 과거 주문을 삭제하거나 성공으로 바꾸지 않습니다.
++
++복구·일별 기준·감사 스냅샷의 기본 함수는 계속 모든 원래 ID를 조회합니다. 최종 자동 청산 확인도 전체 이력을 조회하여 알 수 없는 보호 상태가 있으면 통과하지 않습니다.
++
++최신 스냅샷에서 잔여 보호 주문이 실제 보이는 경우에만 CLOSED 주문의 후속 정리를 실행합니다. 이미 정리된 모든 과거 주문에 대한 같은 정리를 매번 반복하지 않습니다.
++
++유효한 fence 확인 뒤 대조 시각을 동기화하고 준비/정리 단계에서도 시각을 갱신합니다. 60초 서명 시각 제한, 시계RTT/오차 한도, lease 만료/fencing, 5초 시세 유효시간, 설정된 계정/스트림 신선도와10초 신호 만료는 늘리지 않았습니다. 여전히 느리거나 상태가 바뀌면 차단합니다. 실패 시 validation_stage/session_failure/completion_stage/completion_failure는 비밀정보 없는 허용 분류만 출력합니다.
++
++이번 ZIP은 일별 기준·주별 기준·고점·복구 기록·미확정 요청이나 잠금을 바꾸지 않습니다. 실제 수정판 자동 검증 결과는 Windows에서 별도로 확인합니다. LIVE/Phase5는 시작하지 않습니다.
+--- a/RUNTIME_VALIDATION_KO.md
++++ b/RUNTIME_VALIDATION_KO.md
+@@ -0,0 +1,28 @@
++# DEMO 운영 대조·준비 조회 지연 수정 검증
++
++전체667개 테스트 통과(116.24초). 새17개를 포함하며 이전650개 테스트를 삭제하거나 완화하지 않았습니다. mypy80개 소스, 전체Ruff lint/format 통과. 실제PostgreSQL, 합성 거래소와 localhost WS를 사용했습니다. 클라우드에서 실제 DEMO 인증/주문/사용자 DB 갱신은 하지 않았습니다.
++
++부모 ZIP: binance-hybrid-ai-futures-windows-income-time-fix.zip
++SHA256: fd012f83e272b0d658cd4d495c25432d900d6e0d1e54207a521c966ca07b8367
++
++사용자 기록: 작업3f197232-fd91-4201-83d0-e3539ea633cf는 NOT_CREATED/entry_filled=false/session_error=true, PAUSE_ENTRIES에서 DEMO_QUERY_OR_CLEANUP_FAILED로 종료했습니다. 추가 로컬 읽기에서 order_created=false, NORMAL/paused=true, OTHER_DEMO_FAILURE였습니다. UTC02:10:25 진입 재개 후 13초 뒤 stream untrusted가 됐고, 그 뒤 여러 과거 CLOSED 주문에 대한 VERIFIED_FLAT_CLEANUP이 각각 약3초 간격으로 반복됐습니다. 최종 조회도 실패했습니다. 기존 출력은 정확한 최초 예외를 보존하지 않아 그 예외의 원문을 복원했다고 주장하지 않습니다.
++
++확인한 지연 경로: snapshot이 매번 모든 과거 진입/종료/SL/TP ID를 개별 조회했고, 완료된 CLOSED 주문마다 정리 과정에서 다시 전체 조회했습니다. prepare의 readonly preview는 시세 수집 뒤 최종 계정 확인 중 시세가5초보다 오래되면 차단하는 것이 올바른데, 불필요한 역사 조회가 그 시간을 넘길 수 있습니다. 스트림의 on_ready 준비 동안에는 정기 시각/lease 갱신 루프가 시작되기 전이라는 점도 보완했습니다. 제한 자체는 늘리지 않았습니다.
++
++재현: 부모 ZIP의 실행 파일5개를 바이트 그대로 복원한 별도 임시 복사본에서 완료 기록4개와 GET당350ms 합성 지연을 넣었습니다. 이전 prepare는 Preview quotes expired during final account verification으로 실패했습니다(1 failed,1.06초). 수정판의 동일 테스트는 quote/계정 제약을 유지하며 통과합니다. 이는 재현된 지연 경로의 증거이며 사용자 최초 예외가 반드시 이것 하나였다고 단정하지 않습니다.
++
++운영 스냅샷: 기본 snapshot은 include_closed_history=true로 유지합니다. 새 operational_snapshot은 현재 전체 포지션, 계정/마진/레버리지/단일 자산 설정, 일반·조건부 미체결 및 income을 그대로 조회합니다. 개별 역사 조회 생략은 로컬 원장이 TERMINAL+CLOSED, 잔여/노출/실제위험/보호0이고 (양의 체결+FILLED 종료 또는 미체결+exit_id 없음/NONE), 관련 ID가 현재 두 미체결 목록에도 없을 때만 합니다. 부분 체결, UNKNOWN/SUBMITTING, 보호 중, 잔여, 미확정 종료, 원격 재등장 ID는 생략하지 않습니다. 알 수 없는 원격 포지션도 계속 감지합니다. 원장 주문·요청을 삭제하거나 상태를 임의 성공 처리하지 않습니다.
++
++운영 coordinator와 readonly preview는 이 현재 상태 투영을 사용합니다. 복구/일별 기준/체결 근거 서비스는 기본 전체역사 snapshot을 그대로 사용하며, 최종 confirm_flat도 기본 전체역사 조회로 알 수 없는 과거 보호 상태를 놓치지 않습니다. 운영·역사 투영의 fingerprint를 서로 섞어 성공으로 판단하지 않으며 각 단계는 같은 투영으로 반복 대조합니다.
++
++반복 정리 제거: 최신 대조 스냅샷에 해당 CLOSED 주문의 NEW 보호가 실제 존재할 때만 후속 _cleanup을 수행합니다. 포지션0과 종료체결 근거의 기존 선행 조건 및 취소 후 전체역사 확인은 유지합니다. 매번 이미 정리된 모든 과거 CLOSED 주문에 대해 추가 전체 대조를 하지 않습니다.
++
++시각/잠금: 대조의 lease/fence 검사를 통과한 query callback 안에서 먼저 sync_clock을 수행합니다. session on_ready 전 같은 lease 갱신·시각 동기화를 하고, 준비/최종 정리·청산 확인 단계에도 시각을 동기화합니다. DemoClient의60초 서명 시각/RTT·오차/cooldown 가드, lease60초/만료/fencing, 시세5초 및 신호10초·정책 계정/스트림 나이 제한은 동일합니다. 만료된 lease로 대조하면 전송 전에 차단되는 기존 테스트도 그대로 통과합니다. POST 재시도나 시간 제한 확대는 없습니다.
++
++실패 분류: validation_stage는 SESSION_CONNECT/RESUME_ENTRIES/PREPARE_ENTRY/RESERVE_ENTRY/SUBMIT_ENTRY/OBSERVATION 중 중단 단계를 표시합니다. session_failure에는 QUOTE_EXPIRED_DURING_ACCOUNT_CHECK/CLOCK_STALE_OR_COOLDOWN/DEMO_RATE_LIMITED/LEASE_OR_RISK_GATE_REJECTED/DB 또는 일반 DEMO 실패 같은 허용 분류만 표시합니다. 예외 원문, 키/서명/WS URL은 출력하지 않습니다. 기존 completion_stage/completion_failure도 유지합니다.
++
++새17개 검증: GET당350ms+과거4건의 준비 시세 신선도 통과, 기본 전체역사 조회의 모든 원래 ID 유지, 현재 미체결 재등장/UNKNOWN 의도 조회 유지, 완료 조건7종을 벗어나면 조회 생략 금지, stale clock 직접 요청 차단과 대조 시 안전한 재동기화, 0체결 취소 주문의 UNKNOWN 종료 조회 보존, 소유하지 않은 포지션 감지, 검증된 평탄 상태에서만 잔여 보호 취소, GET당250ms+과거4건으로 실제PG/로컬WS 단일 진입·단일 청산 완료, 비밀정보 포함 예외의 안전한 분류, 준비 실패 단계/분류 및 새 주문 없음. 기존 시세5초 초과, 잠금 만료, 미확정 보호, 추가 주문 방지, 실패 후 잠금, 부분체결·기준·복구·수수료 정밀도 테스트도 그대로 통과했습니다.
++
++변경 범위: demo_snapshot의 운영 투영 옵션/래퍼, coordinator 운영 조회/정리 조건과 시각 동기화, preview의 스냅샷 import만, private session의 갱신 지점, validation의 시각 동기화/단계·허용 분류 출력, 새 통합 테스트와 두 문서. preview 본문의 계산/5초 제한은 바이트 동일합니다. DemoClient/전송 allowlist/실거래 차단, reserve/submit/size/보호·청산 주문 구성, 위험 정책/account_risk, DB 모델·테이블·영속화, 기존 일별/복구/정정/export 구현, Dockerfile/Compose/설정/의존성 및 AGENTS/MASTER_SPEC는 부모와 동일합니다. coordinator 메서드가 사용하는 스냅샷 투영은 위와 같이 바뀌지만 기존 진입·수량·위험 검사 본문은 바꾸지 않았습니다.
++
++다음 단계: 기존 DB와 기준24일/주별 기준/고점/복구 기록 및 일시정지를 유지한 채 새 이미지 적용 후 동일 작업ID의 DEMO 최소수량 검증을 수행합니다. 설치 자체는 신규 주문을 내지 않지만 안내의 두 번째 명령은 명시적으로 DEMO LONG LIMIT 주문을 냅니다. 이전 실패에는 해당 주문이 생성되지 않았으므로 같은ID로 이어갑니다. 실제 현재 위험/설정/시세/연결 조건이 맞지 않으면 계속 차단합니다. 수정판 자동 종료의 실제 DEMO 성공 실적은 Windows 결과 전에는 주장하지 않습니다. main/실거래/Phase5 변경 없음.
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -8,6 +8,7 @@
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+ from integrations.binance_usdm.filters import number
++from packages.domain.contracts import OrderState, PositionState
+ from services.execution.demo_models import DemoLedger, DemoSnapshot
+ 
+ 
+@@ -58,16 +59,25 @@
+ )
+ 
+ 
+-def snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++def snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
+     try:
+-        return _snapshot(client, ledger, now)
++        return _snapshot(client, ledger, now, include_closed_history=include_closed_history)
+     except (KeyError, TypeError, ValueError, InvalidOperation, OverflowError):
+         # Keep malformed financial responses inside the coordinator's existing
+         # fail-closed/minimal-position emergency reconciliation path.
+         raise DemoFailure("Invalid/incomplete DEMO snapshot") from None
+ 
+ 
+-def _snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++def operational_snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++    """Current exchange truth plus unresolved intents; full historical review stays explicit."""
++    return snapshot(client, ledger, now, include_closed_history=False)
++
++
++def _snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
+     mode = client.request("GET", "/fapi/v1/positionSide/dual")
+     assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
+     if (
+@@ -161,6 +171,23 @@
+     if scope and any(row["symbol"] not in scope for row in [*orders.values(), *algos.values()]):
+         raise DemoFailure("DEMO open order outside configured symbol scope")
+     for order in ledger.orders.values():
++        if (
++            not include_closed_history
++            and order.state
++            in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++            and order.position_state == PositionState.CLOSED
++            and not (order.remaining or order.open_quantity or order.actual_risk or order.protected)
++            and (
++                (order.filled > 0 and order.exit_state == "FILLED")
++                or (not order.filled and order.exit_id is None and order.exit_state == "NONE")
++            )
++            and not any(identifier in orders for identifier in (order.client_id, order.exit_id))
++            and not any(identifier in algos for identifier in (order.algo_id, order.tp_algo_id))
++        ):
++            # Only previously proven closed records absent from BOTH fresh open
++            # lists are omitted. Pending/unknown/partial/protected entries and
++            # anything reappearing remotely still use the original-ID queries.
++            continue
+         if order.client_id not in orders:
+             try:
+                 raw = client.request(
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -6,7 +6,9 @@
+ from uuid import UUID
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoRejected
+-from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from integrations.binance_usdm.demo_snapshot import operational_snapshot as snapshot
++from integrations.binance_usdm.demo_snapshot import signed_number
++from integrations.binance_usdm.demo_snapshot import snapshot as historical_snapshot
+ from integrations.binance_usdm.filters import SymbolRules, number
+ from integrations.binance_usdm.orders import build_entry, build_protection
+ from packages.domain.contracts import (
+@@ -461,6 +463,7 @@
+         )
+ 
+         def query_merge(ledger: DemoLedger) -> None:
++            self.client.sync_clock()
+             first = snapshot(self.client, ledger, self.store.now())
+             second = snapshot(self.client, ledger, self.store.now())
+             self._merge(ledger, coherent_snapshot(first, second, ledger))
+@@ -493,21 +496,29 @@
+             if current.open_quantity and current.protected and current.tp_algo_id is None:
+                 self._protect(key, "TP")
+ 
+-        def finish(ledger: DemoLedger) -> None:
++        def finish(ledger: DemoLedger) -> list[str]:
+             actual = snapshot(self.client, ledger, self.store.now())
+             self._merge(ledger, actual)
+             if any(o.open_quantity and not o.protected for o in ledger.orders.values()):
+                 ledger.risk_state = RiskState.EMERGENCY
+                 ledger.reconciled = False
+-
+-        self.store.change(self.lease, "DEMO_PROTECTION_RECHECK", finish)
++            return [
++                key
++                for key, order in ledger.orders.items()
++                if order.position_state == PositionState.CLOSED
++                and any(
++                    actual.algos.get(identifier or "", {}).get("algoStatus") == "NEW"
++                    for identifier in (order.algo_id, order.tp_algo_id)
++                )
++            ]
++
++        cleanup_keys = self.store.change(self.lease, "DEMO_PROTECTION_RECHECK", finish)
+         ledger = self.store.read(self.lease.account_id)
+         if ledger.risk_state == RiskState.EMERGENCY:
+             self._flatten()
+         # Flat cleanup is a separate queried/fenced side effect.
+-        for key, order in self.store.read(self.lease.account_id).orders.items():
+-            if order.position_state == PositionState.CLOSED:
+-                self._cleanup(key)
++        for key in cleanup_keys:
++            self._cleanup(key)
+ 
+     def _merge(self, ledger: DemoLedger, remote: DemoSnapshot) -> None:
+         self._check_metadata_exposure(ledger, remote)
+@@ -960,13 +971,24 @@
+         establish flat. An ACK, a missing order, or a zero position alone is insufficient.
+         """
+ 
++        cleanup_keys: list[str] = []
++
+         def observe(ledger: DemoLedger) -> bool:
+             if not ledger.paused:
+                 raise DemoFailure("Flat confirmation requires paused entries")
+-            first = snapshot(self.client, ledger, self.store.now())
+-            second = snapshot(self.client, ledger, self.store.now())
++            first = historical_snapshot(self.client, ledger, self.store.now())
++            second = historical_snapshot(self.client, ledger, self.store.now())
+             remote = coherent_snapshot(first, second, ledger)
+             self._merge(ledger, remote)
++            cleanup_keys[:] = [
++                key
++                for key, order in ledger.orders.items()
++                if order.position_state == PositionState.CLOSED
++                and any(
++                    remote.algos.get(identifier or "", {}).get("algoStatus") == "NEW"
++                    for identifier in (order.algo_id, order.tp_algo_id)
++                )
++            ]
+             return bool(
+                 ledger.reconciled
+                 and not any(remote.positions.values())
+@@ -979,14 +1001,13 @@
+         if not self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_QUERY", observe):
+             return "UNKNOWN"
+         if self.client.settings.demo_trading_enabled:
+-            for key, order in self.store.read(self.lease.account_id).orders.items():
+-                if order.position_state == PositionState.CLOSED:
+-                    self._cleanup(key)
++            for key in tuple(cleanup_keys):
++                self._cleanup(key)
+ 
+         def verify(ledger: DemoLedger) -> bool:
+             if not observe(ledger):
+                 return False
+-            remote = snapshot(self.client, ledger, self.store.now())
++            remote = historical_snapshot(self.client, ledger, self.store.now())
+             return bool(
+                 remote.fingerprint == ledger.fingerprint
+                 and all(
+--- a/services/execution/demo_preview.py
++++ b/services/execution/demo_preview.py
+@@ -5,7 +5,7 @@
+ from typing import Any, Literal
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure
+-from integrations.binance_usdm.demo_snapshot import snapshot
++from integrations.binance_usdm.demo_snapshot import operational_snapshot as snapshot
+ from integrations.binance_usdm.filters import SymbolRules, number
+ from services.execution.demo_models import DemoLedger
+ from services.risk.paper import capped_quantity, minimum_entry_quantity, unit_loss
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -56,6 +56,8 @@
+         async with connector(client.private_url(key)) as websocket:
+             await asyncio.to_thread(coordinator.connected)
+             if on_ready:
++                await asyncio.to_thread(store.renew, lease)
++                await asyncio.to_thread(client.sync_clock)
+                 await asyncio.to_thread(on_ready)
+             count = 0
+             while max_messages is None or count < max_messages:
+@@ -96,6 +98,7 @@
+     finally:
+         # Session closure never cancels SL/TP. Fencing prevents a stale worker deleting a new leader's key.
+         try:
++            await asyncio.to_thread(client.sync_clock)
+             await asyncio.to_thread(coordinator.command, uuid4(), "PAUSE_ENTRIES")
+         except Exception:
+             pass
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -9,17 +9,36 @@
+ 
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoRateLimited
+ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import Signal, TradingMode
+ from services.execution.demo import DemoCoordinator
+-from services.execution.demo_preview import preview
++from services.execution.demo_preview import PreviewBlocked, preview
+ from services.execution.demo_stream import session
+ from services.risk.paper import GateSnapshot, RiskRejected
+ 
+ MAX_TEST_NOTIONAL = Decimal("100")  # DEMO-only hard ceiling, never LIVE configuration.
+ FLAT_CONFIRMATION_ATTEMPTS = 4
+ FLAT_CONFIRMATION_INTERVAL_SECONDS = 1
++
++
++def safe_failure(error: Exception) -> str:
++    """Allowlisted categories only; never return raw exception text or private URLs."""
++    if isinstance(error, DemoRateLimited):
++        return "DEMO_RATE_LIMITED"
++    if isinstance(error, PreviewBlocked) and str(error) == (
++        "Preview quotes expired during final account verification"
++    ):
++        return "QUOTE_EXPIRED_DURING_ACCOUNT_CHECK"
++    if isinstance(error, DemoFailure) and str(error) == "Clock stale or cooldown active":
++        return "CLOCK_STALE_OR_COOLDOWN"
++    if isinstance(error, RiskRejected):
++        return "LEASE_OR_RISK_GATE_REJECTED"
++    if isinstance(error, SQLAlchemyError):
++        return "DATABASE_ACCESS_FAILED"
++    if isinstance(error, DemoFailure):
++        return "DEMO_SESSION_OR_QUERY_FAILED"
++    return "OTHER_VALIDATION_FAILURE"
+ 
+ 
+ async def confirm_exit(coordinator: DemoCoordinator) -> str:
+@@ -28,6 +47,7 @@
+         if attempt:
+             await asyncio.sleep(FLAT_CONFIRMATION_INTERVAL_SECONDS)
+         await asyncio.to_thread(coordinator.store.renew, coordinator.lease)
++        await asyncio.to_thread(coordinator.client.sync_clock)
+         result = await asyncio.to_thread(coordinator.confirm_flat)
+         if result == "VERIFIED_FLAT":
+             return result
+@@ -44,6 +64,7 @@
+     if direction not in {"LONG", "SHORT"}:
+         raise DemoFailure("Validation direction must be explicit")
+     client = coordinator.client
++    client.sync_clock()
+     ledger = coordinator.store.read(coordinator.lease.account_id)
+     if (
+         not ledger.stream_ready
+@@ -157,15 +178,22 @@
+     loop = asyncio.get_running_loop()
+     callback_done = asyncio.Event()
+     failure = False
++    validation_stage = "SESSION_CONNECT"
++    session_failure = "NONE"
+ 
+     def on_ready() -> None:
++        nonlocal validation_stage, session_failure
+         try:
+             current = store.read(lease.account_id)
+             if key not in current.orders:
++                validation_stage = "RESUME_ENTRIES"
+                 coordinator.resume_entries(uuid5(operation_id, "resume"))
++                validation_stage = "PREPARE_ENTRY"
+                 signal, gate, cap = prepare(
+                     coordinator, operation_id, direction, entry_style=entry_style
+                 )
++                validation_stage = "RESERVE_ENTRY"
++                coordinator.client.sync_clock()
+                 order = coordinator.reserve(signal, gate, quantity_cap=cap, entry_style=entry_style)
+                 print(
+                     json.dumps(
+@@ -186,6 +214,7 @@
+                     ),
+                     flush=True,
+                 )
++                validation_stage = "SUBMIT_ENTRY"
+                 coordinator.submit(key)
+             else:
+                 print(
+@@ -198,6 +227,10 @@
+                     ),
+                     flush=True,
+                 )
++            validation_stage = "OBSERVATION"
++        except Exception as error:
++            session_failure = safe_failure(error)
++            raise
+         finally:
+             loop.call_soon_threadsafe(callback_done.set)
+ 
+@@ -211,8 +244,10 @@
+             finished, _ = await asyncio.wait({task}, timeout=observation_seconds)
+             if finished:
+                 await task
+-    except Exception:
++    except Exception as error:
+         failure = True  # Never include raw private session errors or URLs in output.
++        if session_failure == "NONE":
++            session_failure = safe_failure(error)
+     finally:
+         done.cancel()
+         if not task.done():
+@@ -228,6 +263,7 @@
+     completion_failure = "NONE"
+     try:
+         await asyncio.to_thread(store.renew, lease)
++        await asyncio.to_thread(coordinator.client.sync_clock)
+         await asyncio.to_thread(
+             coordinator.command, uuid5(operation_id, "finish-pause"), "PAUSE_ENTRIES"
+         )
+@@ -292,6 +328,8 @@
+                 ),
+                 filled_protection_and_flat_verified=acceptance,
+                 session_error=failure,
++                validation_stage=validation_stage,
++                session_failure=session_failure,
+                 completion_stage=completion_stage,
+                 completion_failure=completion_failure,
+                 live_trading_enabled=False,
+--- a/tests/integration/test_demo_operational_latency.py
++++ b/tests/integration/test_demo_operational_latency.py
+@@ -0,0 +1,229 @@
++"""History-heavy operational checks retain current truth and strict quote freshness."""
++
++import asyncio
++from datetime import timedelta
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import snapshot as full_snapshot
++from packages.domain.contracts import PositionState, RiskState
++from services.execution.demo_validation import prepare
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture
++def historical_case(validation_case, monkeypatch):  # noqa: F811
++    store, c, fake, options = validation_case
++    options["fill"] = True
++    operation = uuid4()
++    asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    base = store.read("DEMO-test").orders[str(operation)].model_copy(deep=True)
++    assert base.position_state == PositionState.CLOSED and base.exit_state == "FILLED"
++
++    def seed(ledger):
++        for i in range(3):
++            order = base.model_copy(deep=True)
++            signal_id = uuid4()
++            order.signal = order.signal.model_copy(update={"signal_id": signal_id})
++            suffix = uuid4().hex[:30]
++            order.client_id, order.exit_id = "DE-" + suffix, "DX-" + suffix
++            order.algo_id, order.tp_algo_id = "DS-" + suffix, "DT-" + suffix
++            order.server_order_id = str(900 + i * 2)
++            for old_id, new_id, server in (
++                (base.client_id, order.client_id, order.server_order_id),
++                (base.exit_id, order.exit_id, str(901 + i * 2)),
++            ):
++                fake.orders[new_id] = dict(
++                    fake.orders[old_id], clientOrderId=new_id, orderId=server
++                )
++            for old_id, new_id in (
++                (base.algo_id, order.algo_id),
++                (base.tp_algo_id, order.tp_algo_id),
++            ):
++                fake.algos[new_id] = dict(
++                    fake.algos[old_id], clientAlgoId=new_id, algoId=str(2000 + len(fake.algos))
++                )
++            ledger.orders[str(signal_id)] = order
++        ledger.risk_state = RiskState.NORMAL
++        ledger.paused = True
++
++    store.change(c.lease, "TEST_VERIFIED_CLOSED_HISTORY", seed)
++    c.connected()
++    return store, c, fake, options
++
++
++def latency(c, fake, milliseconds=350):
++    original = c.client.send
++
++    def send(method, path, query, key):
++        response = original(method, path, query, key)
++        if method == "GET":
++            fake.at += timedelta(milliseconds=milliseconds)
++        return response
++
++    c.client.send = send
++
++
++def test_history_latency_does_not_expire_fresh_preview(historical_case):
++    store, c, fake, _ = historical_case
++    latency(c, fake)
++    start = len(fake.calls)
++    signal, gate, cap = prepare(c, uuid4(), "LONG")
++    assert cap > 0 and signal.suggested_limit_price > 0
++    assert fake.at - gate.market_at <= timedelta(seconds=5)
++    assert all(method == "GET" for method, _, _ in fake.calls[start:])
++    assert not any(
++        path in {"/fapi/v1/order", "/fapi/v1/algoOrder"} for _, path, _ in fake.calls[start:]
++    )
++
++
++def test_full_history_review_still_queries_every_closed_original_id(historical_case):
++    store, c, fake, _ = historical_case
++    ledger = store.read("DEMO-test")
++    start = len(fake.calls)
++    remote = full_snapshot(c.client, ledger, store.now())
++    for order in ledger.orders.values():
++        assert order.client_id in remote.orders and order.exit_id in remote.orders
++        assert order.algo_id in remote.algos and order.tp_algo_id in remote.algos
++    assert sum(path == "/fapi/v1/order" for _, path, _ in fake.calls[start:]) == 8
++
++
++def test_current_open_lists_and_unknown_intents_are_never_skipped(historical_case):
++    from integrations.binance_usdm.demo_snapshot import operational_snapshot
++
++    store, c, fake, _ = historical_case
++    ledger = store.read("DEMO-test")
++    order = next(iter(ledger.orders.values()))
++    fake.orders[order.exit_id]["status"] = "NEW"
++    fake.algos[order.algo_id]["algoStatus"] = "NEW"
++    remote = operational_snapshot(c.client, ledger, store.now())
++    assert remote.orders[order.exit_id]["status"] == "NEW"
++    assert remote.algos[order.algo_id]["algoStatus"] == "NEW"
++    assert order.client_id in remote.orders
++    fake.orders[order.exit_id]["status"] = "FILLED"
++    fake.algos[order.algo_id]["algoStatus"] = "CANCELED"
++    order.exit_state = "UNKNOWN"
++    remote = operational_snapshot(c.client, ledger, store.now())
++    assert order.exit_id in remote.orders and order.client_id in remote.orders
++
++
++@pytest.mark.parametrize(
++    "field,value",
++    [
++        ("position_state", PositionState.EXIT_PENDING),
++        ("open_quantity", Decimal("0.001")),
++        ("remaining", Decimal("0.001")),
++        ("actual_risk", Decimal(1)),
++        ("protected", True),
++        ("exit_state", "UNKNOWN"),
++        ("state", "UNKNOWN"),
++    ],
++)
++def test_incomplete_local_proof_cannot_skip_original_id_queries(historical_case, field, value):
++    from integrations.binance_usdm.demo_snapshot import operational_snapshot
++    from packages.domain.contracts import OrderState
++
++    store, c, fake, _ = historical_case
++    ledger = store.read("DEMO-test")
++    order = next(iter(ledger.orders.values()))
++    if field == "state":
++        value = OrderState.UNKNOWN
++    setattr(order, field, value)
++    remote = operational_snapshot(c.client, ledger, store.now())
++    assert order.client_id in remote.orders and order.exit_id in remote.orders
++
++
++def test_stale_signed_clock_is_rechecked_and_guard_itself_is_unchanged(historical_case):
++    store, c, fake, _ = historical_case
++    c.client.synced_at -= 61000
++    count = len(fake.calls)
++    with pytest.raises(DemoFailure, match="Clock stale"):
++        c.client.request("GET", "/fapi/v3/account")
++    assert len(fake.calls) == count
++    c.reconcile()
++    assert store.read("DEMO-test").reconciled
++    assert fake.calls[count] == ("GET", "/fapi/v1/time", {})
++
++
++def test_zero_fill_canceled_order_with_unknown_exit_is_not_hidden(historical_case):
++    from integrations.binance_usdm.demo_snapshot import operational_snapshot
++    from packages.domain.contracts import OrderState
++
++    store, c, fake, _ = historical_case
++    ledger = store.read("DEMO-test")
++    order = next(iter(ledger.orders.values()))
++    order.state, order.filled, order.exit_state = OrderState.CANCELED, Decimal(0), "UNKNOWN"
++    remote = operational_snapshot(c.client, ledger, store.now())
++    assert order.client_id in remote.orders and order.exit_id in remote.orders
++
++
++def test_unattributed_remote_position_is_still_detected(historical_case):
++    store, c, fake, _ = historical_case
++    fake.positions["BTCUSDT"], fake.prices["BTCUSDT"] = Decimal("0.001"), Decimal("100")
++    c.reconcile()
++    ledger = store.read("DEMO-test")
++    assert ledger.positions["BTCUSDT"] != 0
++    assert not ledger.reconciled or ledger.risk_state != RiskState.NORMAL
++
++
++def test_known_leftover_protection_is_removed_only_after_flat_proof(historical_case):
++    store, c, fake, _ = historical_case
++    order = next(iter(store.read("DEMO-test").orders.values()))
++    fake.algos[order.algo_id]["algoStatus"] = "NEW"
++    c.reconcile()
++    assert fake.algos[order.algo_id]["algoStatus"] == "CANCELED"
++    assert fake.positions["BTCUSDT"] == 0
++
++
++def test_filled_validation_with_latency_and_history_keeps_single_entry_and_exit(
++    historical_case, monkeypatch, capsys
++):
++    store, c, fake, _ = historical_case
++    latency(c, fake, milliseconds=250)
++    start = len(posts(fake))
++    asyncio.run(exercise(c, uuid4(), "LONG", monkeypatch))
++    submitted = posts(fake)[start:]
++    assert len(submitted) == 2
++    assert submitted[0]["type"] == "LIMIT"
++    assert submitted[1]["type"] == "MARKET" and submitted[1]["reduceOnly"] == "true"
++    assert fake.positions["BTCUSDT"] == 0
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++def test_secret_exception_text_is_not_exposed():
++    from services.execution.demo_validation import safe_failure
++
++    assert (
++        safe_failure(DemoFailure("SECRET-URL?signature=PRIVATE")) == "DEMO_SESSION_OR_QUERY_FAILED"
++    )
++    assert safe_failure(DemoFailure("Clock stale or cooldown active")) == "CLOCK_STALE_OR_COOLDOWN"
++
++
++def test_entry_prepare_failure_reports_safe_stage_and_no_new_order(
++    historical_case, monkeypatch, capsys
++):
++    import services.execution.demo_validation as module
++    from services.execution.demo_preview import PreviewBlocked
++
++    store, c, fake, _ = historical_case
++    operation = uuid4()
++    count = len(posts(fake))
++
++    def fail(*args, **kwargs):
++        raise PreviewBlocked("Preview quotes expired during final account verification")
++
++    monkeypatch.setattr(module, "prepare", fail)
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    assert str(operation) not in store.read("DEMO-test").orders
++    assert len(posts(fake)) == count
++    output = capsys.readouterr().out
++    assert '"validation_stage": "PREPARE_ENTRY"' in output
++    assert '"session_failure": "QUOTE_EXPIRED_DURING_ACCOUNT_CHECK"' in output
