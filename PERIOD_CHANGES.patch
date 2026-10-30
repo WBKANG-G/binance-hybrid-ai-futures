@@ -1,0 +1,1149 @@
+--- /dev/null
++++ b/PERIOD_START_HERE_KO.md
+@@ -0,0 +1,41 @@
++# 일별·주별 기준을 함께 검토하기
++
++이번 설치 폴더는 windows-demo-period-review입니다. 사용자 계정의 마지막 원장 대조는 2026-10-24 03:03:44.968408 UTC(한국 시각 낮 12:03:44), 당시 평가액 4999.64804199 USDT였습니다. 10월 30일 조회에서 이후 BTCUSDT 체결0·수입기록0·현재 포지션0·활성 일반/조건부 주문0, 현재 현금과 평가액이 그 금액과 같았습니다. 사용자는 그 사이 별도 수동 거래·다른 봇 거래·입출금이 없었다고 확인했습니다.
++
++기존 기준은 일별10월24일/4999.74584261, 주별10월19일/5000으로 남아 있어 복구가 PERIOD_BASELINE_MISSING으로 차단됐습니다. 기존 일별 복원기는 주간 변경을 지원하지 않습니다. 이 버전은 감사 가능한 수동 증거 경로로 두 기준의 복원을 검토합니다. 설치만으로 기준을 변경하거나 잠금을 해제하지 않습니다.
++
++## 기존 Galaxybook에 설치
++
++ZIP을 새 windows-demo-period-review 폴더에 풀어 열고, 탐색기 주소창에 cmd를 입력합니다. 경로 끝이 새 폴더인지 확인합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows 프로젝트·PostgreSQL 볼륨·demo_export_data 볼륨을 유지합니다. down -v, 초기화, export 생성 재요청은 하지 않습니다. 이전 최초 체결 검증·worker 대기·운영 조회·시각 정밀도 수정도 모두 포함합니다.
++
++## 먼저 조회 전용 검토
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_periods --attest-no-activity-since-anchor
++```
++
++사용자가 확인한 마지막 원장 대조 이후 별도 거래·입출금이 없다는 진술을 명시적으로 붙입니다. DEMO 키는 숨김 입력하고 결과 화면만 공유합니다. 이 명령은 거래소 GET과 DB SELECT만 사용하며 DB 변경·기준 적용·복구 승인·신규 주문을 하지 않습니다. 최초/최종 스냅샷과 반복 체결/수입 조회를 실행하므로 잠시 걸릴 수 있습니다.
++
++통과하면 OPERATOR_ATTESTED_PERIOD_PREVIEW_NO_DATABASE_CHANGE와 review_token, 변경 전·제안 기준이 표시됩니다. 지금 확인된 상태가 유지되면 제안 금액은 일별·주별 모두4999.64804199 USDT이고 주 시작일은10월26일입니다. 일별 날짜는 실행한 한국 날짜입니다. 이 결과를 확인한 뒤 해당 토큰·별도 operation UUID·--accept-operator-evidence를 함께 사용해 적용합니다. 설치 직후 적용이나 새 진입을 먼저 실행하지 않습니다. 실패하면 화면을 공유하고 반복하거나 잠금을 우회하지 않습니다.
++
++## 적용이 허용하는 범위
++
++적용 시에도 거래소 쓰기는 없습니다. 한 번의 fenced DB 트랜잭션에서 현재 일별 키/기준과 주별 키/기준만 채택하고, 이전 두 기준·실제 과거 원장 대조 시각·증거 해시·운영자 진술 출처·확인 종료 시각을 영수증과 감사 이벤트에 남깁니다. 같은 UUID/토큰 재실행은 무동작이고 다른 토큰이나 UUID 충돌은 차단합니다. 적용 전에 거래소 증거와 토큰을 다시 확인합니다.
++
++비상 잠금과 paused는 유지합니다. 기존 고점5000, 원래 평가액의 as_of와 last_reconciled, 주문/보호/미해결 요청, 과거 영수증과 일별·주별 손실 이력은 보존됩니다. 미해결 요청을 자동 승인하지 않으며 일별/주별 기준 적용은 별도 복구 승인과 다릅니다.
++
++## 지원 범위와 안전 검사
++
++조회 전용 ISOLATED BTCUSDT2배, 일시 정지 EMERGENCY, 로컬 종료 주문/노출0, 실제 마지막 평가시각과 대조시각 일치, 순입출금0과 기존 추적 근거가 필요합니다. 그 시각이 현재 주 시작과 현재 일 시작보다 앞서고 7일 이내여야 합니다. 저장된 기준 날짜도 그 실제 과거 시각과 일치해야 합니다. 7일을 넘으면 범위를 확대해 추정하지 않고 차단합니다.
++
++원래 주문 ID로 과거 체결 진입/종료도 확인합니다. 그 이후 BTCUSDT 체결이나 USDT 수입기록은 금액이0이거나 합계가0이어도 한 건이라도 있으면 차단합니다. 현재 모든 포지션/활성 주문0, USDT 현금=평가액=과거 실제 평가액, USDT 미실현손익0, 계정 합계가USDT 금액과 일치해야 합니다. USDC/BTC 잔액을 USDT 기준에 더하지 않습니다. 기존 일별/주별/고점 손실 제한을 먼저 검사해 제한에 도달한 손실을 새 기준으로 지우지 않습니다. 증거·잔액·설정·기간이 바뀌면 차단합니다.
++
++출처는 OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE이며 account_wide_exchange_export_verified=false입니다. BTCUSDT 체결과 계정 수입/현재 상태 증거 및 운영자의 계정 전체 무활동 진술에 근거하는 제한된 경로입니다. 거래소 전체 과거 포지션 이력이나 공식 export를 검증했다고 표시하지 않습니다. 과거 시각을 현재 또는 자정으로 바꾸지 않습니다.
++
++이 수정은 현재 주간 경계를 넘은 정지 상태의 검토 절차입니다. 실제 새 자동 매매 검증 성공·상시 서버 운영 완료·Phase4 전체 수락·LIVE/Phase5 전환을 뜻하지 않습니다.
+--- /dev/null
++++ b/PERIOD_VALIDATION_KO.md
+@@ -0,0 +1,27 @@
++# 정지 기간의 일별·주별 기준 복원 검증
++
++## 확인된 사용자 상태
++
++2026-10-30 사용자는 마지막 DEMO 검증/비상 청산 이후 수동·다른 봇 거래·입출금이 없었다고 확인했습니다. 조회 화면의 마지막 대조/평가 시각은 2026-10-24T03:03:44.968408Z이며 실제 당시 평가액4999.64804199 USDT, 일별 기준4999.74584261, 주별 기준5000, 고점5000, 순입출금0, 로컬 포지션0/EMERGENCY/paused였습니다. 이후 조회에서 현재 현금/평가액은 동일하고 이후 BTCUSDT 체결0/수입기록0/현재 포지션0/활성 주문0이 확인됐습니다. 현재 원격 거래소 증거는 CLI 검토와 적용에서 다시 조회하며 그 화면만으로 기준을 쓰지 않습니다.
++
++## 구현과 보존
++
++새 demo_period_review와 review_demo_periods CLI, 기본값이 있는 AttestedPeriodBaseline 영수증/원장 맵, 신규 통합 테스트를 추가했습니다. DB 스키마/정책/원래 account_risk·coherent_snapshot·주문/보호/청산 실행·SDK·스냅샷·저장소·run_demo·Docker/Compose·기존 복구/일별/export 경로는 변경하지 않았습니다. 원래 자동 위험 검사를 우회하거나 모든 날짜/주간 변경을 자동 승인하지 않습니다.
++
++실제 대조시각이 현재 주간/일별 경계 이전이며7일 이내인, 별도 무활동 진술이 있는 조회 전용 DEMO/ISOLATED/BTCUSDT2배 정지 계정만 지원합니다. 기존 순입출금과 수입 추적 근거, 원장 종료 상태, 원래 ID의 체결 진입과 완료 종료, 현재 계정/주문/USDT 자산 범위를 검사합니다. 반복 과거 체결/수입 조회의 확인 종료시각을 늘리며 한 건이라도 발견되면 금액과 무관하게 차단합니다.
++
++새 기준은 해당 과거 실제 평가액=현재 USDT 현금=현재 평가액일 때만 제안합니다. 기존 손실 제한과 고점 제한을 먼저 검사합니다. 다른 자산/미실현손익/설정/기간/스냅샷 변화는 통과시키지 않습니다. 고점이 현재 잔액보다 낮으면 별도 검토로 남깁니다. 운영자 진술을 사용했음을 명시하고 거래소 전체 과거 이력을 증명했다고 표시하지 않습니다.
++
++기본 CLI는 lease·DB 변경이 없는 검토입니다. 적용은 별도 출처 수락/검토 토큰/UUID가 필요하고 lease/fence로 직렬화된 한 트랜잭션에서 재조회 후 두 기준+출처 영수증/작업 감사만 변경합니다. 실제 과거 평가 타임스탬프·고점·비상 잠금/일시 정지·원래 주문과 미해결 요청은 유지합니다. 같은 작업의 재실행은 무동작이며 다른 토큰, 작업 충돌, 증거 변화, stale fence는 차단합니다. 거래소 POST/DELETE/export 호출은 없습니다.
++
++## 실제 테스트 결과
++
++새 PostgreSQL 통합 테스트59개 통과(26.82초). 10월24일 실제 형식의 평가액/기준을 두고10월30일까지 무활동인 합성 계정의 검토/적용/감사/멱등성을 재현합니다. 잘못된 컨텍스트·원장/기간/추적 근거, 거래/수수료/입출금(0원 포함), 잔액/자산/미실현손익 불일치, 열린 포지션/주문/보호, 과거 종료 불일치, 반복 조회 중 새 기록, 기존 손실 제한/고점, 오래된 fence·토큰/작업 충돌, 검토 후 새 거래를 차단합니다. CLI 검토는 쓰기/lease 없이 실행되고 키가 출력되지 않는지, 적용 인자와 수락이 필요한지, 적용 후에도 EMERGENCY/paused와 과거 기록이 보존되는지 확인했습니다.
++
++- 전체 pytest: 759 passed in 179.97s (0:02:59). TEST_DATABASE_URL은 실제 로컬 PostgreSQL.
++- Ruff check: All checks passed. Ruff format --check: 227 files already formatted.
++- mypy: Success, no issues found in 83 source files.
++- 부모 ZIP SHA-256: ffa190d92faafa02954041864ad03d338bb726f1a2101400c81de67a65c5c298. 새 ZIP은 부모의268개 파일에5개를 추가하고 모델1개만 변경합니다. 패키징에서 변경 파일 목록·전 파일 SHA-256·ZIP CRC와 누락을 검사합니다.
++- main: 64e9e7b3d833824c763a2a0f2df1493300744121 유지. 별도 windows-demo-period-review-20261030 전송 브랜치로 게시합니다.
++
++시험은 실제 로컬 PostgreSQL+합성 거래소 응답으로 실행했습니다. 클라우드에서 인증된 Binance 계정 변경이나 주문을 실행하지 않았습니다. 사용자 Windows의 새 CLI 검토/기준 채택/별도 복구/새 자동 매매 수락은 아직 완료되지 않았습니다. 부분 체결·연결 끊김·재시작 등 Phase4의 실제 운영 수락을 대신하지 않습니다.
+--- /dev/null
++++ b/scripts/review_demo_periods.py
+@@ -0,0 +1,151 @@
++"""Preview an operator-attested day/week baselines; explicit source acceptance is required to apply."""
++
++import argparse
++import getpass
++import json
++import os
++import re
++import warnings
++from decimal import DecimalException
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked
++from services.execution.demo_period_review import (
++    PeriodReviewBlocked,
++    apply_periods,
++    review_periods,
++)
++from services.risk.paper import RiskRejected
++
++ACCOUNT_ID = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--attest-no-activity-since-anchor", action="store_true")
++    parser.add_argument("--accept-operator-evidence", action="store_true")
++    parser.add_argument("--apply-review")
++    parser.add_argument("--operation-id", type=UUID)
++    args = parser.parse_args()
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("PERIOD_CONTEXT", "LIVE_CONTEXT_FORBIDDEN")
++    if not args.attest_no_activity_since_anchor:
++        blocked("PERIOD_ATTESTATION", "EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
++    if (
++        bool(args.apply_review) != args.accept_operator_evidence
++        or bool(args.apply_review) != bool(args.operation_id)
++        or (args.apply_review and not re.fullmatch(r"[0-9a-f]{64}", args.apply_review))
++    ):
++        blocked("PERIOD_ARGUMENTS", "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED")
++    engine = None
++    lease = None
++    store = None
++    stage = "CREDENTIAL_INPUT"
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
++        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, DemoCredentials.from_environment())
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = ACCOUNT_ID
++        if args.apply_review:
++            stage = "PERIOD_APPLY"
++            lease = store.acquire(account, uuid4())
++            result = apply_periods(
++                store,
++                lease,
++                client,
++                args.operation_id,
++                args.apply_review,
++                attest_no_activity=args.attest_no_activity_since_anchor,
++                accept_operator_evidence=args.accept_operator_evidence,
++            )
++            after = store.read(account)
++            print(
++                json.dumps(
++                    {
++                        "period_baselines": result,
++                        "source": "OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE",
++                        "account_wide_exchange_export_verified": False,
++                        "operation_id": str(args.operation_id),
++                        "risk_state": after.risk_state.value,
++                        "paused": after.paused,
++                        "unresolved_requests_acknowledged": False,
++                        "period_baselines_changed": result != "ALREADY_RECORDED_NO_ACTION",
++                        "weekly_baseline_changed": result != "ALREADY_RECORDED_NO_ACTION",
++                        "high_water_preserved": True,
++                        "recovery_eligible": False,
++                        "orders_enabled": False,
++                        "live_trading_enabled": False,
++                    }
++                )
++            )
++        else:
++            before = store.read(account)
++            stage = "PERIOD_PREVIEW"
++            report = review_periods(
++                store,
++                client,
++                before,
++                account_id=account,
++                attest_no_activity=args.attest_no_activity_since_anchor,
++            )
++            if store.read(account) != before:
++                raise PeriodReviewBlocked("DATABASE_CHANGED_DURING_REVIEW")
++            print(json.dumps(report))
++    except (
++        PeriodReviewBlocked,
++        DayReviewBlocked,
++        HistoryBlocked,
++    ) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except RiskRejected:
++        blocked(stage, "LEASE_OR_RISK_GATE_REJECTED")
++    except (ValueError, EOFError, DecimalException, KeyError, TypeError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++        except (RiskRejected, SQLAlchemyError):
++            blocked("LEASE_RELEASE", "LEASE_RELEASE_NOT_CONFIRMED_KEEP_LOCK")
++        finally:
++            if engine is not None:
++                engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -61,6 +61,24 @@
+     )
+ 
+ 
++class AttestedPeriodBaseline(State):
++    review_token: str
++    source: Literal["OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE"]
++    day_boundary_utc: datetime
++    week_boundary_utc: datetime
++    baseline_usdt: PositiveDecimal
++    old_daily_key: str
++    old_daily_base: PositiveDecimal
++    old_weekly_key: str
++    old_weekly_base: PositiveDecimal
++    anchor_utc: datetime
++    signed_evidence_until_utc: datetime
++    attested_until_utc: datetime
++    signed_evidence_hash: str
++    exchange_fingerprint: str
++    account_wide_exchange_export_verified: Literal[False] = False
++
++
+ class DemoLedger(Ledger):
+     mode: Literal["DEMO"] = "DEMO"
+     policy: DemoPolicy
+@@ -86,6 +104,7 @@
+     )
+     attested_day_baselines: dict[str, AttestedDayBaseline] = Field(default_factory=dict)
+     exit_anchored_day_baselines: dict[str, ExitAnchoredDayBaseline] = Field(default_factory=dict)
++    attested_period_baselines: dict[str, AttestedPeriodBaseline] = Field(default_factory=dict)
+     requests: dict[str, str] = Field(default_factory=dict)
+     request_no_send_evidence: dict[
+         str,
+--- /dev/null
++++ b/services/execution/demo_period_review.py
+@@ -0,0 +1,375 @@
++"""Manual-source flat day/week reconstruction; never an automatic risk-lock reset."""
++
++import hashlib
++import json
++import re
++from datetime import UTC, datetime, time
++from decimal import Decimal
++from typing import Final
++from uuid import UUID
++from zoneinfo import ZoneInfo
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number, snapshot
++from packages.domain.contracts import OrderState, PositionState, RiskState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_day_review import income_window
++from services.execution.demo_history_review import trades_window
++from services.execution.demo_models import AttestedPeriodBaseline, DemoLedger, DemoSnapshot
++from services.execution.models import Lease
++from services.execution.paper import account_risk
++from services.risk.paper import AccountValue, period_keys
++
++SOURCE: Final = "OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE"
++OPERATION = "OPERATOR_ATTESTED_PERIOD_BASELINES"
++CODES = frozenset(
++    {
++        "EXPLICIT_OPERATOR_ATTESTATION_REQUIRED",
++        "EXPLICIT_MANUAL_SOURCE_ACCEPTANCE_REQUIRED",
++        "READ_ONLY_PAUSED_ISOLATED_CONTEXT_REQUIRED",
++        "INVALID_LOCAL_FLAT_ANCHOR",
++        "PERIOD_OR_ANCHOR_WINDOW_UNSUPPORTED",
++        "NONZERO_OR_UNVERIFIED_DEPOSIT_BASIS",
++        "CURRENT_EXPOSURE_OR_ACTIVE_ORDER",
++        "HISTORICAL_FILLED_ORDER_NOT_VERIFIED",
++        "SETTINGS_OR_TRANSFER_MISMATCH",
++        "POST_ANCHOR_HISTORY_NOT_EMPTY",
++        "USDT_ASSET_SCOPE_OR_BALANCE_MISMATCH",
++        "ACCOUNT_OR_PERIOD_CHANGED",
++        "EXISTING_LOSS_LIMIT_REACHED",
++        "HIGH_WATER_REQUIRES_SEPARATE_REVIEW",
++        "RECONSTRUCTED_RISK_GATES_FAILED",
++        "PERIOD_OPERATION_CONFLICT",
++        "PERIOD_PREVIEW_CHANGED",
++        "DATABASE_CHANGED_DURING_REVIEW",
++    }
++)
++TERMINAL = {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++
++
++class PeriodReviewBlocked(DemoFailure):
++    def __init__(self, code: str):
++        super().__init__(code if code in CODES else "PERIOD_REVIEW_BLOCKED")
++
++
++def _flat_truth(ledger: DemoLedger, remote: DemoSnapshot) -> None:
++    if (
++        any(remote.positions.values())
++        or remote.margin_used != 0
++        or any(
++            r["status"] not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED"}
++            for r in remote.orders.values()
++        )
++        or any(
++            r["algoStatus"] not in {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++            for r in remote.algos.values()
++        )
++    ):
++        raise PeriodReviewBlocked("CURRENT_EXPOSURE_OR_ACTIVE_ORDER")
++    if (
++        remote.leverage.get("BTCUSDT") != 2
++        or remote.margin_types.get("BTCUSDT") != "ISOLATED"
++        or remote.transfers != ledger.income_seen
++    ):
++        raise PeriodReviewBlocked("SETTINGS_OR_TRANSFER_MISMATCH")
++    for order in ledger.orders.values():
++        if not order.filled:
++            continue  # Zero-fill legacy UNKNOWN requests remain unresolved and unchanged.
++        entry = remote.orders.get(order.client_id)
++        exit_row = remote.orders.get(order.exit_id or "")
++        if (
++            not entry
++            or not exit_row
++            or order.exit_state != "FILLED"
++            or entry["symbol"] != "BTCUSDT"
++            or entry["clientOrderId"] != order.client_id
++            or entry["positionSide"] != "BOTH"
++            or entry["side"] != ("BUY" if order.signal.direction == "LONG" else "SELL")
++            or entry["type"] != "LIMIT"
++            or entry["reduceOnly"] != "false"
++            or entry["status"] not in {"FILLED", "CANCELED", "EXPIRED"}
++            or signed_number(entry["origQty"]) != order.quantity
++            or signed_number(entry["executedQty"]) != order.filled
++            or signed_number(entry["price"]) != order.signal.suggested_limit_price
++            or (order.server_order_id is not None and entry["orderId"] != order.server_order_id)
++            or exit_row["symbol"] != "BTCUSDT"
++            or exit_row["clientOrderId"] != order.exit_id
++            or exit_row["positionSide"] != "BOTH"
++            or exit_row["side"] != ("SELL" if order.signal.direction == "LONG" else "BUY")
++            or exit_row["reduceOnly"] != "true"
++            or exit_row["status"] != "FILLED"
++            or signed_number(exit_row["executedQty"]) != order.filled
++        ):
++            raise PeriodReviewBlocked("HISTORICAL_FILLED_ORDER_NOT_VERIFIED")
++
++
++def review_periods(
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    account_id: str,
++    attest_no_activity: bool,
++) -> dict[str, object]:
++    if not attest_no_activity:
++        raise PeriodReviewBlocked("EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
++    if (
++        not account_id.startswith("DEMO-")
++        or len(account_id) > 80
++        or client.settings.demo_trading_enabled
++        or client.settings.policy != ledger.policy
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.risk_state != RiskState.EMERGENCY
++        or not ledger.paused
++        or ledger.verified_leverage.get("BTCUSDT") != 2
++    ):
++        raise PeriodReviewBlocked("READ_ONLY_PAUSED_ISOLATED_CONTEXT_REQUIRED")
++    anchor = ledger.last_reconciled
++    if (
++        anchor is None
++        or ledger.value.as_of != anchor
++        or any(ledger.positions.values())
++        or not ledger.orders
++        or any(
++            o.state not in TERMINAL
++            or o.position_state != PositionState.CLOSED
++            or o.remaining
++            or o.open_quantity
++            or o.actual_risk
++            or o.protected
++            for o in ledger.orders.values()
++        )
++    ):
++        raise PeriodReviewBlocked("INVALID_LOCAL_FLAT_ANCHOR")
++    if (
++        ledger.net_transfers != 0
++        or ledger.value.net_deposits != 0
++        or ledger.income_seen
++        or ledger.income_since_ms is None
++        or ledger.income_since_ms > int(anchor.timestamp() * 1000)
++    ):
++        raise PeriodReviewBlocked("NONZERO_OR_UNVERIFIED_DEPOSIT_BASIS")
++    now = store.now()
++    day, week = period_keys(now, ledger.policy.week_start_kst)
++    day_boundary = datetime.combine(
++        datetime.fromisoformat(day).date(), time(), ZoneInfo("Asia/Seoul")
++    ).astimezone(UTC)
++    week_boundary = datetime.combine(
++        datetime.fromisoformat(week).date(), time(), ZoneInfo("Asia/Seoul")
++    ).astimezone(UTC)
++    if (
++        not anchor < week_boundary <= day_boundary <= now
++        or not 0 < (now - anchor).total_seconds() <= 7 * 86400
++        or (ledger.daily_key, ledger.weekly_key)
++        != period_keys(anchor, ledger.policy.week_start_kst)
++        or ledger.daily_key >= day
++        or ledger.weekly_key >= week
++    ):
++        raise PeriodReviewBlocked("PERIOD_OR_ANCHOR_WINDOW_UNSUPPORTED")
++    start = int(anchor.timestamp() * 1000)
++    client.sync_clock()
++    first = snapshot(client, ledger, store.now())
++    _flat_truth(ledger, first)
++    end = int(store.now().timestamp() * 1000)
++    if trades_window(client, start, end) or income_window(client, start, end):
++        raise PeriodReviewBlocked("POST_ANCHOR_HISTORY_NOT_EMPTY")
++    client.sync_clock()
++    raw = client.request("GET", "/fapi/v3/account")
++    if not isinstance(raw, dict) or not isinstance(raw.get("assets"), list):
++        raise PeriodReviewBlocked("USDT_ASSET_SCOPE_OR_BALANCE_MISMATCH")
++    usdt = [r for r in raw["assets"] if isinstance(r, dict) and r.get("asset") == "USDT"]
++    if len(usdt) != 1:
++        raise PeriodReviewBlocked("USDT_ASSET_SCOPE_OR_BALANCE_MISMATCH")
++    wallet = signed_number(usdt[0].get("walletBalance"))
++    if (
++        wallet <= 0
++        or wallet != ledger.value.equity
++        or signed_number(usdt[0].get("marginBalance")) != wallet
++        or signed_number(usdt[0].get("unrealizedProfit")) != 0
++        or signed_number(raw.get("totalWalletBalance")) != wallet
++        or signed_number(raw.get("totalMarginBalance")) != wallet
++        or signed_number(raw.get("totalUnrealizedProfit")) != 0
++    ):
++        raise PeriodReviewBlocked("USDT_ASSET_SCOPE_OR_BALANCE_MISMATCH")
++    # Repeat through a later cutoff, not merely the first fixed window.
++    cutoff = store.now()
++    end = int(cutoff.timestamp() * 1000)
++    if trades_window(client, start, end) or income_window(client, start, end):
++        raise PeriodReviewBlocked("POST_ANCHOR_HISTORY_NOT_EMPTY")
++    client.sync_clock()
++    final = snapshot(client, ledger, store.now())
++    _flat_truth(ledger, final)
++    if (
++        first.fingerprint != final.fingerprint
++        or first.wallet_balance != wallet
++        or final.wallet_balance != wallet
++        or first.equity != wallet
++        or final.equity != wallet
++        or not 0
++        <= (store.now() - final.as_of).total_seconds()
++        <= ledger.policy.max_snapshot_age_seconds
++        or period_keys(store.now(), ledger.policy.week_start_kst) != (day, week)
++    ):
++        raise PeriodReviewBlocked("ACCOUNT_OR_PERIOD_CHANGED")
++    for base, cap in (
++        (ledger.daily_base, "daily_loss_limit_pct"),
++        (ledger.weekly_base, "weekly_loss_limit_pct"),
++        (ledger.high_water, "max_drawdown_pct"),
++    ):
++        if (base - wallet) / base * 100 >= ledger.policy.limit(cap):
++            raise PeriodReviewBlocked("EXISTING_LOSS_LIMIT_REACHED")
++    if ledger.high_water < wallet:
++        raise PeriodReviewBlocked("HIGH_WATER_REQUIRES_SEPARATE_REVIEW")
++    probe = ledger.model_copy(deep=True)
++    probe.daily_key, probe.weekly_key = day, week
++    probe.daily_base = probe.weekly_base = wallet
++    probe.value = AccountValue(
++        as_of=store.now(),
++        initial=ledger.value.initial,
++        realized=wallet - ledger.value.initial,
++        net_deposits=Decimal(0),
++    )
++    probe.risk_state = RiskState.NORMAL
++    account_risk(probe, store.now())
++    if probe.risk_state != RiskState.NORMAL:
++        raise PeriodReviewBlocked("RECONSTRUCTED_RISK_GATES_FAILED")
++    evidence = hashlib.sha256(
++        json.dumps(
++            {
++                "anchor": anchor.isoformat(),
++                "wallet": str(wallet),
++                "snapshot": final.fingerprint,
++                "btc_trades": {},
++                "usdt_income": {},
++            },
++            sort_keys=True,
++        ).encode()
++    ).hexdigest()
++    token = hashlib.sha256(
++        json.dumps(
++            {
++                "account": account_id,
++                "source": SOURCE,
++                "ledger": ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"}),
++                "day": day,
++                "week": week,
++                "evidence": evidence,
++            },
++            sort_keys=True,
++        ).encode()
++    ).hexdigest()
++    return {
++        "review": "OPERATOR_ATTESTED_PERIOD_PREVIEW_NO_DATABASE_CHANGE",
++        "account_id": account_id,
++        "source": SOURCE,
++        "review_token": token,
++        "old_day_kst": ledger.daily_key,
++        "old_daily_base_usdt": str(ledger.daily_base),
++        "old_week_kst": ledger.weekly_key,
++        "old_weekly_base_usdt": str(ledger.weekly_base),
++        "proposed_day_kst": day,
++        "proposed_week_kst": week,
++        "day_boundary_utc": day_boundary.isoformat(),
++        "week_boundary_utc": week_boundary.isoformat(),
++        "proposed_daily_base_usdt": str(wallet),
++        "proposed_weekly_base_usdt": str(wallet),
++        "net_deposit_basis_usdt": "0",
++        "anchor_utc": anchor.isoformat(),
++        "signed_evidence_until_utc": cutoff.isoformat(),
++        "signed_evidence_hash": evidence,
++        "exchange_fingerprint": final.fingerprint,
++        "post_anchor_btc_trades": 0,
++        "post_anchor_income_records": 0,
++        "operator_attestation_used": True,
++        "account_wide_exchange_export_verified": False,
++        "high_water_preserved": True,
++        "old_valuation_timestamp_preserved": True,
++        "requests_preserved": True,
++        "risk_state": ledger.risk_state.value,
++        "paused": ledger.paused,
++        "database_changed": False,
++        "unresolved_requests_acknowledged": False,
++        "recovery_eligible": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def apply_periods(
++    store: DemoStore,
++    lease: Lease,
++    client: DemoClient,
++    operation_id: UUID,
++    expected_token: str,
++    *,
++    attest_no_activity: bool,
++    accept_operator_evidence: bool,
++) -> str:
++    if (
++        not attest_no_activity
++        or not accept_operator_evidence
++        or not re.fullmatch(r"[0-9a-f]{64}", expected_token)
++    ):
++        raise PeriodReviewBlocked("EXPLICIT_MANUAL_SOURCE_ACCEPTANCE_REQUIRED")
++    if client.settings.demo_trading_enabled:
++        raise PeriodReviewBlocked("READ_ONLY_PAUSED_ISOLATED_CONTEXT_REQUIRED")
++
++    def apply(ledger: DemoLedger) -> str:
++        key = str(operation_id)
++        receipt = ledger.attested_period_baselines.get(key)
++        if receipt is not None:
++            if receipt.review_token != expected_token or ledger.operations.get(key) != OPERATION:
++                raise PeriodReviewBlocked("PERIOD_OPERATION_CONFLICT")
++            return "ALREADY_RECORDED_NO_ACTION"
++        if any(
++            key in records
++            for records in (
++                ledger.operations,
++                ledger.recovery_receipts,
++                ledger.cancelled_exposure_corrections,
++                ledger.attested_day_baselines,
++                ledger.exit_anchored_day_baselines,
++            )
++        ):
++            raise PeriodReviewBlocked("PERIOD_OPERATION_CONFLICT")
++        report = review_periods(
++            store,
++            client,
++            ledger,
++            account_id=lease.account_id,
++            attest_no_activity=attest_no_activity,
++        )
++        if report["review_token"] != expected_token:
++            raise PeriodReviewBlocked("PERIOD_PREVIEW_CHANGED")
++        receipt = AttestedPeriodBaseline(
++            review_token=expected_token,
++            source=SOURCE,
++            day_boundary_utc=datetime.fromisoformat(str(report["day_boundary_utc"])),
++            week_boundary_utc=datetime.fromisoformat(str(report["week_boundary_utc"])),
++            baseline_usdt=Decimal(str(report["proposed_daily_base_usdt"])),
++            old_daily_key=ledger.daily_key,
++            old_daily_base=ledger.daily_base,
++            old_weekly_key=ledger.weekly_key,
++            old_weekly_base=ledger.weekly_base,
++            anchor_utc=datetime.fromisoformat(str(report["anchor_utc"])),
++            signed_evidence_until_utc=datetime.fromisoformat(
++                str(report["signed_evidence_until_utc"])
++            ),
++            attested_until_utc=store.now(),
++            signed_evidence_hash=str(report["signed_evidence_hash"]),
++            exchange_fingerprint=str(report["exchange_fingerprint"]),
++        )
++        ledger.daily_key, ledger.weekly_key = (
++            str(report["proposed_day_kst"]),
++            str(report["proposed_week_kst"]),
++        )
++        ledger.daily_base = ledger.weekly_base = receipt.baseline_usdt
++        ledger.attested_period_baselines[key] = receipt
++        ledger.operations[key] = OPERATION
++        ledger.reconciled = ledger.stream_ready = False
++        return "OPERATOR_ATTESTED_PERIOD_BASELINES_ADOPTED_KEEP_LOCK"
++
++    return store.change(lease, "DEMO_OPERATOR_ATTESTED_PERIOD_BASELINES", apply)
+--- /dev/null
++++ b/tests/integration/test_demo_period_review.py
+@@ -0,0 +1,505 @@
++"""Fenced manual day/week reconstruction with real PG and synthetic signed truth."""
++
++from datetime import UTC, datetime, timedelta
++from decimal import Decimal
++from urllib.parse import parse_qs
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import select
++
++from integrations.binance_usdm.demo import DemoFailure
++from packages.domain.contracts import PositionState, RiskState
++from packages.persistence.demo import events
++from services.execution.demo_period_review import (
++    SOURCE,
++    PeriodReviewBlocked,
++    apply_periods,
++    review_periods,
++)
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction, event_count  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.unit.test_demo_trade_history_window import row
++
++
++@pytest.fixture
++def period_case(day_case):  # noqa: F811
++    store, c, fake, rows, incomes, raw_updates = day_case
++    store.release(c.lease)
++    fake.at = datetime(2026, 10, 24, 3, 3, 44, 968408, tzinfo=UTC)
++    c.lease = store.acquire("DEMO-test", uuid4())
++    fake.wallet = Decimal("4999.64804199")
++
++    def bind(ledger):
++        ledger.value = ledger.value.model_copy(
++            update={"as_of": fake.at, "initial": Decimal(5000), "realized": fake.wallet - 5000}
++        )
++        ledger.last_reconciled = fake.at
++        ledger.daily_key = "2026-10-24"
++        ledger.weekly_key = "2026-10-19"
++        ledger.daily_base = Decimal("4999.74584261")
++        ledger.weekly_base = ledger.high_water = Decimal(5000)
++
++    store.change(c.lease, "TEST_VERIFIED_FLAT_PRE_WEEK_ANCHOR", bind)
++    store.release(c.lease)
++    fake.at = datetime(2026, 10, 30, 4, tzinfo=UTC)
++    c.lease = store.acquire("DEMO-test", uuid4())
++    original = c.client.send
++
++    def audited(method, path, query, key):
++        if path in {"/fapi/v1/income", "/fapi/v1/userTrades"}:
++            params = {
++                k: v[0]
++                for k, v in parse_qs(query.get_secret_value()).items()
++                if k not in {"signature", "timestamp", "recvWindow"}
++            }
++            fake.calls.append((method, path, params))
++        return original(method, path, query, key)
++
++    c.client.send = audited
++    c.client.sync_clock()
++    return day_case
++
++
++def review(case, attest=True, state=None):
++    store, c, *_ = case
++    return review_periods(
++        store,
++        c.client,
++        state or store.read("DEMO-test"),
++        account_id="DEMO-test",
++        attest_no_activity=attest,
++    )
++
++
++def apply(case, token, op=None, attest=True, accept=True, lease=None):
++    store, c, *_ = case
++    return apply_periods(
++        store,
++        lease or c.lease,
++        c.client,
++        op or uuid4(),
++        token,
++        attest_no_activity=attest,
++        accept_operator_evidence=accept,
++    )
++
++
++def test_preview_matches_six_day_idle_gap_without_writes(period_case):
++    store, c, fake, *_ = period_case
++    before = store.read("DEMO-test")
++    count = event_count(store)
++    start = len(fake.calls)
++    report = review(period_case)
++    assert report["source"] == SOURCE
++    assert report["proposed_day_kst"] == "2026-10-30"
++    assert report["proposed_week_kst"] == "2026-10-26"
++    assert report["week_boundary_utc"] == "2026-10-25T15:00:00+00:00"
++    assert report["day_boundary_utc"] == "2026-10-29T15:00:00+00:00"
++    assert (
++        report["proposed_daily_base_usdt"] == report["proposed_weekly_base_usdt"] == "4999.64804199"
++    )
++    assert report["account_wide_exchange_export_verified"] is False
++    assert report["operator_attestation_used"] is True
++    assert report["recovery_eligible"] is False
++    assert store.read("DEMO-test") == before and event_count(store) == count
++    assert all(m == "GET" and "asyn" not in p for m, p, _ in fake.calls[start:])
++    # Both signed history reads use the flat anchor, not the earliest old order.
++    starts = [
++        p["startTime"]
++        for m, path, p in fake.calls[start:]
++        if path == "/fapi/v1/income" and "startTime" in p
++    ]
++    assert str(int(before.last_reconciled.timestamp() * 1000)) in starts
++
++
++def test_apply_only_changes_two_periods_and_audit_preserves_lock_timestamps_requests(period_case):
++    store, c, fake, *_ = period_case
++    before = store.read("DEMO-test")
++    token = review(period_case)["review_token"]
++    op = uuid4()
++    assert apply(period_case, token, op) == "OPERATOR_ATTESTED_PERIOD_BASELINES_ADOPTED_KEEP_LOCK"
++    after = store.read("DEMO-test")
++    excluded = {
++        "daily_key",
++        "daily_base",
++        "weekly_key",
++        "weekly_base",
++        "attested_period_baselines",
++        "operations",
++        "reconciled",
++        "stream_ready",
++    }
++    assert before.model_dump(exclude=excluded) == after.model_dump(exclude=excluded)
++    assert after.daily_key == "2026-10-30" and after.weekly_key == "2026-10-26"
++    assert after.daily_base == after.weekly_base == fake.wallet
++    assert after.high_water == 5000 and after.paused and after.risk_state == RiskState.EMERGENCY
++    assert after.requests["DX-old-ambiguous"] == "SUBMITTING"
++    assert after.requests["DS-old-ambiguous"] == "UNKNOWN"
++    receipt = after.attested_period_baselines[str(op)]
++    assert receipt.old_weekly_key == "2026-10-19" and receipt.old_weekly_base == 5000
++    assert receipt.old_daily_key == "2026-10-24" and receipt.old_daily_base == before.daily_base
++    assert (
++        receipt.anchor_utc == before.last_reconciled
++        and not receipt.account_wide_exchange_export_verified
++    )
++    with store.engine.connect() as conn:
++        payload = conn.execute(
++            select(events.c.payload).where(
++                events.c.kind == "DEMO_OPERATOR_ATTESTED_PERIOD_BASELINES"
++            )
++        ).scalar_one()
++    assert token in payload and SOURCE in payload
++    calls = len(fake.calls)
++    assert apply(period_case, token, op) == "ALREADY_RECORDED_NO_ACTION"
++    assert len(fake.calls) == calls and store.read("DEMO-test") == after
++
++
++@pytest.mark.parametrize("attest,accept", [(False, True), (True, False), (False, False)])
++def test_apply_needs_attestation_and_manual_source_acceptance(period_case, attest, accept):
++    before = period_case[0].read("DEMO-test")
++    start = len(period_case[2].calls)
++    with pytest.raises(PeriodReviewBlocked, match="MANUAL_SOURCE_ACCEPTANCE"):
++        apply(period_case, "0" * 64, attest=attest, accept=accept)
++    assert period_case[0].read("DEMO-test") == before and len(period_case[2].calls) == start
++
++
++def test_no_attestation_no_network(period_case):
++    start = len(period_case[2].calls)
++    with pytest.raises(PeriodReviewBlocked, match="ATTESTATION_REQUIRED"):
++        review(period_case, False)
++    assert len(period_case[2].calls) == start
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        "live_client",
++        "wrong_scope",
++        "crossed",
++        "normal",
++        "unpaused",
++        "leverage",
++        "missing_anchor",
++        "valuation_time",
++        "positions",
++        "open_quantity",
++        "remaining",
++        "risk",
++        "protected",
++        "not_closed",
++        "entry_pending",
++        "net_transfer",
++        "deposit",
++        "income_seen",
++        "tracking_missing",
++        "tracking_late",
++        "anchor_after_week",
++        "too_old",
++        "stored_day",
++        "stored_week",
++    ],
++)
++def test_invalid_context_or_anchor_cannot_reconstruct(period_case, change):
++    store, c, fake, *_ = period_case
++    ledger = store.read("DEMO-test")
++    order = next(iter(ledger.orders.values()))
++    if change == "live_client":
++        c.client.settings = c.client.settings.model_copy(update={"demo_trading_enabled": True})
++    elif change == "wrong_scope":
++        ledger.symbols = ("ETHUSDT",)
++    elif change == "crossed":
++        ledger.margin_mode = "CROSSED"
++    elif change == "normal":
++        ledger.risk_state = RiskState.NORMAL
++    elif change == "unpaused":
++        ledger.paused = False
++    elif change == "leverage":
++        ledger.verified_leverage["BTCUSDT"] = Decimal(3)
++    elif change == "missing_anchor":
++        ledger.last_reconciled = None
++    elif change == "valuation_time":
++        ledger.value = ledger.value.model_copy(
++            update={"as_of": ledger.value.as_of + timedelta(seconds=1)}
++        )
++    elif change == "positions":
++        ledger.positions["BTCUSDT"] = Decimal(".01")
++    elif change == "open_quantity":
++        order.open_quantity = Decimal(".01")
++    elif change == "remaining":
++        order.remaining = Decimal(".01")
++    elif change == "risk":
++        order.actual_risk = Decimal(1)
++    elif change == "protected":
++        order.protected = True
++    elif change == "not_closed":
++        order.position_state = PositionState.EXIT_PENDING
++    elif change == "entry_pending":
++        order.state = "ACKNOWLEDGED"
++    elif change == "net_transfer":
++        ledger.net_transfers = Decimal(1)
++    elif change == "deposit":
++        ledger.value = ledger.value.model_copy(update={"net_deposits": Decimal(1)})
++    elif change == "income_seen":
++        ledger.income_seen["TRANSFER:1"] = "0"
++    elif change == "tracking_missing":
++        ledger.income_since_ms = None
++    elif change == "tracking_late":
++        ledger.income_since_ms = int(ledger.last_reconciled.timestamp() * 1000) + 1
++    elif change == "anchor_after_week":
++        ledger.last_reconciled = datetime(2026, 10, 27, tzinfo=UTC)
++        ledger.value = ledger.value.model_copy(update={"as_of": ledger.last_reconciled})
++    elif change == "too_old":
++        fake.at += timedelta(days=2)
++    elif change == "stored_day":
++        ledger.daily_key = "2026-10-23"
++    elif change == "stored_week":
++        ledger.weekly_key = "2026-10-12"
++    start = len(fake.calls)
++    with pytest.raises(PeriodReviewBlocked):
++        review(period_case, state=ledger)
++    assert len(fake.calls) == start
++
++
++@pytest.mark.parametrize(
++    "kind",
++    [
++        "trade",
++        "commission",
++        "transfer",
++        "zero_income",
++        "non_usdt",
++        "wallet",
++        "unrealized",
++        "no_usdt",
++        "duplicate_usdt",
++        "total",
++        "remote_position",
++        "active_order",
++        "active_algo",
++        "exit_qty",
++        "exit_not_found",
++        "entry_side",
++        "remote_leverage",
++        "changed_second_history",
++    ],
++)
++def test_signed_contradiction_beats_operator_attestation(period_case, kind):
++    store, c, fake, rows, incomes, updates = period_case
++    before = store.read("DEMO-test")
++    stamp = int(before.last_reconciled.timestamp() * 1000) + 1000
++    filled = next(o for o in before.orders.values() if o.filled)
++    if kind == "trade":
++        rows.append(row(id=99, time=stamp, orderId=999))
++    elif kind in {"commission", "transfer", "zero_income", "non_usdt"}:
++        incomes.append(
++            {
++                "incomeType": "TRANSFER" if kind == "transfer" else "COMMISSION",
++                "tranId": 99,
++                "time": stamp,
++                "income": "0" if kind == "zero_income" else "-1",
++                "asset": "BTC" if kind == "non_usdt" else "USDT",
++            }
++        )
++    elif kind == "wallet":
++        fake.wallet -= 1
++    elif kind == "unrealized":
++        updates["totalUnrealizedProfit"] = "1"
++    elif kind == "no_usdt":
++        updates["assets"] = []
++    elif kind == "duplicate_usdt":
++        updates["assets"] = [{"asset": "USDT"}, {"asset": "USDT"}]
++    elif kind == "total":
++        updates["totalMarginBalance"] = "5000"
++    elif kind == "remote_position":
++        fake.positions["BTCUSDT"] = Decimal(".001")
++    elif kind == "active_order":
++        fake.orders[filled.client_id]["status"] = "NEW"
++    elif kind == "active_algo":
++        next(iter(fake.algos.values()))["algoStatus"] = "NEW"
++    elif kind == "exit_qty":
++        fake.orders[filled.exit_id]["executedQty"] = "0"
++    elif kind == "exit_not_found":
++        fake.orders.pop(filled.exit_id)
++    elif kind == "entry_side":
++        fake.orders[filled.client_id]["side"] = "SELL"
++    elif kind == "remote_leverage":
++        fake.leverage = "3"
++    elif kind == "changed_second_history":
++        original = c.client.send
++        calls = 0
++
++        def send(method, path, query, key):
++            nonlocal calls
++            if path == "/fapi/v3/account":
++                calls += 1
++                if calls == 2:
++                    incomes.append(
++                        {
++                            "incomeType": "COMMISSION",
++                            "tranId": 99,
++                            "time": stamp,
++                            "income": "0",
++                            "asset": "USDT",
++                        }
++                    )
++            return original(method, path, query, key)
++
++        c.client.send = send
++    with pytest.raises(DemoFailure):
++        review(period_case)
++    assert store.read("DEMO-test") == before
++
++
++@pytest.mark.parametrize("field", ["daily_base", "weekly_base", "high_water"])
++def test_old_loss_limits_cannot_be_erased_by_new_baselines(period_case, field):
++    ledger = period_case[0].read("DEMO-test")
++    setattr(ledger, field, Decimal(10000))
++    with pytest.raises(PeriodReviewBlocked, match="EXISTING_LOSS_LIMIT"):
++        review(period_case, state=ledger)
++
++
++def test_low_high_water_requires_separate_review(period_case):
++    ledger = period_case[0].read("DEMO-test")
++    ledger.high_water = Decimal(4999)
++    with pytest.raises(PeriodReviewBlocked, match="HIGH_WATER"):
++        review(period_case, state=ledger)
++
++
++def test_token_conflict_and_stale_fence_roll_back(period_case):
++    store, c, fake, *_ = period_case
++    before = store.read("DEMO-test")
++    token = review(period_case)["review_token"]
++    with pytest.raises(PeriodReviewBlocked, match="PREVIEW_CHANGED"):
++        apply(period_case, "0" * 64)
++    assert store.read("DEMO-test") == before
++    op = uuid4()
++    store.change(
++        c.lease, "TEST_CONFLICT", lambda ledger: ledger.operations.__setitem__(str(op), "OTHER")
++    )
++    with pytest.raises(PeriodReviewBlocked, match="OPERATION_CONFLICT"):
++        apply(period_case, token, op)
++    old = c.lease
++    store.release(old)
++    c.lease = store.acquire("DEMO-test", uuid4())
++    with pytest.raises(RiskRejected, match="fenced"):
++        apply(period_case, token, lease=old)
++
++
++def test_new_trade_after_preview_blocks_apply_without_baseline_changes(period_case):
++    store, c, fake, rows, *_ = period_case
++    token = review(period_case)["review_token"]
++    before = store.read("DEMO-test")
++    rows.append(row(id=99, time=int(before.last_reconciled.timestamp() * 1000) + 1, orderId=999))
++    with pytest.raises(PeriodReviewBlocked, match="HISTORY_NOT_EMPTY"):
++        apply(period_case, token)
++    assert store.read("DEMO-test") == before
++
++
++def test_cli_preview_exposes_manual_source_without_lease_or_database_write(
++    period_case, monkeypatch, capsys
++):
++    import os
++    import sys
++
++    import scripts.review_demo_periods as cli
++
++    store, c, *_ = period_case
++    original = store.read
++    before = original("DEMO-test").model_dump_json()
++    count = event_count(store)
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(sys, "argv", ["review_demo_periods", "--attest-no-activity-since-anchor"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++
++    def no_write(*args):
++        raise AssertionError("Preview must not acquire, change or release")
++
++    monkeypatch.setattr(store, "acquire", no_write)
++    monkeypatch.setattr(store, "change", no_write)
++    monkeypatch.setattr(store, "release", no_write)
++    cli.main()
++    output = capsys.readouterr().out
++    assert SOURCE in output and "OPERATOR_ATTESTED_PERIOD_PREVIEW_NO_DATABASE_CHANGE" in output
++    assert '"account_wide_exchange_export_verified": false' in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
++    assert original("DEMO-test").model_dump_json() == before and event_count(store) == count
++
++
++@pytest.mark.parametrize(
++    "arguments",
++    [
++        [],
++        [
++            "--attest-no-activity-since-anchor",
++            "--apply-review",
++            "f" * 64,
++            "--operation-id",
++            "8fae5b75-99a8-40a8-9371-50f962728dc8",
++        ],
++        ["--attest-no-activity-since-anchor", "--accept-operator-evidence"],
++    ],
++)
++def test_cli_requires_attestation_and_separate_acceptance_before_apply(
++    monkeypatch, capsys, arguments
++):
++    import sys
++
++    import scripts.review_demo_periods as cli
++
++    monkeypatch.setattr(sys, "argv", ["review_demo_periods", *arguments])
++
++    def no_prompt(*args):
++        raise AssertionError("Invalid flags must not ask keys")
++
++    monkeypatch.setattr(cli.getpass, "getpass", no_prompt)
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++    assert "BLOCKED_KEEP_LOCK" in capsys.readouterr().out
++
++
++def test_cli_apply_requires_acceptance_and_preserves_emergency(period_case, monkeypatch, capsys):
++    import sys
++
++    import scripts.review_demo_periods as cli
++
++    store, c, *_ = period_case
++    token = review(period_case)["review_token"]
++    op = uuid4()
++    original_read, original_acquire = store.read, store.acquire
++    before = original_read("DEMO-test")
++    store.release(c.lease)
++    monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "review_demo_periods",
++            "--attest-no-activity-since-anchor",
++            "--accept-operator-evidence",
++            "--apply-review",
++            token,
++            "--operation-id",
++            str(op),
++        ],
++    )
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++    monkeypatch.setattr(cli, "DemoClient", lambda *a, **k: c.client)
++    monkeypatch.setattr(cli.getpass, "getpass", lambda prompt: "SYNTHETIC_PRIVATE_KEY")
++    monkeypatch.setattr(store, "acquire", lambda account, owner: original_acquire(account, owner))
++    cli.main()
++    output = capsys.readouterr().out
++    assert "OPERATOR_ATTESTED_PERIOD_BASELINES_ADOPTED_KEEP_LOCK" in output and SOURCE in output
++    assert "SYNTHETIC_PRIVATE_KEY" not in output
++    after = original_read("DEMO-test")
++    assert after.value == before.value and after.requests == before.requests
++    assert after.paused and after.risk_state.value == "EMERGENCY"
++    assert str(op) in after.attested_period_baselines
