@@ -1,0 +1,858 @@
+--- /dev/null
++++ b/RECOVERY_BATCH_START_HERE_KO.md
+@@ -0,0 +1,27 @@
++# 누적 요청을 보존하는 복구 검토
++
++기존 Galaxybook에서 ZIP을 새 windows-demo-recovery-batch-fix 폴더에 풀고, 그 폴더의 탐색기 주소창에 cmd를 입력하세요. 기존 hybrid-windows 데이터베이스와 볼륨을 유지합니다. 볼륨 삭제나 초기화를 하지 마세요.
++
++실제 DEMO 검증 한 건은 체결·SL/TP 조회 확인·청산까지 통과했습니다. 후속 로컬 조회는 포지션0, 청산 FILLED, EMERGENCY/일시 정지를 확인했습니다. 누적 요청31건이 이전 복구 검토 한도30건을 넘어 이번 보완이 필요합니다.
++
++다음 명령을 한 줄씩 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++컨테이너 교체로 메모리 키가 지워지므로 한 번 등록합니다. 키는 터미널의 숨김 입력에만 넣으세요. 이후 같은 컨테이너에서는 최대12시간 재사용합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++주문 없는 검토를 실행하고 결과를 공유하세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++상태가 그대로라면 audited_request_count=31, audit_batch_count=4, unresolved_count=2를 예상합니다. 실제 결과로 판단합니다. 이 단계는 데이터베이스를 변경하거나 주문을 제출하지 않습니다. 과거 토큰을 재사용하거나 새 거래·잠금 해제·기간 기준 재적용을 하지 마세요. 자원 한도나 거래소 조회 실패로 차단되면 잠금을 유지한 채 결과를 공유하세요.
++
++이후 별도의 최신 검토 토큰을 사용한 명시적 적용이 성공해야 비상 상태를 확인 처리할 수 있습니다. 그 경우에도 진입 일시 정지는 유지됩니다. LIVE나 Phase5 승인은 포함하지 않습니다.
+--- /dev/null
++++ b/RECOVERY_BATCH_VALIDATION_KO.md
+@@ -0,0 +1,13 @@
++# 복구 검토 보완과 검증 결과
++
++변경 전 실제 로컬 요청31건은 기존30건 제한을 넘습니다. 동일한 이전 ZIP에 새 회귀 사례를 실행하면 REQUEST_AUDIT_LIMIT로 1건 실패했습니다(1.50초). 수정판은 전체919개 테스트가 통과했습니다(216.86초). Ruff 검사·형식256파일과 mypy89소스도 통과했습니다. 관련55개 검사도 통과했습니다(12.43초). 클라우드에서는 합성 거래소 응답·로컬 WS·실제 PostgreSQL을 사용했으며 인증된 Binance 주문을 보내지 않았습니다. 새 Windows 복구 검토는 아직 확인해야 합니다.
++
++요청을 삭제하거나 오래된 항목을 생략하지 않습니다. 최대128건의 전체 요청을8개씩 나누어 각 ID를 독립 조회합니다. 기존 미해결2건의 UNKNOWN/SUBMITTING 이력도 그대로 보존하며 NOT_FOUND를 체결·취소 확정으로 바꾸지 않습니다. 새 출력은 감사 요청 수, 묶음 수, 서명 조회 수, 시각 확인 수입니다. 이 통계는 검토 토큰 입력에 포함하지 않아 묶음 크기만 바꿔도 토큰은 같습니다.
++
++감사 자원 한도는 서명 GET600회, 시각 확인6회, 단조 시계 기준40초입니다. 각 호출 전후에 한도를 확인하며 실패한 호출을 재시도하지 않습니다. HTTP 호출 자체는 기존 SDK 시간 제한을 따르므로40초에 진행 중 호출을 강제로 끊는다는 보장은 아닙니다. 한도 초과는 적용을 차단합니다. 기존60초 임대 및 종료 시 임대 검증도 유지합니다. 시각 표본은 필요하면20초 간격으로 갱신하되 기존 SDK의 RTT·보정값 검증은 변경하지 않습니다.128건을 넘는 누적 이력의 운영은 별도 보완이 필요합니다.
++
++처음 두 전체 스냅샷과 최종 전체 스냅샷을 비교합니다. 최종 입출금 증거와 기간·손실 한도도 다시 확인하여 검토 중 날짜 변경이나 자금 변화가 있으면 차단합니다. 기존 계정 설정·포지션0·활성 주문0·위험 한도·명시적 미해결 이력 확인·토큰·작업 UUID·중복 방지·데이터베이스 임대 검증을 유지합니다. 검토는 거래소 GET만 허용합니다. 적용은 기존 감사 상태 전이만 수행하며 주문 제출이나 진입 재개는 하지 않습니다.
++
++새 회귀 검사는31건 전부 조회, 기록 보존과 적용 중복 방지, 마지막 묶음의 활성 주문·ID 불일치·조회 실패·NOT_FOUND,129건 사전 차단, 조회/시각/시간 한도, 임대 만료 롤백, 날짜 변경, 최종 입출금 변경, 통계와 토큰 분리를 포함합니다. 기존 테스트를 삭제하거나 완화하지 않았습니다.
++
++SDK·실행 코디네이터·거래소 정합성·위험 계산·보호 주문·청산·저장 모델·Compose·키 보관·export 생성 경로는 이전 ZIP과 바이트 단위로 동일합니다. 복구 적용 함수도 동일합니다. 전체 Phase4 수락, 무인 장시간 운영, LIVE/Phase5 완료를 주장하지 않습니다. 실제 기본 흐름 성공과 후속 상태는 WINDOWS_DEMO_ACCEPTANCE_20261030_KO.md에 기록했습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ACCEPTANCE_20261030_KO.md
+@@ -0,0 +1,31 @@
++# Windows 실제 DEMO 검증 기록 — 2026-10-30
++
++사용자가 공유한 최종 터미널 캡처에서 다음 한 건의 실제 거래소 DEMO 기본 흐름 통과를 확인했습니다. 이 기록은 Phase4 전체 수락이나 LIVE/Phase5 승인이 아닙니다.
++
++- 배포판: windows-demo-event-clock-fix-20261030, commit fed3f9a0123b8803fabae0886fe3678bdeddae1b
++- ZIP SHA-256: 36f3e3d09db96e7341200ffd58f5f4f645025c260abf7187f958577bd0034d01
++- 계정: DEMO-WINDOWS-ISOLATED-BTC-V1, ISOLATED BTCUSDT2배
++- 작업: 2d454f68-622d-49f6-9a7e-969b71f0e247
++- 방식: DEMO_VALIDATION/LONG/OPPOSITE_QUOTE/LIMIT
++- 수량/수량cap: 0.0007 BTC
++- 제시된 진입 지정가: 77395.70 USDT(실제 평균 체결가로 해석하지 않음)
++- 손절/익절 제시가: 76925.00 / 78169.70 USDT
++- 결과: FINISHED_FLAT, entry_filled=true, FULL_FILL, entry_state=FILLED, position_state=CLOSED
++- stop_verified=true, target_verified=true, filled_protection_and_flat_verified=true
++- session_error=false, session_failure=NONE, completion_failure=NONE, completion_database_failure=NONE
++- 수신6개 / 합친 유효 알림5개
++- 진입 준비 콜백20174ms, 검증된 시각 중간 보정값102ms / RTT146ms / 추가 시각 대기 요청0ms
++- 이벤트 진단 code=NONE, 종료 시 stage=RECEIVE, 현재 event_kind=NONE / event_age_ms=null
++- 마지막 event_local_age_ms21393은 종료 시 현재 이벤트 나이로 단정하지 않음(마지막 진단 표본일 수 있음)
++- 마지막 스냅샷 불일치필드[], 초기 체결 추가 경로 미사용(initial_fill_settled=false)
++- live_trading_enabled=false
++
++SL·TP는 거래소에서 접수·조회 확인된 것이며 실제 손절/익절 트리거 체결을 이 캡처로 확인한 것은 아닙니다. 검증 종료의 reduce-only 청산/최종0포지션 확인을 통과한 한 건입니다. 실제 부분 체결·연결 끊김·실행 중 프로세스 재시작·무인 장시간 운영·원본 WS 이력 장기 보관 등의 전체 수락은 별도입니다. 클라우드 합성895개 검사 통과를 실제 수락 개수와 혼동하지 않습니다.
++
++종료 코드는 완료 후 PAUSE/EMERGENCY_FLATTEN 경로를 거치므로 일시 정지·비상 상태를 유지하는 설계입니다. 캡처는 risk_state/paused를 직접 출력하지 않았으므로 별도 로컬 조회로 현 상태를 확인해야 합니다. 다음 새 진입을 자동 시작하거나 이 완료 작업을 임의로 반복하지 않습니다.
++
++다음 준비 확인: recovery.review는 누적 요청30개를 넘으면 REQUEST_AUDIT_LIMIT로 중단합니다. 기존 주문과 미해결2건을 지우지 않고 로컬 누적 요청 수를 확인한 뒤 다음 장애/복구 검증 경로를 결정합니다. 요청 수는 아직 이 결과 캡처만으로 확정하지 않았습니다.
++
++## 후속 로컬 조회 확인
++
++추가 사용자 캡처: POST_VALIDATION_READ_ONLY에서 risk_state=EMERGENCY, paused=true, tracked_requests=31, local_positions={}, order_state=FILLED, position_state=CLOSED, open_quantity=0, exit_state=FILLED를 확인했습니다. 기본 흐름 통과 후 안전한 정지 상태가 확인됐습니다. 현재30개 복구 감사 한도를 넘으므로 기록 삭제 없이 자원 제한이 있는 전체 요청 검토를 보완 필요를 확인했습니다.
+--- a/services/execution/demo_recovery.py
++++ b/services/execution/demo_recovery.py
+@@ -3,6 +3,7 @@
+ import hashlib
+ import json
+ import re
++from decimal import Decimal
+ from uuid import UUID
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+@@ -10,6 +11,12 @@
+ from packages.domain.contracts import OrderState, RiskState
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_models import DemoLedger
++from services.execution.demo_recovery_budget import (
++    AUDIT_BATCH_SIZE,
++    MAX_HISTORY_REQUESTS,
++    AuditBudgetExceeded,
++    RecoveryReadClient,
++)
+ from services.execution.models import Lease
+ from services.execution.paper import account_risk
+ from services.risk.paper import AccountValue, period_keys
+@@ -23,6 +30,9 @@
+         "EXCHANGE_EXPOSURE_OR_ACTIVE_ORDER",
+         "SETTINGS_OR_TRANSFER_MISMATCH",
+         "REQUEST_AUDIT_LIMIT",
++        "REQUEST_AUDIT_TIME_BUDGET",
++        "REQUEST_AUDIT_QUERY_BUDGET",
++        "REQUEST_AUDIT_CLOCK_BUDGET",
+         "REQUEST_ID_UNSUPPORTED",
+         "REQUEST_IDENTITY_MISMATCH",
+         "REQUEST_ACTIVE_OR_INVALID",
+@@ -74,57 +84,12 @@
+     }
+ 
+ 
+-def review(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
+-    if (
+-        client.settings.demo_trading_enabled
+-        or client.settings.margin_mode != "ISOLATED"
+-        or client.settings.symbols != ("BTCUSDT",)
+-        or ledger.margin_mode != "ISOLATED"
+-        or ledger.symbols != ("BTCUSDT",)
+-        or ledger.policy != client.settings.policy
+-    ):
+-        raise RecoveryBlocked(
+-            "RECOVERY_CONTEXT_MISMATCH", "Recovery requires read-only isolated BTCUSDT DEMO context"
+-        )
+-    if ledger.risk_state != RiskState.EMERGENCY or not ledger.paused:
+-        raise RecoveryBlocked(
+-            "RECOVERY_LOCK_STATE_MISMATCH", "Recovery applies only to paused EMERGENCY"
+-        )
+-    if any(ledger.positions.values()) or any(
+-        o.remaining
+-        or o.open_quantity
+-        or o.state
+-        not in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
+-        for o in ledger.orders.values()
+-    ):
+-        raise RecoveryBlocked(
+-            "LOCAL_EXPOSURE_OR_PENDING_ENTRY",
+-            "Local exposure or nonterminal entry prevents recovery",
+-        )
+-    first = snapshot(client, ledger, store.now())
+-    second = snapshot(client, ledger, store.now())
+-    if first.fingerprint != second.fingerprint:
+-        raise RecoveryBlocked("SNAPSHOT_CHANGED", "Recovery snapshots changed")
+-    if (
+-        any(second.positions.values())
+-        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
+-        or any(r["algoStatus"] == "NEW" for r in second.algos.values())
+-    ):
+-        raise RecoveryBlocked(
+-            "EXCHANGE_EXPOSURE_OR_ACTIVE_ORDER",
+-            "Exchange exposure or active orders prevent recovery",
+-        )
+-    if second.leverage.get("BTCUSDT") != 2 or second.transfers != ledger.income_seen:
+-        raise RecoveryBlocked(
+-            "SETTINGS_OR_TRANSFER_MISMATCH",
+-            "Recovery settings/transfers require separate reconciliation",
+-        )
+-    # Reevaluate loss gates without modifying accounting baselines or the old lock.
++def _check_loss_gates(store: DemoStore, ledger: DemoLedger, equity: Decimal) -> None:
+     probe = ledger.model_copy(deep=True)
+     probe.value = AccountValue(
+         as_of=store.now(),
+         initial=ledger.value.initial,
+-        realized=second.equity - ledger.value.initial - ledger.net_transfers,
++        realized=equity - ledger.value.initial - ledger.net_transfers,
+         net_deposits=ledger.net_transfers,
+     )
+     probe.risk_state = RiskState.NORMAL
+@@ -145,51 +110,116 @@
+         raise RecoveryBlocked(
+             "LOSS_OR_ACCOUNT_RISK_BLOCKED", "Loss/day-boundary/risk gate prevents recovery"
+         )
++
++
++def review(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
++    try:
++        return _review_checked(store, client, ledger)
++    except AuditBudgetExceeded as error:
++        raise RecoveryBlocked(error.code, "Recovery audit exceeded safe resource budget") from None
++
++
++def _review_checked(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.policy != client.settings.policy
++    ):
++        raise RecoveryBlocked(
++            "RECOVERY_CONTEXT_MISMATCH", "Recovery requires read-only isolated BTCUSDT DEMO context"
++        )
++    if ledger.risk_state != RiskState.EMERGENCY or not ledger.paused:
++        raise RecoveryBlocked(
++            "RECOVERY_LOCK_STATE_MISMATCH", "Recovery applies only to paused EMERGENCY"
++        )
++    if any(ledger.positions.values()) or any(
++        o.remaining
++        or o.open_quantity
++        or o.state
++        not in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++        for o in ledger.orders.values()
++    ):
++        raise RecoveryBlocked(
++            "LOCAL_EXPOSURE_OR_PENDING_ENTRY",
++            "Local exposure or nonterminal entry prevents recovery",
++        )
++    if len(ledger.requests) > MAX_HISTORY_REQUESTS:
++        raise RecoveryBlocked("REQUEST_AUDIT_LIMIT", "Too many requests for bounded recovery")
++    audit_client = RecoveryReadClient(client)
++    client = audit_client
++    first = snapshot(client, ledger, store.now())
++    second = snapshot(client, ledger, store.now())
++    if first.fingerprint != second.fingerprint:
++        raise RecoveryBlocked("SNAPSHOT_CHANGED", "Recovery snapshots changed")
++    if (
++        any(second.positions.values())
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in second.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in second.algos.values())
++    ):
++        raise RecoveryBlocked(
++            "EXCHANGE_EXPOSURE_OR_ACTIVE_ORDER",
++            "Exchange exposure or active orders prevent recovery",
++        )
++    if second.leverage.get("BTCUSDT") != 2 or second.transfers != ledger.income_seen:
++        raise RecoveryBlocked(
++            "SETTINGS_OR_TRANSFER_MISMATCH",
++            "Recovery settings/transfers require separate reconciliation",
++        )
++    _check_loss_gates(store, ledger, second.equity)
+     observations: dict[str, str] = {}
+-    if len(ledger.requests) > 30:
+-        raise RecoveryBlocked("REQUEST_AUDIT_LIMIT", "Too many requests for bounded recovery")
+-    for identifier in ledger.requests:
+-        kind = identifier.split("-", 1)[0]
+-        if kind not in {"DE", "DX", "DS", "DT"}:
+-            raise RecoveryBlocked(
+-                "REQUEST_ID_UNSUPPORTED", "Unsupported historical request prevents recovery"
++    identifiers = sorted(ledger.requests)
++    batches = 0
++    for offset in range(0, len(identifiers), AUDIT_BATCH_SIZE):
++        audit_client.budget.check()
++        batches += 1
++        for identifier in identifiers[offset : offset + AUDIT_BATCH_SIZE]:
++            kind = identifier.split("-", 1)[0]
++            if kind not in {"DE", "DX", "DS", "DT"}:
++                raise RecoveryBlocked(
++                    "REQUEST_ID_UNSUPPORTED", "Unsupported historical request prevents recovery"
++                )
++            algo = kind in {"DS", "DT"}
++            try:
++                raw = client.request(
++                    "GET",
++                    "/fapi/v1/algoOrder" if algo else "/fapi/v1/order",
++                    {"clientAlgoId": identifier}
++                    if algo
++                    else {"symbol": "BTCUSDT", "origClientOrderId": identifier},
++                )
++            except DemoNotFound:
++                observations[identifier] = "NOT_FOUND_UNRESOLVED"
++                continue
++            if (
++                not isinstance(raw, dict)
++                or raw.get("symbol") != "BTCUSDT"
++                or raw.get("clientAlgoId" if algo else "clientOrderId") != identifier
++            ):
++                raise RecoveryBlocked(
++                    "REQUEST_IDENTITY_MISMATCH", "Historical request identity mismatch"
++                )
++            status = raw.get("algoStatus" if algo else "status")
++            allowed = (
++                {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++                if algo
++                else {"FILLED", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED"}
+             )
+-        algo = kind in {"DS", "DT"}
+-        try:
+-            raw = client.request(
+-                "GET",
+-                "/fapi/v1/algoOrder" if algo else "/fapi/v1/order",
+-                {"clientAlgoId": identifier}
+-                if algo
+-                else {"symbol": "BTCUSDT", "origClientOrderId": identifier},
+-            )
+-        except DemoNotFound:
+-            observations[identifier] = "NOT_FOUND_UNRESOLVED"
+-            continue
+-        if (
+-            not isinstance(raw, dict)
+-            or raw.get("symbol") != "BTCUSDT"
+-            or raw.get("clientAlgoId" if algo else "clientOrderId") != identifier
+-        ):
+-            raise RecoveryBlocked(
+-                "REQUEST_IDENTITY_MISMATCH", "Historical request identity mismatch"
+-            )
+-        status = raw.get("algoStatus" if algo else "status")
+-        allowed = (
+-            {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
+-            if algo
+-            else {"FILLED", "CANCELED", "EXPIRED", "EXPIRED_IN_MATCH", "REJECTED"}
+-        )
+-        if status not in allowed:
+-            raise RecoveryBlocked(
+-                "REQUEST_ACTIVE_OR_INVALID", "Active/unknown historical request prevents recovery"
+-            )
+-        observations[identifier] = str(status)
++            if status not in allowed:
++                raise RecoveryBlocked(
++                    "REQUEST_ACTIVE_OR_INVALID",
++                    "Active/unknown historical request prevents recovery",
++                )
++            observations[identifier] = str(status)
+     final = snapshot(client, ledger, store.now())
+-    if final.fingerprint != second.fingerprint:
++    if final.fingerprint != second.fingerprint or final.transfers != second.transfers:
+         raise RecoveryBlocked(
+             "SNAPSHOT_CHANGED_DURING_AUDIT", "Recovery changed during request audit"
+         )
++    _check_loss_gates(store, ledger, final.equity)
++    audit_client.budget.check()
+     stable = ledger.model_dump(mode="json", exclude={"reconciled", "stream_ready"})
+     token = hashlib.sha256(
+         json.dumps(
+@@ -198,8 +228,13 @@
+             separators=(",", ":"),
+         ).encode()
+     ).hexdigest()
++    audit_client.budget.check()
+     return {
+         "review_token": token,
++        "audited_request_count": len(observations),
++        "audit_batch_count": batches,
++        "signed_query_count": audit_client.budget.signed_queries,
++        "audit_clock_probes": audit_client.budget.clock_probes,
+         "unresolved_count": sum(v == "NOT_FOUND_UNRESOLVED" for v in observations.values()),
+         "risk_gates": "PASS",
+         "position_nonzero": False,
+--- /dev/null
++++ b/services/execution/demo_recovery_budget.py
+@@ -0,0 +1,93 @@
++"""GET-only, finite recovery audit without discarding historical requests."""
++
++import time
++from collections.abc import Callable, Mapping
++from typing import Any, Literal
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++
++MAX_HISTORY_REQUESTS = 128
++AUDIT_BATCH_SIZE = 8
++MAX_SIGNED_QUERIES = 600
++MAX_CLOCK_PROBES = 6
++MAX_AUDIT_SECONDS = 40.0
++CLOCK_REFRESH_MS = 20000
++
++
++class AuditBudgetExceeded(DemoFailure):
++    def __init__(
++        self,
++        code: Literal[
++            "REQUEST_AUDIT_TIME_BUDGET", "REQUEST_AUDIT_QUERY_BUDGET", "REQUEST_AUDIT_CLOCK_BUDGET"
++        ],
++    ):
++        self.code = code
++        super().__init__("Recovery audit resource budget exceeded; keep lock")
++
++
++class RecoveryBudget:
++    def __init__(self, clock: Callable[[], float] | None = None):
++        self.clock = clock or time.monotonic
++        self.started = self.clock()
++        self.signed_queries = 0
++        self.clock_probes = 0
++
++    def check(self) -> None:
++        elapsed = self.clock() - self.started
++        if not 0 <= elapsed < MAX_AUDIT_SECONDS:
++            raise AuditBudgetExceeded("REQUEST_AUDIT_TIME_BUDGET")
++
++    def signed(self) -> None:
++        self.check()
++        if self.signed_queries >= MAX_SIGNED_QUERIES:
++            raise AuditBudgetExceeded("REQUEST_AUDIT_QUERY_BUDGET")
++        self.signed_queries += 1
++
++    def probe(self) -> None:
++        self.check()
++        if self.clock_probes >= MAX_CLOCK_PROBES:
++            raise AuditBudgetExceeded("REQUEST_AUDIT_CLOCK_BUDGET")
++        self.clock_probes += 1
++
++
++class RecoveryReadClient(DemoClient):
++    def __init__(self, source: DemoClient, budget: RecoveryBudget | None = None):
++        if source.settings.demo_trading_enabled:
++            raise DemoFailure("Recovery audit requires read-only DEMO client")
++        super().__init__(
++            source.settings, source.credentials, send=source.send, clock_ms=source.clock_ms
++        )
++        self.source = source
++        self.budget = budget or RecoveryBudget()
++
++    def sync_clock(self) -> None:
++        self.budget.probe()
++        try:
++            self.source.sync_clock()
++        finally:
++            self.budget.check()
++
++    def public(self, path: str, params: Mapping[str, str] | None = None) -> Any:
++        if path != "/fapi/v1/time" or params:
++            raise DemoFailure("Recovery audit public route forbidden")
++        self.budget.probe()
++        try:
++            return self.source.public(path, params)
++        finally:
++            self.budget.check()
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        if method != "GET":
++            raise DemoFailure("Recovery audit forbids exchange mutations")
++        self.budget.signed()
++        now = self.source.clock_ms()
++        synced = self.source.synced_at
++        if synced is None or not 0 <= now - synced < CLOCK_REFRESH_MS:
++            self.sync_clock()
++        self.budget.check()
++        try:
++            # Delegate to the original SDK/client, preserving its guards and
++            # injected transport/contract tests. Never retries a failed query.
++            return self.source.request(method, path, params)
++        finally:
++            self.budget.check()
+--- /dev/null
++++ b/tests/integration/test_demo_recovery_batches.py
+@@ -0,0 +1,328 @@
++"""31 historical requests are all audited; no old record is pruned to unlock."""
++
++import json
++from datetime import timedelta
++from urllib.parse import parse_qs
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoUnknown
++from services.execution.demo_period_review import apply_periods, review_periods
++from services.execution.demo_recovery import RecoveryBlocked, acknowledge_flat_emergency, review
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++
++
++@pytest.fixture
++def history_case(period_case):  # noqa: F811
++    store, c, fake, *_ = period_case
++    report = review_periods(
++        store, c.client, store.read("DEMO-test"), account_id="DEMO-test", attest_no_activity=True
++    )
++    apply_periods(
++        store,
++        c.lease,
++        c.client,
++        uuid4(),
++        report["review_token"],
++        attest_no_activity=True,
++        accept_operator_evidence=True,
++    )
++    state = store.read("DEMO-test")
++    base = next(o for o in state.orders.values() if o.filled)
++    entries = {}
++    orders = {}
++    algos = {}
++    requests = {}
++    for index in range(6):
++        clone = base.model_copy(deep=True)
++        clone.signal = base.signal.model_copy(update={"signal_id": uuid4()})
++        for field, kind in [
++            ("client_id", "DE"),
++            ("exit_id", "DX"),
++            ("algo_id", "DS"),
++            ("tp_algo_id", "DT"),
++        ]:
++            original = getattr(base, field)
++            identifier = f"{kind}-wide-{index:02}"
++            setattr(clone, field, identifier)
++            if kind in {"DE", "DX"}:
++                raw = fake.orders[original].copy()
++                raw["clientOrderId"] = identifier
++                raw["orderId"] = str(10000 + index * 4 + (kind == "DX"))
++                orders[identifier] = raw
++                if kind == "DE":
++                    clone.server_order_id = raw["orderId"]
++            else:
++                raw = fake.algos[original].copy()
++                raw["clientAlgoId"] = identifier
++                raw["algoId"] = str(20000 + index * 4 + (kind == "DT"))
++                algos[identifier] = raw
++            requests[identifier] = state.requests[original]
++        entries[str(clone.signal.signal_id)] = clone
++    fake.orders.update(orders)
++    fake.algos.update(algos)
++
++    def seed(ledger):
++        ledger.orders.update(entries)
++        ledger.requests.update(requests)
++
++    store.change(c.lease, "TEST_31_HISTORICAL_REQUESTS", seed)
++    assert len(store.read("DEMO-test").requests) == 31
++    return store, c, fake
++
++
++def apply(case, token, op=None):
++    store, c, _ = case
++    return acknowledge_flat_emergency(
++        store, c.lease, c.client, op or uuid4(), token, acknowledge_unresolved=True
++    )
++
++
++def test_31_request_preview_checks_every_id_without_database_change(history_case):
++    store, c, fake = history_case
++    before = store.read("DEMO-test")
++    start = len(fake.calls)
++    report = review(store, c.client, before)
++    assert report["audited_request_count"] == 31 and report["audit_batch_count"] == 4
++    assert report["unresolved_count"] == 2 and report["risk_gates"] == "PASS"
++    assert store.read("DEMO-test") == before
++    queried = set()
++    for method, _path, params in fake.calls[start:]:
++        assert method == "GET"
++        for field in ("origClientOrderId", "clientAlgoId"):
++            if field in params:
++                queried.add(params[field])
++    assert set(before.requests) <= queried
++    assert report["signed_query_count"] >= 31 and report["signed_query_count"] <= 600
++
++
++def test_apply_keeps_all_history_basis_and_pause_and_is_idempotent(history_case):
++    store, c, fake = history_case
++    before = store.read("DEMO-test")
++    token = review(store, c.client, before)["review_token"]
++    op = uuid4()
++    assert apply(history_case, token, op) == "EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED"
++    after = store.read("DEMO-test")
++    excluded = {"risk_state", "reconciled", "stream_ready", "operations", "recovery_receipts"}
++    assert after.model_dump(exclude=excluded) == before.model_dump(exclude=excluded)
++    assert after.risk_state.value == "NORMAL" and after.paused
++    assert (
++        len(after.requests) == 31
++        and after.requests == before.requests
++        and after.orders == before.orders
++    )
++    assert apply(history_case, token, op) == "ALREADY_RECORDED_NO_ACTION"
++
++
++def last_batch_fault(case, problem):
++    store, c, fake = case
++    target = sorted(store.read("DEMO-test").requests)[-1]
++    source = c.client.send
++    hits = 0
++
++    def send(method, path, query, key):
++        nonlocal hits
++        params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++        if params.get("origClientOrderId") == target or params.get("clientAlgoId") == target:
++            hits += 1
++            if hits == 3:  # Two stable snapshots precede the independent request audit.
++                if problem == "query":
++                    raise DemoUnknown("PRIVATE_SECRET")
++                if problem == "missing":
++                    return fake.response({"code": -2013}, 400)
++                response = source(method, path, query, key)
++                raw = json.loads(response.body)
++                if problem == "active":
++                    raw["status"] = "NEW"
++                else:
++                    raw["clientOrderId"] = "DE-other"
++                return fake.response(raw)
++        return source(method, path, query, key)
++
++    c.client.send = send
++
++
++@pytest.mark.parametrize("problem", ["active", "identity", "query"])
++def test_last_batch_problem_cannot_be_hidden_by_first_thirty(history_case, problem):
++    store, c, _ = history_case
++    before = store.read("DEMO-test")
++    last_batch_fault(history_case, problem)
++    with pytest.raises((RecoveryBlocked, DemoUnknown)) as result:
++        review(store, c.client, before)
++    if problem == "query":
++        assert isinstance(result.value, DemoUnknown)
++    else:
++        assert isinstance(result.value, RecoveryBlocked)
++        assert result.value.code == (
++            "REQUEST_ACTIVE_OR_INVALID" if problem == "active" else "REQUEST_IDENTITY_MISMATCH"
++        )
++    assert store.read("DEMO-test") == before
++
++
++def test_last_batch_missing_remains_unresolved_not_rejected_or_removed(history_case):
++    store, c, _ = history_case
++    before = store.read("DEMO-test")
++    last_batch_fault(history_case, "missing")
++    report = review(store, c.client, before)
++    assert report["audited_request_count"] == 31 and report["unresolved_count"] == 3
++    assert store.read("DEMO-test") == before
++
++
++def test_query_budget_failure_rolls_back_apply_without_ack(history_case, monkeypatch):
++    import services.execution.demo_recovery_budget as limits
++
++    store, c, _ = history_case
++    before = store.read("DEMO-test")
++    token = review(store, c.client, before)["review_token"]
++    monkeypatch.setattr(limits, "MAX_SIGNED_QUERIES", 2)
++    with pytest.raises(RecoveryBlocked) as result:
++        apply(history_case, token)
++    assert result.value.code == "REQUEST_AUDIT_QUERY_BUDGET"
++    assert store.read("DEMO-test") == before
++
++
++def test_oversized_history_is_blocked_before_network(history_case):
++    store, c, fake = history_case
++    state = store.read("DEMO-test")
++    for index in range(98):
++        state.requests[f"DE-extra-{index}"] = "UNKNOWN"
++    start = len(fake.calls)
++    with pytest.raises(RecoveryBlocked) as result:
++        review(store, c.client, state)
++    assert result.value.code == "REQUEST_AUDIT_LIMIT" and len(fake.calls) == start
++
++
++def test_clock_refresh_during_audit_keeps_original_sixty_second_rule(history_case):
++    store, c, fake = history_case
++    source = c.client.send
++    jumped = False
++
++    def send(method, path, query, key):
++        nonlocal jumped
++        result = source(method, path, query, key)
++        if path == "/fapi/v3/account" and not jumped:
++            jumped = True
++            fake.at += timedelta(seconds=21)
++        return result
++
++    c.client.send = send
++    report = review(store, c.client, store.read("DEMO-test"))
++    assert report["audit_clock_probes"] >= 1 and report["audited_request_count"] == 31
++    assert c.client.clock_ms() - c.client.synced_at < 60000
++
++
++def test_expired_fence_after_complete_audit_cannot_commit(history_case):
++    store, c, fake = history_case
++    token = review(store, c.client, store.read("DEMO-test"))["review_token"]
++    before = store.read("DEMO-test")
++    source = c.client.send
++    jumped = False
++
++    def send(method, path, query, key):
++        nonlocal jumped
++        response = source(method, path, query, key)
++        if path == "/fapi/v3/account" and not jumped:
++            jumped = True
++            fake.at += timedelta(seconds=61)
++        return response
++
++    c.client.send = send
++    with pytest.raises(RiskRejected):
++        apply(history_case, token)
++    assert store.read("DEMO-test") == before
++
++
++def test_final_period_boundary_check_blocks_after_long_audit(history_case):
++    store, c, fake = history_case
++    store.release(c.lease)
++    from datetime import UTC, datetime
++
++    fake.at = datetime(2026, 10, 30, 14, 59, 59, tzinfo=UTC)
++    c.lease = store.acquire("DEMO-test", uuid4())
++    c.client.sync_clock()
++    source = c.client.send
++    target = sorted(store.read("DEMO-test").requests)[-1]
++    hits = 0
++
++    def send(method, path, query, key):
++        nonlocal hits
++        params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++        result = source(method, path, query, key)
++        if params.get("origClientOrderId") == target:
++            hits += 1
++            if hits == 3:
++                fake.at += timedelta(seconds=2)
++        return result
++
++    c.client.send = send
++    before = store.read("DEMO-test")
++    with pytest.raises(RecoveryBlocked) as result:
++        review(store, c.client, before)
++    assert result.value.code == "PERIOD_BASELINE_MISSING"
++    assert store.read("DEMO-test") == before
++
++
++def test_audit_batch_metadata_does_not_change_review_token(history_case, monkeypatch):
++    import services.execution.demo_recovery as module
++
++    store, c, _ = history_case
++    first = review(store, c.client, store.read("DEMO-test"))
++    monkeypatch.setattr(module, "AUDIT_BATCH_SIZE", 7)
++    second = review(store, c.client, store.read("DEMO-test"))
++    assert first["review_token"] == second["review_token"]
++    assert first["audit_batch_count"] == 4 and second["audit_batch_count"] == 5
++
++
++def test_wall_clock_budget_failure_during_apply_rolls_back_every_change(history_case, monkeypatch):
++    import services.execution.demo_recovery_budget as limits
++
++    store, c, _ = history_case
++    before = store.read("DEMO-test")
++    token = review(store, c.client, before)["review_token"]
++    timeline = [0.0]
++    original_budget = limits.RecoveryBudget
++    monkeypatch.setattr(limits, "RecoveryBudget", lambda: original_budget(lambda: timeline[0]))
++    original = c.client.request
++    calls = 0
++
++    def request(*args, **kwargs):
++        nonlocal calls
++        result = original(*args, **kwargs)
++        calls += 1
++        if calls == 3:
++            timeline[0] = 41.0
++        return result
++
++    monkeypatch.setattr(c.client, "request", request)
++    with pytest.raises(RecoveryBlocked) as result:
++        apply(history_case, token)
++    assert result.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++    assert store.read("DEMO-test") == before
++
++
++def test_final_transfer_change_is_not_hidden_by_equal_fingerprint(history_case, monkeypatch):
++    import services.execution.demo_recovery as module
++
++    store, c, _ = history_case
++    before = store.read("DEMO-test")
++    original = module.snapshot
++    calls = 0
++
++    def snapshot(*args, **kwargs):
++        nonlocal calls
++        result = original(*args, **kwargs)
++        calls += 1
++        if calls == 3:
++            result.transfers = {"TRANSFER:late": "0"}
++        return result
++
++    monkeypatch.setattr(module, "snapshot", snapshot)
++    with pytest.raises(RecoveryBlocked) as result:
++        review(store, c.client, before)
++    assert result.value.code == "SNAPSHOT_CHANGED_DURING_AUDIT"
++    assert store.read("DEMO-test") == before
+--- /dev/null
++++ b/tests/unit/test_demo_recovery_budget.py
+@@ -0,0 +1,85 @@
++"""Recovery GET/clock/time budgets never authorize account mutations."""
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution import demo_recovery_budget as limits
++from tests.unit.test_demo_transport import client
++
++
++@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH"])
++def test_audit_proxy_blocks_mutation_before_source_transport(method):
++    source, fake = client(enabled=False)
++    wrapped = limits.RecoveryReadClient(source)
++    before = len(fake.calls)
++    with pytest.raises(DemoFailure, match="forbids"):
++        wrapped.request(method, "/fapi/v1/order", {})
++    assert len(fake.calls) == before and wrapped.budget.signed_queries == 0
++
++
++def test_budget_clock_is_monotonic_and_finite():
++    at = [0.0]
++    budget = limits.RecoveryBudget(lambda: at[0])
++    budget.check()
++    at[0] = 40
++    with pytest.raises(limits.AuditBudgetExceeded) as result:
++        budget.check()
++    assert result.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++    at[0] = -1
++    with pytest.raises(limits.AuditBudgetExceeded):
++        budget.check()
++
++
++def test_signed_limit_blocks_before_next_transport_call():
++    source, fake = client(enabled=False)
++    wrapped = limits.RecoveryReadClient(source)
++    wrapped.budget.signed_queries = limits.MAX_SIGNED_QUERIES
++    before = len(fake.calls)
++    with pytest.raises(limits.AuditBudgetExceeded) as result:
++        wrapped.request("GET", "/fapi/v3/account")
++    assert result.value.code == "REQUEST_AUDIT_QUERY_BUDGET" and len(fake.calls) == before
++
++
++def test_clock_limit_blocks_before_next_probe():
++    source, fake = client(enabled=False)
++    wrapped = limits.RecoveryReadClient(source)
++    wrapped.budget.clock_probes = limits.MAX_CLOCK_PROBES
++    before = len(fake.calls)
++    with pytest.raises(limits.AuditBudgetExceeded) as result:
++        wrapped.sync_clock()
++    assert result.value.code == "REQUEST_AUDIT_CLOCK_BUDGET" and len(fake.calls) == before
++
++
++def test_missing_clock_is_refreshed_without_retrying_signed_request():
++    source, fake = client(enabled=False)
++    source.synced_at = None
++    wrapped = limits.RecoveryReadClient(source)
++    before = len(fake.calls)
++    wrapped.request("GET", "/fapi/v3/account")
++    paths = [p for _, p, _ in fake.calls[before:]]
++    assert paths == ["/fapi/v1/time", "/fapi/v3/account"]
++    assert wrapped.budget.clock_probes == 1 and wrapped.budget.signed_queries == 1
++
++
++def test_budget_is_checked_after_query_even_if_result_would_be_not_found(monkeypatch):
++    source, _ = client(enabled=False)
++    at = [0.0]
++    wrapped = limits.RecoveryReadClient(source, limits.RecoveryBudget(lambda: at[0]))
++
++    def late(*args, **kwargs):
++        from integrations.binance_usdm.demo import DemoNotFound
++
++        at[0] = 41
++        raise DemoNotFound("PRIVATE_SECRET")
++
++    monkeypatch.setattr(source, "request", late)
++    with pytest.raises(limits.AuditBudgetExceeded) as result:
++        wrapped.request("GET", "/fapi/v1/order")
++    assert result.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++    assert "PRIVATE_SECRET" not in str(result.value)
++
++
++def test_write_enabled_source_cannot_be_wrapped():
++    source, _ = client(enabled=True)
++    with pytest.raises(DemoFailure, match="read-only"):
++        limits.RecoveryReadClient(source)
