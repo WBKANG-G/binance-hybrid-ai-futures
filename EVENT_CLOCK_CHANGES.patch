@@ -1,0 +1,716 @@
+--- /dev/null
++++ b/EVENT_CLOCK_START_HERE_KO.md
+@@ -0,0 +1,52 @@
++# 거래소 시각에 맞춰 이벤트를 검사하기
++
++직전 작업05ad78fc-e803-4092-be92-54cbe2d833bf는 진입0.0007·SL/TP·청산을 확인했지만 ALGO_UPDATE의 수신/처리 나이가-6ms로 기록돼 EVENT_TIME_INVALID로 실패했습니다. 이전30초 초과와 다른 경우입니다. 진입 준비는21.931초, 수신5건이었습니다. 이벤트 시각을 바꾸거나 단순히 미래 허용 오차를 추가하지 않습니다.
++
++HTTP 서명에는 검증된 거래소 시각 보정값을 사용하지만 기존 이벤트는 PC 시각과 직접 비교하고 있었습니다. 이 버전은 같은 검증을 통과한 서버 시각 표본과 왕복 지연 구간을 이벤트에도 사용합니다. SDK가 기존에 허용하던 왕복1초·중간 보정값±1초·유효기간60초와30초 이벤트 신선도는 유지합니다. 실제 Windows에서 다시 검증해야 합니다.
++
++## 1. 기존 Galaxybook의 새 폴더에 설치
++
++ZIP을 windows-demo-event-clock-fix 폴더에 풀고 열어 주소창에 cmd를 입력합니다. CMD 경로가 새 폴더로 끝나는지 확인합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows 프로젝트/DB/export 볼륨과 적용한 일별·주별 기준을 유지합니다. 초기화/down -v/export 재요청/기준 재적용을 하지 않습니다. API 컨테이너가 교체되면 메모리 키가 사라지므로 이번 설치 뒤 한 번 등록합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++DEMO 키와 Secret은 숨김 입력합니다. REGISTERED_IN_PRIVATE_TMPFS 뒤에는 재입력이 없습니다.
++
++## 2. 먼저 주문 없는 복구 검토
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++결과 화면만 공유합니다. 이 기본 검토는 DB/거래소 조회만 하고 기준 적용·잠금 해제·주문을 하지 않습니다. 새로운 검토 토큰을 확인한 뒤 별도의 복구 승인과 새 최소 수량 DEMO 검증을 진행합니다. 실패한 기존 주문을 새 ID로 반복하거나 예전 검토 토큰을 사용하지 않습니다.
++
++## 시각 검사 방식
++
++기존 /fapi/v1/time 조회의 PC 송신 시각 b, 수신 시각 a, 서버 응답 시각 s를 그대로 추가 보관합니다. 원래 SDK 검증을 통과한 표본만 사용하고, 서명·주문 HTTP 계약/호스트/상한은 바꾸지 않습니다. 새 네트워크 조회도 추가하지 않습니다.
++
++그 표본으로 가능한 서버 시각의 하한과 상한을 계산합니다. 이벤트 E가 확인된 상한보다 앞선 미래이면 즉시 거부합니다. 상한 기준으로30초보다 오래됐어도 즉시 거부합니다. E가 구간 안에 있지만 하한이 아직 E에 못 미치면 실제 시간이 E를 따라잡을 때까지 잠깐 기다리고 다시 검사합니다. 총 대기 요청/실제 대기 예산은 기존 왕복 지연 상한1초 이내, 시도는 최대3회입니다. 네트워크/주문 재전송은 없습니다.
++
++검사가 끝날 때는 가능한 서버 시각 전체에 대해 E가 미래가 아니고 가장 불리한 나이도30초 이하여야 합니다. 단순히±몇 ms를 더해서 통과시키지 않습니다. 시계가 따라오지 않거나 표본이 만료/역행/신뢰 범위 밖이면 실패합니다. 원래 E와 원장 평가/기간 시각은 수정하지 않습니다. 검사를 끝내지 못한 수신 작업이 취소되면 정상 종료로 오인하지 않고 실패를 남깁니다.
++
++## 진단 값
++
++private_session_diagnostic에 다음 값이 추가됩니다.
++
++- event_clock_offset_ms: 검증된 표본의 거래소-PC 중간 보정값
++- event_clock_rtt_ms: 그 표본의 왕복 지연
++- event_clock_wait_ms: 수신/처리에서 요청한 시각 대기 합계(실제 벽시계 경과 시간과는 다를 수 있음)
++- event_local_age_ms: 보정하지 않은 PC 기준 나이
++
++검사 시 event_age_ms는 가능한 거래소 시각 상한에서 계산한 보수적인 나이입니다. event_receive_age_ms는 수신 검사 통과 후의 나이이며, 수신 검사 실패 시 기존 사전 PC 표본이 남을 수 있으므로 오류 분류와 추가 시각 값을 함께 봅니다. 진단 값의 나이는 기존 제한 범위로 잘라 표시하며 실제 판정에는 자르지 않은 원래 계산값을 사용합니다. 원본 이벤트/키/URL/예외 본문을 새로 저장/출력하지 않습니다.
++
++EVENT_CLOCK_UNTRUSTED는 표본/대기 검증 실패, EVENT_CLOCK_INCOMPLETE는 수신 시각 검사 중 취소를 뜻합니다. 확인된 범위를 벗어난 미래나 오래된 이벤트는 계속 EVENT_TIME_INVALID입니다. PC 시계 변경이나 별도 관리자 권한 작업을 자동 실행하지 않습니다.
++
++기존 수신/REST 분리·유효 알림 통합·진입 직전 차단·worker 대기·키 재사용·기간 기준 수정은 포함합니다. 위험/수량/SL/TP·비상 청산·계정 스냅샷 대조·원장/기준/잠금·Docker/Compose·export는 바꾸지 않았습니다. 이번 설치나 검토 자체는 자동 매매를 시작하지 않으며 Phase4 전체 완료·LIVE/Phase5 전환도 아닙니다.
+--- /dev/null
++++ b/EVENT_CLOCK_VALIDATION_KO.md
+@@ -0,0 +1,35 @@
++# 검증된 서버 시각 구간을 이용한 이벤트 검사
++
++## 실제 관측과 코드 결함
++
++사용자 작업05ad78fc-e803-4092-be92-54cbe2d833bf의0.0007 진입·SL/TP·청산은 확인됐지만 ALGO_UPDATE/event_age_ms=-6/event_receive_age_ms=-6로 전체 검증이 실패했습니다. 수신5건, 통합0건, ready_callback_ms21931, completion/database_failure NONE입니다. 구버전은 이때의 SDK offset/왕복 표본을 기록하지 않아 그 실 계정 표본 자체를 복원할 수는 없습니다.
++
++HTTP 서명은 sync_clock의 거래소 보정값을 쓰지만 이벤트의 두 검사는 PC 시각을 직접 사용하고 있었습니다. 따라서 같은 검증된6ms 보정이 있어도 정상 거래소 이벤트가 미래로 잘못 분류될 수 있습니다. 이를 코드에서 확인하고 합성 재현했습니다.
++
++부모 ZIP 전체 소스에 새 회귀 검사2개만 추가해 실행하니 두 경우가 모두 실패했습니다(2 failed in1.41초). 직접 ALGO_UPDATE와 실제 PG/로컬 WS 전체 검증 모두 PC보다6ms 앞선 검증된 거래소 시각에서 거부됐습니다. 전체 흐름은 사용자처럼 체결/보호/청산 확인 뒤 EVENT_TIME_INVALID/-6ms/전체수락false였습니다. 정지된 합성 시계가 진입용 시장 근거까지 미래로 만들지 않도록 전체 흐름 검사에서는 진입 준비 후 이벤트 직전에6ms 표본을 동기화합니다. 같은 설정으로 수정판은 두 경우 모두 통과합니다. 실제 사용자 원래 표본을 측정했다고 주장하지 않습니다.
++
++## 구현과 수학적 조건
++
++DemoClient에 동결된 DemoClockSample(before_ms,after_ms,server_ms)을 추가했습니다. sync_clock의 기존 RTT0..1000ms와 중간 offset±1000ms 검증 후에만 게시하고, 그 검증에 실패하면 표본도 비웁니다. 기존 HTTP 서명/요청/응답/호스트/경로/재전송/쿨다운 조건은 그대로입니다.
++
++로컬 송신 b·수신 a·서버시각 s이면 보정 가능 구간은[s-a,s-b]입니다. 현재 로컬 N에서 서버 하한 L=N+s-a, 상한 U=N+s-b를 계산합니다. E>U 또는 U-E>30000이면 즉시 실패합니다. L<E<=U라면 L이 E에 도달할 때까지 제한된 로컬 대기 후 다시 검사합니다. 통과 조건은 L>=E이면서 U-E<=30000입니다. 따라서 확인된 구간 내 어떤 서버 시각에서도 미래를 통과시키지 않고, 가장 불리한 나이도30초를 넘기지 않습니다. E에 가산 허용 오차를 주거나 원본 시각을 현재로 덮어쓰지 않습니다.
++
++대기는 기존 RTT 상한1초 안의 총 요청/경과 예산과 최대3회 재검사로 제한합니다. 기다린 뒤에도 시계가 따라오지 않거나 시계 역행·오래된 표본(60초 초과)·쿨다운·잘못된 표본이면 실패합니다. 대기 중 원장/주문 쓰기나 새 HTTP 요청은 없습니다. 비동기 수신은 이벤트 루프를 막지 않고 기다리며, 처리 측 동기 대기는 기존 worker에서 수행합니다. 검증 중 수신 취소는 EVENT_CLOCK_INCOMPLETE로 실패를 남깁니다.
++
++수신함은 기존 int 시계 주입을 유지하고, 실제 session에서는 새 시간 검사 함수를 주입합니다. 원래 e/E는 그대로이며 유효 알림 통합·128개 상한·수신 실패 진입 차단·worker 종료 대기와 최종 성공 조건은 유지합니다. DemoCoordinator.event의 시각 검사만 동일 함수로 바꿔 수신과 처리의 시각 기준을 맞춥니다.
++
++## 검사 결과
++
++집중69개 통과(6.41초): 신규 단위28개/통합2개, 기존 SDK28개와 세션 진단11개입니다. ±6ms/±500ms 보정, 검증된6ms 이벤트와 전체 진입·보호·단일 reduce-only 종료, 불확실성 구간 내12ms 대기 후 엄격한 재검사, 구간 밖 미래 즉시 거부, 정확한30초 경계와 초과 거부, 잘못된 E 타입, 만료/역행/RTT/offset/쿨다운/누락 표본, 멈춘 시계의 유한 대기, 대기 중 시계 점프 재검사, SDK 표본의 기존 검증 후 보관, 검사 중 취소가 실패로 남는지 확인했습니다. 원래0ms 보정·0ms RTT에서 미래+1ms를 거부하는 기존 검사도 유지합니다.
++
++- 전체 pytest: 895 passed in 210.92s (0:03:30). TEST_DATABASE_URL은 실제 로컬 PostgreSQL.
++- Ruff check: All checks passed. Ruff format --check: 250 files already formatted.
++- mypy: Success, no issues found in 88 source files.
++- 부모 ZIP SHA-256: 91e39b427982ac3cd1d3c44c62951b0cffcc2c818487d2960e922e46764ccbf4. 기존291개 파일 중6개를 수정하고 helper·테스트2개·문서2개를 추가합니다. 변경 목록/전 파일 SHA-256/CRC/누락과 코디네이터의 변경 메서드가 event뿐, SDK의 변경 메서드가 __init__/sync_clock뿐임을 패키징 시 검사합니다.
++- main은 64e9e7b3d833824c763a2a0f2df1493300744121 유지. 별도 windows-demo-event-clock-fix-20261030 브랜치로 게시합니다.
++
++## 변경 범위와 한계
++
++SDK의 __init__/sync_clock과 새 표본 클래스, 코디네이터 event 시각 검사, 수신함 시간 검사 주입, 세션 연결/추가 진단 필드를 수정하고 helper/테스트2개/문서2개를 추가했습니다. SDK의 request/submit/transport/_decode/listen_key/private_url 등 네트워크 계약과 데모 고정 호스트는 바꾸지 않았습니다. 기존 account_risk/coherent_snapshot·스냅샷·저장/fencing·주문 수량/가격/보호/청산·진입 게이트·기간 기준/키 보관/Docker/Compose/export는 그대로입니다. DB 스키마 변경도 없습니다.
++
++실제 시계 표본은 거래소 /time의 응답이 그 왕복 구간 안에서 만들어졌다는 기존 동기화 전제에 따릅니다. 유효 표본 밖의 미래·오래된 메시지·신뢰 불가능한 시계는 여전히 차단합니다. 원래 WS 전체 원본 장기 보관 수락은 별도 과제로 남습니다. 클라우드에서는 합성 거래소+로컬 WS+실제 PostgreSQL만 사용했고 인증된 Binance 주문은 실행하지 않았습니다. 실제 Windows에서의 새 검증 성공·부분 체결/연결 끊김/재시작 수락·Phase4 전체 완료와 LIVE/Phase5 승인은 아직 별도입니다.
+--- a/integrations/binance_usdm/demo.py
++++ b/integrations/binance_usdm/demo.py
+@@ -160,6 +160,13 @@
+         raise DemoUnknown("DEMO network request failed; reconcile any pending mutation") from None
+ 
+ 
++@dataclass(frozen=True)
++class DemoClockSample:
++    before_ms: int
++    after_ms: int
++    server_ms: int
++
++
+ class DemoClient:
+     def __init__(
+         self,
+@@ -175,6 +182,7 @@
+         self.clock_ms = clock_ms or (lambda: int(time.time() * 1000))
+         self.offset = 0
+         self.synced_at: int | None = None
++        self.clock_sample: DemoClockSample | None = None
+         self.cooldown_until = 0
+ 
+     def _decode(self, response: RESTResponse, *, mutation: bool) -> Any:
+@@ -227,12 +235,15 @@
+             or not 0 <= after - before <= 1000
+         ):
+             self.synced_at = None
++            self.clock_sample = None
+             raise DemoFailure("Untrusted DEMO clock/RTT")
+         offset = data["serverTime"] - (before + after) // 2
+         if abs(offset) > 1000:
+             self.synced_at = None
++            self.clock_sample = None
+             raise DemoFailure("DEMO clock offset exceeds safe budget")
+         self.offset, self.synced_at = offset, after
++        self.clock_sample = DemoClockSample(before, after, data["serverTime"])
+ 
+     def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
+         values = dict(params or {})
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -21,6 +21,7 @@
+     TradingMode,
+ )
+ from packages.persistence.demo import DemoStore
++from services.execution.demo_event_clock import validate_event_time
+ from services.execution.demo_initial_fill import InitialFillBlocked, settle_initial_fill
+ from services.execution.demo_models import (
+     DemoLedger,
+@@ -381,12 +382,11 @@
+             self.disconnect()
+             return
+         stamp = raw.get("E")
+-        if (
+-            type(stamp) is not int
+-            or not 0 <= int(self.store.now().timestamp() * 1000) - stamp <= 30_000
+-        ):
++        try:
++            validate_event_time(self.client, stamp, self.session_diagnostic)
++        except DemoFailure:
+             self.disconnect()
+-            raise DemoFailure("Stale/future DEMO private event")
++            raise
+         self.connected()
+ 
+     @staticmethod
+--- /dev/null
++++ b/services/execution/demo_event_clock.py
+@@ -0,0 +1,102 @@
++"""Conservative event time using an already verified server-time probe.
++
++For local send b, receive a and server stamp s, offset lies in [s-a,s-b].
++Never admit an event beyond the upper bound. Within that uncertainty, wait
++until the lower bound reaches E; require upper-E <= 30 seconds throughout.
++No network calls, timestamp rewriting, or additive acceptance tolerance.
++"""
++
++import asyncio
++import time
++from dataclasses import dataclass, field
++
++from integrations.binance_usdm.demo import DemoClient, DemoClockSample, DemoFailure
++from services.execution.demo_models import PrivateSessionDiagnostic
++
++_sleep = time.sleep
++
++
++@dataclass(frozen=True)
++class EventTime:
++    age_ms: int
++    wait_ms: int
++
++
++def assess(client: DemoClient, stamp: object, detail: PrivateSessionDiagnostic) -> EventTime:
++    if type(stamp) is not int:
++        raise DemoFailure("Stale/future DEMO private event")
++    now = client.clock_ms()
++    sample = client.clock_sample
++    if (
++        not isinstance(sample, DemoClockSample)
++        or type(now) is not int
++        or any(type(v) is not int for v in (sample.before_ms, sample.after_ms, sample.server_ms))
++        or client.synced_at is None
++    ):
++        raise DemoFailure("DEMO event clock unavailable or untrusted")
++    rtt = sample.after_ms - sample.before_ms
++    offset = sample.server_ms - (sample.before_ms + sample.after_ms) // 2
++    if not 0 <= rtt <= 1000 or abs(offset) > 1000:
++        raise DemoFailure("DEMO event clock unavailable or untrusted")
++    if not 0 <= now - sample.after_ms <= 60000 or now < client.cooldown_until:
++        raise DemoFailure("Clock stale or cooldown active")
++    lower = now + sample.server_ms - sample.after_ms
++    upper = now + sample.server_ms - sample.before_ms
++    age = upper - stamp
++    detail.event_clock_offset_ms = offset
++    detail.event_clock_rtt_ms = rtt
++    detail.event_local_age_ms = max(-60000, min(3600000, now - stamp))
++    detail.event_age_ms = max(-60000, min(3600000, age))
++    if stamp > upper or age > 30000:
++        raise DemoFailure("Stale/future DEMO private event")
++    return EventTime(age, max(0, stamp - lower))
++
++
++@dataclass
++class WaitBudget:
++    started: float = field(default_factory=time.monotonic)
++    waits: int = 0
++    requested_ms: int = 0
++
++    def delay(self, check: EventTime, detail: PrivateSessionDiagnostic) -> float:
++        # At most the existing 1-second RTT budget; finite local waits only.
++        if (
++            self.waits >= 3
++            or self.requested_ms + check.wait_ms > 1000
++            or time.monotonic() - self.started + check.wait_ms / 1000 > 1
++        ):
++            raise DemoFailure("DEMO event clock unavailable or untrusted")
++        self.waits += 1
++        self.requested_ms += check.wait_ms
++        detail.event_clock_wait_ms = min(2000, detail.event_clock_wait_ms + check.wait_ms)
++        return check.wait_ms / 1000
++
++    def finish_wait(self) -> None:
++        if time.monotonic() - self.started > 1:
++            raise DemoFailure("DEMO event clock unavailable or untrusted")
++
++
++def validate_event_time(client: DemoClient, stamp: object, detail: PrivateSessionDiagnostic) -> int:
++    budget = WaitBudget()
++    while True:
++        check = assess(client, stamp, detail)
++        if not check.wait_ms:
++            return check.age_ms
++        _sleep(budget.delay(check, detail))
++        budget.finish_wait()
++
++
++async def _pause(seconds: float) -> None:
++    await asyncio.sleep(seconds)
++
++
++async def validate_event_time_async(
++    client: DemoClient, stamp: object, detail: PrivateSessionDiagnostic
++) -> int:
++    budget = WaitBudget()
++    while True:
++        check = assess(client, stamp, detail)
++        if not check.wait_ms:
++            return check.age_ms
++        await _pause(budget.delay(check, detail))
++        budget.finish_wait()
+--- a/services/execution/demo_event_inbox.py
++++ b/services/execution/demo_event_inbox.py
+@@ -6,7 +6,7 @@
+ 
+ import asyncio
+ import json
+-from collections.abc import Callable
++from collections.abc import Awaitable, Callable
+ from dataclasses import dataclass
+ from decimal import Decimal
+ from typing import Any, Protocol
+@@ -32,14 +32,22 @@
+     kind: EventKind
+     stamp: int
+     receive_age_ms: int
++    clock_wait_ms: int = 0
+ 
+     def event(self) -> dict[str, Any]:
+         return {"e": self.kind, "E": self.stamp}
+ 
+ 
+ class EventInbox:
+-    def __init__(self, now_ms: Callable[[], int], failed: Callable[[], None]):
++    def __init__(
++        self,
++        now_ms: Callable[[], int],
++        failed: Callable[[], None],
++        *,
++        validate_time: Callable[[object, PrivateSessionDiagnostic], Awaitable[int]] | None = None,
++    ):
+         self.now_ms, self.failed = now_ms, failed
++        self.validate_time = validate_time
+         self.wakeup = asyncio.Event()
+         self.latest: ReceivedHint | None = None
+         self.pending = 0
+@@ -78,13 +86,26 @@
+                 if kind == "listenKeyExpired":
+                     raise DemoFailure("DEMO private listen key expired")
+                 stamp = raw.get("E")
+-                # This is the same 30-second/non-future bound as event(). A
+-                # representative is checked again by unmodified event() later.
+-                if type(stamp) is not int or not 0 <= now - stamp <= 30000:
++                if self.validate_time is not None:
++                    try:
++                        age = await self.validate_time(stamp, detail)
++                    except asyncio.CancelledError:
++                        self.failure = failure_diagnostic(
++                            DemoFailure("DEMO event clock validation interrupted"), detail
++                        )
++                        self.failed()
++                        self.wakeup.set()
++                        raise
++                else:
++                    if type(stamp) is not int or not 0 <= now - stamp <= 30000:
++                        raise DemoFailure("Stale/future DEMO private event")
++                    age = now - stamp
++                if type(stamp) is not int:
+                     raise DemoFailure("Stale/future DEMO private event")
++                detail.event_receive_age_ms = age
+                 if self.pending >= MAX_PENDING_EVENTS:
+                     raise DemoFailure("DEMO private event inbox overflow")
+-                hint = ReceivedHint(detail.event_kind, stamp, now - stamp)
++                hint = ReceivedHint(detail.event_kind, stamp, age, detail.event_clock_wait_ms)
+                 self.pending += 1
+                 if self.latest is None or stamp >= self.latest.stamp:
+                     self.latest = hint
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -116,6 +116,8 @@
+         "OTHER_SESSION_FAILURE",
+         "EVENT_BUFFER_OVERFLOW",
+         "LISTEN_KEY_EXPIRED",
++        "EVENT_CLOCK_UNTRUSTED",
++        "EVENT_CLOCK_INCOMPLETE",
+     ] = "NONE"
+     event_kind: Literal[
+         "NONE",
+@@ -133,6 +135,10 @@
+     event_receive_age_ms: int | None = None
+     received_events: int = 0
+     coalesced_events: int = 0
++    event_clock_offset_ms: int | None = None
++    event_clock_rtt_ms: int | None = None
++    event_clock_wait_ms: int = 0
++    event_local_age_ms: int | None = None
+ 
+ 
+ class DemoLedger(Ledger):
+--- a/services/execution/demo_session_diagnostics.py
++++ b/services/execution/demo_session_diagnostics.py
+@@ -69,6 +69,8 @@
+     elif isinstance(error, DemoFailure):
+         code = {
+             "Unrecognized DEMO private event": "EVENT_UNKNOWN",
++            "DEMO event clock unavailable or untrusted": "EVENT_CLOCK_UNTRUSTED",
++            "DEMO event clock validation interrupted": "EVENT_CLOCK_INCOMPLETE",
+             "DEMO private event inbox overflow": "EVENT_BUFFER_OVERFLOW",
+             "DEMO private listen key expired": "LISTEN_KEY_EXPIRED",
+             "Stale/future DEMO private event": "EVENT_TIME_INVALID",
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -14,6 +14,7 @@
+ 
+ from integrations.binance_usdm.demo import WS_HOST, DemoFailure
+ from services.execution.demo import DemoCoordinator
++from services.execution.demo_event_clock import validate_event_time_async
+ from services.execution.demo_event_inbox import EventInbox
+ from services.execution.demo_models import PrivateSessionDiagnostic
+ from services.execution.demo_session_diagnostics import event_info, failure_diagnostic
+@@ -138,7 +139,13 @@
+     try:
+         coordinator.session_diagnostic.stage = "CONNECT"
+         async with connector(client.private_url(key)) as websocket:
+-            inbox = EventInbox(lambda: int(store.now().timestamp() * 1000), receive_failed)
++            inbox = EventInbox(
++                lambda: int(store.now().timestamp() * 1000),
++                receive_failed,
++                validate_time=lambda stamp, detail: validate_event_time_async(
++                    client, stamp, detail
++                ),
++            )
+             reader = asyncio.create_task(inbox.run(websocket))
+             try:
+                 # Begin receiving before slow REST setup or an entry callback.
+@@ -181,6 +188,7 @@
+                         coordinator.session_diagnostic.event_kind = "NONE"
+                         coordinator.session_diagnostic.event_age_ms = None
+                         coordinator.session_diagnostic.event_receive_age_ms = None
++                        coordinator.session_diagnostic.event_clock_wait_ms = 0
+                         hint = await inbox.take()
+                         coordinator.session_diagnostic.stage = "EVENT"
+                         (
+@@ -188,6 +196,7 @@
+                             coordinator.session_diagnostic.event_age_ms,
+                         ) = event_info(hint.event(), int(store.now().timestamp() * 1000))
+                         coordinator.session_diagnostic.event_receive_age_ms = hint.receive_age_ms
++                        coordinator.session_diagnostic.event_clock_wait_ms = hint.clock_wait_ms
+                         metrics()
+                         # Still checks original E against NOW and establishes
+                         # strict REST truth. Never rewrites/relaxes an old hint.
+--- /dev/null
++++ b/tests/integration/test_demo_exchange_event_clock.py
+@@ -0,0 +1,96 @@
++"""Actual PG/local WS regression for the observed -6ms PC comparison defect."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from uuid import uuid4
++
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++import services.execution.demo_validation as validation
++from services.execution.demo_stream import session
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as clock_case  # noqa: F401
++
++
++def shift_time(c, fake, offset):
++    original = c.client.send
++
++    def send(method, path, query, key):
++        if path == "/fapi/v1/time":
++            return fake.response({"serverTime": int(fake.at.timestamp() * 1000) + offset})
++        return original(method, path, query, key)
++
++    c.client.send = send
++    c.client.sync_clock()
++
++
++def test_verified_positive_six_ms_event_matches_exchange_clock(clock_case):  # noqa: F811
++    store, c, fake, _ = clock_case
++    shift_time(c, fake, 6)
++    raw = {"e": "ALGO_UPDATE", "E": int(fake.at.timestamp() * 1000) + 6}
++    before = raw.copy()
++    c.event(raw)
++    assert raw == before
++    assert c.session_diagnostic.event_local_age_ms == -6
++    assert c.session_diagnostic.event_clock_offset_ms == 6
++    assert store.read("DEMO-test").reconciled
++
++
++def test_full_validation_with_exchange_event_six_ms_ahead_of_pc_finishes_successfully(
++    clock_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):  # noqa: F811
++    store, c, fake, options = clock_case
++    options["fill"] = True
++    monkeypatch.setattr(validation, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0)
++
++    async def run():
++        ready = asyncio.Event()
++        loop = asyncio.get_running_loop()
++
++        async def handler(socket):
++            try:
++                await asyncio.wait_for(ready.wait(), timeout=2)
++            except TimeoutError:
++                return
++            await socket.send(
++                json.dumps({"e": "ALGO_UPDATE", "E": int(fake.at.timestamp() * 1000) + 6})
++            )
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            async def local(coordinator, *, on_ready):
++                def callback():
++                    on_ready()
++                    # Calibrate just before observing the exchange event. The
++                    # fixture's frozen clock must not make entry quotes future.
++                    shift_time(c, fake, 6)
++                    loop.call_soon_threadsafe(ready.set)
++
++                await session(coordinator, connector=connector, on_ready=callback)
++
++            monkeypatch.setattr(validation, "session", local)
++            await validation.validate_once(
++                c, uuid4(), "LONG", observation_seconds=0.2, entry_style="OPPOSITE_QUOTE"
++            )
++
++    asyncio.run(run())
++    output = capsys.readouterr().out
++    assert '"filled_protection_and_flat_verified": true' in output
++    assert '"session_error": false' in output
++    assert c.session_diagnostic.received_events >= 1
++    assert c.session_diagnostic.code == "NONE"
++    assert len(posts(fake)) == 2 and posts(fake)[1]["reduceOnly"] == "true"
++    assert not any(store.read("DEMO-test").positions.values())
+--- /dev/null
++++ b/tests/unit/test_demo_event_clock.py
+@@ -0,0 +1,209 @@
++"""Verified exchange-clock bounds, strict age limits, and finite local waits."""
++
++import asyncio
++from types import SimpleNamespace
++
++import pytest
++from pydantic import SecretStr
++
++import services.execution.demo_event_clock as clock
++from integrations.binance_usdm.demo import DemoClient, DemoClockSample, DemoCredentials, DemoFailure
++from services.execution.demo_models import PrivateSessionDiagnostic
++from tests.integration.test_demo import settings
++
++
++def client(sample=None, now=1020):
++    state = {"now": now}
++    return SimpleNamespace(
++        clock_ms=lambda: state["now"],
++        clock_sample=sample or DemoClockSample(1000, 1020, 1016),
++        synced_at=1020,
++        cooldown_until=0,
++    ), state
++
++
++@pytest.mark.parametrize("offset", [-500, -6, 0, 6, 500])
++def test_same_exchange_instant_uses_verified_offset_not_pc_point(offset):
++    c, _ = client(DemoClockSample(1000, 1000, 1000 + offset))
++    detail = PrivateSessionDiagnostic()
++    assert clock.validate_event_time(c, 1020 + offset, detail) == 0
++    assert detail.event_clock_offset_ms == offset and detail.event_clock_rtt_ms == 0
++    assert detail.event_local_age_ms == -offset and detail.event_clock_wait_ms == 0
++
++
++def test_positive_six_ms_verified_offset_passes_without_timestamp_rewrite():
++    c, _ = client(DemoClockSample(1000, 1000, 1006))
++    stamp = 1026
++    detail = PrivateSessionDiagnostic()
++    assert clock.validate_event_time(c, stamp, detail) == 0 and stamp == 1026
++    assert detail.event_local_age_ms == -6 and detail.event_clock_offset_ms == 6
++
++
++def test_uncertainty_is_resolved_by_waiting_until_lower_bound_reaches_event(monkeypatch):
++    c, state = client()
++    detail = PrivateSessionDiagnostic()
++    waits = []
++
++    def sleep(delay):
++        waits.append(delay)
++        state["now"] += round(delay * 1000)
++
++    monkeypatch.setattr(clock, "_sleep", sleep)
++    # Point estimate is 1026; E1028 is inside [1016,1036]. Wait12ms,
++    # then ALL possible server clocks are >=E, worst-case age20ms.
++    assert clock.validate_event_time(c, 1028, detail) == 20
++    assert waits == [0.012] and detail.event_clock_wait_ms == 12
++    assert detail.event_clock_rtt_ms == 20 and detail.event_clock_offset_ms == 6
++
++
++def test_async_wait_uses_same_conservative_bounds(monkeypatch):
++    c, state = client()
++    detail = PrivateSessionDiagnostic()
++
++    async def pause(delay):
++        state["now"] += round(delay * 1000)
++        await asyncio.sleep(0)
++
++    monkeypatch.setattr(clock, "_pause", pause)
++    assert asyncio.run(clock.validate_event_time_async(c, 1028, detail)) == 20
++    assert detail.event_clock_wait_ms == 12
++
++
++@pytest.mark.parametrize("stamp", [1037, 1036 - 30001])
++def test_definite_future_and_old_event_are_rejected_without_waiting(monkeypatch, stamp):
++    c, _ = client()
++    waits = []
++    monkeypatch.setattr(clock, "_sleep", lambda delay: waits.append(delay))
++    with pytest.raises(DemoFailure, match="Stale/future"):
++        clock.validate_event_time(c, stamp, PrivateSessionDiagnostic())
++    assert not waits
++
++
++def test_worst_case_age_boundary_remains_exactly_thirty_seconds():
++    c, _ = client()
++    assert clock.validate_event_time(c, 1036 - 30000, PrivateSessionDiagnostic()) == 30000
++
++
++@pytest.mark.parametrize("stamp", [None, True, "1020", 1.5])
++def test_invalid_timestamp_type_is_not_reinterpreted(stamp):
++    c, _ = client()
++    with pytest.raises(DemoFailure, match="Stale/future"):
++        clock.validate_event_time(c, stamp, PrivateSessionDiagnostic())
++
++
++@pytest.mark.parametrize(
++    "change", ["unsynced", "missing_sample", "old", "backward", "rtt", "offset", "cooldown"]
++)
++def test_untrusted_or_stale_probe_cannot_authorize_event(change):
++    c, state = client()
++    if change == "unsynced":
++        c.synced_at = None
++    elif change == "missing_sample":
++        c.clock_sample = None
++    elif change == "old":
++        state["now"] = 61021
++    elif change == "backward":
++        state["now"] = 1019
++    elif change == "rtt":
++        c.clock_sample = DemoClockSample(1000, 2001, 1500)
++    elif change == "offset":
++        c.clock_sample = DemoClockSample(1000, 1000, 2001)
++    else:
++        c.cooldown_until = 1021
++    with pytest.raises(DemoFailure):
++        clock.validate_event_time(c, 1020, PrivateSessionDiagnostic())
++
++
++def test_frozen_clock_wait_is_bounded_and_does_not_accept_future(monkeypatch):
++    c, _ = client()
++    waits = []
++    monkeypatch.setattr(clock, "_sleep", lambda delay: waits.append(delay))
++    with pytest.raises(DemoFailure, match="untrusted"):
++        clock.validate_event_time(c, 1028, PrivateSessionDiagnostic())
++    assert len(waits) == 3 and sum(waits) <= 1
++
++
++def test_clock_jump_during_wait_rechecks_age(monkeypatch):
++    c, state = client()
++    monkeypatch.setattr(clock, "_sleep", lambda delay: state.update(now=41020))
++    with pytest.raises(DemoFailure, match="Stale/future"):
++        clock.validate_event_time(c, 1028, PrivateSessionDiagnostic())
++
++
++def test_sdk_preserves_probe_only_after_original_trust_checks():
++    now = [1000]
++    calls = []
++    from tests.fixtures.demo import FakeDemo
++
++    def send(method, path, query, key):
++        calls.append((method, path))
++        now[0] = 1020
++        return FakeDemo.response({"serverTime": 1016})
++
++    c = DemoClient(
++        settings(),
++        DemoCredentials(SecretStr("synthetic"), SecretStr("synthetic")),
++        send=send,
++        clock_ms=lambda: now[0],
++    )
++    c.sync_clock()
++    assert c.offset == 6 and c.synced_at == 1020
++    assert c.clock_sample == DemoClockSample(1000, 1020, 1016)
++    assert calls == [("GET", "/fapi/v1/time")]
++
++
++@pytest.mark.parametrize("after,server", [(2001, 1500), (1000, 2001)])
++def test_sdk_rejects_bad_probe_and_clears_saved_sample(after, server):
++    from tests.fixtures.demo import FakeDemo
++
++    now = [1000]
++
++    def send(method, path, query, key):
++        now[0] = after
++        return FakeDemo.response({"serverTime": server})
++
++    c = DemoClient(
++        settings(),
++        DemoCredentials(SecretStr("synthetic"), SecretStr("synthetic")),
++        send=send,
++        clock_ms=lambda: now[0],
++    )
++    with pytest.raises(DemoFailure):
++        c.sync_clock()
++    assert c.clock_sample is None and c.synced_at is None
++
++
++def test_cancelling_unproven_clock_wait_is_failure_not_normal_socket_shutdown(monkeypatch):
++    from services.execution.demo_event_inbox import EventInbox
++
++    c, _ = client()
++
++    async def run():
++        entered = asyncio.Event()
++
++        async def pause(delay):
++            entered.set()
++            await asyncio.Future()
++
++        monkeypatch.setattr(clock, "_pause", pause)
++
++        class Socket:
++            async def recv(self):
++                return '{"e":"ALGO_UPDATE","E":1028}'
++
++        failures = []
++        inbox = EventInbox(
++            lambda: 1020,
++            lambda: failures.append(True),
++            validate_time=lambda stamp, detail: clock.validate_event_time_async(c, stamp, detail),
++        )
++        task = asyncio.create_task(inbox.run(Socket()))
++        await asyncio.wait_for(entered.wait(), 1)
++        task.cancel()
++        with pytest.raises(asyncio.CancelledError):
++            await task
++        assert failures == [True] and inbox.failure.code == "EVENT_CLOCK_INCOMPLETE"
++        with pytest.raises(DemoFailure):
++            await inbox.take()
++
++    asyncio.run(run())
