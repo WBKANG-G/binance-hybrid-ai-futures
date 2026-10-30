@@ -1,0 +1,874 @@
+--- /dev/null
++++ b/EVENT_INBOX_START_HERE_KO.md
+@@ -0,0 +1,45 @@
++# 개인 스트림 수신 대기 누적을 줄이는 보완
++
++직전 작업 a823ff80-5903-4990-8ac2-ae3707b5ec84는0.0007 진입·SL/TP·청산을 확인했지만 EVENT_TIME_INVALID로 전체 검증에 실패했습니다. ORDER_TRADE_UPDATE가 처리될 때30.105초 지난 것으로 기록됐고 진입 준비 콜백은약21.065초였습니다. 직접 차단 이유는30초 신선도 초과로 확인됐습니다. 당시 수신 시각은 기록되지 않아 거래소/네트워크 도착 지연과 내부 대기 시간을 분리해 확정할 수는 없습니다.
++
++이 보완은 느린 REST/진입 준비 중에도 별도 수신 작업이 메시지를 읽고 검사하게 합니다. 수신 시부터30초가 넘거나 미래인 이벤트는 계속 차단하며, 처리할 최신 알림도 원래30초 검사를 다시 통과해야 합니다. 기준을31초 등으로 늘리거나 시각을 바꾸지 않습니다.
++
++## 1. 기존 Galaxybook의 새 폴더에 설치
++
++ZIP을 windows-demo-event-inbox-fix 폴더에 풀고, 폴더를 열어 주소창에 cmd를 입력합니다. CMD 경로 끝이 새 폴더인지 확인합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows 프로젝트·DB/export 볼륨·적용한 일별/주별 기준을 유지합니다. 초기화/down -v/export 재생성/과거 기준 재적용은 하지 않습니다. 컨테이너 교체로 메모리 키가 사라지므로 이번 설치 후 한 번 다시 등록합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++DEMO 키와 Secret은 숨김 입력합니다. 정상 결과 REGISTERED_IN_PRIVATE_TMPFS 이후에는 재입력이 없습니다.
++
++## 2. 먼저 복구 검토
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++이 명령은 거래소/DB 조회만 하며 주문·기준 변경·잠금 해제를 하지 않습니다. 결과 화면을 공유합니다. 새로운 검토 토큰을 확인한 뒤 별도의 복구 승인과 새 최소 수량 DEMO 검증을 진행합니다. 실패한 기존 작업을 새 UUID로 반복하거나 옛 토큰을 재사용하지 않습니다. 설치만으로 자동 매매가 시작되지 않습니다.
++
++## 수신/대조 방식
++
++WebSocket은 한 수신 작업만 읽습니다. 이 작업은 DB/REST를 기다리지 않고 메시지 크기·JSON·허용 종류·원래 E 시각의30초/미래 여부를 모두 검사합니다. 알 수 없는 메시지나 오래된/미래 메시지, 만료된 연결 키, 대기 알림128개 초과는 실패로 처리합니다. 수신 오류는 메모리 진입 게이트를 즉시 닫고, 진행 중인 DB 작업이 끝난 뒤 정리/감사를 하므로 행 잠금 경합을 만들지 않습니다. 새 진입은 예약/재개뿐 아니라 실제 HTTP 제출 직전에도 다시 차단합니다. 이미 전송 중인 HTTP를 되돌린다고 보장하지 않습니다.
++
++유효한 여러 알림은 현재 상태가 바뀌었다는 REST 재대조 요청으로 합쳐집니다. 가장 최근 원래 이벤트 시각의 알림만 다음 event() 호출에 전달하고, 그 알림 역시 처리 시점에 기존30초 검사를 통과해야 합니다. 다른 정상 알림을 개별 재생하지 않으며 이 알림들로 체결 수량을 더하지 않습니다. 원래 두 REST 스냅샷/정체성/체결·보호·설정·위험 검사가 실제 거래소 최신 누적 상태를 결정합니다. 잘못된 메시지는 정상 메시지와 합쳐서 버리지 않습니다. 최신 알림조차 오래됐다면 그대로 실패합니다.
++
++기존의 모든 WS 원본 장기 보관을 새로 구현한 버전은 아닙니다. 기존 DEMO는 WS를 무효화 알림으로 취급하고 거래소 주문/체결 진실은 REST 및 감사 원장으로 대조합니다. 이번 메모리 수신함도 메시지의 e/E 메타데이터만 짧게 보유하고 원본 사업 데이터·키/URL을 로그/DB로 새로 출력하지 않습니다. Phase4 전체 수락 범위와 원본 이력 보관 요구를 이 수정만으로 완료했다고 표시하지 않습니다.
++
++## 새 진단 값
++
++private_session_diagnostic의 received_events는 수신한 메시지 수, coalesced_events는 합쳐진 유효 알림 수입니다. event_receive_age_ms는 선택된 알림의 수신 시 나이, event_age_ms는 처리 호출 직전 나이입니다. 잘못된 수신 프레임은 그 프레임의 나이를 표시합니다. 이 값들로 거래소 도착 지연과 내부 대기를 구분하는 데 도움을 줍니다. NONE은 오류가 없다는 분류이지 실제 체결 검증 완료 자체를 뜻하지 않습니다.
++
++단일 오래된/미래 이벤트·잘못된 JSON/종류·연결 종료·버퍼 초과/키 만료는 계속 실패이며 마지막 진단과 감사에 남습니다. 오류는 정상 종료 취소에 가려져도 성공으로 바뀌지 않습니다. 정상 종료는 수신 작업을 먼저 끝내 의도적인 소켓 닫힘을 오류로 오인하지 않습니다.
++
++원래 SDK·스냅샷·coherent_snapshot·account_risk·저장/fencing·위험/수량/진입/SL·TP·청산 계약·기준/키 보관/Compose/export는 그대로입니다. 진입 게이트에는 수신 실패 차단만 추가합니다. LIVE/Phase5·서버 상시 운영·Phase4 전체 완료를 시작하거나 선언하지 않습니다. 새 버전의 실제 Windows 결과를 다시 확인해야 합니다.
+--- /dev/null
++++ b/EVENT_INBOX_VALIDATION_KO.md
+@@ -0,0 +1,33 @@
++# 수신/REST 분리와 유효 알림 통합 검증
++
++## 실제 관측
++
++사용자 작업a823ff80-5903-4990-8ac2-ae3707b5ec84: FULL_FILL0.0007, stop_verified/target_verified=true, FINISHED_FLAT/CLOSED이지만 session_error=true/전체수락false. 진단은 stage EVENT, code EVENT_TIME_INVALID, event_kind ORDER_TRADE_UPDATE, event_age_ms30105, ready_callback_ms21065입니다. completion/database_failure는 NONE, 마지막 스냅샷 불일치 필드는[]입니다. 처리 시30초를 넘긴 것이 직접 차단 원인입니다. 구버전에 수신 시각이 없어 네트워크/거래소 지연과 내부 대기 시간을 분리해 실제 원인을 완전히 확정한 것은 아닙니다.
++
++## 부모 버전 재현
++
++부모 ZIP 전체 소스를 그대로 추출하고 새 회귀 검사 두 개만 추가했습니다. 콜백/REST 대기 중 새 이벤트가 전달되는 합성31초 흐름에서 두 경우 모두 이전판은 진입·SL/TP·청산을 확인한 뒤 EVENT_TIME_INVALID/event_age_ms31000/session_error=true/전체수락false로 실패했습니다. 2 failed, 1 deselected in1.78초. 실제 사용자 수신 지연을 측정한 것은 아니며 내부 대기 문제를 구체적으로 재현한 검사입니다.
++
++## 수정 범위
++
++EventInbox를 추가하고 demo_stream의 수신과 직렬 DB/REST 작업을 분리했습니다. 수신 작업은 원래1MiB 한도/JSON 검사/알려진 이벤트 종류/30초 이내·미래 아님을 모든 메시지에 적용합니다. listenKeyExpired와 대기128개 초과는 실패입니다. e/E만 임시 보유하며 정상 알림들을 최신 원래 시각의 재대조 요청으로 통합합니다. 대표 알림은 바꾸지 않은 DemoCoordinator.event의 처리 시점30초 검사와 원래 REST 대조/보호 검사를 다시 통과해야 합니다. 체결 증감 연산은 하지 않습니다.
++
++수신 실패 즉시 메모리 session_failed로 예약·재개와 HTTP 진입 제출 직전의 신규 주문을 차단합니다. 제출 직전 차단은 LOCAL_VALIDATION_FAILED 무전송 증거와 기존 UNKNOWN/예약을 보존하며 자동 재전송하지 않습니다. 이미 전송 중인 HTTP를 취소할 수 있다고 주장하지 않습니다. DB 정리/감사는 진행 중인 settled_call 작업을 완료한 뒤 실행합니다. 수신 실패가 검증 제한시간 취소 중 발생해도 실패 표시/진단을 보존합니다. 수신 작업을 먼저 중지한 뒤 의도적으로 소켓을 닫아 거짓 실패를 만들지 않으며 수신 종료 대기 중의 외부 취소도 전파합니다.
++
++기존 SDK/demo_snapshot/coherent_snapshot/account_risk/저장·fencing/정책/주문 파라미터·수량·보호·청산/기간 기준/키 보관/Docker·Compose/export는 바이트 단위로 그대로입니다. demo.py에서는 수신 실패 시 예약/재개/제출 차단만 추가합니다. 이벤트 허용 목록과30초 검사를 늘리거나 raw E를 현재 시각으로 바꾸지 않았습니다. 정상 알림의 개별 event() 재생 대신 REST 재대조를 통합하는 구조 변경이며, 모든 프레임을 수신 시 검사합니다.
++
++원래 DEMO의 WS 원본 장기 보관 한계는 이 변경의 별도 수락 과제로 남아 있습니다. REST와 감사 원장 대조를 유지하지만 이번 변경으로 전체 WS 원본 보관 요구를 완료했다고 주장하지 않습니다. 키/URL/원본 오류 문자열을 로그/DB에 새로 저장하지 않습니다.
++
++## 실제 검사
++
++신규16개 검사 통과(5.56초). 최신/역순 정상 알림 통합과 e/E 외 원본 미보유, 정상 알림 사이의 잘못된/미래/오래된 프레임과 JSON/객체 오류·연결 키 만료 차단, 대기 한도 초과, 조용한 수신 제한시간과 정상 중지, 콜백/REST 지연 두 상황의 실제 PG·로컬 WS·SL/TP·단일 reduce-only 종료 후 전체 검증 통과를 확인합니다. 수신 실패의 예약/재개/실제 제출 직전 차단과 기존 의도 보존/무전송 증거·미재전송, DB 행 잠금 중 수신 오류가 발생해도55P03 없이 작업을 끝낸 뒤 감사/정리하는지, 수신 중지 대기 중 취소가 전파되는지도 확인합니다.
++
++기존 관련 검사와 합친58개 집중 실행도 통과(29.81초). 기존의 단일31초 오래된 이벤트 거부, 세션 오류가 정리 중 취소에 가려지지 않는 검사, worker drain/행 잠금 회귀와 최초 체결 보호 검사 등을 포함합니다. 신규 최종16개에는 이후 추가한 제출 직전/수신 종료 취소 검사도 포함합니다.
++
++- 전체 pytest: 865 passed in 207.13s (0:03:27). TEST_DATABASE_URL은 실제 로컬 PostgreSQL.
++- Ruff check: All checks passed. Ruff format --check: 245 files already formatted.
++- mypy: Success, no issues found in 87 source files.
++- 부모 ZIP SHA-256: 18e45c994747d4b3e9ab9ae6a75203d65c72dca0a3dcaf0fcd6586770ee7e587. 부모285개 파일 중4개만 수정하고 helper·신규 테스트3개·문서2개를 추가합니다. 변경 목록·전 파일 SHA-256/ZIP CRC/누락과 DemoCoordinator의 변경 메서드가 _fresh/submit/resume_entries뿐임을 패키징 시 검사합니다.
++- main은 64e9e7b3d833824c763a2a0f2df1493300744121 유지. 별도 windows-demo-event-inbox-fix-20261030 브랜치로 게시합니다.
++
++합성 거래소 응답·로컬 WebSocket·실제 PostgreSQL에서 실행했습니다. 클라우드에서 인증된 Binance 주문을 실행하지 않았습니다. 수신부터 이미30초 늦은 이벤트나 최신 대표 알림도 오래된 상태는 계속 실패하며 억지로 통과시키지 않습니다. 사용자 Windows의 실제 새 DEMO 검증 성공, 실제 부분 체결/연결 끊김/재시작 수락, Phase4 전체 완료와 LIVE/Phase5 승인은 아직 별도입니다.
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -74,7 +74,8 @@
+         now = self.store.now()
+         account_risk(ledger, now)
+         if (
+-            ledger.paused
++            self.session_failed
++            or ledger.paused
+             or ledger.risk_state != RiskState.NORMAL
+             or not ledger.reconciled
+             or not ledger.stream_ready
+@@ -332,6 +333,9 @@
+                     self.rules[order.signal.symbol],
+                     mark_price=latest.mark,
+                 )
++                if self.session_failed:
++                    ledger.request_no_send_evidence[order.client_id] = "LOCAL_VALIDATION_FAILED"
++                    raise DemoFailure("DEMO private receiver failed before entry submission")
+                 self.client.submit(intent)
+                 ledger.requests[order.client_id] = "ACKNOWLEDGED"
+             except DemoRejected:
+@@ -1116,7 +1120,8 @@
+                 raise RiskRejected("DEMO entry mutations disabled")
+             account_risk(ledger, self.store.now())
+             if (
+-                ledger.risk_state != RiskState.NORMAL
++                self.session_failed
++                or ledger.risk_state != RiskState.NORMAL
+                 or not ledger.reconciled
+                 or not ledger.stream_ready
+             ):
+--- /dev/null
++++ b/services/execution/demo_event_inbox.py
+@@ -0,0 +1,108 @@
++"""Bounded receipt validation and coalescing of REST-invalidation hints.
++
++No fill arithmetic or account state is derived from these messages. Every frame
++is checked; only known, fresh hints share one later strict REST reconciliation.
++"""
++
++import asyncio
++import json
++from collections.abc import Callable
++from dataclasses import dataclass
++from decimal import Decimal
++from typing import Any, Protocol
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_models import PrivateSessionDiagnostic
++from services.execution.demo_session_diagnostics import (
++    EVENT_KINDS,
++    EventKind,
++    event_info,
++    failure_diagnostic,
++)
++
++MAX_PENDING_EVENTS = 128
++
++
++class Receiver(Protocol):
++    async def recv(self) -> str | bytes: ...
++
++
++@dataclass(frozen=True)
++class ReceivedHint:
++    kind: EventKind
++    stamp: int
++    receive_age_ms: int
++
++    def event(self) -> dict[str, Any]:
++        return {"e": self.kind, "E": self.stamp}
++
++
++class EventInbox:
++    def __init__(self, now_ms: Callable[[], int], failed: Callable[[], None]):
++        self.now_ms, self.failed = now_ms, failed
++        self.wakeup = asyncio.Event()
++        self.latest: ReceivedHint | None = None
++        self.pending = 0
++        self.received = 0
++        self.coalesced = 0
++        self.failure: PrivateSessionDiagnostic | None = None
++
++    def raise_if_failed(self) -> None:
++        if self.failure is not None:
++            raise DemoFailure("DEMO private receiver failed; entries blocked")
++
++    async def run(self, websocket: Receiver) -> None:
++        detail = PrivateSessionDiagnostic(stage="RECEIVE")
++        try:
++            while True:
++                detail = PrivateSessionDiagnostic(stage="RECEIVE")
++                message = await websocket.recv()
++                self.received = min(1000000000, self.received + 1)
++                if len(message) > 1048576:
++                    raise DemoFailure("DEMO private event oversized")
++                detail.stage = "PARSE"
++
++                def reject_constant(value: str) -> Any:
++                    raise ValueError("Non-finite event")
++
++                raw = json.loads(message, parse_float=Decimal, parse_constant=reject_constant)
++                if not isinstance(raw, dict):
++                    raise DemoFailure("Invalid DEMO event object")
++                now = self.now_ms()
++                detail.event_kind, detail.event_age_ms = event_info(raw, now)
++                detail.event_receive_age_ms = detail.event_age_ms
++                detail.stage = "EVENT"
++                kind = raw.get("e")
++                if not isinstance(kind, str) or kind not in EVENT_KINDS:
++                    raise DemoFailure("Unrecognized DEMO private event")
++                if kind == "listenKeyExpired":
++                    raise DemoFailure("DEMO private listen key expired")
++                stamp = raw.get("E")
++                # This is the same 30-second/non-future bound as event(). A
++                # representative is checked again by unmodified event() later.
++                if type(stamp) is not int or not 0 <= now - stamp <= 30000:
++                    raise DemoFailure("Stale/future DEMO private event")
++                if self.pending >= MAX_PENDING_EVENTS:
++                    raise DemoFailure("DEMO private event inbox overflow")
++                hint = ReceivedHint(detail.event_kind, stamp, now - stamp)
++                self.pending += 1
++                if self.latest is None or stamp >= self.latest.stamp:
++                    self.latest = hint
++                self.wakeup.set()
++        except Exception as error:
++            self.failure = failure_diagnostic(error, detail)
++            self.failed()  # In-memory admission gate; never races DB cleanup.
++            self.wakeup.set()
++
++    async def take(self, timeout: float = 5) -> ReceivedHint:
++        self.raise_if_failed()
++        await asyncio.wait_for(self.wakeup.wait(), timeout=timeout)
++        self.raise_if_failed()
++        hint = self.latest
++        if hint is None:
++            raise DemoFailure("DEMO private event inbox empty")
++        self.coalesced = min(1000000000, self.coalesced + max(0, self.pending - 1))
++        self.latest = None
++        self.pending = 0
++        self.wakeup.clear()
++        return hint
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -114,6 +114,8 @@
+         "OTHER_DATABASE",
+         "DEMO_QUERY_OR_SESSION",
+         "OTHER_SESSION_FAILURE",
++        "EVENT_BUFFER_OVERFLOW",
++        "LISTEN_KEY_EXPIRED",
+     ] = "NONE"
+     event_kind: Literal[
+         "NONE",
+@@ -128,6 +130,9 @@
+     ] = "NONE"
+     event_age_ms: int | None = None
+     ready_callback_ms: int = 0
++    event_receive_age_ms: int | None = None
++    received_events: int = 0
++    coalesced_events: int = 0
+ 
+ 
+ class DemoLedger(Ledger):
+--- a/services/execution/demo_session_diagnostics.py
++++ b/services/execution/demo_session_diagnostics.py
+@@ -69,6 +69,8 @@
+     elif isinstance(error, DemoFailure):
+         code = {
+             "Unrecognized DEMO private event": "EVENT_UNKNOWN",
++            "DEMO private event inbox overflow": "EVENT_BUFFER_OVERFLOW",
++            "DEMO private listen key expired": "LISTEN_KEY_EXPIRED",
+             "Stale/future DEMO private event": "EVENT_TIME_INVALID",
+             "DEMO private event oversized": "EVENT_OVERSIZED",
+             "Invalid DEMO event object": "EVENT_OBJECT_INVALID",
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -1,13 +1,11 @@
+ """Private DEMO WSS supervision. Events invalidate state; REST establishes truth."""
+ 
+ import asyncio
+-import json
+ import logging
+ import time
+ from collections.abc import Callable
+ from contextlib import AbstractAsyncContextManager
+ from datetime import timedelta
+-from decimal import Decimal
+ from typing import Any, Protocol
+ from uuid import uuid4
+ 
+@@ -16,6 +14,7 @@
+ 
+ from integrations.binance_usdm.demo import WS_HOST, DemoFailure
+ from services.execution.demo import DemoCoordinator
++from services.execution.demo_event_inbox import EventInbox
+ from services.execution.demo_models import PrivateSessionDiagnostic
+ from services.execution.demo_session_diagnostics import event_info, failure_diagnostic
+ 
+@@ -97,68 +96,31 @@
+             pass
+         raise DemoFailure("DEMO private connection/session failed; entries blocked") from None
+     renewed = store.now()
+-    try:
+-        coordinator.session_diagnostic.stage = "CONNECT"
+-        async with connector(client.private_url(key)) as websocket:
+-            coordinator.session_diagnostic.stage = "RECONCILE"
+-            await settled_call(coordinator.connected)
+-            if on_ready:
+-                await settled_call(store.renew, lease)
+-                await settled_call(client.sync_clock)
+-                coordinator.session_diagnostic.stage = "READY_CALLBACK"
+-                callback_start = time.monotonic()
+-                try:
+-                    await settled_call(on_ready)
+-                finally:
+-                    coordinator.session_diagnostic.ready_callback_ms = min(
+-                        3600000, max(0, int((time.monotonic() - callback_start) * 1000))
+-                    )
+-            count = 0
+-            while max_messages is None or count < max_messages:
+-                coordinator.session_diagnostic.stage = "HEARTBEAT"
+-                await settled_call(store.renew, lease)
+-                await settled_call(client.sync_clock)
+-                if store.now() - renewed >= timedelta(minutes=25):
+-                    coordinator.session_diagnostic.stage = "KEY_RENEW"
+-                    await settled_call(
+-                        store.change,
+-                        lease,
+-                        "DEMO_SESSION_RENEW",
+-                        lambda ledger: client.listen_key("PUT"),
+-                    )
+-                    renewed = store.now()
+-                try:
+-                    coordinator.session_diagnostic.stage = "RECEIVE"
+-                    coordinator.session_diagnostic.event_kind = "NONE"
+-                    coordinator.session_diagnostic.event_age_ms = None
+-                    message = await asyncio.wait_for(websocket.recv(), timeout=5)
+-                    if len(message) > 1_048_576:
+-                        raise DemoFailure("DEMO private event oversized")
+-
+-                    def reject_constant(value: str) -> Any:
+-                        raise ValueError("Non-finite event")
+-
+-                    coordinator.session_diagnostic.stage = "PARSE"
+-                    raw = json.loads(message, parse_float=Decimal, parse_constant=reject_constant)
+-                    if not isinstance(raw, dict):
+-                        raise DemoFailure("Invalid DEMO event object")
+-                    (
+-                        coordinator.session_diagnostic.event_kind,
+-                        coordinator.session_diagnostic.event_age_ms,
+-                    ) = event_info(raw, int(store.now().timestamp() * 1000))
+-                    coordinator.session_diagnostic.stage = "EVENT"
+-                    await settled_call(coordinator.event, raw)
+-                    count += 1
+-                except TimeoutError:
+-                    coordinator.session_diagnostic.stage = "PING"
+-                    pong = await websocket.ping()
+-                    await asyncio.wait_for(pong, timeout=5)
+-                    await settled_call(coordinator.connected)
+-                coordinator.session_diagnostic.stage = "EXPIRY"
+-                await settled_call(coordinator.expire)
+-    except Exception as error:
++    inbox: EventInbox | None = None
++    reader: asyncio.Task[None] | None = None
++    failure_recorded = False
++
++    def receive_failed() -> None:
+         coordinator.session_failed = True
+-        coordinator.session_diagnostic = failure_diagnostic(error, coordinator.session_diagnostic)
++
++    def metrics() -> None:
++        if inbox is not None:
++            coordinator.session_diagnostic.received_events = inbox.received
++            coordinator.session_diagnostic.coalesced_events = inbox.coalesced
++
++    async def record_failure(error: Exception) -> None:
++        nonlocal failure_recorded
++        coordinator.session_failed = True
++        callback_ms = coordinator.session_diagnostic.ready_callback_ms
++        if inbox is not None and inbox.failure is not None:
++            coordinator.session_diagnostic = inbox.failure.model_copy(deep=True)
++            coordinator.session_diagnostic.ready_callback_ms = callback_ms
++        else:
++            coordinator.session_diagnostic = failure_diagnostic(
++                error, coordinator.session_diagnostic
++            )
++        metrics()
++        failure_recorded = True
+         try:
+             await settled_call(
+                 store.change,
+@@ -171,13 +133,106 @@
+                 ),
+             )
+         except Exception:
+-            pass  # Ephemeral diagnostic still appears in final output if the DB is unavailable.
++            pass
++
++    try:
++        coordinator.session_diagnostic.stage = "CONNECT"
++        async with connector(client.private_url(key)) as websocket:
++            inbox = EventInbox(lambda: int(store.now().timestamp() * 1000), receive_failed)
++            reader = asyncio.create_task(inbox.run(websocket))
++            try:
++                # Begin receiving before slow REST setup or an entry callback.
++                await asyncio.sleep(0)
++                inbox.raise_if_failed()
++                coordinator.session_diagnostic.stage = "RECONCILE"
++                await settled_call(coordinator.connected)
++                inbox.raise_if_failed()
++                if on_ready:
++                    await settled_call(store.renew, lease)
++                    await settled_call(client.sync_clock)
++                    inbox.raise_if_failed()
++                    coordinator.session_diagnostic.stage = "READY_CALLBACK"
++                    callback_start = time.monotonic()
++                    try:
++                        await settled_call(on_ready)
++                    finally:
++                        coordinator.session_diagnostic.ready_callback_ms = min(
++                            3600000, max(0, int((time.monotonic() - callback_start) * 1000))
++                        )
++                    inbox.raise_if_failed()
++                count = 0
++                while max_messages is None or count < max_messages:
++                    coordinator.session_diagnostic.stage = "HEARTBEAT"
++                    await settled_call(store.renew, lease)
++                    await settled_call(client.sync_clock)
++                    inbox.raise_if_failed()
++                    if store.now() - renewed >= timedelta(minutes=25):
++                        coordinator.session_diagnostic.stage = "KEY_RENEW"
++                        await settled_call(
++                            store.change,
++                            lease,
++                            "DEMO_SESSION_RENEW",
++                            lambda ledger: client.listen_key("PUT"),
++                        )
++                        renewed = store.now()
++                        inbox.raise_if_failed()
++                    try:
++                        coordinator.session_diagnostic.stage = "RECEIVE"
++                        coordinator.session_diagnostic.event_kind = "NONE"
++                        coordinator.session_diagnostic.event_age_ms = None
++                        coordinator.session_diagnostic.event_receive_age_ms = None
++                        hint = await inbox.take()
++                        coordinator.session_diagnostic.stage = "EVENT"
++                        (
++                            coordinator.session_diagnostic.event_kind,
++                            coordinator.session_diagnostic.event_age_ms,
++                        ) = event_info(hint.event(), int(store.now().timestamp() * 1000))
++                        coordinator.session_diagnostic.event_receive_age_ms = hint.receive_age_ms
++                        metrics()
++                        # Still checks original E against NOW and establishes
++                        # strict REST truth. Never rewrites/relaxes an old hint.
++                        await settled_call(coordinator.event, hint.event())
++                        count += 1
++                        inbox.raise_if_failed()
++                    except TimeoutError:
++                        inbox.raise_if_failed()
++                        coordinator.session_diagnostic.stage = "PING"
++                        pong = await websocket.ping()
++                        await asyncio.wait_for(pong, timeout=5)
++                        inbox.raise_if_failed()
++                        await settled_call(coordinator.connected)
++                        inbox.raise_if_failed()
++                    coordinator.session_diagnostic.stage = "EXPIRY"
++                    await settled_call(coordinator.expire)
++                    inbox.raise_if_failed()
++            finally:
++                # Only the receiver reads the socket; stop it before intentional
++                # socket closure so closure cannot become a fabricated failure.
++                current_task = asyncio.current_task()
++                cancellations = current_task.cancelling() if current_task is not None else 0
++                reader.cancel()
++                while not reader.done():
++                    try:
++                        await asyncio.shield(reader)
++                    except asyncio.CancelledError:
++                        continue
++                if not reader.cancelled():
++                    reader.exception()
++                metrics()
++                if current_task is not None and current_task.cancelling() > cancellations:
++                    raise asyncio.CancelledError
++    except Exception as error:
++        await record_failure(error)
+         try:
+             await settled_call(coordinator.disconnect)
+         except Exception:
+-            pass  # Durable leader acquisition also invalidates stream readiness.
++            pass
+         raise DemoFailure("DEMO private connection/session failed; entries blocked") from None
+     finally:
++        # Validation cancellation must not hide a receiver failure observed
++        # while a DB worker was draining. Capture before normal cleanup.
++        if inbox is not None and inbox.failure is not None and not failure_recorded:
++            await record_failure(DemoFailure("DEMO private receiver failed; entries blocked"))
+         # Session closure never cancels SL/TP. Fencing prevents a stale worker deleting a new leader's key.
+         try:
+             await settled_call(client.sync_clock)
+--- /dev/null
++++ b/tests/fault_injection/test_demo_inbox_worker_failure.py
+@@ -0,0 +1,123 @@
++"""A bad message during a real row-locked worker must drain before failure audit."""
++
++import asyncio
++import json
++import threading
++from contextlib import asynccontextmanager
++
++import pytest
++from sqlalchemy.exc import SQLAlchemyError
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_stream import session
++from tests.integration.test_demo import system  # noqa: F401
++
++
++def test_receiver_failure_during_db_worker_does_not_race_pause_or_failure_audit(
++    system,  # noqa: F811
++    monkeypatch,  # noqa: F811
++):  # noqa: F811
++    store, c, fake = system
++    started, release = threading.Event(), threading.Event()
++    original_change = store.change
++    errors = []
++
++    def change(*args):
++        try:
++            return original_change(*args)
++        except SQLAlchemyError as error:
++            errors.append(getattr(getattr(error, "orig", None), "sqlstate", None))
++            raise
++
++    monkeypatch.setattr(store, "change", change)
++
++    def event(raw):
++        def held(ledger):
++            started.set()
++            assert release.wait(5)
++
++        store.change(c.lease, "TEST_RECEIVER_FAILURE_WITH_LOCK", held)
++
++    monkeypatch.setattr(c, "event", event)
++
++    async def run():
++        async def handler(socket):
++            await socket.send(
++                json.dumps({"e": "ACCOUNT_UPDATE", "E": int(fake.at.timestamp() * 1000)})
++            )
++            assert await asyncio.to_thread(started.wait, 5)
++            await socket.send(
++                json.dumps({"e": "PRIVATE_UNKNOWN", "E": int(fake.at.timestamp() * 1000)})
++            )
++            await asyncio.sleep(2.2)
++            assert c.session_failed  # Entry admission closes before DB worker is released.
++            release.set()
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            try:
++                with pytest.raises(DemoFailure):
++                    await session(c, connector=connector)
++            finally:
++                release.set()
++
++    asyncio.run(run())
++    assert not errors and store.read("DEMO-test").paused
++    assert c.session_diagnostic.code == "EVENT_UNKNOWN"
++
++
++def test_cancel_while_receiver_is_draining_still_propagates_cancellation(system, monkeypatch):  # noqa: F811
++    from services.execution.demo_event_inbox import EventInbox
++
++    store, c, fake = system
++    original = EventInbox.run
++
++    async def run():
++        stopping = asyncio.Event()
++        release = asyncio.Event()
++
++        async def delayed_stop(self, websocket):
++            try:
++                await original(self, websocket)
++            except asyncio.CancelledError:
++                stopping.set()
++                await release.wait()
++                raise
++
++        monkeypatch.setattr(EventInbox, "run", delayed_stop)
++
++        async def handler(socket):
++            await socket.send(
++                json.dumps({"e": "ACCOUNT_UPDATE", "E": int(fake.at.timestamp() * 1000)})
++            )
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            task = asyncio.create_task(session(c, connector=connector, max_messages=1))
++            try:
++                await asyncio.wait_for(stopping.wait(), 5)
++                task.cancel()
++                release.set()
++                with pytest.raises(asyncio.CancelledError):
++                    await task
++            finally:
++                release.set()
++
++    asyncio.run(run())
++    assert not c.session_failed and store.read("DEMO-test").paused
+--- /dev/null
++++ b/tests/integration/test_demo_event_inbox_validation.py
+@@ -0,0 +1,155 @@
++"""Real PG/local WS: coalesce a virtual 31-second backlog without extending freshness."""
++
++import asyncio
++import json
++import threading
++from contextlib import asynccontextmanager
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++import services.execution.demo_validation as validation
++from services.execution.demo_stream import session
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import posts, signal, snapshot
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as inbox_case  # noqa: F401
++
++
++@pytest.mark.parametrize("slow_stage", ["callback", "rest"])
++def test_fresh_hints_during_slow_callback_or_rest_finish_with_protection_and_flat(
++    inbox_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    slow_stage,  # noqa: F811
++):  # noqa: F811
++    store, c, fake, options = inbox_case
++    options["fill"] = True
++    monkeypatch.setattr(validation, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0)
++    release = threading.Event()
++    event_waiting = threading.Event()
++    began = threading.Event()
++    original_connected = c.connected
++
++    async def run():
++
++        async def send(socket, kind="ORDER_TRADE_UPDATE"):
++            await socket.send(json.dumps({"e": kind, "E": int(fake.at.timestamp() * 1000)}))
++            await asyncio.sleep(0.02)  # Give the independent receiver actual delivery time.
++
++        async def handler(socket):
++            assert await asyncio.to_thread(began.wait, 5)
++            await send(socket)
++            if slow_stage == "rest":
++                assert await asyncio.to_thread(event_waiting.wait, 5)
++                await send(socket, "ACCOUNT_UPDATE")  # Old hint waits behind slow REST.
++            fake.at += timedelta(seconds=20)
++            await send(socket, "ACCOUNT_UPDATE")
++            fake.at += timedelta(seconds=11)
++            await send(socket, "ALGO_UPDATE")
++            release.set()
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            held = False
++
++            def connected():
++                nonlocal held
++                result = original_connected()
++                if slow_stage == "rest" and began.is_set() and not held:
++                    held = True
++                    event_waiting.set()
++                    assert release.wait(5)
++                return result
++
++            monkeypatch.setattr(c, "connected", connected)
++
++            async def local_session(coordinator, *, on_ready):
++                def callback():
++                    on_ready()
++                    began.set()
++                    if slow_stage == "callback":
++                        assert release.wait(5)
++
++                await session(coordinator, connector=connector, on_ready=callback)
++
++            monkeypatch.setattr(validation, "session", local_session)
++            try:
++                await validation.validate_once(
++                    c, uuid4(), "LONG", observation_seconds=0.4, entry_style="OPPOSITE_QUOTE"
++                )
++            finally:
++                release.set()
++
++    asyncio.run(run())
++    output = capsys.readouterr().out
++    assert '"filled_protection_and_flat_verified": true' in output
++    assert '"session_error": false' in output
++    assert c.session_diagnostic.received_events >= 3
++    assert c.session_diagnostic.coalesced_events >= 1
++    assert c.session_diagnostic.event_receive_age_ms in (None, 0)
++    assert c.session_diagnostic.code == "NONE"
++    assert len(posts(fake)) == 2 and posts(fake)[1]["reduceOnly"] == "true"
++    assert all(a["algoStatus"] != "NEW" for a in fake.algos.values())
++    assert not any(store.read("DEMO-test").positions.values())
++
++
++def test_receiver_failure_flag_blocks_reserve_and_resume_before_transport(inbox_case):  # noqa: F811
++    store, c, fake, _ = inbox_case
++
++    def unpause(ledger):
++        ledger.paused = False
++
++    store.change(c.lease, "TEST_READY_FOR_ADMISSION", unpause)
++    c.session_failed = True
++    count = len(posts(fake))
++    with pytest.raises(RiskRejected):
++        c.reserve(signal(environment="DEMO"), snapshot())
++    with pytest.raises(RiskRejected):
++        c.resume_entries(uuid4())
++    assert len(posts(fake)) == count and not store.read("DEMO-test").orders
++
++
++def test_receiver_failure_during_metadata_refresh_blocks_post_and_keeps_intent(
++    inbox_case,  # noqa: F811
++    monkeypatch,
++):  # noqa: F811
++    from integrations.binance_usdm.demo import DemoFailure
++
++    store, c, fake, _ = inbox_case
++    store.change(
++        c.lease, "TEST_ALLOW_ONE_ADMISSION", lambda ledger: setattr(ledger, "paused", False)
++    )
++    sig = signal(environment="DEMO")
++    order = c.reserve(sig, snapshot())
++    original = c.refresh_metadata
++
++    def refresh():
++        original()
++        c.session_failed = True
++
++    monkeypatch.setattr(c, "refresh_metadata", refresh)
++    try:
++        c.submit(str(sig.signal_id))
++    except DemoFailure:
++        pass
++    after = store.read("DEMO-test")
++    assert not posts(fake)
++    assert after.orders[str(sig.signal_id)].remaining == order.quantity
++    assert after.requests[order.client_id] == "UNKNOWN"
++    assert after.request_no_send_evidence[order.client_id] == "LOCAL_VALIDATION_FAILED"
++    # Durable UNKNOWN is never retried as another entry POST.
++    c.session_failed = False
++    c.submit(str(sig.signal_id))
++    assert not posts(fake)
+--- /dev/null
++++ b/tests/unit/test_demo_event_inbox.py
+@@ -0,0 +1,102 @@
++"""Fresh receipt, bounded coalescing, and no masking of a single unsafe frame."""
++
++import asyncio
++import json
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_event_inbox import MAX_PENDING_EVENTS, EventInbox
++
++
++class Source:
++    def __init__(self, frames):
++        self.queue = asyncio.Queue()
++        for frame in frames:
++            self.queue.put_nowait(frame)
++
++    async def recv(self):
++        return await self.queue.get()
++
++
++def event(stamp=2000, kind="ACCOUNT_UPDATE"):
++    return json.dumps({"e": kind, "E": stamp, "private": "MUST_NOT_RETAIN"})
++
++
++async def ready(frames, now=2000):
++    failures = []
++    inbox = EventInbox(lambda: now, lambda: failures.append(True))
++    task = asyncio.create_task(inbox.run(Source(frames)))
++    await asyncio.sleep(0)
++    return inbox, task, failures
++
++
++async def close(task):
++    task.cancel()
++    try:
++        await task
++    except asyncio.CancelledError:
++        pass
++
++
++def test_only_latest_known_fresh_hint_is_kept_and_rest_payload_not_retained():
++    async def run():
++        inbox, task, failures = await ready(
++            [event(1000), event(2000, "ORDER_TRADE_UPDATE"), event(1500)]
++        )
++        hint = await inbox.take()
++        assert hint.stamp == 2000 and hint.kind == "ORDER_TRADE_UPDATE"
++        assert hint.event() == {"e": "ORDER_TRADE_UPDATE", "E": 2000}
++        assert inbox.received == 3 and inbox.coalesced == 2 and inbox.pending == 0
++        assert inbox.latest is None and not failures
++        await close(task)
++        assert not failures
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize(
++    "bad,code",
++    [
++        (event(-28001), "EVENT_TIME_INVALID"),
++        (event(2001), "EVENT_TIME_INVALID"),
++        (event(kind="PRIVATE_UNKNOWN"), "EVENT_UNKNOWN"),
++        ("[]", "EVENT_OBJECT_INVALID"),
++        ("NaN", "EVENT_JSON_INVALID"),
++        ('{"e":"ACCOUNT_UPDATE","E":true}', "EVENT_TIME_INVALID"),
++        ('{"e":"listenKeyExpired"}', "LISTEN_KEY_EXPIRED"),
++    ],
++)
++def test_invalid_frame_cannot_be_hidden_between_valid_hints(bad, code):
++    async def run():
++        inbox, task, failures = await ready([event(), bad, event()])
++        await task
++        with pytest.raises(DemoFailure):
++            await inbox.take()
++        assert failures == [True] and inbox.failure.code == code
++        assert "PRIVATE_UNKNOWN" not in inbox.failure.model_dump_json()
++
++    asyncio.run(run())
++
++
++def test_pending_limit_fails_closed_instead_of_unbounded_buffer_or_silent_drop():
++    async def run():
++        inbox, task, failures = await ready([event()] * (MAX_PENDING_EVENTS + 1))
++        await task
++        assert inbox.pending == MAX_PENDING_EVENTS and inbox.received == MAX_PENDING_EVENTS + 1
++        assert inbox.failure.code == "EVENT_BUFFER_OVERFLOW" and failures == [True]
++        with pytest.raises(DemoFailure):
++            await inbox.take()
++
++    asyncio.run(run())
++
++
++def test_idle_timeout_does_not_cancel_receiver_or_create_failure():
++    async def run():
++        inbox, task, failures = await ready([])
++        with pytest.raises(TimeoutError):
++            await inbox.take(timeout=0.001)
++        assert not task.done() and not failures
++        await close(task)
++
++    asyncio.run(run())
