@@ -1,0 +1,971 @@
+--- /dev/null
++++ b/KEY_SESSION_START_HERE_KO.md
+@@ -0,0 +1,55 @@
++# DEMO 키를 한 번 입력하고 같은 컨테이너에서 재사용하기
++
++10월30일 적용 결과 OPERATOR_ATTESTED_PERIOD_BASELINES_ADOPTED_KEEP_LOCK이 확인됐습니다. 작업ID는0c2b089c-36d5-4561-8630-572e952e0933이며 일별/주별 기준은 이미 적용됐습니다. 다시 적용하지 않습니다. EMERGENCY와 paused는 유지 중입니다. 이제 키를 한 번 등록하고 복구 검토를 실행합니다.
++
++## 1. 새 폴더 설치
++
++기존 Galaxybook PC에서 ZIP을 새 windows-demo-key-session 폴더에 풀고 열어 탐색기 주소창에 cmd를 입력합니다. CMD 경로가 새 폴더인지 확인합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 hybrid-windows 프로젝트와 PostgreSQL/demo_export_data 볼륨을 유지합니다. 이 버전은 API 컨테이너에 전용 tmpfs 메모리 영역만 추가합니다. 키를 이미지·DB·.env·호스트 공유 폴더에 기록하지 않습니다. 이전의 기간 기준/최초 체결/worker 대기/조회/시각 수정도 포함합니다.
++
++## 2. 이번 컨테이너에서 키 한 번 등록
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++DEMO API Key와 Secret을 각각 숨김 입력합니다. 정상 결과는 REGISTERED_IN_PRIVATE_TMPFS입니다. 이 명령은 거래소나 DB를 호출하지 않고, 주문·잠금 해제·기준 변경을 하지 않습니다. 키를 채팅이나 명령 문자열에 넣지 않습니다. 기존 등록이 있으면 자동 교체하지 않으므로 아래 --clear로 먼저 지우고 다시 등록합니다.
++
++## 3. 키 재입력 없이 복구 검토
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++이제 등록된 키를 읽으므로 다시 입력할 필요가 없습니다. 기본 복구 검토는 거래소 조회와 DB 읽기만 하며 주문/DB 변경/잠금 해제를 하지 않습니다. 결과 화면만 공유합니다. 새 검토 토큰 확인 후 별도의 복구 승인과 새 DEMO 검증을 진행합니다. 키 등록 자체는 복구 승인이 아닙니다.
++
++## 상태 확인/삭제
++
++등록 상태 확인(키 값은 출력하지 않음):
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.demo_key_session --status
++```
++
++메모리에서 등록 파일 삭제:
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.demo_key_session --clear
++```
++
++삭제는 이후 새 명령의 자동 키 읽기를 막습니다. 이미 실행 중인 작업이 읽은 키를 회수하거나 주문을 취소하는 명령은 아니며, 매매 중지는 별도 절차입니다.
++
++## 사용 기간과 보관 범위
++
++자동 사용 유효기간은 등록부터12시간입니다. 만료/시계 역행/잘못된 권한/손상된 파일은 다른 키로 임의 전환하거나 자동 재입력하지 않고 차단합니다. 만료되면 --clear 후 --register로 다시 입력합니다. 12시간은 자동 사용 유효기간이며, 사용하지 않는 파일을 정확히 만료 초에 자동 삭제하는 타이머는 아닙니다. 등록 파일은 삭제하거나 컨테이너를 중지·재시작·재생성하면 사라집니다. 이 경우 한 번 다시 입력해야 합니다. 매 명령마다 입력하는 과정만 줄이는 휘발성 방식입니다.
++
++키는 Linux Docker tmpfs의 평문 메모리 파일이며 디렉터리0700/파일0600, 컨테이너 사용자10001 전용입니다. 일반 디스크 파일/영구 볼륨/이미지/환경 설정/DB/로그로 저장하지 않습니다. 같은 컨테이너 사용자 또는 관리자/root가 메모리에 접근할 수 있고, 호스트 메모리·swap·VM 스냅샷 보호는 호스트 설정에 따릅니다. 영구 Windows 자격 증명 보관 기능이나 재부팅 후 무인 로그인 기능을 추가한 것은 아닙니다.
++
++복구·일별/주별/과거 기록 검토 CLI와 run_demo가 등록 키를 읽습니다. 예전의 긴 python -c 명령에 직접 적힌 getpass 호출은 계속 입력을 요청하므로, 이후 안내는 해당 CLI를 직접 실행하는 짧은 명령을 사용합니다. 등록이 없을 때 기존 조회 CLI의 숨김 입력도 유지됩니다. run_demo는 등록 또는 기존 명시적 런타임 키가 필요하며 자동 숨김 입력은 하지 않습니다. 명시적인 DEMO 런타임 키 두 값이 있으면 그것을 우선하고, 하나만 있거나 일반/LIVE 키와 섞이면 등록 키로 우회하지 않고 차단합니다.
++
++LIVE/Phase5, 주문 수량·진입·청산 규칙, 위험 검사, 기준/잠금, export 생성 경로는 바꾸지 않았습니다. 설치와 키 등록은 자동 매매를 시작하지 않습니다.
+--- /dev/null
++++ b/KEY_SESSION_VALIDATION_KO.md
+@@ -0,0 +1,25 @@
++# 휘발성 DEMO 자격 증명 재사용 검증
++
++## 변경 범위
++
++전용 scripts/demo_key_session을 추가했습니다. 명시적 --register/--status/--clear만 제공하며 등록은 숨김 입력, 상태·삭제는 값 출력 없이 동작합니다. /run/demo-keys 전용 tmpfs가 실제 /proc/self/mountinfo에서 tmpfs이고 noexec/nosuid/nodev인지, 디렉터리 소유자/0700과 일반 파일 소유자/0600·단일 hardlink·크기·형식·12시간 유효기간을 확인합니다. 일반 디스크/바인드 마운트·symlink·FIFO·손상 파일·시계 역행/만료는 차단합니다. 파일은 O_EXCL/O_NOFOLLOW로 만들고 기존 등록을 조용히 교체하지 않습니다.
++
++Docker Compose의 API에만 tmpfs 메모리 마운트를 추가했습니다. 기존 DB/export 볼륨과 빌드/환경·바인딩·서비스 명령은 그대로입니다. 기존 review_demo_* CLI8개와 run_demo에 등록 값 로더를 연결했습니다. 기존 직접 런타임 키 우선과 일반/LIVE 키 혼용 차단을 유지하며, 조회 CLI의 미등록 숨김 입력도 보존합니다. run_demo는 미등록 상태에서 키를 묻거나 키 등록을 자동으로 하지 않습니다. 기존 SDK/from_environment와 DEMO 고정 호스트는 그대로입니다. 이 기능의 키 값을 환경 변수로 새로 설정하지 않고 SecretStr로 클라이언트에 전달합니다. 기존 정리 finally 블록은 유지합니다.
++
++tmpfs 파일은 메모리 안의 평문이며 같은 사용자/관리자 접근을 막는 보안 영역은 아닙니다. 호스트 swap/메모리 덤프/VM 스냅샷은 호스트 보호 범위입니다. 유효기간12시간은 사용 차단 시각이며 만료 초에 파일을 삭제하는 예약 작업은 아닙니다. 컨테이너 재시작/중지·삭제 또는 명시적 --clear로 파일을 잃습니다. 삭제는 진행 중인 작업에 이미 전달된 키를 회수하지 않습니다.
++
++원래 account_risk/coherent_snapshot·SDK·스냅샷·주문/보호/비상 청산·DB 저장/fencing·모델/기준·export 코드/영구 볼륨·정책·잠금 파일은 부모 ZIP과 동일합니다. 키 등록·조회·삭제는 DB/거래소를 호출하지 않습니다. 기존 복구 검토/적용의 구분·인자/토큰 검사·신규 진입 승인 규칙은 유지합니다.
++
++## 실제 검사
++
++집중 검사67개 통과(3.78초): 신규 키 세션 단위37개, 기존 DEMO 전송/CLI 검사28개, 실제 PostgreSQL을 쓰는 신규 키 재사용 CLI 통합2개입니다. 두 통합 검사는 등록 후 숨김 입력 호출을 실패하도록 막은 상태에서 기간 검토와 복구 검토를 실행하고 등록된 SecretStr 전달·GET만 사용·DB 불변·키 미출력을 확인합니다. 만료/역행, 권한, 잘못된 보관 장소, symlink/hardlink/FIFO/과대·손상 파일, 잘못된 입력, 키 교체 차단, 명시적 런타임 키 우선/불완전 값 차단, 일반/LIVE 컨텍스트 차단, 값 없는 상태/삭제를 검사했습니다.
++
++실제 Linux Docker 임시 컨테이너에서 동일 tmpfs 옵션과 사용자10001:10001을 적용했습니다. 디렉터리 소유자10001:10001/권한0700, tmpfs/noexec/nodev/nosuid를 /proc/self/mountinfo로 확인했고, 합성 파일을 만든 뒤 컨테이너를 재시작해 파일이 사라짐을 확인했습니다. 실제 API 키는 이 시험에 사용하지 않았고 임시 컨테이너도 제거했습니다. docker compose config --quiet가 통과했습니다.
++
++- 전체 pytest: 798 passed in 189.26s (0:03:09), 실제 로컬 PostgreSQL을 TEST_DATABASE_URL로 지정.
++- Ruff check: All checks passed. Ruff format --check: 232 files already formatted.
++- mypy: Success, no issues found in 84 source files.
++- 부모 ZIP SHA-256: 9f5e9de8e3f1858bb670fea9837d2de1125e8758ad3db04b59e4f3177d2749f1. 기존273개 파일에서 CLI9개/Compose1개를 변경하고 helper·테스트2개·문서2개를 추가합니다. 변경 목록과 전 파일 SHA-256/CRC/누락을 패키징 시 검사합니다.
++- main은 64e9e7b3d833824c763a2a0f2df1493300744121 그대로입니다. 별도 windows-demo-key-session-20261030 브랜치로 게시합니다.
++
++인증된 Binance 호출이나 실제 키 저장은 클라우드에서 실행하지 않았습니다. 사용자 Windows Docker의 등록/복구 검토는 설치 후 확인할 단계입니다. 영구 키 보관/상시 서버 구축/실제 자동 매매 수락/Phase4 완료 또는 LIVE/Phase5 승인과는 별도입니다.
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -26,6 +26,8 @@
+       DATABASE_URL: postgresql+psycopg://dev:dev@db:5432/hybrid
+     ports: ["127.0.0.1:8000:8000"]
+     volumes: ["demo_export_data:/app/demo-export-state"]
++    tmpfs:
++      - /run/demo-keys:rw,noexec,nosuid,nodev,size=64k,mode=0700,uid=10001,gid=10001
+     depends_on:
+       db: {condition: service_healthy}
+     healthcheck:
+--- /dev/null
++++ b/scripts/demo_key_session.py
+@@ -0,0 +1,243 @@
++"""Explicit volatile DEMO credentials, only on a private Docker tmpfs mount.
++
++Never stores credentials in an image, bind mount, database, config or command line.
++The files are plaintext within protected tmpfs; same-user/root processes can read
++memory. Host memory/swap/snapshots remain subject to the host's own protection.
++"""
++
++import argparse
++import getpass
++import json
++import os
++import stat
++import time
++import warnings
++from pathlib import Path
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoCredentials
++
++DIRECTORY = Path("/run/demo-keys")
++FILENAME = "session.json"
++LIFETIME_SECONDS = 12 * 3600
++MAX_BYTES = 4096
++
++
++class SessionKeyError(ValueError):
++    """Safe fixed codes only; never contains file content or credential values."""
++
++
++def _context() -> None:
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        or any(
++            os.getenv(k)
++            for k in (
++                "BINANCE_API_KEY",
++                "BINANCE_API_SECRET",
++                "BINANCE_LIVE_API_KEY",
++                "BINANCE_LIVE_API_SECRET",
++            )
++        )
++    ):
++        raise SessionKeyError("DEMO_ONLY_CONTEXT_REQUIRED")
++
++
++def _tmpfs() -> bool:
++    for line in Path("/proc/self/mountinfo").read_text().splitlines():
++        left, sep, right = line.partition(" - ")
++        fields = left.split()
++        if sep and len(fields) >= 6 and fields[4] == str(DIRECTORY):
++            return right.split()[0] == "tmpfs" and {"noexec", "nosuid", "nodev"} <= set(
++                fields[5].split(",")
++            )
++    return False
++
++
++def _directory() -> int:
++    try:
++        if not _tmpfs():
++            raise SessionKeyError("PRIVATE_TMPFS_REQUIRED")
++        fd = os.open(DIRECTORY, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++        info = os.fstat(fd)
++        if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
++            os.close(fd)
++            raise SessionKeyError("PRIVATE_TMPFS_PERMISSIONS_REQUIRED")
++        return fd
++    except OSError:
++        raise SessionKeyError("PRIVATE_TMPFS_UNAVAILABLE") from None
++
++
++def _values(key: object, secret: object) -> DemoCredentials:
++    if any(
++        not isinstance(v, str) or not 1 <= len(v) <= 512 or not all(33 <= ord(c) <= 126 for c in v)
++        for v in (key, secret)
++    ):
++        raise SessionKeyError("DEMO_CREDENTIAL_INPUT_INVALID")
++    assert isinstance(key, str) and isinstance(secret, str)
++    return DemoCredentials(SecretStr(key), SecretStr(secret))
++
++
++def _load() -> tuple[DemoCredentials, int] | None:
++    if not DIRECTORY.exists():
++        return None
++    directory = _directory()
++    try:
++        try:
++            fd = os.open(FILENAME, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
++        except FileNotFoundError:
++            return None
++        with os.fdopen(fd, "rb") as file:
++            info = os.fstat(file.fileno())
++            if (
++                not stat.S_ISREG(info.st_mode)
++                or stat.S_IMODE(info.st_mode) != 0o600
++                or info.st_uid != os.getuid()
++                or info.st_nlink != 1
++                or info.st_size > MAX_BYTES
++            ):
++                raise SessionKeyError("KEY_SESSION_FILE_INVALID")
++            payload = json.loads(file.read(MAX_BYTES + 1))
++        if (
++            not isinstance(payload, dict)
++            or set(payload) != {"version", "created", "expires", "key", "secret"}
++            or type(payload["version"]) is not int
++            or payload["version"] != 1
++            or type(payload["created"]) is not int
++            or type(payload["expires"]) is not int
++            or payload["expires"] != payload["created"] + LIFETIME_SECONDS
++        ):
++            raise SessionKeyError("KEY_SESSION_FILE_INVALID")
++        now = int(time.time())
++        if not payload["created"] <= now < payload["expires"]:
++            raise SessionKeyError("KEY_SESSION_EXPIRED_CLEAR_AND_REGISTER")
++        return _values(payload["key"], payload["secret"]), payload["expires"]
++    except (OSError, ValueError, UnicodeError) as error:
++        if isinstance(error, SessionKeyError):
++            raise
++        raise SessionKeyError("KEY_SESSION_FILE_INVALID") from None
++    finally:
++        os.close(directory)
++
++
++def credentials(*, prompt: bool = False) -> DemoCredentials:
++    _context()
++    # Explicit runtime credentials still take precedence. Partial/mixed values
++    # must never silently fall back to another account's cached pair.
++    if os.getenv("BINANCE_DEMO_API_KEY") or os.getenv("BINANCE_DEMO_API_SECRET"):
++        return DemoCredentials.from_environment()
++    loaded = _load()
++    if loaded is not None:
++        return loaded[0]
++    if not prompt:
++        return DemoCredentials.from_environment()
++    warnings.simplefilter("error", getpass.GetPassWarning)
++    return _values(
++        getpass.getpass("DEMO API Key (hidden): "), getpass.getpass("DEMO Secret (hidden): ")
++    )
++
++
++def register() -> None:
++    _context()
++    directory = _directory()
++    try:
++        # Refuse replacement before prompting. Explicit clear avoids accidental
++        # account changes between a preview and its apply operation.
++        try:
++            os.stat(FILENAME, dir_fd=directory, follow_symlinks=False)
++        except FileNotFoundError:
++            pass
++        else:
++            raise SessionKeyError("KEY_SESSION_EXISTS_CLEAR_FIRST")
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        value = _values(
++            getpass.getpass("DEMO API Key (hidden): "), getpass.getpass("DEMO Secret (hidden): ")
++        )
++        now = int(time.time())
++        data = json.dumps(
++            {
++                "version": 1,
++                "created": now,
++                "expires": now + LIFETIME_SECONDS,
++                "key": value.api_key.get_secret_value(),
++                "secret": value.secret.get_secret_value(),
++            }
++        ).encode()
++        fd = os.open(
++            FILENAME, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600, dir_fd=directory
++        )
++        try:
++            with os.fdopen(fd, "wb") as file:
++                os.fchmod(file.fileno(), 0o600)
++                file.write(data)
++                file.flush()
++        except BaseException:
++            os.unlink(FILENAME, dir_fd=directory)
++            raise
++    except OSError:
++        raise SessionKeyError("KEY_SESSION_REGISTRATION_FAILED") from None
++    finally:
++        os.close(directory)
++
++
++def clear() -> None:
++    _context()
++    if not DIRECTORY.exists():
++        return
++    directory = _directory()
++    try:
++        try:
++            os.unlink(FILENAME, dir_fd=directory)
++        except FileNotFoundError:
++            pass
++    except OSError:
++        raise SessionKeyError("KEY_SESSION_CLEAR_FAILED") from None
++    finally:
++        os.close(directory)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    actions = parser.add_mutually_exclusive_group(required=True)
++    actions.add_argument("--register", action="store_true")
++    actions.add_argument("--status", action="store_true")
++    actions.add_argument("--clear", action="store_true")
++    args = parser.parse_args()
++    try:
++        _context()
++        if args.register:
++            register()
++            state = "REGISTERED_IN_PRIVATE_TMPFS"
++        elif args.clear:
++            clear()
++            state = "CLEARED"
++        else:
++            state = "AVAILABLE" if _load() is not None else "NOT_REGISTERED"
++        print(
++            json.dumps(
++                {
++                    "demo_key_session": state,
++                    "maximum_lifetime_hours": 12,
++                    "persistent_key_storage": False,
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            )
++        )
++    except (ValueError, OSError, EOFError, getpass.GetPassWarning):
++        print(
++            json.dumps(
++                {
++                    "demo_key_session": "BLOCKED_CHECK_SESSION_OR_REGISTER",
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            )
++        )
++        raise SystemExit(2) from None
++
++
++if __name__ == "__main__":
++    main()
+--- a/scripts/review_demo_attested_day.py
++++ b/scripts/review_demo_attested_day.py
+@@ -13,9 +13,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_cancelled_history import CancelledHistoryBlocked
+ from services.execution.demo_day_reconstruction import (
+@@ -56,15 +57,14 @@
+     stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_cancelled_correction.py
++++ b/scripts/review_demo_cancelled_correction.py
+@@ -13,9 +13,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_cancelled_correction import (
+     CancelledCorrectionBlocked,
+@@ -50,15 +51,14 @@
+     stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_cancelled_history.py
++++ b/scripts/review_demo_cancelled_history.py
+@@ -10,9 +10,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_cancelled_history import (
+     CancelledHistoryBlocked,
+@@ -32,15 +33,14 @@
+     engine = None
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_day_boundary.py
++++ b/scripts/review_demo_day_boundary.py
+@@ -10,9 +10,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_day_review import DayReviewBlocked, review_day
+ 
+@@ -27,15 +28,14 @@
+     engine = None
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_exit_day.py
++++ b/scripts/review_demo_exit_day.py
+@@ -13,9 +13,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_cancelled_history import CancelledHistoryBlocked
+ from services.execution.demo_day_review import DayReviewBlocked
+@@ -56,15 +57,14 @@
+     stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_flat_history.py
++++ b/scripts/review_demo_flat_history.py
+@@ -10,9 +10,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_day_review import DayReviewBlocked
+ from services.execution.demo_history_review import HistoryBlocked, review_flat_history
+@@ -28,15 +29,14 @@
+     engine = None
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_periods.py
++++ b/scripts/review_demo_periods.py
+@@ -14,9 +14,10 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from scripts.review_demo_recovery import blocked
+ from services.execution.demo_day_review import DayReviewBlocked
+ from services.execution.demo_history_review import HistoryBlocked
+@@ -56,15 +57,14 @@
+     stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/review_demo_recovery.py
++++ b/scripts/review_demo_recovery.py
+@@ -14,13 +14,13 @@
+ 
+ from integrations.binance_usdm.demo import (
+     DemoClient,
+-    DemoCredentials,
+     DemoFailure,
+     DemoRateLimited,
+     DemoSettings,
+ )
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from services.execution.demo_recovery import (
+     RecoveryBlocked,
+     acknowledge_flat_emergency,
+@@ -95,15 +95,14 @@
+     stage = "CREDENTIAL_INPUT"
+     try:
+         warnings.simplefilter("error", getpass.GetPassWarning)
+-        os.environ["BINANCE_DEMO_API_KEY"] = getpass.getpass("DEMO API Key (hidden): ")
+-        os.environ["BINANCE_DEMO_API_SECRET"] = getpass.getpass("DEMO Secret (hidden): ")
++        credentials = session_credentials(prompt=True)
+         stage = "CONFIGURATION"
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+                 Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+-        client = DemoClient(cfg, DemoCredentials.from_environment())
++        client = DemoClient(cfg, credentials)
+         stage = "CLOCK_CHECK"
+         client.sync_clock()
+         stage = "DATABASE_READ"
+--- a/scripts/run_demo.py
++++ b/scripts/run_demo.py
+@@ -12,11 +12,17 @@
+ from sqlalchemy import create_engine
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+-from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoFailure, DemoSettings
++from integrations.binance_usdm.demo import (
++    DemoClient,
++    DemoCredentials,  # noqa: F401 - existing CLI test seam
++    DemoFailure,
++    DemoSettings,
++)
+ from integrations.binance_usdm.filters import number
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.domain.contracts import Signal
+ from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
+ from services.execution.demo import DemoCoordinator
+ from services.execution.demo_models import DemoLedger
+ from services.execution.demo_preview import PreviewBlocked, preview
+@@ -221,7 +227,7 @@
+     if args.command and not args.operation_id:
+         parser.error("Commands require a stable --operation-id")
+     try:
+-        credentials = DemoCredentials.from_environment()
++        credentials = session_credentials()
+     except ValueError as error:
+         parser.error(str(error))
+     engine = create_engine(database_url().get_secret_value(), connect_args={"connect_timeout": 2})
+--- /dev/null
++++ b/tests/integration/test_demo_key_session_cli.py
+@@ -0,0 +1,98 @@
++"""Registered RAM credentials drive existing review CLIs without extra prompts."""
++
++import json
++import os
++import sys
++from uuid import uuid4
++
++import pytest
++
++from scripts import demo_key_session as keys
++from services.execution.demo_period_review import apply_periods, review_periods
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction, event_count  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++
++
++@pytest.mark.parametrize("which", ["periods", "recovery"])
++def test_registered_pair_skips_hidden_prompts_in_real_pg_review_cli(
++    period_case,  # noqa: F811
++    tmp_path,
++    monkeypatch,
++    capsys,
++    which,  # noqa: F811
++):
++    import scripts.review_demo_periods as periods
++    import scripts.review_demo_recovery as recovery
++
++    store, c, fake, *_ = period_case
++    if which == "recovery":
++        report = review_periods(
++            store,
++            c.client,
++            store.read("DEMO-test"),
++            account_id="DEMO-test",
++            attest_no_activity=True,
++        )
++        apply_periods(
++            store,
++            c.lease,
++            c.client,
++            uuid4(),
++            report["review_token"],
++            attest_no_activity=True,
++            accept_operator_evidence=True,
++        )
++    before = store.read("DEMO-test")
++    count = event_count(store)
++    start = len(fake.calls)
++    root = tmp_path / "keys"
++    root.mkdir(mode=0o700)
++    monkeypatch.setattr(keys, "DIRECTORY", root)
++    monkeypatch.setattr(keys, "_tmpfs", lambda: True)
++    for name in ("BINANCE_DEMO_API_KEY", "BINANCE_DEMO_API_SECRET"):
++        monkeypatch.delenv(name, raising=False)
++    answers = iter(["SYNTHETIC_REGISTERED_KEY", "SYNTHETIC_REGISTERED_SECRET"])
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: next(answers))
++    keys.register()
++    monkeypatch.setattr(
++        keys.getpass, "getpass", lambda *a: pytest.fail("registered review must not prompt")
++    )
++    cli = periods if which == "periods" else recovery
++    original_read = store.read
++    if which == "periods":
++        monkeypatch.setattr(cli, "ACCOUNT_ID", "DEMO-test")
++        args = ["review_demo_periods", "--attest-no-activity-since-anchor"]
++    else:
++        args = ["review_demo_recovery"]
++        monkeypatch.setattr(store, "read", lambda account: original_read("DEMO-test"))
++    monkeypatch.setattr(sys, "argv", args)
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda *a, **k: store)
++
++    def client_factory(config, credentials):
++        assert credentials.api_key.get_secret_value() == "SYNTHETIC_REGISTERED_KEY"
++        assert credentials.secret.get_secret_value() == "SYNTHETIC_REGISTERED_SECRET"
++        return c.client
++
++    monkeypatch.setattr(cli, "DemoClient", client_factory)
++
++    def no_write(*args):
++        raise AssertionError("review must not write or acquire lease")
++
++    monkeypatch.setattr(store, "acquire", no_write)
++    monkeypatch.setattr(store, "change", no_write)
++    monkeypatch.setattr(store, "release", no_write)
++    cli.main()
++    output = capsys.readouterr().out
++    result = json.loads(output)
++    assert (
++        "OPERATOR_ATTESTED_PERIOD_PREVIEW_NO_DATABASE_CHANGE" in output
++        if which == "periods"
++        else result["risk_gates"] == "PASS"
++    )
++    assert "SYNTHETIC_REGISTERED" not in output
++    assert original_read("DEMO-test") == before and event_count(store) == count
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert "BINANCE_DEMO_API_KEY" not in os.environ and "BINANCE_DEMO_API_SECRET" not in os.environ
+--- /dev/null
++++ b/tests/unit/test_demo_key_session.py
+@@ -0,0 +1,235 @@
++"""Volatile secret lifecycle: no hidden persistence or automatic trading."""
++
++import json
++import os
++from pathlib import Path
++
++import pytest
++
++from scripts import demo_key_session as keys
++
++KEY = "SYNTHETIC_DEMO_KEY_DO_NOT_USE"
++SECRET = "SYNTHETIC_DEMO_SECRET_DO_NOT_USE"
++ENV_KEYS = (
++    "BINANCE_DEMO_API_KEY",
++    "BINANCE_DEMO_API_SECRET",
++    "BINANCE_API_KEY",
++    "BINANCE_API_SECRET",
++    "BINANCE_LIVE_API_KEY",
++    "BINANCE_LIVE_API_SECRET",
++    "LIVE_TRADING_ENABLED",
++    "TRADING_MODE",
++)
++
++
++@pytest.fixture
++def session_dir(tmp_path, monkeypatch):
++    for name in ENV_KEYS:
++        monkeypatch.delenv(name, raising=False)
++    root = tmp_path / "ram-session"
++    root.mkdir(mode=0o700)
++    monkeypatch.setattr(keys, "DIRECTORY", root)
++    monkeypatch.setattr(keys, "_tmpfs", lambda: True)
++    monkeypatch.setattr(keys.time, "time", lambda: 100000)
++    answers = iter([KEY, SECRET])
++    monkeypatch.setattr(keys.getpass, "getpass", lambda prompt: next(answers))
++    return root
++
++
++def test_registration_load_and_clear_never_print_or_export_values(session_dir, capsys):
++    keys.register()
++    assert (session_dir / keys.FILENAME).stat().st_mode & 0o777 == 0o600
++    cached = keys.credentials()
++    assert cached.api_key.get_secret_value() == KEY and cached.secret.get_secret_value() == SECRET
++    assert KEY not in repr(cached) and SECRET not in repr(cached)
++    assert not os.getenv("BINANCE_DEMO_API_KEY") and not os.getenv("BINANCE_DEMO_API_SECRET")
++    assert capsys.readouterr().out == ""
++    keys.clear()
++    keys.clear()
++    assert not list(session_dir.iterdir())
++
++
++def test_cached_pair_skips_all_prompts(session_dir, monkeypatch):
++    keys.register()
++    monkeypatch.setattr(
++        keys.getpass, "getpass", lambda *a: pytest.fail("cached credentials must not prompt")
++    )
++    assert keys.credentials(prompt=True).secret.get_secret_value() == SECRET
++
++
++def test_default_review_without_registration_can_still_prompt_without_saving(session_dir):
++    assert keys.credentials(prompt=True).api_key.get_secret_value() == KEY
++    assert not list(session_dir.iterdir())
++
++
++def test_missing_session_has_no_implicit_prompt(session_dir, monkeypatch):
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt"))
++    with pytest.raises(ValueError, match="Missing direct runtime"):
++        keys.credentials()
++
++
++def test_expired_or_backward_clock_does_not_fall_back_to_prompt(session_dir, monkeypatch):
++    keys.register()
++    monkeypatch.setattr(
++        keys.getpass, "getpass", lambda *a: pytest.fail("must not switch credentials")
++    )
++    for stamp in (99999, 100000 + keys.LIFETIME_SECONDS):
++        monkeypatch.setattr(keys.time, "time", lambda stamp=stamp: stamp)
++        with pytest.raises(keys.SessionKeyError, match="EXPIRED"):
++            keys.credentials(prompt=True)
++
++
++@pytest.mark.parametrize("name", ENV_KEYS[2:6] + ("LIVE_TRADING_ENABLED", "TRADING_MODE"))
++def test_live_or_generic_context_rejected_before_prompts_or_file_access(
++    session_dir, monkeypatch, name
++):
++    monkeypatch.setenv(name, "LIVE" if name == "TRADING_MODE" else "true")
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt"))
++    with pytest.raises(keys.SessionKeyError, match="DEMO_ONLY"):
++        keys.register()
++    with pytest.raises(keys.SessionKeyError, match="DEMO_ONLY"):
++        keys.credentials(prompt=True)
++    assert not list(session_dir.iterdir())
++
++
++def test_explicit_runtime_pair_takes_precedence_without_overwriting_cache(session_dir, monkeypatch):
++    keys.register()
++    before = (session_dir / keys.FILENAME).read_bytes()
++    monkeypatch.setenv("BINANCE_DEMO_API_KEY", "OTHER_SYNTHETIC_KEY")
++    monkeypatch.setenv("BINANCE_DEMO_API_SECRET", "OTHER_SYNTHETIC_SECRET")
++    assert keys.credentials().api_key.get_secret_value() == "OTHER_SYNTHETIC_KEY"
++    assert (session_dir / keys.FILENAME).read_bytes() == before
++
++
++def test_partial_runtime_pair_does_not_use_cached_other_account(session_dir, monkeypatch):
++    keys.register()
++    monkeypatch.setenv("BINANCE_DEMO_API_KEY", "OTHER_SYNTHETIC_KEY")
++    with pytest.raises(ValueError, match="Missing direct runtime"):
++        keys.credentials(prompt=True)
++
++
++def test_register_existing_refuses_before_prompt_and_preserves_original(session_dir, monkeypatch):
++    keys.register()
++    before = (session_dir / keys.FILENAME).read_bytes()
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt"))
++    with pytest.raises(keys.SessionKeyError, match="EXISTS_CLEAR_FIRST"):
++        keys.register()
++    assert (session_dir / keys.FILENAME).read_bytes() == before
++
++
++@pytest.mark.parametrize("mode", [0o644, 0o660, 0o666, 0o400])
++def test_wrong_file_permissions_rejected(session_dir, mode):
++    keys.register()
++    (session_dir / keys.FILENAME).chmod(mode)
++    with pytest.raises(keys.SessionKeyError, match="FILE_INVALID"):
++        keys.credentials()
++
++
++def test_wrong_directory_permissions_rejected(session_dir):
++    session_dir.chmod(0o755)
++    with pytest.raises(keys.SessionKeyError, match="PERMISSIONS"):
++        keys.register()
++
++
++def test_persistent_filesystem_is_never_accepted(session_dir, monkeypatch):
++    monkeypatch.setattr(keys, "_tmpfs", lambda: False)
++    with pytest.raises(keys.SessionKeyError, match="TMPFS_REQUIRED"):
++        keys.register()
++    with pytest.raises(keys.SessionKeyError, match="TMPFS_REQUIRED"):
++        keys.credentials(prompt=True)
++    assert not list(session_dir.iterdir())
++
++
++@pytest.mark.parametrize(
++    "kind",
++    [
++        "symlink",
++        "hardlink",
++        "fifo",
++        "oversize",
++        "json",
++        "invalid_key",
++        "wrong_version",
++        "wrong_ttl",
++    ],
++)
++def test_malformed_or_redirected_cache_is_fail_closed(session_dir, kind):
++    path = session_dir / keys.FILENAME
++    if kind in {"symlink", "hardlink"}:
++        target = session_dir.parent / "outside"
++        target.write_text("DO_NOT_READ_OR_OVERWRITE")
++        if kind == "symlink":
++            path.symlink_to(target)
++        else:
++            os.link(target, path)
++            path.chmod(0o600)
++    elif kind == "fifo":
++        os.mkfifo(path, 0o600)
++    else:
++        keys.register()
++        data = json.loads(path.read_text())
++        if kind == "oversize":
++            path.write_text("x" * 5000)
++        elif kind == "json":
++            path.write_text("not-json")
++        else:
++            if kind == "invalid_key":
++                data["key"] = "bad\nkey"
++            elif kind == "wrong_version":
++                data["version"] = True
++            else:
++                data["expires"] += 1
++            path.write_text(json.dumps(data))
++    with pytest.raises(keys.SessionKeyError):
++        keys.credentials(prompt=True)
++
++
++@pytest.mark.parametrize("value", ["", " ", "bad\nkey", "한글", "x" * 513])
++def test_invalid_input_is_never_saved(session_dir, monkeypatch, value):
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: value)
++    with pytest.raises(keys.SessionKeyError):
++        keys.register()
++    assert not list(session_dir.iterdir())
++
++
++def test_mount_parser_rejects_bind_mount_or_unsafe_flags(monkeypatch):
++    target = Path("/run/demo-keys")
++    monkeypatch.setattr(keys, "DIRECTORY", target)
++    cases = [
++        ("42 40 0:1 / /run/demo-keys rw,nosuid,nodev,noexec - tmpfs tmpfs rw", True),
++        ("42 40 0:1 / /run/demo-keys rw,nosuid,nodev - tmpfs tmpfs rw", False),
++        ("42 40 0:1 / /run/demo-keys rw,nosuid,nodev,noexec - ext4 /dev/x rw", False),
++        ("42 40 0:1 / /run/other rw,nosuid,nodev,noexec - tmpfs tmpfs rw", False),
++    ]
++    for content, expected in cases:
++        monkeypatch.setattr(Path, "read_text", lambda *a, content=content, **k: content)
++        assert keys._tmpfs() is expected
++
++
++def test_cli_status_and_clear_redact_keys(session_dir, monkeypatch, capsys):
++    keys.register()
++    for flag in ("--status", "--clear", "--status"):
++        monkeypatch.setattr("sys.argv", ["demo_key_session", flag])
++        keys.main()
++    output = capsys.readouterr().out
++    assert "AVAILABLE" in output and "CLEARED" in output and "NOT_REGISTERED" in output
++    assert KEY not in output and SECRET not in output and not list(session_dir.iterdir())
++
++
++def test_cli_invalid_cache_never_exposes_its_content(session_dir, monkeypatch, capsys):
++    path = session_dir / keys.FILENAME
++    path.write_text(SECRET)
++    path.chmod(0o600)
++    monkeypatch.setattr("sys.argv", ["demo_key_session", "--status"])
++    with pytest.raises(SystemExit) as error:
++        keys.main()
++    output = capsys.readouterr().out
++    assert error.value.code == 2 and "BLOCKED" in output and SECRET not in output
++
++
++def test_container_memory_reset_means_registered_pair_is_gone(session_dir, monkeypatch):
++    keys.register()
++    (session_dir / keys.FILENAME).unlink()
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt silently"))
++    with pytest.raises(ValueError):
++        keys.credentials()
