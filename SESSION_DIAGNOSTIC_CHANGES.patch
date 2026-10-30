@@ -1,0 +1,879 @@
+--- /dev/null
++++ b/SESSION_DIAGNOSTIC_START_HERE_KO.md
+@@ -0,0 +1,47 @@
++# 주문 없이 개인 스트림을 점검하고 실패 원인을 분류하기
++
++## 이번 기록에서 확인한 것
++
++작업7ad58edd-1b41-4b53-a989-e9f2cea180a0는0.0007 BTC 진입 체결, SL/TP 확인 후 청산(CLOSED/FINISHED_FLAT)을 마쳤지만 session_error=true로 전체 검증에 실패했습니다. 10월30일11:43:59 UTC 보호 확인 뒤11:44:02 UTC 스트림 비신뢰 전환이 있고,11:44:30/40 UTC 청산 확인이 있습니다. 마지막24개 감사 기록에는 새 DEMO_RECONCILIATION_FAILED가 없어 SNAPSHOT_CHANGED 표시를 이번 실패 원인으로 단정할 수 없습니다. 구버전은 실제 세션 예외/이벤트 종류/지연 시간을 보존하지 않았으므로 정확한 원인은 아직 미확정입니다.
++
++이 ZIP은 진단과 주문 없는 연결 점검을 추가합니다. 기존 이벤트 허용 목록·30초 신선도·미래 이벤트 차단·위험/보호/정리 규칙을 바꾸거나 세션 오류를 성공으로 바꾸지 않습니다.
++
++## 1. 기존 Galaxybook의 새 폴더에 설치
++
++ZIP을 windows-demo-session-diagnostic 폴더에 풀고 열어 탐색기 주소창에 cmd를 입력합니다. 경로 끝이 새 폴더인지 확인합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++기존 프로젝트/DB/export 볼륨과 적용한 일별·주별 기준을 유지합니다. 초기화/down -v/export 생성 재요청/기준 재적용을 하지 않습니다. 새 이미지로 API 컨테이너가 교체되면 기존 메모리 키가 사라지므로 이번 설치 뒤 한 번만 다시 등록합니다.
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++DEMO 키와 Secret은 숨김 입력합니다. REGISTERED_IN_PRIVATE_TMPFS면 이후 명령은 재입력이 없습니다. 키 등록이 이미 있다고 나오면 반복/교체하지 말고 상태를 공유합니다.
++
++## 2. 주문 없는 30초 스트림 점검
++
++```cmd
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.observe_demo_private
++```
++
++CMD 경로가 다시 나올 때까지 기다린 뒤 결과만 공유합니다. 키를 채팅에 보내지 않습니다. 이 단계는 복구 승인이나 새 진입 검증을 먼저 요구하지 않습니다. 현재 EMERGENCY/paused를 유지한 채 빈 계정의 연결과 이벤트를 관찰합니다.
++
++정상 결과는 OBSERVATION_FINISHED_NO_ENTRY입니다. 오류이면 FAILED_OR_BLOCKED_NO_ENTRY와 private_session_diagnostic을 확인합니다. 오류를 반복하거나 새 매수를 실행하지 않습니다. 조용한 연결 점검이 통과해도 직전 체결 관찰 오류 원인이 해결됐다는 뜻은 아니며, 다음 실행 경로를 따로 판단합니다.
++
++## 무엇을 바꾸는 점검인가
++
++계정이 로컬에서 일시 정지·ISOLATED BTCUSDT·노출/잔량0·모든 주문 CLOSED인지 확인하고, 기존 lease/fencing을 획득해 다른 실행자와 겹치지 않게 합니다. REST 대조와 WebSocket 연결을 점검하면서 DB 감사 기록과 실제 최신 조회 상태를 남깁니다. 따라서 DB까지 읽기 전용인 명령은 아닙니다. 현재 평가/대조 시각은 실제 새 조회 시각으로 갱신될 수 있지만 과거 영수증의 실제 시각을 자정으로 바꾸거나 기준을 재작성하지 않습니다.
++
++거래소에서는 연결용 listenKey 생성/종료(필요 시 갱신)만 허용합니다. 주문 신호/진입/청산/보호 취소/레버리지 변경은 하지 않습니다. 전용 ObservationClient는 GET 외의 모든 request 요청을 SDK에 전달하기 전에 거부합니다. 원 SDK의 listen_key가 활성 DEMO 설정을 요구하기 때문에 관찰 전용 클라이언트 설정은 세션용으로 활성화하지만, 별도 요청 차단이 거래소 주문/설정 쓰기를 금지합니다. 신규 진입 재개 호출은 없습니다.
++
++## 진단 값
++
++private_session_diagnostic은 이번 세션의 stage/code, 허용된 event_kind 또는 UNKNOWN, 제한된 event_age_ms, ready_callback_ms만 표시합니다. 예: EVENT_TIME_INVALID(처리 시각 기준 오래되거나 미래/잘못된 이벤트 시각), EVENT_UNKNOWN, SOCKET_CLOSED, EVENT_JSON_INVALID, CLOCK_OR_COOLDOWN, DB_LOCK_TIMEOUT, SNAPSHOT_CHANGED 등. 원본 메시지·알 수 없는 이벤트 문자열·URL·서명·키·예외 본문을 저장/출력하지 않습니다. 이벤트 나이는 처리 호출 직전 표본이며 -60초~1시간으로 제한해 진단용으로만 기록하며 기존 신선도 판정에는 전혀 사용하지 않습니다.
++
++실패 시 DEMO_PRIVATE_SESSION_FAILED 감사 이벤트와 last_private_session_failure를 남깁니다. DB 기록이 실패해도 이번 실행의 메모리 진단은 최종 출력에 남깁니다. last_private_session_failure는 마지막 과거 실패일 수 있으므로 이번 출력의 private_session_diagnostic과 구분합니다. 기존 reconciliation_failure_code도 과거 실패 표시가 남을 수 있습니다. 정상 종료 취소는 실패로 새로 기록하지 않으며 실제 세션 오류는 정리 중 취소되더라도 계속 실패입니다.
++
++기존 키 재사용·기간 기준 검토·최초 체결/worker 대기/운영 조회 수정은 포함합니다. 이 단계는 실제 자동 진입 검증 성공·Phase4 완료·서버 상시 운영 또는 LIVE/Phase5 승인이 아닙니다.
+--- /dev/null
++++ b/SESSION_DIAGNOSTIC_VALIDATION_KO.md
+@@ -0,0 +1,29 @@
++# 세션 오류 분류와 주문 없는 점검: 검증 기록
++
++## 실제 증거와 미확정 사항
++
++사용자 작업7ad58edd-1b41-4b53-a989-e9f2cea180a0는 FULL_FILL0.0007/stop_verified=true/target_verified=true/FINISHED_FLAT/CLOSED였지만 session_error=true와 DEMO_SESSION_OR_QUERY_FAILED로 전체 검증에 실패했습니다. completion_failure/database_failure는 NONE, 마지막 불일치 필드는[],추가 최초 체결 처리는 사용하지 않았습니다. 로컬 감사 마지막24개는11:43:59 UTC 보호 확인 뒤11:44:02 STREAM_UNTRUSTED를 보여주며 새로운 DEMO_RECONCILIATION_FAILED는 없습니다. SNAPSHOT_CHANGED 필드만으로 현재 실패를 확정할 수 없습니다. 원래 이벤트/예외가 기록되지 않아 정확한 원인은 아직 알 수 없습니다.
++
++코드를 보면 현재 이벤트 종류/시각 검사 또는 연결 실패가 일반 DEMO 세션 실패로 합쳐집니다. 오래 대기한 이벤트가 원인일 가능성은 합성 재현으로만 확인했으며 사용자 실제 원인으로 단정하지 않습니다. 실패를 성공으로 바꾸거나 신선도 허용 시간을 늘리지 않습니다.
++
++## 변경
++
++기본값이 있는 PrivateSessionDiagnostic/last_private_session_failure 모델, 허용 목록 분류 helper, 세션 생성/연결/대조/콜백/수신/파싱/이벤트/핑/갱신 단계 계측, 실패 감사 기록과 최종 출력 필드를 추가했습니다. 실제 예외를 재시도하지 않으며 원본 예외/URL/메시지/알 수 없는 이벤트명/키 값은 밖으로 내보내지 않습니다. 이벤트 나이와 콜백 시간은 진단 범위로 제한합니다. 진단 값은 기존 판정에 영향을 주지 않습니다. 오류는 원래와 같이 연결을 비신뢰 처리하고 정리를 진행합니다. 정상 취소는 실패 진단을 만들지 않습니다.
++
++새 observe_demo_private는 빈 일시 정지 ISOLATED BTCUSDT 계정만 lease/fencing하에 관찰합니다. NORMAL과 EMERGENCY의 정지 상태를 허용하지만 복구/재개 호출은 없습니다. ObservationClient는 모든 GET 외 request를 금지합니다. 연결 키 생명주기만 원 SDK의 전용 listen_key로 처리합니다. SDK listen_key의 기존 DEMO 활성 조건 때문에 관찰 전용 설정은 활성이고, 주문/계정 변경은 별도 클래스의 전송 차단으로 금지합니다. 현재 상태·감사를 DB에 기록하므로 DB 읽기 전용이라고 주장하지 않습니다. 같은 계정의 활성 실행자와 경합하면 lease 획득에서 차단됩니다.
++
++기존 demo.py의 이벤트 허용 목록/30초 판정/connected/disconnect/reconcile/주문·위험·보호/청산 구현, account_risk/coherent_snapshot·SDK·스냅샷·저장/fencing·정책·기준·키 보관·Docker/Compose·export는 변경하지 않았습니다. demo.py에는 진단 인스턴스 초기화와 import만 추가했습니다. run_demo CLI와 기본 check_private 계약도 그대로입니다. 키 보관과 모델의 추가 기본값은 기존 원장과 호환되며 DB 스키마 변경이 없습니다.
++
++## 테스트
++
++새 집중 검사51개 통과(3.87초). 허용된 분류/알 수 없는 이벤트 문자열 제거/나이 제한, DB 오류 고정 분류, 알 수 없는 이벤트·30초 초과·미래 이벤트·잘못된 JSON/객체·크기 초과·소켓 종료·REST 불일치·세션 생성 실패의 실제 로컬 WebSocket/PG 감사 기록을 확인합니다. 정상 취소에서 실패가 만들어지지 않는지, 세션 콜백 동안31초 지난 이벤트가 그대로 거부되고 EVENT_TIME_INVALID/31000ms로 식별되는지도 검사합니다. 이는 실제 사용자 원인 확정이나 큐 처리 수정의 증명이 아닙니다.
++
++관찰 클라이언트가 POST/PUT/PATCH/DELETE와 주문/보호/레버리지 경로를 SDK 이전에 차단하고 GET만 원래 SDK로 전달하는지 검사합니다. 실제 PG의 일시 정지 EMERGENCY에서 관찰이 완료되고 기준/고점/요청/잠금이 유지되며 주문 신호가 없고 listenKey POST/DELETE만 발생하는지 확인합니다. 로컬 노출이 있으면 점검을 차단합니다.
++
++- 전체 pytest: 849 passed in 186.76s (0:03:06). TEST_DATABASE_URL은 실제 로컬 PostgreSQL.
++- Ruff check: All checks passed. Ruff format --check: 239 files already formatted.
++- mypy: Success, no issues found in 86 source files. docker compose config --quiet 통과.
++- 부모 ZIP SHA-256: 9f096eebf0aad71ef70589e2c69dabdf5babc56cb5ec55118ba3cedc29dd8858. 기존278개 파일에서 모델/코디네이터 초기화/세션/검증 출력4개를 수정하고 helper·관찰 CLI·테스트3개·문서2개를 추가합니다. 패키징에서 변경 목록·전 파일 SHA-256·ZIP CRC/누락을 검사합니다.
++- main은 64e9e7b3d833824c763a2a0f2df1493300744121 유지. 별도 windows-demo-session-diagnostic-20261030 브랜치로 게시합니다.
++
++시험은 합성 거래소 응답+로컬 WebSocket+실제 PostgreSQL입니다. 클라우드에서 인증된 Binance 호출/새 주문은 하지 않았습니다. 사용자 Windows의 새 진단 점검 결과를 먼저 받아야 하며, 조용한 연결 점검 통과로 체결 후 관찰 오류가 해결됐다고 주장하지 않습니다. 실제 새 자동 매매 수락과 Phase4 완료·LIVE/Phase5 전환은 별도입니다.
+--- /dev/null
++++ b/scripts/observe_demo_private.py
+@@ -0,0 +1,128 @@
++"""Bounded DEMO private-stream observation while entries stay paused. No order writes."""
++
++import asyncio
++import json
++from collections.abc import Mapping
++from pathlib import Path
++from typing import Any
++from uuid import uuid4
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_session_diagnostics import failure_diagnostic
++from services.execution.demo_stream import session
++
++
++class ObservationClient(DemoClient):
++    """Session lifecycle is allowed; all order/account mutations are denied."""
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        if method != "GET":
++            raise DemoFailure("Private observation forbids order/account mutations")
++        return super().request(method, path, params)
++
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++def empty_paused(store: DemoStore) -> None:
++    ledger = store.read(ACCOUNT)
++    if (
++        not ledger.paused
++        or ledger.risk_state.value not in {"NORMAL", "EMERGENCY"}
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or any(ledger.positions.values())
++        or any(
++            o.remaining or o.open_quantity or o.position_state.value != "CLOSED"
++            for o in ledger.orders.values()
++        )
++    ):
++        raise DemoFailure("Paused empty isolated DEMO required")
++
++
++async def observe(coordinator: DemoCoordinator, seconds: float = 30) -> None:
++    ready = False
++
++    def connected() -> None:
++        nonlocal ready
++        empty_paused(coordinator.store)
++        ready = True
++
++    try:
++        await asyncio.wait_for(session(coordinator, on_ready=connected), timeout=seconds)
++    except TimeoutError:
++        pass  # A normal bounded cancellation is not itself a session error.
++    if not ready or coordinator.session_failed:
++        raise DemoFailure("Private observation failed or did not become ready")
++
++
++def main() -> None:
++    engine = None
++    store = None
++    lease = None
++    coordinator = None
++    status = "BLOCKED"
++    try:
++        key = credentials()
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = ObservationClient(cfg, key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        empty_paused(store)
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        coordinator.session_diagnostic.stage = "RECONCILE"
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        empty_paused(store)
++        asyncio.run(observe(coordinator))
++        status = "OBSERVATION_FINISHED_NO_ENTRY"
++    except Exception as error:
++        status = "FAILED_OR_BLOCKED_NO_ENTRY"
++        if coordinator is not None and coordinator.session_diagnostic.code == "NONE":
++            coordinator.session_failed = True
++            coordinator.session_diagnostic = failure_diagnostic(
++                error, coordinator.session_diagnostic
++            )
++    finally:
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++        except Exception:
++            status = "LEASE_RELEASE_NOT_CONFIRMED_KEEP_PAUSED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(
++        json.dumps(
++            {
++                "private_observation": status,
++                "private_session_diagnostic": coordinator.session_diagnostic.model_dump(mode="json")
++                if coordinator
++                else None,
++                "entry_signal_supplied": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        )
++    )
++    if status != "OBSERVATION_FINISHED_NO_ENTRY":
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -22,7 +22,12 @@
+ )
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_initial_fill import InitialFillBlocked, settle_initial_fill
+-from services.execution.demo_models import DemoLedger, DemoSnapshot, InitialFillSettleReason
++from services.execution.demo_models import (
++    DemoLedger,
++    DemoSnapshot,
++    InitialFillSettleReason,
++    PrivateSessionDiagnostic,
++)
+ from services.execution.demo_reconciliation import coherent_snapshot
+ from services.execution.models import Lease, PaperOrder
+ from services.execution.paper import account_risk
+@@ -53,6 +58,7 @@
+     def __init__(self, store: DemoStore, lease: Lease, client: DemoClient):
+         self.store, self.lease, self.client = store, lease, client
+         self.session_failed = False
++        self.session_diagnostic = PrivateSessionDiagnostic()
+         self.rules: dict[str, SymbolRules] = {}
+         self.excluded_symbols: dict[str, str] = {}
+         if store.read(lease.account_id).policy != client.settings.policy:
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -79,6 +79,57 @@
+     account_wide_exchange_export_verified: Literal[False] = False
+ 
+ 
++class PrivateSessionDiagnostic(State):
++    stage: Literal[
++        "NONE",
++        "SESSION_CREATE",
++        "CONNECT",
++        "RECONCILE",
++        "READY_CALLBACK",
++        "HEARTBEAT",
++        "KEY_RENEW",
++        "RECEIVE",
++        "PARSE",
++        "EVENT",
++        "PING",
++        "EXPIRY",
++    ] = "NONE"
++    code: Literal[
++        "NONE",
++        "EVENT_UNKNOWN",
++        "EVENT_TIME_INVALID",
++        "EVENT_OVERSIZED",
++        "EVENT_JSON_INVALID",
++        "EVENT_OBJECT_INVALID",
++        "SOCKET_CLOSED",
++        "TIMEOUT",
++        "RATE_LIMITED",
++        "CLOCK_OR_COOLDOWN",
++        "SNAPSHOT_CHANGED",
++        "SNAPSHOT_INVALID",
++        "LEASE_OR_RISK",
++        "DB_LOCK_TIMEOUT",
++        "DB_DEADLOCK",
++        "DB_CONNECTION",
++        "OTHER_DATABASE",
++        "DEMO_QUERY_OR_SESSION",
++        "OTHER_SESSION_FAILURE",
++    ] = "NONE"
++    event_kind: Literal[
++        "NONE",
++        "UNKNOWN",
++        "ORDER_TRADE_UPDATE",
++        "ALGO_UPDATE",
++        "ACCOUNT_UPDATE",
++        "ACCOUNT_CONFIG_UPDATE",
++        "MARGIN_CALL",
++        "listenKeyExpired",
++        "TRADE_LITE",
++    ] = "NONE"
++    event_age_ms: int | None = None
++    ready_callback_ms: int = 0
++
++
+ class DemoLedger(Ledger):
+     mode: Literal["DEMO"] = "DEMO"
+     policy: DemoPolicy
+@@ -88,6 +139,7 @@
+     last_reconciliation_mismatch_fields: tuple[str, ...] = ()
+     reconciliation_settle_reason: InitialFillSettleReason = "NONE"
+     initial_fill_settlements: dict[str, str] = Field(default_factory=dict)
++    last_private_session_failure: PrivateSessionDiagnostic | None = None
+     stream_ready: bool = False
+     stream_at: datetime | None = None
+     fingerprint: str = ""
+--- /dev/null
++++ b/services/execution/demo_session_diagnostics.py
+@@ -0,0 +1,82 @@
++"""Allowlisted private-stream diagnostics; never include raw events, URLs or errors."""
++
++from typing import Literal, cast
++
++from sqlalchemy.exc import SQLAlchemyError
++from websockets.exceptions import ConnectionClosed
++
++from integrations.binance_usdm.demo import DemoFailure, DemoRateLimited
++from services.execution.demo_models import PrivateSessionDiagnostic
++from services.risk.paper import RiskRejected
++
++EVENT_KINDS = frozenset(
++    {
++        "ORDER_TRADE_UPDATE",
++        "ALGO_UPDATE",
++        "ACCOUNT_UPDATE",
++        "ACCOUNT_CONFIG_UPDATE",
++        "MARGIN_CALL",
++        "listenKeyExpired",
++        "TRADE_LITE",
++    }
++)
++type EventKind = Literal[
++    "NONE",
++    "UNKNOWN",
++    "ORDER_TRADE_UPDATE",
++    "ALGO_UPDATE",
++    "ACCOUNT_UPDATE",
++    "ACCOUNT_CONFIG_UPDATE",
++    "MARGIN_CALL",
++    "listenKeyExpired",
++    "TRADE_LITE",
++]
++
++
++def event_info(raw: dict[str, object], now_ms: int) -> tuple[EventKind, int | None]:
++    kind = raw.get("e")
++    safe = cast(EventKind, kind) if isinstance(kind, str) and kind in EVENT_KINDS else "UNKNOWN"
++    stamp = raw.get("E")
++    age = max(-60000, min(3600000, now_ms - stamp)) if type(stamp) is int else None
++    return safe, age
++
++
++def failure_diagnostic(
++    error: Exception, detail: PrivateSessionDiagnostic
++) -> PrivateSessionDiagnostic:
++    code: str = "OTHER_SESSION_FAILURE"
++    if isinstance(error, ConnectionClosed):
++        code = "SOCKET_CLOSED"
++    elif isinstance(error, TimeoutError):
++        code = "TIMEOUT"
++    elif isinstance(error, DemoRateLimited):
++        code = "RATE_LIMITED"
++    elif isinstance(error, RiskRejected):
++        code = "LEASE_OR_RISK"
++    elif isinstance(error, SQLAlchemyError):
++        state = getattr(getattr(error, "orig", None), "sqlstate", None)
++        code = {
++            "55P03": "DB_LOCK_TIMEOUT",
++            "40P01": "DB_DEADLOCK",
++            "08000": "DB_CONNECTION",
++            "08001": "DB_CONNECTION",
++            "08003": "DB_CONNECTION",
++            "08004": "DB_CONNECTION",
++            "08006": "DB_CONNECTION",
++            "08007": "DB_CONNECTION",
++            "08P01": "DB_CONNECTION",
++        }.get(state if isinstance(state, str) else "", "OTHER_DATABASE")
++    elif isinstance(error, DemoFailure):
++        code = {
++            "Unrecognized DEMO private event": "EVENT_UNKNOWN",
++            "Stale/future DEMO private event": "EVENT_TIME_INVALID",
++            "DEMO private event oversized": "EVENT_OVERSIZED",
++            "Invalid DEMO event object": "EVENT_OBJECT_INVALID",
++            "DEMO REST snapshots changed mid-reconciliation": "SNAPSHOT_CHANGED",
++            "Invalid/incomplete DEMO snapshot": "SNAPSHOT_INVALID",
++            "Clock stale or cooldown active": "CLOCK_OR_COOLDOWN",
++        }.get(str(error), "DEMO_QUERY_OR_SESSION")
++    elif detail.stage == "PARSE" and isinstance(error, (ValueError, UnicodeError)):
++        code = "EVENT_JSON_INVALID"
++    # Validate even internally constructed values; never admit exception text.
++    return PrivateSessionDiagnostic.model_validate(detail.model_dump() | {"code": code})
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -3,6 +3,7 @@
+ import asyncio
+ import json
+ import logging
++import time
+ from collections.abc import Callable
+ from contextlib import AbstractAsyncContextManager
+ from datetime import timedelta
+@@ -15,6 +16,8 @@
+ 
+ from integrations.binance_usdm.demo import WS_HOST, DemoFailure
+ from services.execution.demo import DemoCoordinator
++from services.execution.demo_models import PrivateSessionDiagnostic
++from services.execution.demo_session_diagnostics import event_info, failure_diagnostic
+ 
+ 
+ async def settled_call[T](function: Callable[..., T], *args: Any) -> T:
+@@ -72,22 +75,51 @@
+     """One session. Caller may restart after backoff; a reconnect always reconciles first."""
+     store, lease, client = coordinator.store, coordinator.lease, coordinator.client
+     coordinator.session_failed = False
+-    key = store.change(lease, "DEMO_SESSION_CREATE", lambda ledger: client.listen_key("POST"))
+-    if key is None:
+-        raise DemoFailure("DEMO private session unavailable")
++    coordinator.session_diagnostic = PrivateSessionDiagnostic(stage="SESSION_CREATE")
++    try:
++        key = store.change(lease, "DEMO_SESSION_CREATE", lambda ledger: client.listen_key("POST"))
++        if key is None:
++            raise DemoFailure("DEMO private session unavailable")
++    except Exception as error:
++        coordinator.session_failed = True
++        coordinator.session_diagnostic = failure_diagnostic(error, coordinator.session_diagnostic)
++        try:
++            store.change(
++                lease,
++                "DEMO_PRIVATE_SESSION_FAILED",
++                lambda ledger: setattr(
++                    ledger,
++                    "last_private_session_failure",
++                    coordinator.session_diagnostic.model_copy(deep=True),
++                ),
++            )
++        except Exception:
++            pass
++        raise DemoFailure("DEMO private connection/session failed; entries blocked") from None
+     renewed = store.now()
+     try:
++        coordinator.session_diagnostic.stage = "CONNECT"
+         async with connector(client.private_url(key)) as websocket:
++            coordinator.session_diagnostic.stage = "RECONCILE"
+             await settled_call(coordinator.connected)
+             if on_ready:
+                 await settled_call(store.renew, lease)
+                 await settled_call(client.sync_clock)
+-                await settled_call(on_ready)
++                coordinator.session_diagnostic.stage = "READY_CALLBACK"
++                callback_start = time.monotonic()
++                try:
++                    await settled_call(on_ready)
++                finally:
++                    coordinator.session_diagnostic.ready_callback_ms = min(
++                        3600000, max(0, int((time.monotonic() - callback_start) * 1000))
++                    )
+             count = 0
+             while max_messages is None or count < max_messages:
++                coordinator.session_diagnostic.stage = "HEARTBEAT"
+                 await settled_call(store.renew, lease)
+                 await settled_call(client.sync_clock)
+                 if store.now() - renewed >= timedelta(minutes=25):
++                    coordinator.session_diagnostic.stage = "KEY_RENEW"
+                     await settled_call(
+                         store.change,
+                         lease,
+@@ -96,6 +128,9 @@
+                     )
+                     renewed = store.now()
+                 try:
++                    coordinator.session_diagnostic.stage = "RECEIVE"
++                    coordinator.session_diagnostic.event_kind = "NONE"
++                    coordinator.session_diagnostic.event_age_ms = None
+                     message = await asyncio.wait_for(websocket.recv(), timeout=5)
+                     if len(message) > 1_048_576:
+                         raise DemoFailure("DEMO private event oversized")
+@@ -103,18 +138,40 @@
+                     def reject_constant(value: str) -> Any:
+                         raise ValueError("Non-finite event")
+ 
++                    coordinator.session_diagnostic.stage = "PARSE"
+                     raw = json.loads(message, parse_float=Decimal, parse_constant=reject_constant)
+                     if not isinstance(raw, dict):
+                         raise DemoFailure("Invalid DEMO event object")
++                    (
++                        coordinator.session_diagnostic.event_kind,
++                        coordinator.session_diagnostic.event_age_ms,
++                    ) = event_info(raw, int(store.now().timestamp() * 1000))
++                    coordinator.session_diagnostic.stage = "EVENT"
+                     await settled_call(coordinator.event, raw)
+                     count += 1
+                 except TimeoutError:
++                    coordinator.session_diagnostic.stage = "PING"
+                     pong = await websocket.ping()
+                     await asyncio.wait_for(pong, timeout=5)
+                     await settled_call(coordinator.connected)
++                coordinator.session_diagnostic.stage = "EXPIRY"
+                 await settled_call(coordinator.expire)
+-    except Exception:
++    except Exception as error:
+         coordinator.session_failed = True
++        coordinator.session_diagnostic = failure_diagnostic(error, coordinator.session_diagnostic)
++        try:
++            await settled_call(
++                store.change,
++                lease,
++                "DEMO_PRIVATE_SESSION_FAILED",
++                lambda ledger: setattr(
++                    ledger,
++                    "last_private_session_failure",
++                    coordinator.session_diagnostic.model_copy(deep=True),
++                ),
++            )
++        except Exception:
++            pass  # Ephemeral diagnostic still appears in final output if the DB is unavailable.
+         try:
+             await settled_call(coordinator.disconnect)
+         except Exception:
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -347,6 +347,7 @@
+                 session_error=failure,
+                 validation_stage=validation_stage,
+                 session_failure=session_failure,
++                private_session_diagnostic=coordinator.session_diagnostic.model_dump(mode="json"),
+                 completion_stage=completion_stage,
+                 completion_failure=completion_failure,
+                 completion_database_failure=completion_database_failure,
+--- /dev/null
++++ b/tests/fault_injection/test_demo_session_diagnostic.py
+@@ -0,0 +1,164 @@
++"""Local websocket plus real PostgreSQL: failures stay failures, trade gates unchanged."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++
++import pytest
++from sqlalchemy import select
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo import DemoFailure
++from packages.persistence.demo import events
++from services.execution.demo_stream import session
++from tests.integration.test_demo import system  # noqa: F401
++
++
++@pytest.mark.parametrize(
++    "kind,code,stage",
++    [
++        ("unknown", "EVENT_UNKNOWN", "EVENT"),
++        ("stale", "EVENT_TIME_INVALID", "EVENT"),
++        ("future", "EVENT_TIME_INVALID", "EVENT"),
++        ("json", "EVENT_JSON_INVALID", "PARSE"),
++        ("object", "EVENT_OBJECT_INVALID", "PARSE"),
++        ("oversized", "EVENT_OVERSIZED", "RECEIVE"),
++        ("closed", "SOCKET_CLOSED", "RECEIVE"),
++        ("rest", "SNAPSHOT_CHANGED", "EVENT"),
++    ],
++)
++def test_failed_session_records_safe_cause_before_cleanup(system, monkeypatch, kind, code, stage):  # noqa: F811
++    store, c, fake = system
++    if kind == "rest":
++
++        def failed(raw):
++            raise DemoFailure("DEMO REST snapshots changed mid-reconciliation")
++
++        monkeypatch.setattr(c, "event", failed)
++
++    async def run():
++        async def handler(socket):
++            if kind == "closed":
++                await socket.close(reason="PRIVATE_SECRET_URL")
++                return
++            stamp = int(fake.at.timestamp() * 1000)
++            payload = json.dumps({"e": "ACCOUNT_UPDATE", "E": stamp})
++            if kind == "unknown":
++                payload = json.dumps({"e": "PRIVATE_SECRET_KEY", "E": stamp})
++            elif kind == "stale":
++                payload = json.dumps({"e": "ACCOUNT_UPDATE", "E": stamp - 30001})
++            elif kind == "future":
++                payload = json.dumps({"e": "ACCOUNT_UPDATE", "E": stamp + 1})
++            elif kind == "json":
++                payload = "PRIVATE_SECRET_INVALID_JSON"
++            elif kind == "object":
++                payload = '["PRIVATE_SECRET"]'
++            elif kind == "oversized":
++                payload = "x" * 1048577
++            await socket.send(payload)
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}", max_size=None) as socket:
++                    yield socket
++
++            with pytest.raises(DemoFailure):
++                await session(c, connector=connector, max_messages=1)
++
++    asyncio.run(run())
++    after = store.read("DEMO-test")
++    diag = after.last_private_session_failure
++    assert diag is not None and diag.code == code and diag.stage == stage
++    assert c.session_failed and c.session_diagnostic == diag
++    assert after.paused and not after.stream_ready and not after.reconciled
++    assert "PRIVATE_SECRET" not in diag.model_dump_json()
++    if kind == "stale":
++        assert diag.event_age_ms == 30001
++    if kind == "future":
++        assert diag.event_age_ms == -1
++    if kind == "unknown":
++        assert diag.event_kind == "UNKNOWN"
++    with store.engine.connect() as conn:
++        payload = conn.execute(
++            select(events.c.payload).where(events.c.kind == "DEMO_PRIVATE_SESSION_FAILED")
++        ).scalar_one()
++    assert "PRIVATE_SECRET" not in payload
++    assert not any(path == "/fapi/v1/order" and method == "POST" for method, path, _ in fake.calls)
++
++
++def test_no_failure_diagnostic_is_fabricated_on_normal_cancellation(system):  # noqa: F811
++    store, c, fake = system
++
++    async def run():
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            task = asyncio.create_task(session(c, connector=connector))
++            await asyncio.sleep(0.1)
++            task.cancel()
++            with pytest.raises(asyncio.CancelledError):
++                await task
++
++    asyncio.run(run())
++    assert not c.session_failed and c.session_diagnostic.code == "NONE"
++    assert store.read("DEMO-test").last_private_session_failure is None
++
++
++def test_session_creation_failure_is_diagnosed_without_printing_secret(system, monkeypatch):  # noqa: F811
++    store, c, _ = system
++
++    def failed(method):
++        raise DemoFailure("PRIVATE_SECRET")
++
++    monkeypatch.setattr(c.client, "listen_key", failed)
++    with pytest.raises(DemoFailure):
++        asyncio.run(session(c))
++    assert c.session_failed
++    assert c.session_diagnostic.stage == "SESSION_CREATE"
++    assert c.session_diagnostic.code == "DEMO_QUERY_OR_SESSION"
++    assert "PRIVATE_SECRET" not in store.read("DEMO-test").model_dump_json()
++
++
++def test_buffered_event_over_thirty_seconds_remains_rejected_and_is_identified(system):  # noqa: F811
++    from datetime import timedelta
++
++    store, c, fake = system
++    original = int(fake.at.timestamp() * 1000)
++
++    async def run():
++        async def handler(socket):
++            await socket.send(json.dumps({"e": "ACCOUNT_UPDATE", "E": original}))
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            def delayed_callback():
++                fake.at += timedelta(seconds=31)
++
++            with pytest.raises(DemoFailure):
++                await session(c, connector=connector, on_ready=delayed_callback, max_messages=1)
++
++    asyncio.run(run())
++    assert c.session_diagnostic.code == "EVENT_TIME_INVALID"
++    assert c.session_diagnostic.event_kind == "ACCOUNT_UPDATE"
++    assert c.session_diagnostic.event_age_ms == 31000
++    assert not store.read("DEMO-test").stream_ready
+--- /dev/null
++++ b/tests/integration/test_demo_paused_observer.py
+@@ -0,0 +1,77 @@
++"""A paused EMERGENCY can be observed without recovery approval or trade POSTs."""
++
++import asyncio
++from contextlib import asynccontextmanager
++from decimal import Decimal
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++import scripts.observe_demo_private as observer
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_stream import session
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++
++
++def test_observation_keeps_emergency_and_baselines_and_submits_no_orders(period_case, monkeypatch):  # noqa: F811
++    store, c, fake, *_ = period_case
++    monkeypatch.setattr(observer, "ACCOUNT", "DEMO-test")
++    original = c.client.send
++
++    def send(method, path, query, key):
++        if path == "/fapi/v1/listenKey":
++            return fake(method, path, query, key)
++        return original(method, path, query, key)
++
++    c.client = observer.ObservationClient(
++        c.client.settings.model_copy(update={"demo_trading_enabled": True}),
++        c.client.credentials,
++        send=send,
++        clock_ms=c.client.clock_ms,
++    )
++    c.client.sync_clock()
++    before = store.read("DEMO-test")
++    start = len(fake.calls)
++
++    async def run():
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            async def local(coordinator, *, on_ready):
++                await session(coordinator, connector=connector, on_ready=on_ready)
++
++            monkeypatch.setattr(observer, "session", local)
++            await observer.observe(c, seconds=0.2)
++
++    asyncio.run(run())
++    after = store.read("DEMO-test")
++    assert after.risk_state == before.risk_state and after.paused
++    assert after.daily_key == before.daily_key and after.weekly_key == before.weekly_key
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert after.high_water == before.high_water and after.requests == before.requests
++    writes = [(m, p) for m, p, _ in fake.calls[start:] if m != "GET"]
++    assert writes == [("POST", "/fapi/v1/listenKey"), ("DELETE", "/fapi/v1/listenKey")]
++
++
++def test_observer_refuses_local_occupancy_before_session(period_case, monkeypatch):  # noqa: F811
++    store, c, fake, *_ = period_case
++    monkeypatch.setattr(observer, "ACCOUNT", "DEMO-test")
++
++    def occupied(ledger):
++        ledger.positions["BTCUSDT"] = Decimal(1)
++
++    store.change(c.lease, "TEST_OCCUPIED", occupied)
++    with pytest.raises(DemoFailure):
++        observer.empty_paused(store)
+--- /dev/null
++++ b/tests/unit/test_demo_session_diagnostics.py
+@@ -0,0 +1,102 @@
++"""Only allowlisted classifications and bounded timing may leave the session."""
++
++import pytest
++from sqlalchemy.exc import OperationalError
++from websockets.exceptions import ConnectionClosed
++
++from integrations.binance_usdm.demo import DemoFailure, DemoRateLimited
++from services.execution.demo_models import PrivateSessionDiagnostic
++from services.execution.demo_session_diagnostics import event_info, failure_diagnostic
++from services.risk.paper import RiskRejected
++
++
++@pytest.mark.parametrize(
++    "kind,stamp,want_kind,want_age",
++    [
++        ("ACCOUNT_UPDATE", 1000, "ACCOUNT_UPDATE", 500),
++        ("PRIVATE_SECRET_DO_NOT_OUTPUT", 1000, "UNKNOWN", 500),
++        ([], 1000, "UNKNOWN", 500),
++        ("TRADE_LITE", True, "TRADE_LITE", None),
++        ("TRADE_LITE", "1000", "TRADE_LITE", None),
++        ("ALGO_UPDATE", -(10**30), "ALGO_UPDATE", 3600000),
++        ("MARGIN_CALL", 10**30, "MARGIN_CALL", -60000),
++    ],
++)
++def test_event_metadata_is_bounded_and_never_copies_unknown_payload(
++    kind, stamp, want_kind, want_age
++):
++    assert event_info({"e": kind, "E": stamp, "private": "SECRET"}, 1500) == (want_kind, want_age)
++
++
++@pytest.mark.parametrize(
++    "error,stage,code",
++    [
++        (DemoFailure("Unrecognized DEMO private event"), "EVENT", "EVENT_UNKNOWN"),
++        (DemoFailure("Stale/future DEMO private event"), "EVENT", "EVENT_TIME_INVALID"),
++        (DemoFailure("DEMO private event oversized"), "RECEIVE", "EVENT_OVERSIZED"),
++        (DemoFailure("Invalid DEMO event object"), "PARSE", "EVENT_OBJECT_INVALID"),
++        (ValueError("PRIVATE_SECRET"), "PARSE", "EVENT_JSON_INVALID"),
++        (ConnectionClosed(None, None), "RECEIVE", "SOCKET_CLOSED"),
++        (TimeoutError("PRIVATE_SECRET"), "PING", "TIMEOUT"),
++        (DemoRateLimited("PRIVATE_SECRET"), "HEARTBEAT", "RATE_LIMITED"),
++        (RiskRejected("PRIVATE_SECRET"), "HEARTBEAT", "LEASE_OR_RISK"),
++        (
++            DemoFailure("DEMO REST snapshots changed mid-reconciliation"),
++            "EVENT",
++            "SNAPSHOT_CHANGED",
++        ),
++        (DemoFailure("Invalid/incomplete DEMO snapshot"), "RECONCILE", "SNAPSHOT_INVALID"),
++        (DemoFailure("Clock stale or cooldown active"), "HEARTBEAT", "CLOCK_OR_COOLDOWN"),
++        (DemoFailure("PRIVATE_SECRET"), "READY_CALLBACK", "DEMO_QUERY_OR_SESSION"),
++        (RuntimeError("PRIVATE_SECRET"), "CONNECT", "OTHER_SESSION_FAILURE"),
++    ],
++)
++def test_classification_does_not_expose_error_text(error, stage, code):
++    result = failure_diagnostic(error, PrivateSessionDiagnostic(stage=stage))
++    assert result.code == code and result.stage == stage
++    assert "PRIVATE_SECRET" not in result.model_dump_json()
++
++
++@pytest.mark.parametrize(
++    "sqlstate,code",
++    [
++        ("55P03", "DB_LOCK_TIMEOUT"),
++        ("40P01", "DB_DEADLOCK"),
++        ("08006", "DB_CONNECTION"),
++        ("SECRET", "OTHER_DATABASE"),
++    ],
++)
++def test_database_classification_only_exposes_allowlisted_state(sqlstate, code):
++    error = Exception("PRIVATE_SECRET")
++    error.sqlstate = sqlstate
++    result = failure_diagnostic(
++        OperationalError("PRIVATE_SQL", {}, error), PrivateSessionDiagnostic(stage="EVENT")
++    )
++    assert result.code == code and "PRIVATE" not in result.model_dump_json()
++
++
++@pytest.mark.parametrize("method", ["POST", "PUT", "PATCH", "DELETE"])
++@pytest.mark.parametrize("path", ["/fapi/v1/order", "/fapi/v1/algoOrder", "/fapi/v1/leverage"])
++def test_observation_client_denies_all_order_and_account_mutations_before_sdk(
++    method, path, monkeypatch
++):
++    from integrations.binance_usdm.demo import DemoClient
++    from scripts.observe_demo_private import ObservationClient
++
++    def forbidden(*a, **k):
++        pytest.fail("Mutation must not reach transport")
++
++    monkeypatch.setattr(DemoClient, "request", forbidden)
++    client = object.__new__(ObservationClient)
++    with pytest.raises(DemoFailure, match="forbids order/account mutations"):
++        client.request(method, path, {})
++
++
++def test_observation_get_still_delegates_to_original_sdk(monkeypatch):
++    from integrations.binance_usdm.demo import DemoClient
++    from scripts.observe_demo_private import ObservationClient
++
++    monkeypatch.setattr(DemoClient, "request", lambda self, method, path, params: {"path": path})
++    assert object.__new__(ObservationClient).request("GET", "/fapi/v3/account") == {
++        "path": "/fapi/v3/account"
++    }
