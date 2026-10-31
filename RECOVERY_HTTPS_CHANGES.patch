@@ -1,0 +1,896 @@
+--- /dev/null
++++ b/RECOVERY_HTTPS_START_HERE_KO.md
+@@ -0,0 +1,28 @@
++# 복구 검토 HTTPS 연결 재사용 수정본
++
++기존 TP 시험을 반복하지 않습니다. 현재 EMERGENCY/paused 잠금을 유지한 채 새 읽기 전용 검토를 한 번 실행합니다. 신규 주문·청산·exports 생성 명령은 없습니다.
++
++1. ZIP을 바탕 화면의 새 windows-demo-recovery-https-reuse 폴더로 풉니다. 기존 폴더에 덮어쓰지 않습니다.
++2. 해당 폴더의 탐색기 주소창에 cmd를 입력합니다. 아래 명령을 순서대로 한 줄씩 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 뒤 DEMO 키를 다시 RAM 등록합니다. 재빌드로 이전 RAM 등록이 사라질 수 있습니다. 숨김 입력값을 채팅에 보내지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++등록 성공 뒤 검토만 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++전체 JSON 결과를 캡처해 공유합니다. REVIEW_ONLY_NO_DATABASE_CHANGE여도 아직 잠금 해제가 아닙니다. BLOCKED_KEEP_LOCK이면 반복·해제하지 않습니다. 이 문서에는 apply 명령이 없습니다. 새 검토 결과를 확인한 뒤에만 별도 복구 절차로 진행합니다. 이전 토큰을 재사용하지 않습니다.
++
++기존 PostgreSQL 볼륨·이력·일간/주간 기준금·고점은 유지합니다. down -v, DB 초기화, 기준금 재설정, exports 재요청을 실행하지 않습니다. 프로젝트 이름 hybrid-windows를 그대로 사용합니다.
++
++검토 한 번 안에서만 GET용 HTTPS 연결을 재사용합니다. 인증서/호스트 검증, 기존 urllib 프록시 설정, 리다이렉트 거부는 유지합니다. 서버가 연결을 닫으면 다음 새 요청은 새 연결을 열지만 실패한 요청은 자동 재전송하지 않습니다. 40초 제한과 전체 과거 요청 검증을 유지하므로 실제 응답이 계속 느리면 다시 차단될 수 있습니다. 진단 숫자로 연결 생성·재사용·서버 종료를 구분합니다.
+--- /dev/null
++++ b/RECOVERY_HTTPS_VALIDATION_KO.md
+@@ -0,0 +1,21 @@
++# 검증 결과 및 범위
++
++전체 1156개 테스트 통과(265.81초), 집중 56개 통과(15.24초). Ruff check/format 통과(327개 파일), mypy 103개 소스 통과. 정확한 이전 ZIP 대조 시험은 예상한 REQUEST_AUDIT_TIME_BUDGET으로 중단(1 failed, 2.28초)됐으며 배포 테스트에는 포함하지 않습니다.
++
++## 수정 범위
++
++기존 복구 검토 진입부에 검토 한 번에만 사용하는 읽기 전용 HTTPS 전송을 연결했습니다. SDK 기본 전송을 쓰는 정확한 DemoClient와 읽기 전용 설정에서만 적용합니다. 사용자 지정 클라이언트/전송은 바꾸지 않습니다. 성공·중단 모두 원래 전송을 복원하고 연결을 닫습니다.
++
++기존 urllib 프록시 처리와 CONNECT 인증 분리, TLS 인증서/호스트 검증, 리다이렉트 거부를 유지합니다. DEMO 고정 호스트 및 허용된 GET 경로만 허용합니다. exports 생성·조회 경로는 제외합니다. 응답 본문은 기존 상한만큼 읽으며 미소비 본문이 남으면 연결을 폐기합니다. 실패한 요청의 자동 재시도는 없습니다. 새 진단은 숫자와 허용된 분류만 내보내며 키·서명·URL·프록시 인증값을 출력하지 않습니다.
++
++원래 _review_checked와 복구 승인 함수, SDK, 예산 모듈은 그대로입니다. 전체 과거 요청 조회, 독립된 세 번의 스냅샷, 최종 기간/리스크 검증, 미해결 이력 보존, 토큰 계산은 변경하지 않았습니다. 40초·서명 GET600회·시계6회·이력128개·배치8개·시계 갱신20초·SDK 시계 수명60초·리스60초를 유지합니다. 캐시·병렬 조회·조회 생략·기준금 재설정은 추가하지 않았습니다.
++
++## 회귀 근거
++
++정확한 이전 ZIP의 복구 모듈을 별도로 로드한 대조 시험에서 REQUEST_AUDIT_TIME_BUDGET을 재현했습니다. 로컬 검증 TLS 서버와 실제 PostgreSQL을 사용하고 연결마다 0.4초, 요청마다 0.001초를 결정론적 시험 시계에 반영했습니다. 실제 사용자망 지연을 측정한 값은 아닙니다. 새 코드는 같은 조건·같은 예산으로 31개 이력을 모두 조회하고 연결1개를 재사용합니다. 토큰과 조회 건수는 기존 SDK 전송 결과와 같습니다. 본문 처리 자체가 느린 조건에서는 수정본도 40초에 차단되며 DB 잠금을 그대로 유지합니다.
++
++TLS 검증, 프록시 CONNECT 인증 분리, GET 경로 제한, 공개 시계 요청에 키 미전달, HTTP 오류 응답 뒤 연결 재사용, 서버 연결 종료, 네트워크 오류 무재시도, 비밀값 없는 진단을 검사합니다. 기존 테스트는 삭제하거나 완화하지 않았습니다.
++
++클라우드의 인증 없는 공개 시계 접근은 기존/새 전송 모두 HTTP 상태 없이 실패했습니다. 따라서 실제 거래소 접속 속도 개선을 입증한 것으로 보지 않습니다. 인증된 클라우드 거래소 요청이나 주문은 실행하지 않았습니다. 새 Windows 복구 검토 및 잠금 해제는 아직 검증 전입니다.
++
++직전 실제 TP 시험 통과 및 이후 복구 시간 초과는 별도 한국어 증거 문서에 보존했습니다. TP 시험은 SL 확인 뒤 로컬 TP 조립 실패에 대한 진입 차단·SL 유지, 운영자 비상 정리·flat 확인 범위입니다. 자동 즉시 TP 실패 청산, 실제 거래소 TP 거부, 부분체결 보호 통과로 확대하지 않습니다. Phase4 전체 완료·LIVE·Phase5·main 병합은 진행하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_TIME_BUDGET_20261031_KO.md
+@@ -0,0 +1,14 @@
++# Windows 복구 검토 시간 제한 중단
++
++사용자 CMD 캡처: windows-demo-tp-fault-check에서 scripts.review_demo_recovery를 인자 없이 실행했습니다.
++
++- recovery: BLOCKED_KEEP_LOCK
++- stage: RECOVERY_REVIEW
++- error_code: REQUEST_AUDIT_TIME_BUDGET
++- periods: {}
++- next_action: SHARE_CODE_DO_NOT_RETRY_OR_UNLOCK
++- orders_enabled / live_trading_enabled: false
++
++이 결과는 복구 검토가 완료되지 않았다는 뜻입니다. 잠금을 풀거나 같은 명령을 반복하지 않습니다. Docker의 Gordon 안내 문구는 별도 Docker 안내이며 애플리케이션이 반환한 시간 제한 코드를 대체하지 않습니다.
++
++직전 TP 조립 실패 시험은 운영자 비상 종료 뒤 VERIFIED_FLAT를 확인했습니다. 그 과거 결과만으로 현재 상태를 확정하거나 새 검토를 생략하지 않습니다. EMERGENCY/paused는 그대로 유지합니다. 이번 수정본의 새 읽기 전용 검토가 성공하더라도 잠금은 자동 해제되지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_TP_FAULT_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,39 @@
++# Windows DEMO 로컬 TP 조립 실패·SL 유지·진입 차단·운영자 비상 정리 통과
++
++근거: 사용자가 제공한 CMD 최종 화면. 2026-10-31 한국 시간.
++배포: windows-demo-tp-fault-check-20261031 / dc15b84.
++ZIP SHA256: dd0f177faf7934192944bf9c5be67d99da3e9142d47bee51713f413fb277f338.
++작업 ID: 426dd7a2-805b-4576-a1f4-85313a7c4f6c.
++
++## 실제 출력
++
++- 예약 수량 및 cap 0.0007 BTC
++- 지정가 77388.70 / 손절 77001.70 / 익절 가정 78173.90
++- 단계 RESERVED_NOT_YET_SUBMITTED → TP_NOT_SENT_ENTRIES_BLOCKED_SL_RETAINED
++- tp_fault_check TP_BUILD_FAILURE_PAUSE_SL_RETAINED_OPERATOR_FLAT_VERIFIED
++- scope LOCAL_TP_BUILD_FAILURE_AFTER_SIGNED_STOP
++- fault_injection_count 1
++- fault_at_utc 2026-10-31T10:58:45.179933+00:00 (한국 시간19:58:45)
++- signed_stop_before_fault_verified true
++- entries_paused_after_fault true / entry_gate_blocked_after_fault true
++- tp_not_sent_proof_verified true / unexpected_tp_transport_attempts 0
++- new_entry_post_count 1 / entry_post_attempts 1
++- reduce_only_post_attempts 1 / operator_emergency_requested true
++- recovered_existing_intent false / filled_quantity 0.0007
++- exit_state FILLED / flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true
++- failure NONE / failure_stage NONE / completion_failure NONE
++- private_session_diagnostic HEARTBEAT / NONE / event_kind NONE
++- ready_callback_ms 21988 / received_events 5 / coalesced_events 0
++- event_clock_offset_ms null / event_clock_rtt_ms null / event_clock_wait_ms 0 / event_local_age_ms null
++- risk_state EMERGENCY / final_paused true
++- final_stream_ready false / final_reconciled false
++- orders_enabled false / live_trading_enabled false
++
++## 판정과 후속 상태
++
++실제 DEMO의 최소 cap 진입 체결 뒤, 같은 SL을 signed GET으로 확인하고 로컬 TP 조립에만 실패를1회 주입했다. 원래 코드의 NOT_SENT/LOCAL_VALIDATION_FAILED 증거, 신규 진입 차단 및 SL 보호 유지가 확인됐다. 이후 검증 도구가 명시적 운영자 비상 정리를 요청하고 원래 reduce-only 종료1회 및 FILLED/VERIFIED_FLAT까지 확인했다. 과거 이력·기준 보존도 통과했다.
++
++이는 로컬 TP 조립 실패에 대한 실제 DEMO 대응 통과다. 거래소의 실제 TP 거부 응답이나 SL 생성 실패를 직접 일으킨 것은 아니며, TP 실패가 자동 즉시 청산을 일으킨다고 설명하지 않는다. TP가 정상 등록·체결된 것으로 분류하거나 부분체결 전체 보호 통과로 분류하지 않는다.
++
++EMERGENCY는 사용한 비상 정리 명령이 유지하는 잠금이다. 다음 단계는 기존 읽기 전용 review_demo_recovery로 현재 포지션/주문/요청/위험을 재검토하는 것이다. 이 출력만으로 잠금을 자동 해제하거나 기존 token을 재사용하지 않는다. 같은 주문/장애를 재실행하지 않는다. Phase4 전체/LIVE/Phase5 통과로 확대하지 않는다.
+--- /dev/null
++++ b/integrations/binance_usdm/recovery_transport.py
+@@ -0,0 +1,206 @@
++"""One-review GET-only keep-alive, preserving urllib proxy/TLS/no-redirect policy."""
++
++import ssl
++import time
++from collections.abc import Iterator
++from contextlib import contextmanager
++from http.client import HTTPException, HTTPResponse, HTTPSConnection
++from typing import Any
++from urllib.error import HTTPError, URLError
++from urllib.parse import urlsplit
++from urllib.request import HTTPSHandler, Request, build_opener
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import (
++    REST_HOST,
++    SIGNED_GET,
++    DemoClient,
++    DemoUnknown,
++    transport,
++)
++from integrations.binance_usdm.rest import NoRedirect, RESTResponse
++
++# Async exports are deliberately excluded: GET trade/asyn creates an export request.
++GET_PATHS = (SIGNED_GET - {"/fapi/v1/trade/asyn", "/fapi/v1/trade/asyn/id"}) | {"/fapi/v1/time"}
++MAX_BODY = 4_194_305
++ORIGIN = urlsplit(REST_HOST)
++EXPECTED_HOST = ORIGIN.hostname or ""
++assert EXPECTED_HOST
++
++
++def safe_transport_diagnostics(raw: dict[str, str | int] | None) -> dict[str, str | int]:
++    raw = raw or {}
++    result: dict[str, str | int] = {}
++    if raw.get("audit_transport_mode") in {"POOLED_HTTPS", "UNPOOLED_TRANSPORT"}:
++        result["audit_transport_mode"] = raw["audit_transport_mode"]
++    if raw.get("audit_last_route") in {"NONE", "CLOCK", "REGULAR_ORDER", "ALGO_ORDER", "OTHER_GET"}:
++        result["audit_last_route"] = raw["audit_last_route"]
++    for key in (
++        "audit_http_attempts",
++        "audit_connection_attempts",
++        "audit_reused_requests",
++        "audit_server_close_responses",
++        "audit_transport_elapsed_ms",
++    ):
++        value = raw.get(key)
++        if type(value) is int:
++            result[key] = max(0, min(3_600_000, value))
++    return result
++
++
++class RecoveryHTTPSHandler(HTTPSHandler):
++    def __init__(self, context: ssl.SSLContext | None = None):
++        secure = context or ssl.create_default_context()
++        if not secure.check_hostname or secure.verify_mode != ssl.CERT_REQUIRED:
++            raise ValueError("Verified TLS required")
++        super().__init__(debuglevel=0, context=secure)
++        self.secure = secure
++        self.connection: HTTPSConnection | None = None
++        self.route: tuple[str, str | None, str | None] | None = None
++        self.connection_attempts = self.reused_requests = self.requests = 0
++        self.server_close_responses = 0
++
++    def close(self) -> None:
++        if self.connection is not None:
++            self.connection.close()
++        self.connection = None
++        self.route = None
++
++    def https_open(self, request: Request) -> HTTPResponse:
++        origin = urlsplit(request.full_url)
++        tunnel = vars(request).get("_tunnel_host")
++        selector = origin.path + ("?" + origin.query if origin.query else "")
++        if (
++            request.get_method() != "GET"
++            or origin.scheme != "https"
++            or origin.hostname != EXPECTED_HOST
++            or origin.port not in {None, 443}
++            or origin.username is not None
++            or origin.password is not None
++            or origin.fragment
++            or origin.path not in GET_PATHS
++            or request.selector != selector
++            or tunnel not in {None, EXPECTED_HOST, EXPECTED_HOST + ":443"}
++        ):
++            raise ValueError("Recovery GET route forbidden")
++        host = request.host
++        if not host:
++            raise ValueError("Recovery host unavailable")
++        # Match urllib's proxy handling: proxy authorization belongs only on CONNECT.
++        headers = dict(request.unredirected_hdrs)
++        headers.update({k: v for k, v in request.headers.items() if k not in headers})
++        headers = {k.title(): v for k, v in headers.items()}
++        proxy_auth = headers.pop("Proxy-Authorization", None)
++        route = (host, tunnel, proxy_auth)
++        if self.route != route or self.connection is None:
++            self.close()
++            connection = HTTPSConnection(host, timeout=5, context=self.secure)
++            connection.set_debuglevel(0)
++            if tunnel:
++                connection.set_tunnel(
++                    tunnel, headers={"Proxy-Authorization": proxy_auth} if proxy_auth else {}
++                )
++            self.connection, self.route = connection, route
++        connection = self.connection
++        assert connection is not None
++        if connection.sock is None:
++            self.connection_attempts += 1
++        else:
++            self.reused_requests += 1
++        headers["Connection"] = "keep-alive"
++        self.requests += 1
++        try:
++            connection.request("GET", request.selector, None, headers, encode_chunked=False)
++            response = connection.getresponse()
++        except BaseException:
++            self.close()
++            raise  # The outer transport sanitizes errors; no implicit replay.
++        if response.will_close:
++            self.server_close_responses += 1
++        # Same compatibility attributes used by urllib's standard do_open.
++        compatible: Any = response
++        compatible.url = request.full_url
++        compatible.msg = response.reason
++        return response
++
++
++class RecoveryTransport:
++    def __init__(self, *, context: ssl.SSLContext | None = None):
++        self.handler = RecoveryHTTPSHandler(context)
++        # Default ProxyHandler is retained by build_opener; redirects are refused.
++        self.opener = build_opener(NoRedirect(), self.handler)
++        self.started = time.monotonic()
++        self.last_route = "NONE"
++
++    def close(self) -> None:
++        self.handler.close()
++
++    def diagnostics(self) -> dict[str, str | int]:
++        return {
++            "audit_transport_mode": "POOLED_HTTPS",
++            "audit_http_attempts": self.handler.requests,
++            "audit_connection_attempts": self.handler.connection_attempts,
++            "audit_reused_requests": self.handler.reused_requests,
++            "audit_server_close_responses": self.handler.server_close_responses,
++            "audit_transport_elapsed_ms": max(
++                0, min(3_600_000, int((time.monotonic() - self.started) * 1000))
++            ),
++            "audit_last_route": self.last_route,
++        }
++
++    def __call__(
++        self, method: str, path: str, query: SecretStr, api_key: SecretStr | None
++    ) -> RESTResponse:
++        if method != "GET" or path not in GET_PATHS:
++            raise ValueError("Recovery transport GET route forbidden")
++        self.last_route = (
++            "CLOCK"
++            if path == "/fapi/v1/time"
++            else "REGULAR_ORDER"
++            if path == "/fapi/v1/order"
++            else "ALGO_ORDER"
++            if path == "/fapi/v1/algoOrder"
++            else "OTHER_GET"
++        )
++        payload = query.get_secret_value()
++        headers = {"Accept": "application/json"}
++        if api_key is not None:
++            headers["X-MBX-APIKEY"] = api_key.get_secret_value()
++        request = Request(
++            REST_HOST + path + ("?" + payload if payload else ""), headers=headers, method="GET"
++        )
++        try:
++            try:
++                with self.opener.open(request, timeout=5) as response:
++                    status, body = response.status, response.read(MAX_BODY)
++            except HTTPError as error:
++                try:
++                    status, body = error.code, error.read(MAX_BODY)
++                finally:
++                    error.close()
++            if len(body) >= MAX_BODY:
++                self.close()  # Never reuse a connection with an unconsumed body.
++            return RESTResponse(status, body, {})
++        except (URLError, OSError, HTTPException, ValueError):
++            self.close()
++            raise DemoUnknown("Recovery HTTPS query failed; no automatic retry") from None
++
++
++@contextmanager
++def recovery_connection(client: DemoClient) -> Iterator[RecoveryTransport | None]:
++    original = client.send
++    if (
++        type(client) is not DemoClient
++        or original is not transport
++        or client.settings.demo_trading_enabled
++    ):
++        yield None  # Preserve custom clients/transports and the original context rejection.
++        return
++    pooled = RecoveryTransport()
++    try:
++        client.send = pooled
++        yield pooled
++    finally:
++        client.send = original
++        pooled.close()
+--- a/scripts/review_demo_recovery.py
++++ b/scripts/review_demo_recovery.py
+@@ -18,6 +18,7 @@
+     DemoRateLimited,
+     DemoSettings,
+ )
++from integrations.binance_usdm.recovery_transport import safe_transport_diagnostics
+ from packages.domain.config import UniqueKeyLoader, database_url
+ from packages.persistence.demo import DemoStore
+ from scripts.demo_key_session import credentials as session_credentials
+@@ -30,7 +31,13 @@
+ from services.risk.paper import RiskRejected
+ 
+ 
+-def blocked(stage: str, code: str, *, periods: dict[str, str] | None = None) -> None:
++def blocked(
++    stage: str,
++    code: str,
++    *,
++    periods: dict[str, str] | None = None,
++    diagnostics: dict[str, str | int] | None = None,
++) -> None:
+     print(
+         json.dumps(
+             {
+@@ -38,6 +45,7 @@
+                 "stage": stage,
+                 "error_code": code,
+                 "periods": periods or {},
++                "transport_diagnostics": safe_transport_diagnostics(diagnostics),
+                 "next_action": "SHARE_CODE_DO_NOT_RETRY_OR_UNLOCK",
+                 "orders_enabled": False,
+                 "live_trading_enabled": False,
+@@ -146,15 +154,16 @@
+                 )
+             )
+     except RecoveryBlocked as error:
+-        blocked(stage, error.code, periods=error.periods)
++        blocked(stage, error.code, periods=error.periods, diagnostics=error.transport_diagnostics)
+     except getpass.GetPassWarning:
+         blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
+-    except DemoRateLimited:
+-        blocked(stage, "DEMO_RATE_LIMITED")
+-    except DemoFailure:
++    except DemoRateLimited as error:
++        blocked(stage, "DEMO_RATE_LIMITED", diagnostics=vars(error).get("transport_diagnostics"))
++    except DemoFailure as error:
+         blocked(
+             stage,
+             "CLOCK_CHECK_FAILED" if stage == "CLOCK_CHECK" else "DEMO_QUERY_OR_SNAPSHOT_FAILED",
++            diagnostics=vars(error).get("transport_diagnostics"),
+         )
+     except SQLAlchemyError:
+         blocked(stage, "DATABASE_ACCESS_FAILED")
+--- a/services/execution/demo_recovery.py
++++ b/services/execution/demo_recovery.py
+@@ -8,6 +8,7 @@
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+ from integrations.binance_usdm.demo_snapshot import snapshot
++from integrations.binance_usdm.recovery_transport import recovery_connection
+ from packages.domain.contracts import OrderState, RiskState
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_models import DemoLedger
+@@ -53,6 +54,7 @@
+     def __init__(self, code: str, message: str, *, periods: dict[str, str] | None = None):
+         super().__init__(message)
+         self.code = code if code in RECOVERY_BLOCK_CODES else "RECOVERY_CHECK_BLOCKED"
++        self.transport_diagnostics: dict[str, str | int] = {}
+         self.periods = {
+             key: value if re.fullmatch(r"\d{4}-\d{2}-\d{2}", value) else "INVALID_DATE"
+             for key, value in (periods or {}).items()
+@@ -113,10 +115,29 @@
+ 
+ 
+ def review(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
+-    try:
+-        return _review_checked(store, client, ledger)
+-    except AuditBudgetExceeded as error:
+-        raise RecoveryBlocked(error.code, "Recovery audit exceeded safe resource budget") from None
++    with recovery_connection(client) as pooled:
++        try:
++            report = _review_checked(store, client, ledger)
++            report.update(
++                pooled.diagnostics() if pooled else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++            )
++            return report
++        except AuditBudgetExceeded as error:
++            blocked = RecoveryBlocked(error.code, "Recovery audit exceeded safe resource budget")
++            blocked.transport_diagnostics = (
++                pooled.diagnostics() if pooled else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++            )
++            raise blocked from None
++        except RecoveryBlocked as error:
++            error.transport_diagnostics = (
++                pooled.diagnostics() if pooled else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++            )
++            raise
++        except DemoFailure as error:
++            vars(error)["transport_diagnostics"] = (
++                pooled.diagnostics() if pooled else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++            )
++            raise
+ 
+ 
+ def _review_checked(store: DemoStore, client: DemoClient, ledger: DemoLedger) -> dict[str, object]:
+--- /dev/null
++++ b/tests/integration/test_demo_recovery_https.py
+@@ -0,0 +1,141 @@
++# ruff: noqa: F811
++"""TLS setup cost regression with real PG/TLS, full unchanged request audit and budgets."""
++
++import json
++from datetime import timedelta
++from decimal import Decimal
++from urllib.parse import urlsplit
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import transport
++from services.execution import demo_recovery as recovery_module
++from services.execution import demo_recovery_budget as limits
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++from tests.integration.test_demo_recovery_batches import history_case  # noqa: F401
++from tests.unit.test_recovery_https_transport import tls_server  # noqa: F401
++
++
++def wire(
++    history_case,
++    tls_server,
++    monkeypatch,
++    *,
++    setup_cost=Decimal("0.4"),
++    request_cost=Decimal("0.001"),
++):
++    store, c, fake = history_case
++    before = store.read("DEMO-test")
++    saved = c.client.send
++    base = fake.at
++    elapsed = [Decimal(0)]
++
++    def advance(value):
++        elapsed[0] += value
++        fake.at = base + timedelta(seconds=float(elapsed[0]))
++
++    tls_server.on_connect = lambda: advance(setup_cost)
++    tls_server.on_request = lambda: advance(request_cost)
++
++    def answer(path, headers):
++        parsed = urlsplit(path)
++        value = headers.get("X-MBX-APIKEY")
++        response = saved(
++            "GET", parsed.path, SecretStr(parsed.query), SecretStr(value) if value else None
++        )
++        return response.status, response.body, {}
++
++    tls_server.responder = answer
++    original_budget = limits.RecoveryBudget
++    monkeypatch.setattr(
++        limits, "RecoveryBudget", lambda: original_budget(lambda: float(elapsed[0]))
++    )
++    return store, c, fake, before, saved, elapsed, base
++
++
++def test_tls_setup_cost_control_exceeds40_but_reuse_completes_all_ids(
++    history_case, tls_server, monkeypatch
++):
++    store, c, fake, before, saved, elapsed, base = wire(history_case, tls_server, monkeypatch)
++    # This injected wrapper calls the original one-connection-per-request SDK
++    # transport. All recovery code and its 40s limit are otherwise identical.
++    c.client.send = lambda *args: transport(*args)
++    try:
++        with pytest.raises(recovery_module.RecoveryBlocked) as blocked:
++            recovery_module.review(store, c.client, before)
++        assert blocked.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++        assert store.read("DEMO-test") == before
++        control_connections = tls_server.connections
++        assert control_connections > 50
++        elapsed[0] = Decimal(0)
++        fake.at = base
++        c.client.send = transport
++        report = recovery_module.review(store, c.client, before)
++        assert report["audited_request_count"] == len(before.requests) == 31
++        assert report["unresolved_count"] == 2 and report["risk_gates"] == "PASS"
++        assert report["audit_transport_mode"] == "POOLED_HTTPS"
++        assert report["audit_connection_attempts"] == 1
++        assert report["audit_reused_requests"] >= report["signed_query_count"] - 1
++        assert store.read("DEMO-test") == before and c.client.send is transport
++        assert limits.MAX_AUDIT_SECONDS == 40 and limits.MAX_SIGNED_QUERIES == 600
++        assert limits.MAX_CLOCK_PROBES == 6 and limits.MAX_HISTORY_REQUESTS == 128
++        queried = set()
++        from urllib.parse import parse_qs
++
++        for path, _ in tls_server.records:
++            fields = parse_qs(urlsplit(path).query)
++            queried.update(fields.get("origClientOrderId", []) + fields.get("clientAlgoId", []))
++        assert set(before.requests) <= queried
++    finally:
++        c.client.send = saved
++
++
++def test_pooled_report_token_matches_original_sdk_without_setup_pressure(
++    history_case, tls_server, monkeypatch
++):
++    store, c, fake, before, saved, elapsed, base = wire(
++        history_case, tls_server, monkeypatch, setup_cost=Decimal(0)
++    )
++    try:
++        c.client.send = lambda *args: transport(*args)
++        original = recovery_module.review(store, c.client, before)
++        elapsed[0] = Decimal(0)
++        fake.at = base
++        c.client.send = transport
++        pooled = recovery_module.review(store, c.client, before)
++        assert pooled["review_token"] == original["review_token"]
++        assert pooled["audited_request_count"] == original["audited_request_count"] == 31
++        assert pooled["signed_query_count"] == original["signed_query_count"]
++        assert pooled["unresolved_count"] == original["unresolved_count"] == 2
++        assert store.read("DEMO-test") == before
++    finally:
++        c.client.send = saved
++
++
++def test_slow_bodies_still_exhaust40_without_unlock_and_report_safe_metrics(
++    history_case, tls_server, monkeypatch
++):
++    store, c, _, before, saved, _, _ = wire(
++        history_case,
++        tls_server,
++        monkeypatch,
++        setup_cost=Decimal("0.01"),
++        request_cost=Decimal("0.4"),
++    )
++    c.client.send = transport
++    try:
++        with pytest.raises(recovery_module.RecoveryBlocked) as error:
++            recovery_module.review(store, c.client, before)
++        assert error.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++        metrics = error.value.transport_diagnostics
++        assert metrics["audit_transport_mode"] == "POOLED_HTTPS"
++        assert metrics["audit_connection_attempts"] == 1 and metrics["audit_reused_requests"] > 0
++        rendered = json.dumps(metrics)
++        assert "synthetic-key" not in rendered and "signature=" not in rendered
++        assert store.read("DEMO-test") == before and c.client.send is transport
++    finally:
++        c.client.send = saved
+--- /dev/null
++++ b/tests/unit/test_recovery_https_transport.py
+@@ -0,0 +1,320 @@
++"""Real local verified TLS connection reuse; never actual broker credentials."""
++
++import json
++import socket
++import ssl
++import subprocess
++import threading
++import urllib.request
++from http.client import HTTPSConnection
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from types import SimpleNamespace
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm import recovery_transport as module
++from integrations.binance_usdm.demo import DemoUnknown
++
++
++@pytest.fixture
++def tls_server(tmp_path, monkeypatch):
++    cert, key = tmp_path / "cert.pem", tmp_path / "key.pem"
++    subprocess.run(
++        [
++            "openssl",
++            "req",
++            "-x509",
++            "-nodes",
++            "-newkey",
++            "rsa:2048",
++            "-days",
++            "1",
++            "-keyout",
++            str(key),
++            "-out",
++            str(cert),
++            "-subj",
++            "/CN=demo-fapi.binance.com",
++            "-addext",
++            "subjectAltName=DNS:demo-fapi.binance.com",
++        ],
++        check=True,
++        stdout=subprocess.DEVNULL,
++        stderr=subprocess.DEVNULL,
++    )
++    server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++    server_context.load_cert_chain(str(cert), str(key))
++    trusted = ssl.create_default_context(cafile=str(cert))
++    state = SimpleNamespace(
++        records=[], connections=0, responder=None, on_connect=None, on_request=None
++    )
++
++    class Handler(BaseHTTPRequestHandler):
++        protocol_version = "HTTP/1.1"
++        disable_nagle_algorithm = True
++
++        def setup(self):
++            super().setup()
++            state.connections += 1
++
++        def log_message(self, *args):
++            pass
++
++        def do_GET(self):
++            state.records.append((self.path, dict(self.headers)))
++            if state.on_request:
++                state.on_request()
++            status, body, headers = (
++                state.responder(self.path, self.headers)
++                if state.responder
++                else (200, b'{"serverTime":123}', {})
++            )
++            self.send_response(status)
++            self.send_header("Content-Length", str(len(body)))
++            for name, value in headers.items():
++                self.send_header(name, value)
++            self.end_headers()
++            self.wfile.write(body)
++            self.wfile.flush()
++
++    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++    server.daemon_threads = True
++    server.socket = server_context.wrap_socket(server.socket, server_side=True)
++    runner = threading.Thread(target=server.serve_forever, daemon=True)
++    runner.start()
++    original_default = ssl.create_default_context
++
++    class Routed(HTTPSConnection):
++        def __init__(self, host, *args, context=None, **kwargs):
++            assert host == module.EXPECTED_HOST
++            super().__init__(host, *args, context=context or trusted, **kwargs)
++
++        def connect(self):
++            if state.on_connect:
++                state.on_connect()
++            raw = socket.create_connection(server.server_address, timeout=5)
++            raw.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
++            self.sock = self._context.wrap_socket(raw, server_hostname=module.EXPECTED_HOST)
++
++    monkeypatch.setattr(module, "HTTPSConnection", Routed)
++
++    def original_local_https_open(handler, request):
++        return handler.do_open(Routed, request, context=trusted)
++
++    monkeypatch.setattr(urllib.request.HTTPSHandler, "https_open", original_local_https_open)
++    monkeypatch.setattr(urllib.request, "getproxies", lambda: {})
++    monkeypatch.setattr(module.ssl, "create_default_context", lambda: trusted)
++    state.trusted = trusted
++    state.original_default = original_default
++    try:
++        yield state
++    finally:
++        server.shutdown()
++        server.server_close()
++        runner.join(timeout=3)
++
++
++def test_success_and_not_found_bodies_use_single_verified_tls_connection(tls_server):
++    state = tls_server
++
++    def response(path, headers):
++        return (404, b'{"code":-2013}', {}) if "order" in path else (200, b'{"serverTime":123}', {})
++
++    state.responder = response
++    pooled = module.RecoveryTransport()
++    try:
++        a = pooled("GET", "/fapi/v1/time", SecretStr(""), None)
++        b = pooled(
++            "GET",
++            "/fapi/v1/order",
++            SecretStr("symbol=BTCUSDT&signature=fixture"),
++            SecretStr("fixture-key"),
++        )
++        c = pooled("GET", "/fapi/v1/time", SecretStr(""), None)
++        assert (
++            a.status == c.status == 200 and b.status == 404 and json.loads(b.body)["code"] == -2013
++        )
++        assert state.connections == 1
++        assert pooled.diagnostics()["audit_connection_attempts"] == 1
++        assert pooled.diagnostics()["audit_reused_requests"] == 2
++        assert state.records[1][1]["X-Mbx-Apikey"] == "fixture-key"
++        assert "signature=fixture" in state.records[1][0]
++        assert "X-Mbx-Apikey" not in state.records[2][1]
++        assert "fixture-key" not in json.dumps(pooled.diagnostics())
++    finally:
++        pooled.close()
++    assert pooled.handler.connection is None
++
++
++def test_redirect_is_not_followed_or_given_credentials(tls_server):
++    state = tls_server
++    state.responder = lambda p, h: (302, b"{}", {"Location": "https://forbidden.invalid/PRIVATE"})
++    pooled = module.RecoveryTransport()
++    try:
++        response = pooled(
++            "GET", "/fapi/v1/order", SecretStr("symbol=BTCUSDT"), SecretStr("fixture-key")
++        )
++        assert response.status == 302 and len(state.records) == 1
++    finally:
++        pooled.close()
++
++
++@pytest.mark.parametrize(
++    "method,path",
++    [
++        ("POST", "/fapi/v1/order"),
++        ("DELETE", "/fapi/v1/algoOrder"),
++        ("GET", "/fapi/v1/trade/asyn"),
++        ("GET", "/fapi/v1/trade/asyn/id"),
++        ("GET", "/not-allowed"),
++    ],
++)
++def test_write_export_and_unknown_paths_block_before_network(method, path):
++    pooled = module.RecoveryTransport()
++    try:
++        with pytest.raises(ValueError):
++            pooled(method, path, SecretStr(""), None)
++        assert pooled.handler.requests == 0
++    finally:
++        pooled.close()
++
++
++def test_insecure_tls_context_is_rejected():
++    insecure = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
++    insecure.check_hostname = False
++    insecure.verify_mode = ssl.CERT_NONE
++    with pytest.raises(ValueError):
++        module.RecoveryTransport(context=insecure)
++
++
++def test_network_failure_is_sanitized_and_never_retried(monkeypatch):
++    calls = []
++
++    class Broken:
++        sock = None
++
++        def __init__(self, *a, **kw):
++            pass
++
++        def set_debuglevel(self, n):
++            assert n == 0
++
++        def request(self, *a, **kw):
++            calls.append(1)
++            raise OSError("PRIVATE_KEY signed_url")
++
++        def close(self):
++            pass
++
++    monkeypatch.setattr(module, "HTTPSConnection", Broken)
++    monkeypatch.setattr(urllib.request, "getproxies", lambda: {})
++    pooled = module.RecoveryTransport()
++    with pytest.raises(DemoUnknown) as error:
++        pooled("GET", "/fapi/v1/time", SecretStr(""), None)
++    assert len(calls) == 1 and "PRIVATE_KEY" not in str(error.value)
++    assert pooled.handler.connection is None
++
++
++def test_proxy_connect_auth_is_kept_out_of_origin_headers(monkeypatch):
++    made = []
++
++    class Connection:
++        sock = None
++
++        def __init__(self, host, **kwargs):
++            self.host = host
++            self.headers = None
++            self.tunnel = None
++            made.append(self)
++            assert kwargs["timeout"] == 5 and kwargs["context"].check_hostname
++
++        def set_debuglevel(self, n):
++            assert n == 0
++
++        def set_tunnel(self, host, headers):
++            self.tunnel = (host, headers)
++
++        def request(self, m, p, b, headers, **kw):
++            self.headers = headers
++            self.sock = object()
++
++        def getresponse(self):
++            return SimpleNamespace(will_close=False, reason="OK")
++
++        def close(self):
++            self.sock = None
++
++    monkeypatch.setattr(module, "HTTPSConnection", Connection)
++    handler = module.RecoveryHTTPSHandler()
++    request = urllib.request.Request(module.REST_HOST + "/fapi/v1/time", method="GET")
++    request.set_proxy("proxy.fixture:8080", "http")
++    request.add_header("Proxy-Authorization", "Basic private-proxy-token")
++    handler.https_open(request)
++    handler.https_open(request)
++    assert len(made) == 1 and made[0].host == "proxy.fixture:8080"
++    assert made[0].tunnel == (
++        module.EXPECTED_HOST,
++        {"Proxy-Authorization": "Basic private-proxy-token"},
++    )
++    assert "Proxy-Authorization" not in made[0].headers
++    handler.close()
++
++
++def test_transport_diagnostics_cannot_export_unknown_strings_or_secret_keys():
++    result = module.safe_transport_diagnostics(
++        {
++            "audit_transport_mode": "PRIVATE_KEY",
++            "audit_last_route": "https://private/signed_url",
++            "secret": "VALUE",
++            "audit_http_attempts": 3,
++            "audit_connection_attempts": True,
++        }
++    )
++    assert result == {"audit_http_attempts": 3}
++
++
++def test_server_connection_close_opens_a_new_connection_for_next_query(tls_server):
++    state = tls_server
++    state.responder = lambda p, h: (200, b"{}", {"Connection": "close"})
++    pooled = module.RecoveryTransport()
++    try:
++        pooled("GET", "/fapi/v1/time", SecretStr(""), None)
++        pooled("GET", "/fapi/v1/time", SecretStr(""), None)
++        assert state.connections == 2 and pooled.handler.connection_attempts == 2
++        assert pooled.handler.server_close_responses == 2
++    finally:
++        pooled.close()
++
++
++@pytest.mark.parametrize(
++    "url",
++    [
++        "https://fapi.binance.com/fapi/v1/time",
++        "http://demo-fapi.binance.com/fapi/v1/time",
++        "https://demo-fapi.binance.com:444/fapi/v1/time",
++        "https://private:secret@demo-fapi.binance.com/fapi/v1/time",
++        "https://demo-fapi.binance.com/fapi/v1/time#secret",
++    ],
++)
++def test_origin_scheme_port_and_credentials_are_pinned_before_connection(monkeypatch, url):
++    monkeypatch.setattr(module, "HTTPSConnection", lambda *a, **kw: pytest.fail("must not connect"))
++    handler = module.RecoveryHTTPSHandler()
++    with pytest.raises(ValueError):
++        handler.https_open(urllib.request.Request(url, method="GET"))
++
++
++def test_custom_client_is_not_rewired_even_with_default_sdk_sender():
++    from integrations.binance_usdm.demo import DemoClient
++    from tests.unit.test_demo_transport import client
++
++    source, _ = client(enabled=False)
++
++    class Custom(DemoClient):
++        pass
++
++    custom = Custom(source.settings, source.credentials)
++    original = custom.send
++    with module.recovery_connection(custom) as pooled:
++        assert pooled is None and custom.send is original
++    assert custom.send is original
