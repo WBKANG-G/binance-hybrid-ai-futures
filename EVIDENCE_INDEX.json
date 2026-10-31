@@ -1,0 +1,134 @@
+{
+  "evidence_cutoff_kst": "2026-10-31 23:57",
+  "issued_at_kst": "2026-11-01 00:02",
+  "latest_runtime_branch": "windows-demo-empty-db-restart-20261031",
+  "latest_runtime_commit": "cf0a168",
+  "latest_runtime_zip_sha256": "e6e970230db76cd97f035d39d289afa549b48319f050c92132ecc70b4d847cc3",
+  "actual_windows_evidence": [
+    {
+      "item": "정상 LONG 전량 체결·보호·flat",
+      "status": "범위 통과",
+      "operation_id": "648b31e2-570c-4ac5-99a6-38b6dbb8bcee",
+      "evidence": "evidence/WINDOWS_DEMO_PASSIVE_FULL_FILL_648b31e2_20261031_KO.md",
+      "sha256": "6fca1c562248d0e82f22376d587e11092eb57851235b9f7d943a045d4b2f5191",
+      "scope_limit": "SL/TP 접수·조회 확인이며 실제 SL/TP 트리거 체결은 별도"
+    },
+    {
+      "item": "정상 SHORT 전량 체결·보호·flat",
+      "status": "범위 통과",
+      "operation_id": "095b9d5c-b79d-4731-9d64-971e4ffde7d0",
+      "evidence": "evidence/WINDOWS_DEMO_PASSIVE_SHORT_FULL_FILL_20261031_KO.md",
+      "sha256": "7de53807b7e6e6a179b4b9ccbca8875731d4cc70f40bcb7a9dd0c459e1df54a8",
+      "scope_limit": "PASSIVE, cap0.0007; 실제 부분체결 보호 아님"
+    },
+    {
+      "item": "추가 PASSIVE 미체결 정리",
+      "status": "범위 통과",
+      "operation_id": "fe07c616-cf71-4ed9-b972-14c63b67d141",
+      "evidence": "evidence/WINDOWS_DEMO_PASSIVE_UNFILLED_fe07c616_20261031_KO.md",
+      "sha256": "ac0d55ab2c81149af7575e329f050038b4889039290cf39c77ac82bca3ee49e3",
+      "scope_limit": "체결0·CANCELED/CLOSED, 부분체결 통과 아님"
+    },
+    {
+      "item": "실제 부분체결 보호",
+      "status": "미완료·기존 실패 보존",
+      "operation_id": "0feb6a0e-21b2-4f8b-aad5-f101606dc4bb",
+      "evidence": "evidence/WINDOWS_DEMO_PARTIAL_EVIDENCE_20261031_KO.md",
+      "sha256": "9f66ae2965128da367bb3a007f6c87dd13b8cc09b4f4202442d0a22099467546",
+      "scope_limit": "0.0006/0.0007 체결, 보호false·SNAPSHOT_CHANGED; 최종flat. 이후 수정 뒤 실제 부분체결 성공 미확인"
+    },
+    {
+      "item": "미체결 주문 중 API 재시작",
+      "status": "범위 통과",
+      "operation_id": "a51c3737-ce9c-4645-ba59-44c259f32e91",
+      "evidence": "evidence/WINDOWS_DEMO_OPEN_API_RESTART_ACCEPTANCE_20261031_KO.md",
+      "sha256": "e0fc8432f1b501122bedc18f45232a265124a388a7ff1274d0607c55b6fd411d",
+      "scope_limit": "독립 guard가 생존한 API 재시작; 실행 guard 자체의 종료 아님"
+    },
+    {
+      "item": "미체결 주문 중 WSS 단절·취소·재연결",
+      "status": "범위 통과",
+      "operation_id": "debe90bc-1195-4e1b-92ef-22f41229c64e",
+      "evidence": "evidence/WINDOWS_DEMO_OPEN_DISCONNECT_ACCEPTANCE_20261031_KO.md",
+      "sha256": "f9f39406eaf9730ad2cd2a34b05202e05215f9443a92d356cdde69b3d12a9a03",
+      "scope_limit": "로컬 소켓 종료1회, 원래 정책에 따라 미체결 주문 취소"
+    },
+    {
+      "item": "빈 계좌 관찰 worker SIGKILL·펜스 복구",
+      "status": "범위 통과",
+      "operation_id": "b4cceb33-35bd-4430-b5be-65a49924d9ba",
+      "evidence": "evidence/WINDOWS_DEMO_EMPTY_WORKER_RECOVERY_ACCEPTANCE_20261031_KO.md",
+      "sha256": "0443302fb0a63b4a10be620e0318fed2b7bf3aacade80c29f5abbfc235b50330",
+      "scope_limit": "60초 자연 리스 만료, 펜스56→57; 주문/포지션 worker 종료 아님"
+    },
+    {
+      "item": "빈 계좌 WSS 30분 관찰·갱신",
+      "status": "범위 통과",
+      "operation_id": "87723a08-552e-43aa-9d5c-062de037aec8",
+      "evidence": "evidence/WINDOWS_DEMO_PRIVATE_STABILITY_ACCEPTANCE_20261031_KO.md",
+      "sha256": "c53a1c7f6c019177d0329c0f319ff8217ab955bc0113f7b5bb9e2978a3b65721",
+      "scope_limit": "단일 idle 세션, monotonic1800.014초, 갱신1회;24시간/원본 WS 저장/체결 이벤트 검증 아님"
+    },
+    {
+      "item": "TP 로컬 조립 실패·SL 유지·운영자 정리",
+      "status": "범위 통과",
+      "operation_id": "426dd7a2-805b-4576-a1f4-85313a7c4f6c",
+      "evidence": "evidence/WINDOWS_DEMO_TP_FAULT_ACCEPTANCE_20261031_KO.md",
+      "sha256": "0e85df0cf1d0ad0da08c725dafffbb16f8ca4adb0e479aebd0c43fc50b7df55f",
+      "scope_limit": "원래 진입 차단·SL 유지 후 명시적 운영자 종료; 자동 즉시 TP 실패 청산이나 거래소 거부 아님"
+    },
+    {
+      "item": "SL 로컬 조립 실패·자동 비상 종료",
+      "status": "범위 통과",
+      "operation_id": "77db044e-1bcd-4358-80e6-df9730630213",
+      "evidence": "evidence/WINDOWS_DEMO_SL_FAULT_ACCEPTANCE_20261031_KO.md",
+      "sha256": "aa9552962cf45f96dd3c1fc225c657b367f5d89a9102db4f9cbff0914c37ef84",
+      "scope_limit": "로컬 조립 실패1회, 원래 자동 종료, 후속 강제 정리 없음; 실제 거래소 거부·외부 알림 전달은 별도"
+    },
+    {
+      "item": "기존 종료 확인 경로 수정",
+      "status": "범위 통과",
+      "operation_id": null,
+      "evidence": "evidence/WINDOWS_DEMO_FLAT_CONFIRMATION_ACCEPTANCE_20261031_KO.md",
+      "sha256": "111aa62ee927191b6180cf9bab83a921ff4ba4fe6b4ad0f90c39b2642dd6a1ff",
+      "scope_limit": "원래 증거 조건으로 VERIFIED_FLAT; GET340/연결1/전송18.825초; 보호 취소0회"
+    },
+    {
+      "item": "빈 계좌 유휴 DB 정상 재시작",
+      "status": "범위 통과",
+      "operation_id": "98e59d82-c594-4ceb-936e-fa1a81ee83eb",
+      "evidence": "evidence/WINDOWS_DEMO_EMPTY_DB_RESTART_ACCEPTANCE_20261031_KO.md",
+      "sha256": "92de060f6460a26b3074a2edffe84628f21a604f1d13f190d55e17140ae7ee3c",
+      "scope_limit": "실제 서버 시작 시각 변경, 펜스69→70, 장부해시 보존; 작업 중 DB 단절/전원 손실 아님"
+    },
+    {
+      "item": "SDK 진입 ACK 로컬 유실·동일 ID 복구·중복 방지·flat",
+      "status": "범위 통과",
+      "operation_id": "a5ba93d9-85e3-4066-a03e-12a2da07185f",
+      "evidence": "evidence/WINDOWS_DEMO_ENTRY_LOSS_ACCEPTANCE_20261031_KO.md",
+      "sha256": "7cf0d5fbf0c9045fa188279d04f95b9b1def4ecf694dec23520bccf1ff326395",
+      "scope_limit": "성공 SDK 응답을 coordinator에 전달하기 전1회 유실; 실제 패킷 손실/네트워크 timeout 아님"
+    },
+    {
+      "item": "최신 전체 복구 검토와 승인",
+      "status": "완료",
+      "operation_id": "62d3bcf9-ce07-4233-9dc7-1cc98fbbe255",
+      "evidence": "evidence/WINDOWS_DEMO_RECOVERY_62d3bcf9_20261031_KO.md",
+      "sha256": "25bd3f69c33d44b742fcb5c2e04beb5a36239cb66229ab001e335249ec86e865",
+      "scope_limit": "67개 요청/9배치/292GET/미해결4/리스크PASS/활성주문0; 승인 후 NORMAL/paused"
+    }
+  ],
+  "local_suite": {
+    "passed": 1228,
+    "seconds": 295.86,
+    "authenticated_cloud_exchange_requests": false
+  },
+  "current_known_state": {
+    "risk_state": "NORMAL",
+    "paused": true,
+    "unresolved_count": 4,
+    "tracked_requests_at_last_review": 67,
+    "orders_enabled": false,
+    "live_trading_enabled": false
+  }
+}
