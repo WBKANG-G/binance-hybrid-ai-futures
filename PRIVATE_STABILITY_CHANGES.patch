@@ -1,0 +1,800 @@
+--- /dev/null
++++ b/PRIVATE_STABILITY_START_HERE_KO.md
+@@ -0,0 +1,37 @@
++# 주문 없는 개인 WSS 30분 연속 관찰과 listenKey 갱신
++
++새 windows-demo-private-stability-check 폴더의 CMD 하나에서 실행한다. 기존 hybrid-windows DB/볼륨/기준금/주문 이력을 유지한다. 초기화하지 않는다. 이번에는 신규 주문이나 장애 주입이 없다.
++
++## 순서
++
++1. ZIP을 새 폴더에 풀고 해당 폴더에서 CMD를 열어 빌드가 Healthy까지 끝나기를 기다린다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++2. 교체된 API 컨테이너의 private tmpfs에 DEMO 키를 등록한다. API Key와 Secret은 숨김 입력이며 채팅에 보내지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++3. 아래 명령을 한 번만 실행한다. 신규 주문은 제출하지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_private_stability --observe-30-minutes --operation-id 87723a08-552e-43aa-9d5c-062de037aec8
++```
++
++첫 OBSERVING 출력 이후30분 관찰한다. 최초 연결/대조와 마지막 세션 정리는 추가로 걸린다. 약1분마다 elapsed_seconds와 successful_key_renewals가 표시된다. 초반 갱신0은 정상이며, 기존 세션 코드가 listenKey 생성 후 약25분에 갱신한다. 진행 중 PC가 절전되지 않도록 하고 CMD를 닫거나 API/DB를 재시작하지 않는다. 다른 명령이나 수동 단절·주문을 동시에 실행하지 않는다.
++
++최종 결과 전체를 공유한다. 오류/NOT_ACCEPTED가 나오면 재실행하지 않는다. 이 도구에는 관찰 시간을 줄이는 CLI 옵션이 없고, 이미 시작/결과 기록이 있는 UUID는 세션 생성 전에 차단한다.
++
++## 성공 조건과 범위
++
++EMPTY_PRIVATE_SESSION_STABILITY_RENEWAL_VERIFIED, target_seconds1800/observed_elapsed_ms1800000 이상, key_create_success_count1/성공 갱신1 이상/key_close_success_count1, failure 및 completion_failure NONE, 이력·기준 보존, 최종 NORMAL/paused/stream false/reconciled false를 요구한다. 실제 WSS session은 한 번이며 자동 재연결하지 않는다. 빈 계좌에서 수신 이벤트0도 가능하고, 그 경우 원래 ping/pong 및 REST 재대조로 감독한다.
++
++모든 일반 SDK request의 GET 이외 메서드는 기존 ObservationClient에서 전송 전에 차단한다. listenKey POST/PUT/DELETE는 별도 기존 수명 관리 경로다. DB 리더/감사 기록은 변경하므로 DB 읽기 전용은 아니다. 계좌는 NORMAL·일시정지·ISOLATED BTCUSDT 2x·포지션/활성 주문0이어야 한다. 새 신호, reserve/submit/resume, 입출금, exports 생성은 없다. 기존 lease/시계/RTT/이벤트 시간/리스크 제한을 변경하지 않는다.
++
++30분 경과 뒤 원래 세션의 pause/재대조/키 삭제를 완전히 drain하고 거래소가 여전히 비었는지 확인한다. 갱신·키 삭제·감사 기록·정리 실패는 통과가 아니다. 일반 세션 오류와 별도로 allowlist 진단을 출력하며 비밀 키·원문 이벤트·URL·예외를 출력하지 않는다.
++
++이 검증은30분 단일 개인 세션과 listenKey 갱신 범위다.24시간 운용, 모든 원문 WSS의 영구 저장, 실제 부분체결 보호, 주문/포지션 보유 Worker 강제 종료, 호스트/DB 전체 중단 또는 Phase4 전체 완료를 뜻하지 않는다. LIVE/Phase5를 시작하지 않는다.
+--- /dev/null
++++ b/PRIVATE_STABILITY_VALIDATION_KO.md
+@@ -0,0 +1,31 @@
++# 빈 계좌 개인 WSS 연속 관찰·listenKey 갱신 도구 검증
++
++부모 ZIP SHA256: aff2c645855ab0b2ef127a3c00194b1d811696af95fce3671262db7ac5acdc96.
++기존 manifest 파일356개를 바이트 그대로 보존한다. 새 실행 모듈/CLI, 통합/단위 테스트, 안내/검증 문서, 최근 실제 빈 계좌 Worker 복구 통과 문서만 추가한다.
++
++## 동작
++
++CLI는 --observe-30-minutes 및 UUID를 요구하고 관찰 시간을 바꾸는 옵션이 없다. LIVE는 키 읽기 전에 거부한다. NORMAL/paused·빈 계좌·ISOLATED BTCUSDT 2x와 초기 거래소 상태를 확인한다. 시작 marker 또는 결과 marker가 있는 UUID는 최초 세션 전에 거부한다.
++
++StabilityClient는 기존 ObservationClient를 상속하므로 일반 request의 GET 이외가 차단된다. request 또는 listen_key 호출이 기존 SDK 검증을 통과해 반환된 뒤에만 성공 카운트를 올린다. POST/PUT/DELETE listenKey 수명 관리는 기존 코드 그대로다. SDK·기존 session·coordinator·서명·시계·리스크·보호·청산·키 캐시·기준금·Compose·exports 및 이전 테스트는 수정하지 않는다.
++
++원래 session 한 번만 실행한다. 연결 준비 대기는45초이며, callback 실패는 완료 신호보다 먼저 보존한다. 준비 완료 후 monotonic1800초를 관찰하며1분마다 안전한 진행 정보를 출력한다. 추가 진행 점검은 DB read이고 별도 SDK 트래픽을 만들지 않는다. 원래 session의5초 inbox 대기/ping/REST 대조, heartbeat/lease 갱신,25분 listenKey PUT 경로를 그대로 사용한다. 수신 실패나 예상보다 이른 session 종료, 이력·기준 변화는 실패다.
++
++정상 관찰 종료나 오류 때 원래 session의 finally를 drain_session으로 끝까지 기다려 DB worker/정리를 겹치지 않는다. 성공에는 단일 생성/성공 갱신1회 이상/단일 삭제,1800초 관찰, 세션 오류 없음, 최종 거래소 빈 상태, 기존 이력·기준 보존과 NORMAL/paused/stream false/reconciled false가 모두 필요하다. 성공 갱신 횟수는 기존 SDK가 갱신 API 성공 응답을 확인한 횟수이며, 최초 listenKey 만료 기한을 넘겨 연결이 유지되는 것까지 검증한 값은 아니다. 키 삭제 실패를 원래 session이 내부에서 소비하더라도 성공 카운트가0이면 통과하지 않는다. 최종 fenced 결과 감사 쓰기 실패도 성공을 차단한다. CLI는 마지막 lease release 실패도 BLOCKED로 처리한다.
++
++단계별 진단은 기존 PrivateSessionDiagnostic의 허용된 필드만 포함한다. successful_read_queries는 일반 request GET의 성공 횟수이며 public metadata/time 호출까지 합친 전체 HTTP 횟수는 아니다. 실패 시 elapsed 값은 마지막 관찰 확인 지점이고 observation_finished_at_utc는 관찰시간 완료 시에만 기록된다. 어떤 미확인 결과도 성공으로 추정하지 않는다.
++
++## 검증
++
++집중 테스트: 22 passed in 20.10s. Ruff check/format 및 mypy100소스 통과.
++전체 테스트: 1117 passed in 244.09s (0:04:04). Ruff check/format 통과, mypy100소스 통과.
++
++통합 테스트는 실제 PostgreSQL 격리 schema와 localhost WSS 서버, synthetic signed SDK 응답을 사용한다. 원래25분 갱신 경로는 fixture 시각을 각 원래 sync_clock 호출 전에10초씩 진행하고 실제 ACCOUNT_UPDATE 모양의 이벤트를 로컬 WSS로 보내 실행했다. lease/시계/이벤트 검증은 원래 구현을 그대로 통과한다. 로컬 관찰 벽시계5초 동안 갱신 경로 및 최종 키 삭제를 검사한 것이며, 실제 거래소30분 관찰을 클라우드에서 수행한 것으로 주장하지 않는다. Windows는 실제 monotonic1800초를 기다린다.
++
++새 테스트는 원래 갱신 성공, 갱신 없음 거부, 잘못된 이벤트 실패·원문 비노출, PUT HTTP 실패의 미집계, DELETE 실패 시 거부, 감사 기록 실패, 기준 변화 거부, 기존 시작 UUID 및 준비 marker 없는 실패 결과 UUID 재실행 거부, 준비 timeout/키 정리, CLI 고정 시간/옵트인/LIVE 거부, 일반 order/algo/leverage mutation 전송 차단을 검사했다.
++
++## 마지막 실제 확인 상태
++
++b4cceb33-35bd-4430-b5be-65a49924d9ba: EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED. 자식PID46/-9, 자연 만료59699ms, fence56→57, 경쟁 리더/이전 소유자 effect·renew 차단, 재대조 전 gate 차단, 새 WSS/REST 준비, 이력/기준 보존, NORMAL/paused/leader release, 신규 진입0을 실제 확인했다.
++
++새30분 실제 DEMO 검증은 아직 실행 전이다. 이전 실제 부분체결 실패를 통과로 바꾸지 않는다. 빈 계좌 리더 복구, 미체결 주문 WSS 단절/취소/재연결, 미체결 API 재시작 및 LONG/SHORT 전량 체결·보호·flat은 기존 실제 증거로 구분한다. 실제 부분체결 보호, 보유 주문/포지션 Worker 강제 종료, 호스트/DB 장애 및 장기 운용은 별도 미완료이며 Phase4 전체/LIVE/Phase5 통과로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_EMPTY_WORKER_RECOVERY_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,33 @@
++# Windows DEMO 빈 계좌 관찰 프로세스 SIGKILL·리더 복구 실제 통과
++
++근거: 사용자가 제공한 CMD 최종 화면. 2026-10-31 한국 시간.
++배포: windows-demo-empty-worker-recovery-20261031 / d236930.
++ZIP SHA256: aff2c645855ab0b2ef127a3c00194b1d811696af95fce3671262db7ac5acdc96.
++작업 ID: b4cceb33-35bd-4430-b5be-65a49924d9ba.
++
++## 실제 결과
++
++- 빌드 후 web/db/api Healthy, private tmpfs 키 등록 완료
++- 단계 WORKER_STARTED → WORKER_READY_KILLING → WORKER_SIGKILL_VERIFIED → WAIT_NATURAL_LEASE_EXPIRY → NEW_LEADER_RECONCILED
++- worker_recovery EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED
++- scope EMPTY_ACCOUNT_OBSERVATION_WORKER_SIGKILL
++- worker_pid 46 / worker_exit_code -9 / forced_kill_verified true
++- competing_leader_blocked true
++- lease_fence_before 56 / lease_fence_after 57
++- natural_lease_wait_ms 59699
++- stale_owner_effect_blocked true / stale_owner_renew_blocked true
++- entry_gate_blocked_before_reconciliation true
++- new_leader_reconciled true
++- history_and_baselines_preserved true
++- failure NONE / failure_stage NONE / cleanup_failure NONE
++- risk_state NORMAL / final_paused true
++- final_stream_ready false / final_reconciled false
++- leader_released true
++- new_entry_post_count 0 / entry_signal_supplied false
++- orders_enabled false / live_trading_enabled false
++
++## 판정과 범위
++
++실제 Windows DEMO 환경에서 API 컨테이너 안의 별도 관찰 프로세스를 강제 종료하고, 기존 리더 권한의 자연 만료를 약59.7초 기다린 뒤 새 리더가 정확히1 큰 fence를 획득했다. 재대조 전 신규 진입 게이트 차단, 이전 소유자의 효과 함수 및 갱신 거부, REST/WSS 재대조, 새 세션 정상 종료, 최종 리더 권한 해제, 이력·기준 보존을 확인했다.
++
++이번 통과 범위는 빈 계좌의 관찰 프로세스 중단·복구다. 주문/포지션을 보유한 주문 Worker 중단, API/DB/호스트 전체 중단, 실제 부분체결 보호, 장기 무인 운용 또는 Phase4 전체 통과를 의미하지 않는다. 추가 정리, 비상 잠금 해제, 같은 작업 재실행은 필요하지 않다.
+--- /dev/null
++++ b/scripts/check_demo_private_stability.py
+@@ -0,0 +1,90 @@
++"""Fixed 30-minute empty DEMO private WSS/listen-key renewal check, no new orders."""
++
++import argparse
++import asyncio
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4, uuid5
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_empty_worker_recovery import check_empty
++from services.execution.demo_private_stability import StabilityBlocked, StabilityClient, code, run
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--observe-30-minutes", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report = {
++        "private_stability": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise StabilityBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = StabilityClient(cfg, key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        state = store.read(ACCOUNT)
++        check_empty(state)
++        if (
++            str(args.operation_id) in state.operations
++            or str(uuid5(args.operation_id, "stability-result")) in state.operations
++        ):
++            raise StabilityBlocked("OPERATION_ALREADY_EXISTS")
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        report = asyncio.run(run(coordinator, args.operation_id))
++        success = report["private_stability"] == "EMPTY_PRIVATE_SESSION_STABILITY_RENEWAL_VERIFIED"
++    except Exception as error:
++        report["failure"] = code(error)
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report = {
++                "private_stability": "BLOCKED",
++                "failure": "LEASE_RELEASE_FAILED",
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_private_stability.py
+@@ -0,0 +1,285 @@
++"""Thirty minutes of one empty-account WSS session and successful listen-key renewal."""
++
++import asyncio
++import json
++import time
++from collections.abc import Mapping
++from typing import Any, Literal
++from uuid import UUID, uuid5
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure
++from scripts.check_demo_disconnect import PRESERVED
++from scripts.observe_demo_private import ObservationClient
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_empty_worker_recovery import (
++    RecoveryCheckBlocked,
++    check_empty,
++    remote_empty,
++)
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_validation import safe_failure
++
++OBSERVATION_SECONDS = 1800
++
++
++class StabilityBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = (
++            code
++            if code
++            in {
++                "LIVE_CONTEXT_FORBIDDEN",
++                "READ_ONLY_CLIENT_REQUIRED",
++                "OPERATION_ALREADY_EXISTS",
++                "READY_TIMEOUT",
++                "SESSION_ENDED_EARLY",
++                "SESSION_NOT_READY",
++                "SESSION_FAILED",
++                "HISTORY_CHANGED",
++                "DURATION_NOT_COMPLETED",
++                "KEY_RENEWAL_NOT_VERIFIED",
++                "KEY_CLOSE_NOT_VERIFIED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "RESULT_AUDIT_FAILED",
++                "LEASE_RELEASE_FAILED",
++                "CHECK_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++class StabilityClient(ObservationClient):
++    def __init__(self, *args: Any, **kwargs: Any):
++        super().__init__(*args, **kwargs)
++        self.key_creates = self.key_renewals = self.key_closes = self.read_queries = 0
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        result = super().request(method, path, params)
++        self.read_queries += 1
++        return result
++
++    def listen_key(self, method: Literal["POST", "PUT", "DELETE"]) -> SecretStr | None:
++        result = super().listen_key(method)
++        if method == "POST":
++            self.key_creates += 1
++        elif method == "PUT":
++            self.key_renewals += 1
++        elif method == "DELETE":
++            self.key_closes += 1
++        return result
++
++
++def code(error: Exception) -> str:
++    return (
++        error.code
++        if isinstance(error, (StabilityBlocked, RecoveryCheckBlocked))
++        else safe_failure(error)
++    )
++
++
++def progress(stage: str, elapsed: float, client: StabilityClient, target: float) -> None:
++    print(
++        json.dumps(
++            {
++                "private_stability_stage": stage,
++                "elapsed_seconds": int(elapsed),
++                "target_seconds": target,
++                "successful_key_renewals": client.key_renewals,
++                "entry_signal_supplied": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        ),
++        flush=True,
++    )
++
++
++async def run(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    *,
++    connector: Any = private_connect,
++    observation_seconds: float = OBSERVATION_SECONDS,
++    progress_seconds: float = 60,
++    ready_timeout: float = 45,
++) -> dict[str, Any]:
++    store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    if not isinstance(client, StabilityClient):
++        raise StabilityBlocked("READ_ONLY_CLIENT_REQUIRED")
++    original = store.read(lease.account_id)
++    check_empty(original)
++    key = str(operation)
++    if (
++        key in original.operations
++        or str(uuid5(operation, "stability-result")) in original.operations
++    ):
++        raise StabilityBlocked("OPERATION_ALREADY_EXISTS")
++    await settled_call(remote_empty, store, client, lease.account_id)
++    baseline = original.model_dump(mode="json", include=PRESERVED)
++    ready_event = asyncio.Event()
++    loop = asyncio.get_running_loop()
++    started: float | None = None
++    ready_at: str | None = None
++    finished_at: str | None = None
++    callback_failure = "NONE"
++    failure = "NONE"
++    completion_failure = "NONE"
++    failure_stage = "NONE"
++    stage = "SESSION_CONNECT"
++    duration_complete = False
++    elapsed = 0.0
++
++    def ready() -> None:
++        nonlocal started, ready_at, callback_failure
++        try:
++            current = store.read(lease.account_id)
++            check_empty(current)
++            if coordinator.session_failed or not current.stream_ready or not current.reconciled:
++                raise StabilityBlocked("SESSION_NOT_READY")
++            if current.model_dump(mode="json", include=PRESERVED) != baseline:
++                raise StabilityBlocked("HISTORY_CHANGED")
++
++            def marker(ledger: Any) -> None:
++                ledger.operations[key] = "EMPTY_PRIVATE_STABILITY_STARTED"
++
++            store.change(lease, "DEMO_PRIVATE_STABILITY_READY", marker)
++            ready_at = store.now().isoformat()
++            started = time.monotonic()
++            progress("OBSERVING", 0, client, observation_seconds)
++        except Exception as error:
++            callback_failure = code(error)
++            raise
++        finally:
++            loop.call_soon_threadsafe(ready_event.set)
++
++    task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++    waiter = asyncio.create_task(ready_event.wait())
++    sleeper: asyncio.Task[None] | None = None
++    try:
++        done, _ = await asyncio.wait(
++            {task, waiter}, timeout=ready_timeout, return_when=asyncio.FIRST_COMPLETED
++        )
++        if task in done:
++            await task
++            raise StabilityBlocked("SESSION_ENDED_EARLY")
++        if waiter not in done:
++            raise StabilityBlocked("READY_TIMEOUT")
++        if callback_failure != "NONE" or started is None:
++            raise StabilityBlocked("SESSION_NOT_READY")
++        stage = "OBSERVATION"
++        while True:
++            elapsed = time.monotonic() - started
++            remaining = observation_seconds - elapsed
++            if remaining <= 0:
++                duration_complete = True
++                finished_at = store.now().isoformat()
++                break
++            sleeper = asyncio.create_task(asyncio.sleep(min(progress_seconds, remaining)))
++            done, _ = await asyncio.wait({task, sleeper}, return_when=asyncio.FIRST_COMPLETED)
++            if task in done:
++                await task
++                raise StabilityBlocked("SESSION_ENDED_EARLY")
++            if coordinator.session_failed:
++                raise StabilityBlocked("SESSION_FAILED")
++            current = await settled_call(store.read, lease.account_id)
++            check_empty(current)
++            if current.model_dump(mode="json", include=PRESERVED) != baseline:
++                raise StabilityBlocked("HISTORY_CHANGED")
++            elapsed = time.monotonic() - started
++            progress("OBSERVING", elapsed, client, observation_seconds)
++    except Exception as error:
++        failure = callback_failure if callback_failure != "NONE" else code(error)
++        failure_stage = stage
++    finally:
++        waiter.cancel()
++        if sleeper is not None:
++            sleeper.cancel()
++        try:
++            session_error = await drain_session(task, cancel=True)
++            if (session_error is not None or coordinator.session_failed) and failure == "NONE":
++                failure, failure_stage = "SESSION_FAILED", "SESSION_CLEANUP"
++        finally:
++            await asyncio.gather(
++                waiter, *([sleeper] if sleeper is not None else []), return_exceptions=True
++            )
++        if callback_failure != "NONE":
++            failure = callback_failure
++        try:
++            await settled_call(store.renew, lease)
++            await settled_call(remote_empty, store, client, lease.account_id)
++            await settled_call(coordinator.disconnect)
++        except Exception as error:
++            completion_failure = code(error)
++    final = store.read(lease.account_id)
++    history_ok = final.model_dump(mode="json", include=PRESERVED) == baseline
++    accepted = bool(
++        duration_complete
++        and elapsed >= observation_seconds
++        and started is not None
++        and failure == completion_failure == "NONE"
++        and history_ok
++        and client.key_creates == client.key_closes == 1
++        and client.key_renewals >= 1
++        and final.paused
++        and final.risk_state.value == "NORMAL"
++        and not final.stream_ready
++        and not final.reconciled
++    )
++    if not accepted and failure == "NONE":
++        failure_stage = "FINAL_STATE"
++        failure = (
++            "HISTORY_CHANGED"
++            if not history_ok
++            else "DURATION_NOT_COMPLETED"
++            if not duration_complete
++            else "KEY_RENEWAL_NOT_VERIFIED"
++            if client.key_renewals < 1
++            else "KEY_CLOSE_NOT_VERIFIED"
++            if client.key_closes != 1
++            else "FINAL_STATE_NOT_VERIFIED"
++        )
++    try:
++
++        def audit(ledger: Any) -> None:
++            ledger.operations.setdefault(
++                str(uuid5(operation, "stability-result")),
++                "PRIVATE_STABILITY:" + ("VERIFIED" if accepted else failure),
++            )
++
++        store.change(lease, "DEMO_PRIVATE_STABILITY_RESULT", audit)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure, failure_stage = "RESULT_AUDIT_FAILED", "RESULT_AUDIT"
++    return {
++        "private_stability": "EMPTY_PRIVATE_SESSION_STABILITY_RENEWAL_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "EMPTY_ACCOUNT_SINGLE_WSS_SESSION",
++        "operation_id": key,
++        "target_seconds": observation_seconds,
++        "observed_elapsed_ms": max(0, int(elapsed * 1000)),
++        "ready_at_utc": ready_at,
++        "observation_finished_at_utc": finished_at,
++        "key_create_success_count": client.key_creates,
++        "successful_key_renewals": client.key_renewals,
++        "key_close_success_count": client.key_closes,
++        "successful_read_queries": client.read_queries,
++        "received_events": coordinator.session_diagnostic.received_events,
++        "private_session_diagnostic": coordinator.session_diagnostic.model_dump(mode="json"),
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "completion_failure": completion_failure,
++        "history_and_baselines_preserved": history_ok,
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "new_entry_post_count": 0,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_private_stability.py
+@@ -0,0 +1,230 @@
++"""Real PG and localhost WSS; accelerated fixture clock drives original 25m renewal."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo_private_stability as module
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++
++
++@pytest.fixture
++def case(preview_case):  # noqa: F811
++    store, c, fake, _, _ = preview_case
++    old = c.client
++    c.client = module.StabilityClient(
++        old.settings.model_copy(update={"demo_trading_enabled": True}),
++        old.credentials,
++        send=old.send,
++        clock_ms=old.clock_ms,
++    )
++    c.client.sync_clock()
++    store.change(c.lease, "TEST_STABILITY_PAUSE", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake
++
++
++async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
++    _, c, fake = case
++    if accelerate:
++        original = c.client.sync_clock
++
++        def fast_clock():
++            fake.at += timedelta(seconds=10)
++            original()
++
++        c.client.sync_clock = fast_clock
++
++    async def handler(socket):
++        if bad_frame:
++            await socket.send(
++                json.dumps({"e": "PRIVATE_UNKNOWN_PAYLOAD", "E": int(fake.at.timestamp() * 1000)})
++            )
++            await socket.wait_closed()
++        elif accelerate:
++            try:
++                while True:
++                    await socket.send(
++                        json.dumps({"e": "ACCOUNT_UPDATE", "E": int(fake.at.timestamp() * 1000)})
++                    )
++                    await asyncio.sleep(0.01)
++            except Exception:
++                pass
++        else:
++            await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        return await module.run(
++            c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
++        )
++
++
++def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # noqa: F811
++    store, c, fake = case
++    before = store.read("DEMO-test")
++    report = asyncio.run(exercise(case, duration=5, accelerate=True))
++    assert report["private_stability"] == "EMPTY_PRIVATE_SESSION_STABILITY_RENEWAL_VERIFIED", (
++        json.dumps(report)
++    )
++    assert report["successful_key_renewals"] >= 1
++    assert report["key_create_success_count"] == report["key_close_success_count"] == 1
++    assert report["observed_elapsed_ms"] >= 5000
++    assert report["failure"] == report["completion_failure"] == "NONE"
++    assert report["history_and_baselines_preserved"]
++    assert (
++        report["final_paused"]
++        and not report["final_stream_ready"]
++        and not report["final_reconciled"]
++    )
++    assert store.read("DEMO-test").orders == before.orders
++    assert all(path == "/fapi/v1/listenKey" for m, path, _ in fake.calls if m != "GET")
++    assert any(m == "PUT" and p == "/fapi/v1/listenKey" for m, p, _ in fake.calls)
++
++
++def test_no_renewal_cannot_claim_stability_acceptance(case):  # noqa: F811
++    _, _, fake = case
++    report = asyncio.run(exercise(case))
++    assert report["private_stability"] == "NOT_ACCEPTED"
++    assert report["failure"] == "KEY_RENEWAL_NOT_VERIFIED"
++    assert report["key_create_success_count"] == report["key_close_success_count"] == 1
++    assert report["successful_key_renewals"] == 0 and report["new_entry_post_count"] == 0
++    assert all(p == "/fapi/v1/listenKey" for m, p, _ in fake.calls if m != "GET")
++
++
++def test_invalid_event_is_not_hidden_by_timer_or_cleanup(case):  # noqa: F811
++    report = asyncio.run(exercise(case, bad_frame=True))
++    assert report["private_stability"] == "NOT_ACCEPTED" and report["failure"] != "NONE"
++    assert "PRIVATE_UNKNOWN_PAYLOAD" not in json.dumps(report)
++    assert report["private_session_diagnostic"]["code"] == "EVENT_UNKNOWN"
++
++
++def test_key_renewal_http_failure_is_not_counted_or_accepted(case, monkeypatch):  # noqa: F811
++    _, c, fake = case
++    original = c.client.send
++
++    def reject(method, path, query, key):
++        if method == "PUT" and path == "/fapi/v1/listenKey":
++            return fake.response({"code": -1000, "msg": "PRIVATE_DETAIL"}, 500)
++        return original(method, path, query, key)
++
++    monkeypatch.setattr(c.client, "send", reject)
++    report = asyncio.run(exercise(case, duration=5, accelerate=True))
++    assert report["private_stability"] == "NOT_ACCEPTED"
++    assert report["successful_key_renewals"] == 0 and report["failure"] != "NONE"
++    assert "PRIVATE_DETAIL" not in json.dumps(report)
++
++
++def test_key_close_failure_prevents_acceptance_after_successful_renewal(case, monkeypatch):  # noqa: F811
++    _, c, fake = case
++    original = c.client.send
++
++    def reject(method, path, query, key):
++        if method == "DELETE" and path == "/fapi/v1/listenKey":
++            return fake.response({"code": -1000}, 500)
++        return original(method, path, query, key)
++
++    monkeypatch.setattr(c.client, "send", reject)
++    report = asyncio.run(exercise(case, duration=5, accelerate=True))
++    assert report["private_stability"] == "NOT_ACCEPTED"
++    assert report["successful_key_renewals"] >= 1 and report["key_close_success_count"] == 0
++    assert report["failure"] == "KEY_CLOSE_NOT_VERIFIED"
++
++
++def test_result_audit_failure_blocks_otherwise_verified_session(case, monkeypatch):  # noqa: F811
++    store, _, _ = case
++    original = store.change
++
++    def fail(lease, marker, apply):
++        if marker == "DEMO_PRIVATE_STABILITY_RESULT":
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(lease, marker, apply)
++
++    monkeypatch.setattr(store, "change", fail)
++    report = asyncio.run(exercise(case, duration=5, accelerate=True))
++    assert report["private_stability"] == "NOT_ACCEPTED"
++    assert report["failure"] == "RESULT_AUDIT_FAILED" and "PRIVATE_DATABASE_URL" not in json.dumps(
++        report
++    )
++
++
++def test_basis_change_during_observation_is_rejected(case, monkeypatch):  # noqa: F811
++    from decimal import Decimal
++
++    store, c, _ = case
++    original = module.progress
++
++    def drift(stage, elapsed, client, target):
++        if elapsed == 0:
++            store.change(
++                c.lease,
++                "TEST_STABILITY_BASIS_DRIFT",
++                lambda ledger: setattr(ledger, "daily_base", ledger.daily_base + Decimal(1)),
++            )
++        original(stage, elapsed, client, target)
++
++    monkeypatch.setattr(module, "progress", drift)
++    report = asyncio.run(exercise(case))
++    assert report["failure"] == "HISTORY_CHANGED" and not report["history_and_baselines_preserved"]
++
++
++def test_existing_operation_cannot_open_another_session(case):  # noqa: F811
++    store, c, fake = case
++    operation = uuid4()
++    store.change(
++        c.lease,
++        "TEST_STABILITY_REPLAY",
++        lambda ledger: ledger.operations.update(
++            {str(operation): "EMPTY_PRIVATE_STABILITY_STARTED"}
++        ),
++    )
++    calls = len(fake.calls)
++    with pytest.raises(module.StabilityBlocked) as caught:
++        asyncio.run(module.run(c, operation, observation_seconds=0.01))
++    assert caught.value.code == "OPERATION_ALREADY_EXISTS" and len(fake.calls) == calls
++
++
++def test_setup_timeout_is_reported_and_closes_key(case):  # noqa: F811
++    _, c, _ = case
++
++    @asynccontextmanager
++    async def stalled(url):
++        await asyncio.sleep(10)
++        yield None
++
++    report = asyncio.run(
++        module.run(c, uuid4(), connector=stalled, ready_timeout=0.02, observation_seconds=0.01)
++    )
++    assert report["failure"] == "READY_TIMEOUT"
++    assert report["key_create_success_count"] == report["key_close_success_count"] == 1
++    assert report["final_paused"] and not report["final_stream_ready"]
++
++
++def test_failed_result_without_ready_marker_cannot_be_replayed(case):  # noqa: F811
++    from uuid import uuid5
++
++    store, c, fake = case
++    operation = uuid4()
++    store.change(
++        c.lease,
++        "TEST_FAILED_STABILITY",
++        lambda ledger: ledger.operations.update(
++            {str(uuid5(operation, "stability-result")): "PRIVATE_STABILITY:READY_TIMEOUT"}
++        ),
++    )
++    calls = len(fake.calls)
++    with pytest.raises(module.StabilityBlocked) as caught:
++        asyncio.run(module.run(c, operation))
++    assert caught.value.code == "OPERATION_ALREADY_EXISTS" and len(fake.calls) == calls
+--- /dev/null
++++ b/tests/unit/test_demo_private_stability_cli.py
+@@ -0,0 +1,73 @@
++"""Fixed duration, explicit opt-in, LIVE rejection and all order mutations denied."""
++
++import json
++from pathlib import Path
++from uuid import uuid4
++
++import pytest
++import yaml
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoCredentials, DemoFailure, DemoSettings
++from scripts import check_demo_private_stability as cli
++from services.execution.demo_private_stability import OBSERVATION_SECONDS, StabilityClient
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--observe-30-minutes"],
++        ["--operation-id", str(uuid4())],
++        ["--observe-30-minutes", "--operation-id", "bad"],
++        ["--observe-30-minutes", "--operation-id", str(uuid4()), "--seconds", "1"],
++    ],
++)
++def test_opt_in_uuid_and_fixed_duration_before_key_access(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_is_rejected_before_key_access(monkeypatch, capsys, env):
++    monkeypatch.setattr(
++        "sys.argv", ["check", "--observe-30-minutes", "--operation-id", str(uuid4())]
++    )
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_production_observation_period_is_thirty_minutes():
++    assert OBSERVATION_SECONDS == 1800
++
++
++@pytest.mark.parametrize(
++    "method,path",
++    [
++        ("POST", "/fapi/v1/order"),
++        ("DELETE", "/fapi/v1/order"),
++        ("POST", "/fapi/v1/algoOrder"),
++        ("POST", "/fapi/v1/leverage"),
++    ],
++)
++def test_stability_client_blocks_every_non_get_before_transport(method, path):
++    cfg = DemoSettings.model_validate(
++        yaml.safe_load(Path("configs/demo-isolated.example.yaml").read_text())
++    ).model_copy(update={"demo_trading_enabled": True})
++    client = StabilityClient(
++        cfg,
++        DemoCredentials(SecretStr("fixture-key"), SecretStr("fixture-secret")),
++        send=lambda *args: pytest.fail("must not send"),
++    )
++    with pytest.raises(DemoFailure):
++        client.request(method, path, {})
++    assert (
++        client.read_queries == client.key_creates == client.key_renewals == client.key_closes == 0
++    )
