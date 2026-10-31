@@ -1,0 +1,940 @@
+--- /dev/null
++++ b/TP_FAULT_START_HERE_KO.md
+@@ -0,0 +1,41 @@
++# 손절 확인 후 로컬 익절 조립 실패·진입 차단·비상 정리 검증
++
++새 windows-demo-tp-fault-check 폴더의 CMD 하나에서 실행한다. 기존 Galaxybook hybrid-windows DB/볼륨/기준금/이력을 유지한다. 이번 검증은 신규 DEMO 지정가 주문1건을 제출한다. 익절 실패는 로컬 주문 조립 단계의 명시적 장애 주입이며, 거래소 거부 응답을 만들어내지 않는다.
++
++## 순서
++
++1. ZIP을 새 폴더에 풀고 해당 폴더에서 CMD를 열어 빌드가 모두 Healthy가 될 때까지 기다린다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++2. 교체된 API 컨테이너의 private tmpfs 키를 등록한다. DEMO API Key와 Secret은 숨김 입력한다. 채팅에 보내지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++3. 아래 명령을 한 번만 실행한다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_tp_fault --enable-demo --enable-tp-build-fault --operation-id 426dd7a2-805b-4576-a1f4-85313a7c4f6c
++```
++
++예약 정보 → TP_NOT_SENT_ENTRIES_BLOCKED_SL_RETAINED → 최종 결과까지 기다린다. CMD를 닫거나 API를 재시작하지 않는다. 오류/미체결/NOT_ACCEPTED가 나와도 재실행하지 않고 최종 출력 전체를 보낸다. 이미 생성된 동일 의도는 복구·정리만 수행하며 새 주문이나 장애를 추가하지 않는다.
++
++## 실행 내용과 판정
++
++빈 NORMAL/paused ISOLATED BTCUSDT 2x 계좌에서 기존 prepare의 LONG OPPOSITE_QUOTE를 사용한다. 최신 ask 기준의 지정가이며 시장가 진입으로 바꾸지 않는다. 기존 최소 허용 수량 및 cap,100 USDT 진입명목 상한, 신호TTL10초, 손절/익절·리스크·freshness·서명·lease 제한을 유지한다. 체결을 보장하지 않는다. 미체결이면 취소·flat으로 끝나고 이 장애 검증은 통과하지 않는다.
++
++체결 뒤 기존 보호 코드가 손절을 등록·조회한다. 익절 조립 함수에 들어갈 때 같은 의도의 손절을 signed GET으로 다시 확인한다. 거래소 ID/종목/방향/트리거/closePosition/MARK_PRICE/priceProtect=false/NEW 및 기존 보호 상태가 모두 맞아야, 이 의도의 TAKE_PROFIT_MARKET 조립에만 ValueError를1회 주입한다. SDK로 익절 POST를 전송하지 않는다. 원래 코드의 NOT_SENT + LOCAL_VALIDATION_FAILED 기록 경로를 그대로 사용한다. 따로 상태를 바꾸어 NOT_SENT를 만들어내지 않는다.
++
++원래 TP 실패 대응은 신규 진입을 멈추고 이미 등록된 SL을 유지하는 것이다. 자동 즉시 청산이라고 주장하지 않는다. 도구가 paused/reconciled false, 진입 게이트 거부, SL 보호·노출 유지, TP NOT_SENT 증거를 먼저 확인한다. 이후 세션과 그 finally를 완전히 drain하고 기존 비상 정리 명령으로 잔량을 취소·실제 포지션을 줄인다. 기존 confirm_exit로 flat 및 청산 FILLED를 확인한다. UNKNOWN 종료를 재POST하지 않는다.
++
++성공 결과: TP_BUILD_FAILURE_PAUSE_SL_RETAINED_OPERATOR_FLAT_VERIFIED. 장애1, signed_stop_before_fault_verified/entries_paused_after_fault/entry_gate_blocked_after_fault/tp_not_sent_proof_verified true, unexpected_tp_transport_attempts0, 신규 진입POST1, reduce-only 종료 시도1 이상, VERIFIED_FLAT/exit FILLED, 이력·기준 보존, 최종 EMERGENCY/paused를 모두 요구한다.
++
++성공해도 비상 정리 명령이 남기는 EMERGENCY 잠금은 유지한다. 자동 해제나 신규 진입 재개를 하지 않는다. 결과를 확인한 뒤 별도 읽기 전용 복구 검토로 진행한다. flat UNKNOWN은 정리 완료를 뜻하지 않으므로 결과 확인 전 다른 주문/재실행/잠금 해제를 하지 않는다.
++
++임시 함수 교체는 이 CLI Python 프로세스의 own TP에만 적용되고 정리까지 drain한 뒤 원래 함수가 복원된다. Uvicorn/다른 프로세스나 저장된 SDK·coordinator 파일을 바꾸지 않는다. 손절 요청은 원래 조립·전송·검증 그대로다. TP가 뜻밖에 전송 경로까지 오면 추가 장벽이 SDK 전에 차단하며 그 경우 성공을 거부한다.
++
++로컬 TP 조립 실패에 대한 실제 DEMO 대응 검증이며 실제 거래소의 Algo 거부/네트워크 실패나 손절 생성 실패를 직접 일으킨 것이 아니다. 부분체결 전체 보호 통과, 보유 Worker 강제 종료,24시간 운용 또는 Phase4 전체 통과로 확대하지 않는다. LIVE/Phase5를 시작하지 않는다.
+--- /dev/null
++++ b/TP_FAULT_VALIDATION_KO.md
+@@ -0,0 +1,39 @@
++# 로컬 TP 조립 실패·SL 유지·진입 차단·운영자 비상 정리 검증
++
++부모 ZIP SHA256: 904ebf67fa96d7ec473a91b49c7356edcbdb1f38d47dc3b6a4e19806b7d08e7f.
++기존 manifest 파일363개를 바이트 그대로 보존한다. 새 실행 모듈/CLI/통합·단위 테스트/안내·검증 문서와 실제30분 관찰 및 미체결 추가 시도 증거를 추가한다.
++
++## 정확한 주입 지점
++
++원래 _protect는 SL 생성·조회 후 보호된 포지션에 TP를 조립한다. 새 CLI는 같은 의도의 TP AlgoOrder만 검사하는 임시 build_protection wrapper를 그 CLI 프로세스 안에 설치한다. 다른 의도/SL은 저장해 둔 원래 함수를 그대로 호출한다. 프로세스 밖 Uvicorn이나 파일은 변경하지 않는다. SDK 서명·전송 및 coordinator의 _protect 구현은 수정하지 않는다. 조립 함수의 참조에만 위 임시 wrapper를 적용한다.
++
++TP 조립 전에 현재 ledger의 같은 의도, 등록 SL, protected/open_quantity, SL 요청 VERIFIED를 확인하고 signed GET /fapi/v1/algoOrder로 SL을 조회한다. 원래 _stop_ok와 normalized algoId의 기존 서버 ID 일치를 요구한다. own TP ID/계좌/종목/SELL/트리거/MARK_PRICE도 확인한다. 실제 원문/키/URL은 보고하지 않는다. 확인 불능이면 주입 횟수0으로 거부하고 기존 정리를 시도한다.
++
++검증 후 단 한 번 ValueError를 발생시켜 원래 submission_attempted=False 분기가 NOT_SENT 및 LOCAL_VALIDATION_FAILED를 저장하게 한다. 전송 실패 뒤 UNKNOWN을 NOT_SENT로 재분류하지 않는다. TP POST가 뜻밖에 발생하면 client의 별도 own-ID 장벽이 SDK 전송 전에 차단하고 성공을 거부한다. SL을 차단하거나 실패시키지 않는다.
++
++## 기존 동작과 도구의 동작 구분
++
++TP 생성 실패의 원래 정책은 paused=true로 추가 진입을 막고 등록된 SL을 유지한다. 자동 즉시 비상 청산으로 설명하지 않는다. 도구는 원래 처리 후 risk NORMAL/paused/reconciled false/SL protected/실제 노출 및 NOT_SENT 증거와 진입 게이트 거부를 관측한다. 이 확인 뒤 원래 session의 finally를 drain하고 PAUSE_ENTRIES 및 노출이 있으면 EMERGENCY_FLATTEN을 실행한다. 이는 명시적으로 요청한 검증의 운영자 정리 단계다.
++
++진입은 기존 prepare의 LONG OPPOSITE_QUOTE LIMIT/최소 cap/100 USDT 상한이다. 새 시장가 진입은 허용하지 않는다. 기존 RestartClient의 신규 진입1회 장벽을 사용하며 원래 reduce-only 위험 축소는 차단하지 않는다. UNKNOWN 종료는 기존 idempotency에 따라 재POST하지 않는다. 종료/청산의 FILLED와 원래 bounded confirm_exit의 VERIFIED_FLAT, 최종 EMERGENCY/paused/stream false/reconciled false를 요구한다. 미체결/조건 미관측/세션 오류/정리 불확실은 통과가 아니다. 함수 wrapper는 세션과 DB worker를 drain한 뒤 컨텍스트 종료로 복원한다.
++
++기존 주문/요청/수량 cap/검증/회복 증거, 일·주 기준/고점/순입출금/정책/기존 income_seen 값은 보존한다. 새 실제 자기 거래의 fee/PnL은 원래 coordinator가 대조해 반영하며 기존 income 항목을 지우지 않는다. 로컬 TP NOT_SENT 증거는 기존 enum 값 그대로 남기고 수동 교정·기준금 재설정·리스크 해제를 하지 않는다. 기존 의도 재실행은 복구만 하고 RECOVERY_ONLY로 보고한다. 의도 없이 시작/결과 기록이 있는 UUID는 재주문 전에 차단한다.
++
++새 fenced 결과 감사 실패나 CLI lease release 실패도 성공을 거부한다. 기존 SDK/수신기/coordinator/리스크/보호/청산/계약/키/기준금/Compose/exports/이전 테스트를 변경하지 않는다. 보호 확인을 위한 signed GET은1회 추가되며 원래 HTTP/시계/RTT/lease/freshness 제한을 늘리지 않는다.
++
++## 로컬 검증
++
++집중 테스트: 18 passed in 6.86s.
++전체 테스트: 1135 passed in 236.08s (0:03:56). Ruff check/format 통과, mypy102소스 통과.
++
++실제 PostgreSQL 격리 schema/localhost WSS와 synthetic signed SDK 응답을 사용했다. 자기 SL 생성·검증 후 TP 조립 실패, NOT_SENT 원래 기록 경로, 진입 차단·SL 유지, 운영자 reduce-only 청산 및 보호 잔여 정리까지 검사했다. 실제 거래소 주문은 클라우드에서 전송하지 않았다.
++
++새 테스트: 정상 경로, 미체결의 주입0/취소, 동일 의도 재실행의 무재주문·무재주입, SL 실패 시 주입 금지, 별도 signed SL proof 불일치 거부, UNKNOWN 비상 종료의 재POST 금지/flat 오판 금지, 입출금/기준 변화 거부, 감사 실패 시 거부와 wrapper 복원, 준비 실패의 무주문·wrapper 복원, 명시적 DEMO/주입/UUID 및 LIVE 거부, TP 전송 추가 장벽을 확인했다.
++
++## 최근 실제 결과와 남은 범위
++
++실제30분 관찰 87723a08-552e-43aa-9d5c-062de037aec8은 monotonic1800014ms, 키 생성/갱신/삭제 각1, request GET4392, 수신0/PING 오류NONE, 이력·기준 보존, NORMAL/paused/진입0으로 통과했다. 갱신 API 성공 응답 확인 범위이며 최초 키 만료시한 뒤 연결 유지까지 검증한 것은 아니다.
++
++부분체결 추가 시도 fe07c616-cf71-4ed9-b972-14c63b67d141은0.0007 LONG PASSIVE 주문이 미체결/정상 취소/CLOSED/FINISHED_FLAT로 끝났고 부분체결 검증은 미완료다. 기존 실패를 통과로 바꾸지 않는다.
++
++새 TP 장애 검증은 Windows 실제 실행 전이다. 실제 거래소 거부나 SL 실패를 직접 주입한 테스트, 실제 부분체결 전체 보호, 보유 Worker 중단·복구, 호스트/DB 장애 또는 Phase4 전체/LIVE/Phase5 통과로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PASSIVE_UNFILLED_fe07c616_20261031_KO.md
+@@ -0,0 +1,26 @@
++# Windows DEMO PASSIVE 추가 1회 시도: 미체결 정상 취소·flat
++
++근거: 사용자가 제공한 CMD 최종 화면. 2026-10-31 한국 시간.
++배포: windows-demo-private-stability-check.
++작업 ID: fe07c616-cf71-4ed9-b972-14c63b67d141.
++
++- LONG / PASSIVE / 수량 및 cap 0.0007 BTC
++- 지정가 77447.70 / 손절 가정 77060.40 / 익절 가정 78223.00
++- validation FINISHED_FLAT
++- entry_filled false / filled_quantity 0.0000
++- entry_state CANCELED / position_state CLOSED / entry_outcome UNFILLED
++- stop_verified false / target_verified false
++- filled_protection_and_flat_verified false
++- session_error false / validation_stage OBSERVATION / session_failure NONE
++- private_session_diagnostic HEARTBEAT / NONE / event_kind NONE
++- ready_callback_ms 18740 / received_events 2 / coalesced_events 0
++- event_clock_offset_ms 787 / event_clock_rtt_ms 146 / event_clock_wait_ms 0 / event_local_age_ms 5812
++- completion_stage FLAT_CONFIRMATION
++- completion_failure NONE / completion_database_failure NONE
++- initial_fill_settled false / live_trading_enabled false
++
++실제 결과는 미체결 진입의 취소와 최종 flat 완료다. 체결 수량0이므로 체결분 SL/TP 검증 값이 false인 것은 예상된 결과다. 부분체결이나 체결분 보호 성공으로 분류하지 않는다. 사용자가 요청한 추가1회 시도는 완료했으며 임의 반복 주문을 하지 않는다.
++
++출력의 last_reconciliation_mismatch_fields 및 reconciliation_settle_reason FILL_PROOF_MISMATCH는 일반 coherent 성공 경로에서 지우지 않는 기존 ledger 진단 필드다. 이번 시도의 session_failure NONE/session_error false/정리 및 DB 오류 NONE과 구분한다. 이 필드만으로 새 실패를 확정하지 않는다.
++
++최종 출력에는 risk_state가 없으므로 NORMAL이라고 추정하지 않는다. 최종 flat/CLOSED는 확인됐으며 후속 주문은 현재 상태를 확인하거나 기존 진입 가드를 통과해야 한다. 이전 실제 부분체결 실패와 이후 FULL_FILL 통과 기록을 수정하지 않는다. 부분체결 보호의 실제 통과는 여전히 미완료다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PRIVATE_STABILITY_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,37 @@
++# Windows DEMO 빈 계좌 개인 WSS 30분 관찰·갱신 실제 통과
++
++근거: 사용자가 제공한 CMD 진행 및 최종 결과 화면. 2026-10-31 한국 시간.
++배포: windows-demo-private-stability-check-20261031 / e233c5d.
++ZIP SHA256: 904ebf67fa96d7ec473a91b49c7356edcbdb1f38d47dc3b6a4e19806b7d08e7f.
++작업 ID: 87723a08-552e-43aa-9d5c-062de037aec8.
++
++## 실제 결과
++
++- private_stability EMPTY_PRIVATE_SESSION_STABILITY_RENEWAL_VERIFIED
++- scope EMPTY_ACCOUNT_SINGLE_WSS_SESSION
++- target_seconds 1800 / observed_elapsed_ms 1800014
++- ready_at_utc 2026-10-31T09:49:10.078862+00:00 (한국 시간18:49:10)
++- observation_finished_at_utc 2026-10-31T10:19:09.888857+00:00 (한국 시간19:19:09)
++- key_create_success_count 1
++- successful_key_renewals 1
++- key_close_success_count 1
++- successful_read_queries 4392
++- received_events 0
++- private_session_diagnostic PING / NONE / event_kind NONE
++- ready_callback_ms 35 / received_events 0 / coalesced_events 0
++- event_clock_offset_ms null / event_clock_rtt_ms null / event_clock_wait_ms 0 / event_local_age_ms null
++- failure NONE / failure_stage NONE / completion_failure NONE
++- history_and_baselines_preserved true
++- risk_state NORMAL / final_paused true
++- final_stream_ready false / final_reconciled false
++- new_entry_post_count 0 / orders_enabled false / live_trading_enabled false
++
++진행 화면에서 elapsed_seconds1440까지 갱신0, 1500부터1800까지 갱신1을 확인했다. 관찰시간 판정은 monotonic 기준1800.014초이며 위 UTC 출력의 차이를 대신 사용하지 않는다.
++
++## 판정과 범위
++
++실제 DEMO에서 주문 없는 단일 개인 WSS 세션을30분 관찰하고, 원래 세션의 약25분 listenKey 갱신 API 성공 응답 및 종료 시 키 삭제를 확인했다. 수신 이벤트0은 빈 계좌에서 가능한 결과이며, PING/오류NONE 및 원래 ping/pong·REST 대조 경로와 함께 판정한다. 받은 주문/체결 이벤트가 있었다거나 그 원문을 저장했다고 주장하지 않는다. successful_read_queries는 일반 request GET 성공 횟수이며 public time/metadata까지 더한 전체 HTTP 횟수는 아니다.
++
++기존 이력·기준 보존, 최종 빈 계좌 확인, NORMAL/paused 종료를 통과했다. 마지막 stream/reconciled false는 세션을 닫은 후의 상태다. 추가 정리·비상 잠금 해제·같은 작업 재실행은 필요하지 않다.
++
++30분 단일 세션 및 갱신 API 성공 확인 범위다. 최초 listenKey 만료 시한 이후의 연결 유지,24시간 무인 운용, 원문 WSS 영구 저장, 실제 부분체결 보호, 보유 주문/포지션 Worker 강제 종료, 전체 호스트/DB 장애 또는 Phase4 전체 통과로 확대하지 않는다. 이전 실패 기록은 그대로 유지한다.
+--- /dev/null
++++ b/scripts/check_demo_tp_fault.py
+@@ -0,0 +1,104 @@
++"""Explicit capped DEMO TP-build fault, retained SL/pause, then operator emergency flat."""
++
++import argparse
++import asyncio
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4, uuid5
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import empty
++from services.execution.demo_tp_fault_check import TPFaultBlocked, TPFaultClient, code, run
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-demo", action="store_true", required=True)
++    parser.add_argument("--enable-tp-build-fault", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report = {
++        "tp_fault_check": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise TPFaultBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = TPFaultClient(cfg.model_copy(update={"demo_trading_enabled": False}), key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        state = store.read(ACCOUNT)
++        op = str(args.operation_id)
++        existing = state.orders.get(op)
++        start = str(uuid5(args.operation_id, "tp-fault-start"))
++        if existing and (
++            state.operations.get(start) != "TP_LOCAL_BUILD_FAULT_CHECK"
++            or existing.signal.purpose != "DEMO_VALIDATION"
++            or existing.signal.direction != "LONG"
++            or existing.signal.symbol != "BTCUSDT"
++            or state.validation_entry_styles.get(op) != "OPPOSITE_QUOTE"
++        ):
++            raise TPFaultBlocked("ENTRY_SCOPE_INVALID")
++        if any(k != op and (o.remaining or o.open_quantity) for k, o in state.orders.items()):
++            raise TPFaultBlocked("ENTRY_SCOPE_INVALID")
++        if existing is None and (
++            start in state.operations
++            or str(uuid5(args.operation_id, "tp-fault-result")) in state.operations
++        ):
++            raise TPFaultBlocked("OPERATION_ALREADY_EXISTS")
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        if existing is None:
++            empty(coordinator)
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        client.settings = cfg
++        report = asyncio.run(run(coordinator, args.operation_id))
++        success = (
++            report["tp_fault_check"] == "TP_BUILD_FAILURE_PAUSE_SL_RETAINED_OPERATOR_FLAT_VERIFIED"
++        )
++    except Exception as error:
++        report["failure"] = code(error)
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report["tp_fault_check"] = "BLOCKED"
++            report["failure"] = "LEASE_RELEASE_FAILED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_tp_fault_check.py
+@@ -0,0 +1,418 @@
++"""Local own-TP build failure after signed SL verification; pause/retain then operator flat."""
++
++import asyncio
++import json
++import time
++from collections.abc import Callable, Mapping
++from typing import Any, Literal
++from unittest.mock import patch
++from uuid import UUID, uuid5
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import ALGO_KEYS, pick
++from integrations.binance_usdm.filters import SymbolRules
++from integrations.binance_usdm.orders import OrderIntent
++from packages.domain.contracts import AlgoOrder
++from services.execution import demo as core
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import RestartBlocked, RestartClient, empty
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_validation import confirm_exit, prepare, safe_failure
++from services.risk.paper import RiskRejected
++
++
++class TPFaultBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = (
++            code
++            if code
++            in {
++                "LIVE_CONTEXT_FORBIDDEN",
++                "ENTRY_SCOPE_INVALID",
++                "RECOVERY_ONLY",
++                "OPERATION_ALREADY_EXISTS",
++                "STOP_PROOF_NOT_VERIFIED",
++                "REPEATED_INJECTION",
++                "UNEXPECTED_TP_TRANSPORT",
++                "FAULT_NOT_OBSERVED",
++                "SESSION_FAILED",
++                "FAULT_GATE_NOT_VERIFIED",
++                "NO_SEND_PROOF_NOT_VERIFIED",
++                "HISTORY_CHANGED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "FLAT_NOT_CONFIRMED",
++                "RESULT_AUDIT_FAILED",
++                "LEASE_RELEASE_FAILED",
++                "CHECK_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++def code(error: Exception) -> str:
++    return (
++        error.code if isinstance(error, (TPFaultBlocked, RestartBlocked)) else safe_failure(error)
++    )
++
++
++class TPFaultClient(RestartClient):
++    def __init__(self, *args: Any, **kwargs: Any):
++        super().__init__(*args, **kwargs)
++        self.block_tp_id: str | None = None
++        self.unexpected_tp_attempts = 0
++        self.reduce_post_attempts = 0
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        values = params or {}
++        if (
++            method == "POST"
++            and path == "/fapi/v1/algoOrder"
++            and self.block_tp_id is not None
++            and values.get("clientAlgoId") == self.block_tp_id
++        ):
++            self.unexpected_tp_attempts += 1
++            raise TPFaultBlocked("UNEXPECTED_TP_TRANSPORT")
++        if method == "POST" and path == "/fapi/v1/order" and values.get("reduceOnly") == "true":
++            self.reduce_post_attempts += 1
++        return super().request(method, path, params)
++
++
++async def run(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    *,
++    connector: Any = private_connect,
++    observation_timeout: float = 90,
++    poll_seconds: float = 0.5,
++) -> dict[str, Any]:
++    store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    if not isinstance(client, TPFaultClient):
++        raise TPFaultBlocked("ENTRY_SCOPE_INVALID")
++    key = str(operation)
++    start_tag = str(uuid5(operation, "tp-fault-start"))
++    result_tag = str(uuid5(operation, "tp-fault-result"))
++    original = store.read(lease.account_id)
++    existed = key in original.orders
++    if any(k != key and (o.remaining or o.open_quantity) for k, o in original.orders.items()):
++        raise TPFaultBlocked("ENTRY_SCOPE_INVALID")
++    if existed and (
++        original.operations.get(start_tag) != "TP_LOCAL_BUILD_FAULT_CHECK"
++        or original.orders[key].signal.purpose != "DEMO_VALIDATION"
++        or original.orders[key].signal.direction != "LONG"
++        or original.orders[key].signal.symbol != "BTCUSDT"
++        or original.validation_entry_styles.get(key) != "OPPOSITE_QUOTE"
++    ):
++        raise TPFaultBlocked("ENTRY_SCOPE_INVALID")
++    if not existed:
++        if start_tag in original.operations or result_tag in original.operations:
++            raise TPFaultBlocked("OPERATION_ALREADY_EXISTS")
++        empty(coordinator)
++    old_orders = {k: v.model_dump(mode="json") for k, v in original.orders.items() if k != key}
++    callback_failure = proof_error = "NONE"
++    failure = completion_failure = "NONE"
++    stage = "SESSION_CONNECT"
++    failure_stage = "NONE"
++    injections = 0
++    signed_stop = paused_verified = gate_verified = False
++    no_send_verified = operator_emergency_requested = False
++    fault_at: str | None = None
++    completion = "UNKNOWN"
++    original_builder: Callable[..., OrderIntent] = vars(core)["build_protection"]
++
++    def guarded_builder(
++        protection: AlgoOrder,
++        rules: SymbolRules,
++        *,
++        working_type: Literal["MARK_PRICE", "CONTRACT_PRICE"],
++    ) -> OrderIntent:
++        nonlocal injections, signed_stop, proof_error, fault_at
++        if protection.position_id != operation or protection.order_type != "TAKE_PROFIT_MARKET":
++            return original_builder(protection, rules, working_type=working_type)
++        try:
++            ledger = store.read(lease.account_id)
++            order = ledger.orders[key]
++            if (
++                protection.client_algo_id != order.tp_algo_id
++                or protection.client_algo_id != client.block_tp_id
++                or protection.account_id != lease.account_id
++                or protection.symbol != "BTCUSDT"
++                or protection.side != "SELL"
++                or protection.trigger_price != order.signal.target_price
++                or working_type != "MARK_PRICE"
++                or not order.algo_id
++                or not order.protected
++                or not order.open_quantity
++                or ledger.requests.get(order.algo_id) != "VERIFIED"
++            ):
++                raise TPFaultBlocked("STOP_PROOF_NOT_VERIFIED")
++            row = client.request("GET", "/fapi/v1/algoOrder", {"clientAlgoId": order.algo_id})
++            normalized = pick(row, ALGO_KEYS)
++            if not coordinator._stop_ok(order, normalized) or normalized[
++                "algoId"
++            ] != ledger.algo_server_ids.get(order.algo_id):
++                raise TPFaultBlocked("STOP_PROOF_NOT_VERIFIED")
++            if injections:
++                raise TPFaultBlocked("REPEATED_INJECTION")
++            signed_stop = True
++            injections += 1
++            fault_at = store.now().isoformat()
++        except Exception as error:
++            proof_error = code(error)
++            raise
++        # Coordinator's original submission_attempted=False path records
++        # NOT_SENT + LOCAL_VALIDATION_FAILED. No TP POST/response is fabricated.
++        raise ValueError("Explicit own-TP local build fault injection")
++
++    def ready() -> None:
++        nonlocal stage, callback_failure
++        try:
++            stage = "RESUME_ENTRIES"
++            coordinator.resume_entries(uuid5(operation, "tp-fault-resume"))
++            stage = "PREPARE_ENTRY"
++            signal, gate, cap = prepare(
++                coordinator, operation, "LONG", entry_style="OPPOSITE_QUOTE"
++            )
++            stage = "RESERVE_ENTRY"
++            order = coordinator.reserve(
++                signal, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE"
++            )
++            client.allowed_entry, client.allowed_quantity = order.client_id, order.quantity
++            client.block_tp_id = "DT-" + order.client_id[3:]
++            print(
++                json.dumps(
++                    {
++                        "tp_fault_stage": "RESERVED_NOT_YET_SUBMITTED",
++                        "operation_id": key,
++                        "quantity": str(order.quantity),
++                        "quantity_cap": str(cap),
++                        "limit_price": str(signal.suggested_limit_price),
++                        "stop_price": str(signal.initial_stop_price),
++                        "target_price": str(signal.target_price),
++                        "live_trading_enabled": False,
++                    }
++                ),
++                flush=True,
++            )
++            stage = "SUBMIT_ENTRY"
++            coordinator.submit(key)
++            stage = "WAIT_TP_BUILD_FAULT"
++        except Exception as error:
++            callback_failure = code(error)
++            raise
++
++    task: asyncio.Task[None] | None = None
++    with patch.object(core, "build_protection", guarded_builder):
++        try:
++            if existed:
++                raise TPFaultBlocked("RECOVERY_ONLY")
++
++            def start(ledger: Any) -> None:
++                ledger.operations[start_tag] = "TP_LOCAL_BUILD_FAULT_CHECK"
++
++            store.change(lease, "DEMO_TP_FAULT_CHECK_START", start)
++            task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++            deadline = time.monotonic() + observation_timeout
++            while time.monotonic() < deadline:
++                if task.done():
++                    await task
++                    raise TPFaultBlocked("SESSION_FAILED")
++                if (
++                    callback_failure != "NONE"
++                    or proof_error != "NONE"
++                    or coordinator.session_failed
++                ):
++                    raise TPFaultBlocked("SESSION_FAILED")
++                current = await settled_call(store.read, lease.account_id)
++                order = current.orders.get(key)
++                if (
++                    injections == 1
++                    and order
++                    and order.open_quantity
++                    and order.protected
++                    and current.paused
++                    and not current.reconciled
++                    and current.risk_state.value == "NORMAL"
++                    and current.requests.get(order.tp_algo_id or "") == "NOT_SENT"
++                    and current.request_no_send_evidence.get(order.tp_algo_id or "")
++                    == "LOCAL_VALIDATION_FAILED"
++                ):
++                    paused_verified = True
++                    no_send_verified = True
++                    try:
++                        coordinator._fresh(current.model_copy(deep=True))
++                    except RiskRejected:
++                        gate_verified = True
++                    if not gate_verified:
++                        raise TPFaultBlocked("FAULT_GATE_NOT_VERIFIED")
++                    print(
++                        json.dumps(
++                            {
++                                "tp_fault_stage": "TP_NOT_SENT_ENTRIES_BLOCKED_SL_RETAINED",
++                                "fault_injection_count": injections,
++                                "stop_query_verified": signed_stop,
++                                "live_trading_enabled": False,
++                            }
++                        ),
++                        flush=True,
++                    )
++                    break
++                await asyncio.sleep(poll_seconds)
++            else:
++                raise TPFaultBlocked("FAULT_NOT_OBSERVED")
++        except Exception as error:
++            failure = (
++                callback_failure
++                if callback_failure != "NONE"
++                else proof_error
++                if proof_error != "NONE"
++                else code(error)
++            )
++            failure_stage = stage
++        finally:
++            if task is not None:
++                session_error = await drain_session(task, cancel=True)
++                if (session_error is not None or coordinator.session_failed) and failure == "NONE":
++                    failure, failure_stage = "SESSION_FAILED", "SESSION_CLEANUP"
++            if callback_failure != "NONE":
++                failure = callback_failure
++            if proof_error != "NONE":
++                failure = proof_error
++            try:
++                await settled_call(store.renew, lease)
++                await settled_call(client.sync_clock)
++                await settled_call(
++                    coordinator.command, uuid5(operation, "tp-fault-pause"), "PAUSE_ENTRIES"
++                )
++                current = store.read(lease.account_id)
++                if any(current.positions.values()) or any(
++                    o.open_quantity for o in current.orders.values()
++                ):
++                    operator_emergency_requested = True
++                    await settled_call(
++                        coordinator.command, uuid5(operation, "tp-fault-flat"), "EMERGENCY_FLATTEN"
++                    )
++                completion = await confirm_exit(coordinator)
++                await settled_call(coordinator.disconnect)
++            except Exception as error:
++                completion_failure = code(error)
++    final = store.read(lease.account_id)
++    order = final.orders.get(key)
++    fixed_fields = (
++        "policy",
++        "daily_key",
++        "daily_base",
++        "weekly_key",
++        "weekly_base",
++        "high_water",
++        "net_transfers",
++        "margin_mode",
++        "symbols",
++        "recovery_receipts",
++        "cancelled_exposure_corrections",
++        "attested_day_baselines",
++        "attested_period_baselines",
++        "exit_anchored_day_baselines",
++    )
++    history_ok = (
++        {k: v.model_dump(mode="json") for k, v in final.orders.items() if k != key} == old_orders
++        and all(final.requests.get(k) == v for k, v in original.requests.items())
++        and all(final.income_seen.get(k) == v for k, v in original.income_seen.items())
++        and all(getattr(final, k) == getattr(original, k) for k in fixed_fields)
++        and all(
++            {k: v for k, v in getattr(final, name).items() if k != key}
++            == {k: v for k, v in getattr(original, name).items() if k != key}
++            for name in (
++                "entry_quantity_caps",
++                "validation_entry_styles",
++                "validation_evidence",
++                "initial_fill_settlements",
++            )
++        )
++        and all(
++            final.request_no_send_evidence.get(k) == v
++            for k, v in original.request_no_send_evidence.items()
++        )
++    )
++    accepted = bool(
++        not existed
++        and injections == 1
++        and signed_stop
++        and paused_verified
++        and gate_verified
++        and no_send_verified
++        and operator_emergency_requested
++        and client.unexpected_tp_attempts == 0
++        and client.entry_post_attempts == client.entry_post_sent == 1
++        and client.reduce_post_attempts >= 1
++        and failure == completion_failure == "NONE"
++        and completion == "VERIFIED_FLAT"
++        and history_ok
++        and order
++        and order.filled > 0
++        and not order.remaining
++        and not order.open_quantity
++        and order.position_state.value == "CLOSED"
++        and order.exit_state == "FILLED"
++        and final.requests.get(order.tp_algo_id or "") == "NOT_SENT"
++        and final.request_no_send_evidence.get(order.tp_algo_id or "") == "LOCAL_VALIDATION_FAILED"
++        and final.risk_state.value == "EMERGENCY"
++        and final.paused
++        and not final.stream_ready
++        and not final.reconciled
++    )
++    if not accepted and failure == "NONE":
++        failure = (
++            "HISTORY_CHANGED"
++            if not history_ok
++            else "FLAT_NOT_CONFIRMED"
++            if completion != "VERIFIED_FLAT"
++            else "FINAL_STATE_NOT_VERIFIED"
++        )
++        failure_stage = "FINAL_STATE"
++    try:
++
++        def result(ledger: Any) -> None:
++            ledger.operations.setdefault(
++                result_tag, "TP_LOCAL_BUILD_FAULT:" + ("VERIFIED" if accepted else failure)
++            )
++
++        store.change(lease, "DEMO_TP_FAULT_CHECK_RESULT", result)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure, failure_stage = "RESULT_AUDIT_FAILED", "RESULT_AUDIT"
++    return {
++        "tp_fault_check": "TP_BUILD_FAILURE_PAUSE_SL_RETAINED_OPERATOR_FLAT_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "LOCAL_TP_BUILD_FAILURE_AFTER_SIGNED_STOP",
++        "operation_id": key,
++        "fault_injection_count": injections,
++        "fault_at_utc": fault_at,
++        "signed_stop_before_fault_verified": signed_stop,
++        "entries_paused_after_fault": paused_verified,
++        "entry_gate_blocked_after_fault": gate_verified,
++        "tp_not_sent_proof_verified": no_send_verified,
++        "unexpected_tp_transport_attempts": client.unexpected_tp_attempts,
++        "new_entry_post_count": client.entry_post_sent,
++        "entry_post_attempts": client.entry_post_attempts,
++        "reduce_only_post_attempts": client.reduce_post_attempts,
++        "operator_emergency_requested": operator_emergency_requested,
++        "recovered_existing_intent": existed,
++        "filled_quantity": str(order.filled) if order else "0",
++        "exit_state": order.exit_state if order else "NONE",
++        "flat_confirmation": completion,
++        "history_and_baselines_preserved": history_ok,
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "completion_failure": completion_failure,
++        "private_session_diagnostic": coordinator.session_diagnostic.model_dump(mode="json"),
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_tp_fault_check.py
+@@ -0,0 +1,185 @@
++"""Real PG/localhost WSS, signed SDK fixture, unchanged local no-send path."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo as core
++from services.execution import demo_tp_fault_check as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++@pytest.fixture
++def case(validation_case):  # noqa: F811
++    store, c, fake, options = validation_case
++    old = c.client
++    c.client = module.TPFaultClient(
++        old.settings, old.credentials, send=old.send, clock_ms=old.clock_ms
++    )
++    c.client.sync_clock()
++    options["fill"] = True
++    store.change(c.lease, "TEST_TP_FAULT_PAUSE", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake, options
++
++
++async def exercise(case, operation=None, timeout=3):
++    _, c, _, _ = case
++    operation = operation or uuid4()
++
++    async def handler(socket):
++        try:
++            while True:
++                await socket.send(json.dumps({"e": "ACCOUNT_UPDATE", "E": c.client.clock_ms()}))
++                await asyncio.sleep(0.01)
++        except Exception:
++            pass
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        return await module.run(
++            c, operation, connector=connector, observation_timeout=timeout, poll_seconds=0.01
++        ), operation
++
++
++def test_signed_stop_retained_tp_build_not_sent_pause_then_operator_flat(case):  # noqa: F811
++    store, c, fake, _ = case
++    builder = core.build_protection
++    before = store.read("DEMO-test")
++    report, operation = asyncio.run(exercise(case))
++    assert (
++        report["tp_fault_check"] == "TP_BUILD_FAILURE_PAUSE_SL_RETAINED_OPERATOR_FLAT_VERIFIED"
++    ), json.dumps(report)
++    assert report["fault_injection_count"] == 1 and report["signed_stop_before_fault_verified"]
++    assert report["entries_paused_after_fault"] and report["entry_gate_blocked_after_fault"]
++    assert report["tp_not_sent_proof_verified"] and report["unexpected_tp_transport_attempts"] == 0
++    assert report["new_entry_post_count"] == report["entry_post_attempts"] == 1
++    assert report["reduce_only_post_attempts"] == 1 and report["operator_emergency_requested"]
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and report["exit_state"] == "FILLED"
++    assert report["risk_state"] == "EMERGENCY" and report["final_paused"]
++    assert report["failure"] == report["completion_failure"] == "NONE"
++    assert report["history_and_baselines_preserved"]
++    after = store.read("DEMO-test")
++    order = after.orders[str(operation)]
++    assert after.requests[order.tp_algo_id] == "NOT_SENT"
++    assert after.request_no_send_evidence[order.tp_algo_id] == "LOCAL_VALIDATION_FAILED"
++    assert order.position_state.value == "CLOSED" and order.open_quantity == order.remaining == 0
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert fake.positions["BTCUSDT"] == 0
++    assert [p["type"] for p in posts(fake)] == ["LIMIT", "MARKET"]
++    assert posts(fake)[1]["reduceOnly"] == "true"
++    assert [p["type"] for p in posts(fake, "/fapi/v1/algoOrder")] == ["STOP_MARKET"]
++    assert all(row["algoStatus"] != "NEW" for row in fake.algos.values())
++    assert core.build_protection is builder
++
++
++def test_no_fill_never_injects_and_still_cancels_flat(case):  # noqa: F811
++    _, _, fake, options = case
++    options["fill"] = False
++    report, _ = asyncio.run(exercise(case, timeout=0.1))
++    assert report["tp_fault_check"] == "NOT_ACCEPTED" and report["fault_injection_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == 1
++    assert report["reduce_only_post_attempts"] == 0
++
++
++def test_same_completed_operation_recovers_without_entry_or_reinjection(case):  # noqa: F811
++    _, _, fake, _ = case
++    _, operation = asyncio.run(exercise(case))
++    count = len(posts(fake))
++    report, _ = asyncio.run(exercise(case, operation))
++    assert report["failure"] == "RECOVERY_ONLY" and report["fault_injection_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == count
++    assert report["recovered_existing_intent"]
++
++
++def test_stop_failure_never_triggers_tp_fault_or_claims_retained_stop(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.reject_stop = True
++    report, _ = asyncio.run(exercise(case, timeout=0.25))
++    assert report["tp_fault_check"] == "NOT_ACCEPTED"
++    assert report["fault_injection_count"] == 0 and not report["signed_stop_before_fault_verified"]
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and fake.positions["BTCUSDT"] == 0
++
++
++def test_guard_requires_its_own_fresh_signed_stop_query(case, monkeypatch):  # noqa: F811
++    _, _, fake, _ = case
++    original = module.pick
++
++    def invalid(raw, keys):
++        row = original(raw, keys)
++        row["algoStatus"] = "CANCELED"
++        return row
++
++    monkeypatch.setattr(module, "pick", invalid)
++    report, _ = asyncio.run(exercise(case))
++    assert report["failure"] == "STOP_PROOF_NOT_VERIFIED"
++    assert report["fault_injection_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and fake.positions["BTCUSDT"] == 0
++    assert [p["type"] for p in posts(fake, "/fapi/v1/algoOrder")] == ["STOP_MARKET"]
++
++
++def test_unknown_emergency_exit_is_never_reposted_or_claimed_flat(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.defer_exit = True
++    report, _ = asyncio.run(exercise(case))
++    assert report["tp_fault_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "UNKNOWN"
++    assert report["failure"] == "FLAT_NOT_CONFIRMED"
++    assert report["reduce_only_post_attempts"] == 1
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) == 1
++
++
++def test_cash_transfer_cannot_be_hidden_as_test_accounting(case, monkeypatch):  # noqa: F811
++    _, _, fake, _ = case
++    original = module.confirm_exit
++
++    async def drift(coordinator):
++        fake.wallet += Decimal("0.1")
++        fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=123, income="0.1"))
++        return await original(coordinator)
++
++    monkeypatch.setattr(module, "confirm_exit", drift)
++    report, _ = asyncio.run(exercise(case))
++    assert (
++        report["tp_fault_check"] == "NOT_ACCEPTED" and not report["history_and_baselines_preserved"]
++    )
++
++
++def test_audit_failure_blocks_acceptance_and_runtime_patch_is_restored(case, monkeypatch):  # noqa: F811
++    store, _, _, _ = case
++    original = store.change
++    builder = core.build_protection
++
++    def fail(lease, kind, apply):
++        if kind == "DEMO_TP_FAULT_CHECK_RESULT":
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(lease, kind, apply)
++
++    monkeypatch.setattr(store, "change", fail)
++    report, _ = asyncio.run(exercise(case))
++    assert report["failure"] == "RESULT_AUDIT_FAILED" and report["tp_fault_check"] == "NOT_ACCEPTED"
++    assert core.build_protection is builder and "PRIVATE_DATABASE_URL" not in json.dumps(report)
++
++
++def test_prepare_failure_creates_no_entry_and_restores_builder(case):  # noqa: F811
++    _, _, fake, options = case
++    options["stale_candle"] = True
++    builder = core.build_protection
++    report, _ = asyncio.run(exercise(case))
++    assert report["tp_fault_check"] == "NOT_ACCEPTED"
++    assert report["new_entry_post_count"] == report["fault_injection_count"] == 0
++    assert not posts(fake) and core.build_protection is builder
+--- /dev/null
++++ b/tests/unit/test_demo_tp_fault_cli.py
+@@ -0,0 +1,66 @@
++"""Explicit DEMO/local fault consent and secondary transport safety barrier."""
++
++import json
++from pathlib import Path
++from uuid import uuid4
++
++import pytest
++import yaml
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoCredentials, DemoSettings
++from scripts import check_demo_tp_fault as cli
++from services.execution.demo_tp_fault_check import TPFaultBlocked, TPFaultClient
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--enable-demo"],
++        ["--enable-tp-build-fault"],
++        ["--enable-demo", "--enable-tp-build-fault"],
++        ["--enable-demo", "--enable-tp-build-fault", "--operation-id", "bad"],
++        ["--enable-demo", "--operation-id", str(uuid4())],
++    ],
++)
++def test_flags_precede_key_access(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_blocked_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr(
++        "sys.argv",
++        ["check", "--enable-demo", "--enable-tp-build-fault", "--operation-id", str(uuid4())],
++    )
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_own_tp_cannot_reach_transport_even_if_builder_fault_is_bypassed():
++    cfg = DemoSettings.model_validate(
++        yaml.safe_load(Path("configs/demo-isolated.example.yaml").read_text())
++    ).model_copy(update={"demo_trading_enabled": True})
++    client = TPFaultClient(
++        cfg,
++        DemoCredentials(SecretStr("fixture-key"), SecretStr("fixture-secret")),
++        send=lambda *a: pytest.fail("must not send"),
++    )
++    client.block_tp_id = "DT-fixture"
++    with pytest.raises(TPFaultBlocked) as caught:
++        client.request(
++            "POST",
++            "/fapi/v1/algoOrder",
++            {"clientAlgoId": "DT-fixture", "type": "TAKE_PROFIT_MARKET"},
++        )
++    assert caught.value.code == "UNEXPECTED_TP_TRANSPORT"
++    assert client.unexpected_tp_attempts == 1 and client.entry_post_sent == 0
