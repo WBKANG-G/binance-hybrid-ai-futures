@@ -1,0 +1,892 @@
+--- /dev/null
++++ b/PAUSED_DAY_START_HERE_KO.md
+@@ -0,0 +1,31 @@
++# NORMAL/일시정지 상태의 일간 기준금 검토
++
++11월1일로 날짜가 바뀌었고 장부의 일간 기준일은10월31일입니다. 주간 기준일은10월26일로 동일합니다. 현재 NORMAL/paused를 유지하며, 이번 단계는 읽기 전용 후보 검토까지만 진행합니다. 신규 진입/청산/보호/계정 변경 요청은 없습니다. 날짜를 맞추려고 비상 정리 명령을 실행하지 않습니다.
++
++운영자는 마지막 응답 유실 시험 종료 후 안내한 명령 외 수동 거래/다른 봇/다른 종목 거래/입출금/내부이체/보너스가 없었다고 확인했습니다. 이후 새 활동이 있었다면 이 명령의 --attest-no-other-trades-since-exit을 사용하지 말고 변경 내용을 알려야 합니다. 계좌 전체 거래소 export로 검증된 출처라는 뜻은 아닙니다.
++
++## 1. 빌드
++
++ZIP을 새 windows-demo-paused-day-review 폴더에 풉니다. 기존 폴더에 덮어쓰지 않습니다. 새 폴더의 탐색기 주소창에 cmd를 입력합니다. 같은 hybrid-windows 프로젝트와 기존 볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 뒤 아래 미리보기만 실행합니다. -it가 있으므로 RAM 캐시에 키가 없을 때 DEMO API Key/Secret을 숨김 입력할 수 있습니다. 기존 유효 RAM 키가 있으면 그대로 사용합니다. 키 입력값을 채팅에 보내지 않습니다. 이 숨김 입력 자체는 새 RAM 키 등록 파일을 만들지 않습니다.
++
++## 2. 읽기 전용 미리보기
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_paused_day --attest-no-other-trades-since-exit
++```
++
++정상 미리보기는 PAUSED_NORMAL_DAY_PREVIEW_NO_DATABASE_CHANGE입니다. proposed_day_kst/proposed_daily_base_usdt, 자정 경계·flat 앵커·알려진 종료 시각, 출처·위험 상태, review_token과 read_diagnostic을 포함한 전체 JSON을 공유합니다. 기준금은 아직 변경되지 않습니다. --apply-review, --accept-operator-evidence, --operation-id는 이번 단계에서 사용하지 않습니다.
++
++BLOCKED이면 명령 반복/새 키 삭제/기준금 수동 수정 없이 전체 결과를 공유합니다. 낮은 손실 기준금을 만들거나 잠금을 해제하는 우회는 없습니다. 주간 기준금·고점·과거 평가 시각·이력/미해결 요청은 유지합니다. 원래 비상 상태 도구는 EMERGENCY 전용이고, 새 경로는 NORMAL/paused 전용이라 DAILY/WEEKLY/DRAWDOWN/UNHEALTHY/EMERGENCY 상태를 취급하지 않습니다.
++
++## 검토와 적용의 차이
++
++원래 서명 증거 검사는 자정 전 flat 앵커, 양방향 종료/체결 이력, 이후 소득·거래 없음, USDT 단일 기준/이체0, 현재 flat 및 손실 한도를 대조합니다. 이 조건과 운영자 확인이 충족될 때만 후보를 제시합니다. 자정에 실제 잔고를 직접 관측한 기록으로 바꾸지 않습니다. 출처는 OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE이며 account_wide_exchange_export_verified는 false입니다.
++
++후속 적용은 실제 후보를 확인한 뒤 검토 토큰·새 UUID·명시적 출처 수락을 함께 지정해야 가능합니다. 적용 직전 전체 검토와 토큰 일치를 다시 확인합니다. 적용은 로컬 일간 기준일/기준금과 영수증/감사 표식만 바꾸고 NORMAL/paused를 유지하며, 신규 진입을 자동 재개하지 않습니다. 이 안내에는 적용 명령이 없습니다.
+--- /dev/null
++++ b/PAUSED_DAY_VALIDATION_KO.md
+@@ -0,0 +1,27 @@
++# NORMAL/paused 일간 기준금 경로 검증
++
++전체1253개 시험 통과(308.11초), 집중62개 통과(19.20초). Ruff check/format 및 mypy112개 소스 통과. 기존1228개 테스트는 변경하지 않았습니다. 장기 이력 회귀는10일 창에서 시계 한도를 불필요하게 소모하지 않고 전체 signed GET 예산에 모든 조회를 포함함을 확인했습니다.
++
++## 근거와 변경
++
++사용자 실제 조회로 일간2026-10-31→2026-11-01 불일치, 주간2026-10-26 일치, NORMAL/paused를 확인했습니다. 사용자는 마지막 시험 종료 이후 안내한 명령 외 활동이 없었다고 직접 답했습니다. 새 signed 이력 검토와 기준금 후보는 Windows 실행 전입니다. 현재 잔고/후보를 추정하지 않습니다.
++
++기존 두 모듈의 증거 검사를 공통 내부 함수로 분리했습니다. 공개 review_day_reconstruction은 여전히 EMERGENCY를 지정하고, 공개 review_flat_history와 기존 apply_day_reconstruction은 원래 동작/서명을 유지합니다. 기존 공개 도구가 NORMAL을 거부하는 회귀 시험을 추가했습니다. 새로운 review_paused_day는 NORMAL/paused/readonly만 허용합니다. 잠금 상태를 복사해 NORMAL이나 EMERGENCY로 속이지 않습니다.
++
++공통 함수의 변경은 신뢰된 내부 호출자가 요구 상태를 명시하고 같은 상태의 이력 검토를 선택하도록 한 것입니다. 허용 상태 분기·호출 위임·새 NORMAL 경로의 중첩 예산 방지를 제외한 기존 서명 이력/회계/손실/일간/주간/고점/전송 기준 검사는 부모 ZIP의 AST와 일치함을 확인했습니다. 기존 적용 함수·trade/income 조회 함수·coordinator·리스크 구현·SDK·예산·키·Compose·exports·테스트는 유지합니다. 새 의존성/스키마/마이그레이션은 없습니다.
++
++새 미리보기는 원래 GET 전용 RecoveryReadClient와 기본 전송의 HTTPS 연결 재사용을 사용합니다. 전체 검토40초/서명GET600회/시계6회,20초 시계 갱신,31일 역사 창/일별 chunk/기존40-call cap을 유지합니다. 7일을 넘는 새 NORMAL 이력 경로는 이미 만들어진 전체 읽기 예산을 재사용해 중첩 wrapper의 반복 시계 갱신을 피합니다. 기존 EMERGENCY 경로의 기본 예산 래핑은 그대로입니다. TLS/프록시/리다이렉트 거부와 SDK 시계 수명60초·리스60초·fenced 효과/사후 리스 검사를 바꾸지 않습니다. 이력 캐시/조회 생략/병렬화/실패 자동 재시도/중간 리스 갱신은 없습니다. 한도 초과는 고정 코드로 차단합니다.
++
++## 금융 증거 및 적용 제한
++
++원래 조건대로 자정 전 앵커와 평가 시각이 같고, 현재 주간 기준이 일치하며, 입출금/보너스 이력과 순입금 기준이0으로 확정돼야 합니다. 알려진 종료 fill, 앵커 이후 거래/소득 없음, 반복 signed trades/income 일치, 현재 USDT wallet/margin/unrealized 및 전체 스냅샷 일치, 현재 flat·레버리지2·기존 손실 한도와 고점 검증을 모두 유지합니다. 운영자 확인은 API로 보이지 않는 범위에 대한 수동 출처이며 계좌 전체 export 검증으로 주장하지 않습니다.
++
++정상 미리보기는 DB를 변경하지 않고 후보/출처/증거 해시/토큰을 반환합니다. 적용에는 같은 사실 확인·별도 명시적 출처 수락·토큰·새 작업 ID가 필요합니다. 적용은 검토를 다시 수행하고 토큰 일치 시에만 일간 기준일/기준금·AttestedDayBaseline 영수증·감사 표식을 바꿉니다. risk_state와 paused는 그대로, reconciled/stream_ready는 false로 유지합니다. 주간 기준금/고점/이전 평가·대조 시각/요청/주문/회계/과거 receipts는 유지합니다. 현재 손실 잠금은 해제하지 않으며, 원래 비상 상태 승인 절차를 대신하지 않습니다. 같은 작업의 재적용은 no-action이고 충돌 토큰/ID는 거부합니다.
++
++CLI는 정상 출력 전에 리더 반환을 처리하고, 적용 명령 없이 미리보기를 기본으로 사용합니다. 원격 요청은 GET만 수행합니다. 키는 기존 RAM 바인딩을 사용하거나 -it로 숨김 입력하며 키/URL/서명/raw 예외를 출력하지 않습니다.
++
++## 시험 및 한계
++
++실제 격리 PostgreSQL, 합성 SDK 및 로컬 검증 TLS로 미리보기 불변·수동 출처, 적용의 허용 필드만 변경·정상/일시정지 보존·idempotency, 모든 비정상 위험 상태 거부, 기존 공개 경로의 EMERGENCY 제한, 사실 확인/출처 수락 필요, 토큰 변경 롤백, 앵커 후 소득/이체 기준 거부, 일간·주간·고점 손실 한도 초과 거부, 예산 차단과 실제 TLS 연결1개 재사용을 검사합니다. CLI는 사실 확인/적용 인자 및 LIVE 환경을 키 읽기 전에 차단합니다. 기존 비상 상태 재구성 및 이력 시험도 함께 실행합니다.
++
++클라우드 인증 거래소 호출/주문은 없습니다. 새 Windows 후보 검토/적용은 아직 실행 전입니다. 계좌 전체 export/자정 실측/실제 부분체결 보호/Phase4 전체 완료로 확대하지 않습니다. 현재 앱 기본 일시정지를 유지하며 main/LIVE/Phase5를 변경하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_DAY_ROLLOVER_CONTEXT_20261101_KO.md
+@@ -0,0 +1,17 @@
++# 일간 기준일 불일치 및 운영자 활동 확인
++
++근거: 사용자 CMD 캡처 및 질문에 대한 직접 답변. 한국시간2026-11-01.
++현재 실행 배포 windows-demo-empty-db-restart-20261031 / cf0a168.
++
++--local-periods 실제 출력:
++- recovery LOCAL_PERIOD_CHECK_NO_DATABASE_CHANGE
++- period_keys_match false
++- stored_day_kst 2026-10-31 / current_day_kst 2026-11-01
++- stored_week_kst 2026-10-26 / current_week_kst 2026-10-26
++- risk_state NORMAL / paused true
++- exchange_checked false
++- orders_enabled false / live_trading_enabled false
++
++마지막 응답 유실 시험(a5ba93d9…) 종료 이후 안내한 명령 외 수동 거래·다른 봇·다른 종목 거래·입출금·내부이체·보너스가 있었는지 질문했고, 사용자는 없음으로 답했다. 이는 운영자의 사실 확인이며 계좌 전체 거래소 export 검증을 대신하지 않는다. export 생성 요청은 반복하지 않는다.
++
++이번 단계는 NORMAL/paused 상태의 자정 전 flat 앵커와 실제 signed 이력을 대조하는 일간 기준금 후보 검토다. 현재 잔고/일간 기준금 후보 수치는 아직 조회되지 않았으므로 추정하지 않는다. 미리보기와 사용자 직접 입력을 통해 출처가 명시된 토큰 적용을 분리한다. 이전 시각/주간 기준금/고점/미해결4건/UNKNOWN·NOT_SENT 증거를 지우거나 새 값으로 초기화하지 않는다. 아직 일간 기준금은 적용하지 않았고 새 주문을 하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_EMPTY_DB_RESTART_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,34 @@
++# Windows 빈 계좌 유휴 DB 정상 재시작·장부 보존 통과
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-empty-db-restart-20261031 / cf0a168.
++ZIP SHA256 e6e970230db76cd97f035d39d289afa549b48319f050c92132ecc70b4d847cc3.
++작업 ID 98e59d82-c594-4ceb-936e-fa1a81ee83eb.
++
++## 실행 및 실제 결과
++
++prepare의 PREPARED_EMPTY_NO_ORDERS와 leader_released true를 확인한 뒤, 동일 프로젝트에서 restart db → up -d --wait → 같은 UUID의 --verify를 순서대로 실행했다. API/web/DB 모두 Healthy.
++
++- db_restart_check EMPTY_DB_RESTART_HISTORY_PRESERVED_VERIFIED
++- scope EMPTY_IDLE_DB_SERVER_RESTART
++- history_and_baselines_preserved true
++- postgres_restart_observed true
++- server_started_before_utc 2026-10-31T08:01:01.587943+00:00
++- server_started_current_utc 2026-10-31T14:48:30.252136+00:00 (한국 시간23:48:30)
++- fence_before69 / fence_current70
++- exchange_empty_verified true
++- risk_state NORMAL / paused true
++- entry_signal_supplied false / new_entry_post_count0
++- orders_enabled false / live_trading_enabled false
++- read_diagnostic POOLED_HTTPS
++- audit_http_attempts22 / audit_connection_attempts1 / audit_reused_requests21
++- audit_server_close_responses0 / audit_transport_elapsed_ms1339
++- audit_last_route OTHER_GET / signed_get_count22 / clock_probe_count0
++- leader_released true
++
++## 판정과 한계
++
++실제 Windows PostgreSQL 컨테이너의 유휴 재시작 전후에 전체 장부 비교 해시와 원격 empty 상태 해시가 일치했고, PostgreSQL 시작 시각 증가 및 다음 리더 펜스가 정확히1 증가한 것이 확인됐다. 이력·기준금·회계·기존 운영 표식·UNKNOWN/NOT_SENT 증거는 보존됐다. 신규 주문·포지션이 없고 NORMAL/paused를 유지했다. 검증 후 리더 반환도 확인했다. 전송 측정1.339초는 확인 문맥의 측정이며 명령 전체 소요 시간으로 단정하지 않는다.
++
++전체 감사 이벤트/outbox 내용 해시, 작업 중 DB 단절, worker 강제 종료, 전원 손실·호스트 재부팅, 포지션/주문이 있는 상태의 DB 장애, WSS 재접속, 실제 부분체결 보호까지 통과한 것으로 확대하지 않는다. 이번 범위는 빈 계좌의 유휴 DB 정상 재시작 및 장부 보존이다.
++
++추가 비상 복구 승인은 필요하지 않다. 같은 prepare/verify 또는 재시작 명령을 반복하지 않는다. 신규 진입 일시정지를 유지한다. 이전 실제 SL 로컬 실패 통과/복구 승인, 응답 유실 시험 NOT_ACCEPTED 및 후속 종료 확인 수정 통과 기록은 그대로 보존한다. Phase4 전체 완료·LIVE·Phase5 전환으로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,36 @@
++# Windows DEMO 로컬 SDK 진입 ACK 유실·동일 ID 복구·중복 진입 방지·flat 전체 통과
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-empty-db-restart-20261031 / cf0a168 (종료 확인 수정6e88c76 포함).
++ZIP SHA256 e6e970230db76cd97f035d39d289afa549b48319f050c92132ecc70b4d847cc3.
++작업 ID a5ba93d9-85e3-4066-a03e-12a2da07185f.
++
++## 실제 출력
++
++- 예약 quantity/cap0.0007 / limit_price77516.10
++- stop_price77121.20 / target_price78291.30
++- 단계 RESERVED_NOT_YET_SUBMITTED → PERSISTED_UNKNOWN_SAME_ID_QUERY_RECOVERED
++- entry_loss_check ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED
++- scope LOCAL_SDK_ENTRY_ACK_LOSS_AFTER_SUCCESS_RESPONSE
++- response_drop_count1 / unknown_intent_persisted true
++- entry_gate_blocked_while_unknown true / same_id_signed_query_verified true
++- same_id_query_count19 / local_order_recovered_before_cleanup true
++- new_entry_post_count1 / entry_post_attempts1 / reduce_only_post_attempts1
++- operator_emergency_requested true / recovered_existing_intent false
++- filled_quantity0.0007 / exit_state FILLED / flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true
++- failure NONE / failure_stage NONE / completion_failure NONE
++- private_session_diagnostic READY_CALLBACK/NONE/event_kind NONE
++- event_age_ms null / ready_callback_ms2301 / event_receive_age_ms null
++- received_events6 / coalesced_events0
++- event_clock_offset_ms null / event_clock_rtt_ms null / event_clock_wait_ms0 / event_local_age_ms null
++- risk_state EMERGENCY / final_paused true
++- final_stream_ready false / final_reconciled false
++- orders_enabled false / live_trading_enabled false
++
++## 판정
++
++실제 DEMO에서 SDK가 성공한 진입 ACK의 coordinator 전달만 로컬에서1회 유실시켰다. 원래 코드가 UNKNOWN을 영속 기록하고 신규 진입을 차단했으며 같은 client ID와 거래소 주문 ID의 signed GET으로 주문을 복구했다. 신규 진입1건으로 중복 전송이 없었다. 체결량0.0007을 기존 운영자 비상 정리 경로로 종료1건 처리하고 FILLED/VERIFIED_FLAT를 확인했다. 기존 이력·기준금·원래 UNKNOWN 증거를 보존했고 현재 시험의 실패/정리 오류는 모두 NONE이다. 종료 확인 수정 후 이번 새 작업의 전체 수락 조건이 실제 Windows 통과했다.
++
++실제 네트워크 timeout/응답 패킷 손실을 일으킨 것으로 확대하지 않는다. 이전 작업9be80b67의 NOT_ACCEPTED 및 후속 일반 오류/별도 종료 확인·복구 기록은 그대로 보존하며 소급 변경하지 않는다. 이번 성공은 별도 새 의도의 통과다. 실제 부분체결 보호/주문 또는 포지션 worker 강제 종료/실제 거래소 거부/외부 알림/Phase4 전체/LIVE/Phase5 완료로 확대하지 않는다.
++
++최종 EMERGENCY/paused는 원래 비상 정리 경로의 잠금이다. 다음은 인자 없는 review_demo_recovery로 현재 전체 요청·포지션·활성 일반/Algo 주문·기간/리스크를 읽기 전용 검토한다. 현재 시점이 일간 경계를 넘었다면 기간 기준금 차단도 그대로 존중하며 우회/초기화하지 않는다. 기존 토큰 재사용이나 복구 적용, 동일 시험 재실행은 하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_FINAL_REVIEW_20261031_KO.md
+@@ -0,0 +1,23 @@
++# 응답 유실 통합 재검증 통과 후 복구 검토
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-empty-db-restart-20261031 / cf0a168.
++대상 통과 시험 a5ba93d9-85e3-4066-a03e-12a2da07185f.
++
++- recovery REVIEW_ONLY_NO_DATABASE_CHANGE
++- review_token 0487ec1a2c0d4251a3720677c884f3b309348b478c360685de8f7865b4920c9d
++- audited_request_count67 / audit_batch_count9
++- signed_query_count292 / audit_clock_probes0
++- unresolved_count4 / risk_gates PASS
++- position_nonzero false / active_orders0
++- audit_transport_mode POOLED_HTTPS
++- audit_http_attempts292 / audit_connection_attempts1 / audit_reused_requests291
++- audit_server_close_responses0 / audit_transport_elapsed_ms17900
++- audit_last_route OTHER_GET
++- risk_state EMERGENCY / paused true
++- orders_enabled false / live_trading_enabled false
++
++최신 전체 요청 감사·독립 스냅샷·기간 및 리스크 검사를 통과했다. 전송 측정17.900초이며 기존40초 예산 안에서 완료했다. 미해결 이력4건을 삭제하거나 재분류하지 않는다. 현재 포지션/활성 주문0을 확인했지만 아직 비상 상태 승인은 적용하지 않았다.
++
++적용 작업 ID: 
++62d3bcf9-ce07-4233-9dc7-1cc98fbbe255
++다음 명령은 최신 검토와 토큰 일치를 다시 확인한 뒤에만 원래 승인 함수가 NORMAL/paused로 전환한다. 이력·기준금·회계·UNKNOWN/NOT_SENT 증거를 보존하며 신규 진입/청산/보호 POST는 없다. 과거 실패 시험을 덮어쓰거나 Phase4 전체/LIVE/Phase5 완료로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_62d3bcf9_20261031_KO.md
+@@ -0,0 +1,18 @@
++# 응답 유실 통합 재검증 후 복구 승인 완료
++
++근거: 사용자 CMD 결과 캡처. 배포 windows-demo-empty-db-restart-20261031 / cf0a168.
++적용 작업 ID: 62d3bcf9-ce07-4233-9dc7-1cc98fbbe255.
++검토 토큰: 0487ec1a2c0d4251a3720677c884f3b309348b478c360685de8f7865b4920c9d.
++
++실제 출력:
++- recovery EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED
++- orders_enabled false
++- live_trading_enabled false
++
++최신 전체 검토 및 토큰 일치를 다시 확인한 뒤 기존 승인 함수가 risk_state NORMAL로 전환했다. paused true / stream_ready false / reconciled false는 유지한다. 미해결 이력4건, 기존 주문/요청/UNKNOWN·NOT_SENT 증거, 회계·기준금·고점·과거 이벤트를 보존한다. 현재 잔고 수치는 이 출력에 없으므로 추정하지 않는다.
++
++직전 검토는 요청67개/9배치/서명GET292회/추가 시계0회/미해결4건/리스크PASS/포지션없음/활성주문0이었다. 연결1개/재사용291회/서버종료0/전송측정17900ms로 기존40초 예산 안에서 완료했다.
++
++이번 응답 유실 작업a5ba93d9-85e3-4066-a03e-12a2da07185f는 로컬 SDK ACK 유실1회, UNKNOWN 영속 기록·진입 차단·동일 ID 조회 복구, 신규 진입1건/종료1건, FILLED/VERIFIED_FLAT/이력·기준금 보존/모든 실패NONE으로 전체 통과했다. 후속 최신 복구 검토와 비상 상태 승인도 별도 완료됐다. 이전9be80b67 시험의 NOT_ACCEPTED 기록은 소급 변경하지 않는다.
++
++같은 승인 명령/시험을 반복하거나 새 주문을 실행할 필요가 없다. 일간 기준금 경계를 넘으면 새 주문 전에 기존 읽기 전용 기간 상태부터 확인한다. 실제 네트워크 장애, 실제 부분체결 보호 및 주문/포지션 worker 강제 종료 등의 미완료 항목은 유지하며 Phase4 전체/LIVE/Phase5 완료로 확대하지 않는다.
+--- /dev/null
++++ b/scripts/review_demo_paused_day.py
+@@ -0,0 +1,148 @@
++"""NORMAL/paused day baseline preview; separate explicit token/source acceptance to apply."""
++
++import argparse
++import getpass
++import json
++import os
++import re
++import warnings
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++from sqlalchemy.exc import SQLAlchemyError
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials as session_credentials
++from scripts.review_demo_recovery import blocked
++from services.execution.demo_cancelled_history import CancelledHistoryBlocked
++from services.execution.demo_day_reconstruction import DayReconstructionBlocked
++from services.execution.demo_day_review import DayReviewBlocked
++from services.execution.demo_history_review import HistoryBlocked
++from services.execution.demo_paused_day import apply_paused_day, review_paused_day
++from services.risk.paper import RiskRejected
++
++ACCOUNT_ID = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--attest-no-other-trades-since-exit", action="store_true")
++    parser.add_argument("--accept-operator-evidence", action="store_true")
++    parser.add_argument("--apply-review")
++    parser.add_argument("--operation-id", type=UUID)
++    args = parser.parse_args()
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++    ):
++        blocked("DAY_CONTEXT", "LIVE_CONTEXT_FORBIDDEN")
++    if not args.attest_no_other_trades_since_exit:
++        blocked("DAY_ATTESTATION", "EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
++    if (
++        bool(args.apply_review) != args.accept_operator_evidence
++        or bool(args.apply_review) != bool(args.operation_id)
++        or (args.apply_review and not re.fullmatch(r"[0-9a-f]{64}", args.apply_review))
++    ):
++        blocked("DAY_ARGUMENTS", "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED")
++    engine = None
++    lease = None
++    store = None
++    report: dict[str, object] = {}
++    stage = "CREDENTIAL_INPUT"
++    try:
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        credentials = session_credentials(prompt=True)
++        stage = "CONFIGURATION"
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, credentials)
++        stage = "CLOCK_CHECK"
++        client.sync_clock()
++        stage = "DATABASE_READ"
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        account = ACCOUNT_ID
++        if args.apply_review:
++            stage = "DAY_APPLY"
++            lease = store.acquire(account, uuid4())
++            result = apply_paused_day(
++                store,
++                lease,
++                client,
++                args.operation_id,
++                args.apply_review,
++                attest_no_other_trades=args.attest_no_other_trades_since_exit,
++                accept_operator_evidence=args.accept_operator_evidence,
++            )
++            after = store.read(account)
++            report = {
++                "day_baseline": result,
++                "source": "OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE",
++                "account_wide_exchange_export_verified": False,
++                "operation_id": str(args.operation_id),
++                "risk_state": after.risk_state.value,
++                "paused": after.paused,
++                "unresolved_requests_acknowledged": False,
++                "daily_baseline_changed": result != "ALREADY_RECORDED_NO_ACTION",
++                "weekly_base_preserved": True,
++                "high_water_preserved": True,
++                "recovery_eligible": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        else:
++            before = store.read(account)
++            stage = "DAY_PREVIEW"
++            report = review_paused_day(
++                store,
++                client,
++                before,
++                account_id=account,
++                attest_no_other_trades=args.attest_no_other_trades_since_exit,
++            )
++            if store.read(account) != before:
++                raise DayReconstructionBlocked("DATABASE_CHANGED_DURING_REVIEW")
++    except (
++        DayReconstructionBlocked,
++        CancelledHistoryBlocked,
++        DayReviewBlocked,
++        HistoryBlocked,
++    ) as error:
++        blocked(stage, str(error))
++    except getpass.GetPassWarning:
++        blocked(stage, "HIDDEN_INPUT_UNAVAILABLE")
++    except DemoFailure:
++        blocked(stage, "DEMO_QUERY_OR_SNAPSHOT_FAILED")
++    except SQLAlchemyError:
++        blocked(stage, "DATABASE_ACCESS_FAILED")
++    except RiskRejected:
++        blocked(stage, "LEASE_OR_RISK_GATE_REJECTED")
++    except (ValueError, EOFError):
++        blocked(stage, "INPUT_OR_CONFIGURATION_INVALID")
++    finally:
++        os.environ.pop("BINANCE_DEMO_API_KEY", None)
++        os.environ.pop("BINANCE_DEMO_API_SECRET", None)
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++                report["leader_released"] = True
++        except (RiskRejected, SQLAlchemyError):
++            blocked("LEASE_RELEASE", "LEASE_RELEASE_NOT_CONFIRMED_KEEP_LOCK")
++        finally:
++            if engine is not None:
++                engine.dispose()
++
++    print(json.dumps(report), flush=True)
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_day_reconstruction.py
++++ b/services/execution/demo_day_reconstruction.py
+@@ -19,7 +19,7 @@
+ from packages.domain.contracts import RiskState
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_day_review import income_window
+-from services.execution.demo_history_review import review_flat_history
++from services.execution.demo_history_review import _review_flat_history, review_flat_history
+ from services.execution.demo_models import AttestedDayBaseline, DemoLedger
+ from services.execution.models import Lease
+ from services.execution.paper import account_risk
+@@ -40,6 +40,25 @@
+     *,
+     account_id: str,
+     attest_no_other_trades: bool,
++) -> dict[str, object]:
++    return _review_day_reconstruction(
++        store,
++        client,
++        ledger,
++        account_id=account_id,
++        attest_no_other_trades=attest_no_other_trades,
++        required_risk_state=RiskState.EMERGENCY,
++    )
++
++
++def _review_day_reconstruction(
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    account_id: str,
++    attest_no_other_trades: bool,
++    required_risk_state: RiskState,
+ ) -> dict[str, object]:
+     if not attest_no_other_trades:
+         raise DayReconstructionBlocked("EXPLICIT_OPERATOR_ATTESTATION_REQUIRED")
+@@ -57,7 +76,8 @@
+         or client.settings.symbols != ("BTCUSDT",)
+         or ledger.margin_mode != "ISOLATED"
+         or ledger.symbols != ("BTCUSDT",)
+-        or ledger.risk_state.value != "EMERGENCY"
++        or required_risk_state not in {RiskState.NORMAL, RiskState.EMERGENCY}
++        or ledger.risk_state != required_risk_state
+         or not ledger.paused
+         or anchor is None
+         or ledger.value.as_of != anchor
+@@ -76,7 +96,11 @@
+     ):
+         raise DayReconstructionBlocked("NONZERO_OR_UNKNOWN_TRANSFER_BASIS")
+     first = snapshot(client, ledger, now)
+-    history = review_flat_history(store, client, ledger)
++    history = (
++        review_flat_history(store, client, ledger)
++        if required_risk_state == RiskState.EMERGENCY
++        else _review_flat_history(store, client, ledger, required_risk_state="NORMAL")
++    )
+     if (
+         history["last_known_full_exit_fill_found"] is not True
+         or history["btc_trades_after_known_exit_before_boundary"] != 0
+--- a/services/execution/demo_history_review.py
++++ b/services/execution/demo_history_review.py
+@@ -142,7 +142,11 @@
+ 
+ 
+ def _review_flat_history(
+-    store: DemoStore, client: DemoClient, ledger: DemoLedger
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    required_risk_state: str = "EMERGENCY",
+ ) -> dict[str, object]:
+     if (
+         client.settings.demo_trading_enabled
+@@ -151,7 +155,8 @@
+         or ledger.margin_mode != "ISOLATED"
+         or ledger.symbols != ("BTCUSDT",)
+         or not ledger.paused
+-        or ledger.risk_state.value != "EMERGENCY"
++        or required_risk_state not in {"NORMAL", "EMERGENCY"}
++        or ledger.risk_state.value != required_risk_state
+     ):
+         raise HistoryBlocked("READ_ONLY_CONTEXT_REQUIRED")
+     anchor = ledger.last_reconciled
+@@ -186,7 +191,8 @@
+     if extended:
+         if int(store.now().timestamp() * 1000) - start_ms > 31 * 86400000:
+             raise HistoryBlocked("INVALID_HISTORY_WINDOW")
+-        client = RecoveryReadClient(client)
++        if required_risk_state != "NORMAL" or not isinstance(client, RecoveryReadClient):
++            client = RecoveryReadClient(client)
+     fetch_trades = historical_trades_window if extended else trades_window
+     first = snapshot(client, ledger, store.now())
+     end_ms = int(store.now().timestamp() * 1000)
+--- /dev/null
++++ b/services/execution/demo_paused_day.py
+@@ -0,0 +1,131 @@
++"""Operator-attested flat day rollover for NORMAL/paused; no risk-state substitution."""
++
++import re
++from datetime import datetime
++from decimal import Decimal
++from uuid import UUID
++
++from integrations.binance_usdm.demo import DemoClient
++from integrations.binance_usdm.recovery_transport import recovery_connection
++from packages.domain.contracts import RiskState
++from packages.persistence.demo import DemoStore
++from services.execution.demo_day_reconstruction import (
++    SOURCE,
++    DayReconstructionBlocked,
++    _review_day_reconstruction,
++)
++from services.execution.demo_models import AttestedDayBaseline, DemoLedger
++from services.execution.demo_recovery_budget import AuditBudgetExceeded, RecoveryReadClient
++from services.execution.models import Lease
++
++OPERATION = "ADOPT_PAUSED_NORMAL_ATTESTED_DAY_BASELINE"
++
++
++def review_paused_day(
++    store: DemoStore,
++    client: DemoClient,
++    ledger: DemoLedger,
++    *,
++    account_id: str,
++    attest_no_other_trades: bool,
++) -> dict[str, object]:
++    # This public entry point cannot handle or reset any loss/emergency/unhealthy lock.
++    if (
++        ledger.risk_state != RiskState.NORMAL
++        or not ledger.paused
++        or client.settings.demo_trading_enabled
++    ):
++        raise DayReconstructionBlocked("NORMAL_PAUSED_READ_ONLY_REQUIRED")
++    try:
++        with recovery_connection(client) as pooled:
++            bounded = RecoveryReadClient(client)
++            report = _review_day_reconstruction(
++                store,
++                bounded,
++                ledger,
++                account_id=account_id,
++                attest_no_other_trades=attest_no_other_trades,
++                required_risk_state=RiskState.NORMAL,
++            )
++            bounded.budget.check()
++            report.update(
++                {
++                    "review": "PAUSED_NORMAL_DAY_PREVIEW_NO_DATABASE_CHANGE",
++                    "risk_state_preserved": True,
++                    "read_diagnostic": {
++                        **(
++                            pooled.diagnostics()
++                            if pooled
++                            else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++                        ),
++                        "signed_get_count": bounded.budget.signed_queries,
++                        "clock_probe_count": bounded.budget.clock_probes,
++                    },
++                }
++            )
++            return report
++    except AuditBudgetExceeded as error:
++        raise DayReconstructionBlocked(error.code) from None
++
++
++def apply_paused_day(
++    store: DemoStore,
++    lease: Lease,
++    client: DemoClient,
++    operation_id: UUID,
++    expected_token: str,
++    *,
++    attest_no_other_trades: bool,
++    accept_operator_evidence: bool,
++) -> str:
++    if (
++        not attest_no_other_trades
++        or not accept_operator_evidence
++        or not re.fullmatch(r"[0-9a-f]{64}", expected_token)
++    ):
++        raise DayReconstructionBlocked("EXPLICIT_MANUAL_SOURCE_ACCEPTANCE_REQUIRED")
++    if client.settings.demo_trading_enabled:
++        raise DayReconstructionBlocked("READ_ONLY_CLIENT_REQUIRED")
++
++    def apply(ledger: DemoLedger) -> str:
++        key = str(operation_id)
++        receipt = ledger.attested_day_baselines.get(key)
++        if receipt is not None:
++            if receipt.review_token != expected_token or ledger.operations.get(key) != OPERATION:
++                raise DayReconstructionBlocked("DAY_OPERATION_CONFLICT")
++            return "ALREADY_RECORDED_NO_ACTION"
++        if (
++            key in ledger.operations
++            or key in ledger.recovery_receipts
++            or key in ledger.cancelled_exposure_corrections
++        ):
++            raise DayReconstructionBlocked("DAY_OPERATION_CONFLICT")
++        report = review_paused_day(
++            store,
++            client,
++            ledger,
++            account_id=lease.account_id,
++            attest_no_other_trades=attest_no_other_trades,
++        )
++        if report["review_token"] != expected_token:
++            raise DayReconstructionBlocked("DAY_PREVIEW_CHANGED")
++        receipt = AttestedDayBaseline(
++            review_token=expected_token,
++            source=SOURCE,
++            boundary_utc=datetime.fromisoformat(str(report["boundary_utc"])),
++            baseline_usdt=Decimal(str(report["proposed_daily_base_usdt"])),
++            old_daily_key=ledger.daily_key,
++            old_daily_base=ledger.daily_base,
++            anchor_utc=datetime.fromisoformat(str(report["anchor_utc"])),
++            known_exit_utc=datetime.fromisoformat(str(report["known_exit_utc"])),
++            attested_until_utc=store.now(),
++            signed_evidence_hash=str(report["signed_evidence_hash"]),
++            exchange_fingerprint=str(report["exchange_fingerprint"]),
++        )
++        ledger.daily_key, ledger.daily_base = str(report["proposed_day_kst"]), receipt.baseline_usdt
++        ledger.attested_day_baselines[key] = receipt
++        ledger.operations[key] = OPERATION
++        ledger.reconciled = ledger.stream_ready = False
++        return "OPERATOR_ATTESTED_DAY_BASELINE_ADOPTED_ENTRIES_STILL_PAUSED"
++
++    return store.change(lease, "DEMO_PAUSED_NORMAL_ATTESTED_DAY_BASELINE", apply)
+--- /dev/null
++++ b/tests/integration/test_demo_paused_day.py
+@@ -0,0 +1,250 @@
++"""NORMAL/paused rollover uses the same signed evidence, without resetting hard locks."""
++
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++
++from packages.domain.contracts import RiskState
++from services.execution import demo_paused_day as module
++from services.execution.demo_day_reconstruction import (
++    DayReconstructionBlocked,
++    review_day_reconstruction,
++)
++from services.execution.demo_history_review import HistoryBlocked, review_flat_history
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.unit.test_recovery_https_transport import tls_server  # noqa: F401
++
++
++@pytest.fixture
++def case(day_case):  # noqa: F811
++    store, c, *rest = day_case
++    store.change(
++        c.lease,
++        "TEST_NORMAL_PAUSED",
++        lambda ledger: setattr(ledger, "risk_state", RiskState.NORMAL),
++    )
++    return store, c, *rest
++
++
++def preview(case, attest=True):
++    store, c, *_ = case
++    return module.review_paused_day(
++        store,
++        c.client,
++        store.read("DEMO-test"),
++        account_id="DEMO-test",
++        attest_no_other_trades=attest,
++    )
++
++
++def apply(case, token, operation=None, attest=True, accept=True):
++    store, c, *_ = case
++    return module.apply_paused_day(
++        store,
++        c.lease,
++        c.client,
++        operation or uuid4(),
++        token,
++        attest_no_other_trades=attest,
++        accept_operator_evidence=accept,
++    )
++
++
++def test_normal_preview_is_immutable_and_source_is_explicit(case):
++    store, _, fake, *_ = case
++    before = store.read("DEMO-test")
++    count = len(fake.calls)
++    report = preview(case)
++    assert report["review"] == "PAUSED_NORMAL_DAY_PREVIEW_NO_DATABASE_CHANGE"
++    assert report["risk_state"] == "NORMAL" and report["paused"]
++    assert (
++        report["operator_attestation_used"] and not report["account_wide_exchange_export_verified"]
++    )
++    assert report["read_diagnostic"]["signed_get_count"] > 0
++    assert store.read("DEMO-test") == before
++    assert all(m == "GET" for m, p, fields in fake.calls[count:])
++
++
++def test_apply_changes_only_day_receipt_and_flags_preserving_normal_pause(case):
++    store, _, fake, *_ = case
++    before = store.read("DEMO-test")
++    report = preview(case)
++    operation = uuid4()
++    result = apply(case, report["review_token"], operation)
++    assert result == "OPERATOR_ATTESTED_DAY_BASELINE_ADOPTED_ENTRIES_STILL_PAUSED"
++    after = store.read("DEMO-test")
++    assert after.risk_state == RiskState.NORMAL and after.paused
++    assert after.daily_key == report["proposed_day_kst"] and after.daily_base == Decimal(
++        report["proposed_daily_base_usdt"]
++    )
++    a = before.model_dump(mode="json")
++    b = after.model_dump(mode="json")
++    changed = {k for k in a if a[k] != b[k]}
++    assert changed <= {
++        "daily_key",
++        "daily_base",
++        "operations",
++        "attested_day_baselines",
++        "reconciled",
++        "stream_ready",
++    }
++    assert (
++        after.value.as_of == before.value.as_of
++        and after.weekly_base == before.weekly_base
++        and after.high_water == before.high_water
++    )
++    assert after.requests == before.requests
++    assert apply(case, report["review_token"], operation) == "ALREADY_RECORDED_NO_ACTION"
++
++
++@pytest.mark.parametrize(
++    "state",
++    [
++        RiskState.EMERGENCY,
++        RiskState.UNHEALTHY,
++        RiskState.DAILY_LOCK,
++        RiskState.WEEKLY_LOCK,
++        RiskState.DRAWDOWN_LOCK,
++    ],
++)
++def test_new_entrypoint_cannot_reset_any_non_normal_lock(case, state):
++    store, c, *_ = case
++    store.change(c.lease, "TEST_HARD_LOCK", lambda ledger: setattr(ledger, "risk_state", state))
++    before = store.read("DEMO-test")
++    with pytest.raises(DayReconstructionBlocked, match="NORMAL_PAUSED_READ_ONLY_REQUIRED"):
++        preview(case)
++    assert store.read("DEMO-test") == before
++
++
++def test_old_public_entrypoints_still_require_emergency(case):
++    store, c, *_ = case
++    with pytest.raises(DayReconstructionBlocked, match="ATTESTED_DAY_CONTEXT_MISMATCH"):
++        review_day_reconstruction(
++            store,
++            c.client,
++            store.read("DEMO-test"),
++            account_id="DEMO-test",
++            attest_no_other_trades=True,
++        )
++    with pytest.raises(HistoryBlocked, match="READ_ONLY_CONTEXT_REQUIRED"):
++        review_flat_history(store, c.client, store.read("DEMO-test"))
++
++
++def test_missing_attestation_or_acceptance_cannot_apply(case):
++    with pytest.raises(DayReconstructionBlocked, match="EXPLICIT_OPERATOR_ATTESTATION_REQUIRED"):
++        preview(case, False)
++    report = preview(case)
++    with pytest.raises(
++        DayReconstructionBlocked, match="EXPLICIT_MANUAL_SOURCE_ACCEPTANCE_REQUIRED"
++    ):
++        apply(case, report["review_token"], accept=False)
++
++
++def test_token_change_rolls_back_everything(case):
++    store, *_ = case
++    preview(case)
++    before = store.read("DEMO-test")
++    with pytest.raises(DayReconstructionBlocked, match="DAY_PREVIEW_CHANGED"):
++        apply(case, "a" * 64)
++    assert store.read("DEMO-test") == before
++
++
++def test_post_anchor_income_cannot_be_erased(case):
++    store, c, fake, rows, incomes, raw = case
++    anchor = store.read("DEMO-test").last_reconciled
++    incomes.append(
++        {
++            "incomeType": "COMMISSION",
++            "income": "-0.01",
++            "asset": "USDT",
++            "symbol": "BTCUSDT",
++            "time": int(anchor.timestamp() * 1000) + 1,
++            "tranId": 777,
++        }
++    )
++    before = store.read("DEMO-test")
++    with pytest.raises((DayReconstructionBlocked, HistoryBlocked)):
++        preview(case)
++    assert store.read("DEMO-test") == before
++
++
++def test_nonzero_transfer_basis_cannot_reset_day(case):
++    store, c, *_ = case
++    store.change(
++        c.lease, "TEST_TRANSFER", lambda ledger: setattr(ledger, "net_transfers", Decimal("1"))
++    )
++    with pytest.raises(DayReconstructionBlocked, match="NONZERO_OR_UNKNOWN_TRANSFER_BASIS"):
++        preview(case)
++
++
++@pytest.mark.parametrize("field", ["daily_base", "weekly_base", "high_water"])
++def test_existing_loss_limit_cannot_be_reset_by_rollover(case, field):
++    store, c, *_ = case
++    state = store.read("DEMO-test")
++    base = state.value.equity * 2
++    cap = {
++        "daily_base": "daily_loss_limit_pct",
++        "weekly_base": "weekly_loss_limit_pct",
++        "high_water": "max_drawdown_pct",
++    }[field]
++    assert (base - state.value.equity) / base * 100 >= state.policy.limit(cap)
++    store.change(c.lease, "TEST_LOSS", lambda ledger: setattr(ledger, field, base))
++    before = store.read("DEMO-test")
++    with pytest.raises(DayReconstructionBlocked, match="EXISTING_LOSS_LIMIT_REACHED"):
++        preview(case)
++    assert store.read("DEMO-test") == before
++
++
++def test_budget_exhaustion_is_sanitized_and_preserves_ledger(case, monkeypatch):
++    from services.execution import demo_recovery_budget as limits
++
++    store, *_ = case
++    before = store.read("DEMO-test")
++    monkeypatch.setattr(limits, "MAX_SIGNED_QUERIES", 1)
++    with pytest.raises(DayReconstructionBlocked, match="REQUEST_AUDIT_QUERY_BUDGET"):
++        preview(case)
++    assert store.read("DEMO-test") == before
++
++
++def test_actual_local_tls_get_pool_is_scoped_to_preview(case, tls_server, monkeypatch):  # noqa: F811
++    from integrations.binance_usdm.demo import transport
++    from tests.integration.test_demo_recovery_https import wire
++
++    store, c, fake, *_ = case
++    before = store.read("DEMO-test")
++    saved = c.client.send
++    wire((store, c, fake), tls_server, monkeypatch)
++    c.client.send = transport
++    try:
++        report = preview(case)
++        assert report["read_diagnostic"]["audit_transport_mode"] == "POOLED_HTTPS"
++        assert report["read_diagnostic"]["audit_connection_attempts"] == 1
++        assert report["read_diagnostic"]["audit_reused_requests"] > 10
++        assert store.read("DEMO-test") == before and c.client.send is transport
++    finally:
++        c.client.send = saved
++
++
++def test_extended_history_uses_one_global_budget_without_repeated_clock_probes(case, monkeypatch):
++    from datetime import timedelta
++
++    from services.execution import demo_recovery_budget as limits
++
++    store, c, fake, *_ = case
++
++    def old_signal(ledger):
++        order = next(iter(ledger.orders.values()))
++        order.signal = order.signal.model_copy(
++            update={"signal_closed_candle_at": fake.at - timedelta(days=10)}
++        )
++
++    store.change(c.lease, "TEST_EXTENDED_HISTORY", old_signal)
++    before = store.read("DEMO-test")
++    monkeypatch.setattr(limits, "MAX_CLOCK_PROBES", 1)
++    report = preview(case)
++    assert report["read_diagnostic"]["clock_probe_count"] == 0
++    assert report["read_diagnostic"]["signed_get_count"] > 40
++    assert store.read("DEMO-test") == before
+--- /dev/null
++++ b/tests/unit/test_demo_paused_day_cli.py
+@@ -0,0 +1,49 @@
++"""Explicit factual attestation and separate apply acceptance precede credential access."""
++
++import json
++from uuid import uuid4
++
++import pytest
++
++from scripts import review_demo_paused_day as cli
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--apply-review", "a" * 64],
++        ["--attest-no-other-trades-since-exit", "--apply-review", "a" * 64],
++        ["--attest-no-other-trades-since-exit", "--accept-operator-evidence"],
++        [
++            "--attest-no-other-trades-since-exit",
++            "--apply-review",
++            "bad",
++            "--accept-operator-evidence",
++            "--operation-id",
++            str(uuid4()),
++        ],
++    ],
++)
++def test_attestation_and_apply_flags_before_credentials(monkeypatch, capsys, args):
++    monkeypatch.setattr("sys.argv", ["review"] + args)
++    monkeypatch.setattr(cli, "session_credentials", lambda **kw: pytest.fail("must not read keys"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    result = json.loads(capsys.readouterr().out)
++    assert result["recovery"] == "BLOCKED_KEEP_LOCK"
++    assert result["error_code"] in {
++        "EXPLICIT_OPERATOR_ATTESTATION_REQUIRED",
++        "REVIEW_TOKEN_AND_OPERATION_ID_REQUIRED",
++    }
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr("sys.argv", ["review", "--attest-no-other-trades-since-exit"])
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "session_credentials", lambda **kw: pytest.fail("must not read keys"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["error_code"] == "LIVE_CONTEXT_FORBIDDEN"
