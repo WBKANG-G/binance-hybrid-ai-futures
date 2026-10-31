@@ -1,0 +1,1016 @@
+--- /dev/null
++++ b/EMPTY_WORKER_RECOVERY_START_HERE_KO.md
+@@ -0,0 +1,41 @@
++# 빈 계좌의 관찰 프로세스 강제 종료와 리더 복구
++
++새 windows-demo-empty-worker-recovery 폴더의 CMD 하나에서 실행한다. 기존 Galaxybook의 hybrid-windows DB/볼륨/기준금/요청 이력을 유지한다. 초기화하지 않는다.
++
++## 실행 순서
++
++1. ZIP을 새 폴더에 풀고 폴더 주소창에 cmd 입력. 아래 빌드가 모두 Healthy가 될 때까지 기다린다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++2. 교체된 API 컨테이너의 RAM 키를 등록한다. DEMO API Key와 Secret을 숨김 입력하며 채팅에 보내지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++3. 아래 명령을 한 번만 실행한다. 신규 주문을 제출하지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_empty_worker_recovery --enable-fault-injection --operation-id b4cceb33-35bd-4430-b5be-65a49924d9ba
++```
++
++WORKER_STARTED → WORKER_READY_KILLING → WORKER_SIGKILL_VERIFIED → WAIT_NATURAL_LEASE_EXPIRY → NEW_LEADER_RECONCILED → 최종 결과를 기다린다. WAIT_NATURAL_LEASE_EXPIRY에서 약60초 대기는 정상이다. 전체 실행에는 사전 조회/연결/재대조/정리가 추가된다. 창을 닫거나 API·DB를 재시작하지 않는다. 직접 kill 명령이나 다른 CMD 작업을 실행할 필요가 없다.
++
++오류가 나면 재실행하지 않고 최종 출력 전체를 공유한다. 같은 UUID는 기록이 있으면 프로세스 생성 전에 차단한다.
++
++## 실제로 검사하는 범위
++
++주문 없는 NORMAL/paused ISOLATED BTCUSDT 2x 계좌가 필요하다. 부모와 자식 모두 기존 ObservationClient를 사용하며 일반 SDK request의 GET 이외 메서드는 SDK 전송 전에 거부한다. 개인 WSS의 listenKey 생성/삭제는 별도 기존 경로로 허용한다. DB 감사·리더 변경은 있으므로 DB 읽기 전용 검증은 아니다.
++
++부모는 API 컨테이너 안에 별도 Python 관찰 자식 프로세스를 띄운다. 자식이 실제 WSS 연결/REST 재대조를 완료하고 고유 작업 marker를 기록하면, 기존 활성 lease에 경쟁 리더가 들어오지 못하는지 검사한다. 해당 자식 Popen 핸들에 SIGKILL을 한 번 보내고 종료 코드 -9를 확인한다. API/DB 컨테이너나 Windows 호스트 프로세스를 종료하지 않는다.
++
++기존60초 lease가 자연 만료될 때까지 기다린다. lease_until/fence를 직접 수정하거나 만료를 앞당기지 않는다. 새 리더를 획득하면 fence가 정확히1 증가하고, 재대조 이전 stream/reconciled false 및 진입 게이트 거부를 검사한다. 이전 lease의 store.change 효과 함수와 renew가 실행되지 못하는지도 확인한다. 이후 전체 REST와 실제 WSS 준비를 확인한 뒤 세션을 정상 종료하고 새 lease를 release한다. 마지막은 NORMAL/paused/stream false/reconciled false/owner 없음이다.
++
++자식은 같은 컨테이너의 기존0700/0600 private tmpfs 키 캐시를 읽는다. 새 키 파일, 키 argv, 추가 키 환경변수 전달, Docker 소켓/포트/마운트를 만들지 않는다. 부모가 사라져도 자식 관찰 대기는180초로 제한된다. 실패 시 자기 자식을 종료하고 알고 있는 자기 lease만 자연 만료 후 회수·해제하려 시도한다. 다른 리더의 소유권은 건드리지 않는다. 실패/정리 불확실은 통과가 아니다.
++
++성공 결과: EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED. 강제 종료·경쟁 리더 차단·이전 리더 효과/갱신 차단·재대조 전 게이트 차단·새 리더 준비·최종 release·이력/기준 보존을 모두 확인해야 한다. 신규 진입 POST는0이다. worker_exit_code -9는 의도한 강제 종료 결과다.
++
++이 검증은 빈 계좌의 관찰 프로세스 강제 종료 범위다. 주문/포지션을 보유한 주문 Worker 중단·복구, 전체 API/DB/호스트 중단, 실제 부분체결 보호, 장기 무인 운용 또는 Phase4 전체 통과를 뜻하지 않는다. LIVE/Phase5 설정을 바꾸지 않는다.
+--- /dev/null
++++ b/EMPTY_WORKER_RECOVERY_VALIDATION_KO.md
+@@ -0,0 +1,25 @@
++# 빈 계좌 관찰 프로세스 강제 종료·리더 복구 검증 기록
++
++부모 ZIP SHA256: 067562df57c011aadb6abda07850dda0942f269dbdf19e5df7c693839b19c31e.
++기존 manifest 파일349개를 바이트 그대로 보존한다. services/execution/demo_empty_worker_recovery.py, scripts/check_demo_empty_worker_recovery.py, 새 통합/단위 테스트, 안내/검증 문서 및 최근 실제 WSS 통과 증거를 추가한다.
++
++## 구현과 제한
++
++신규 주문 없는 계좌만 허용한다. 기존 ObservationClient의 GET-only 일반 request 거부를 부모/자식 모두 사용하고, listenKey 수명 관리만 기존 SDK 경로로 수행한다. DB 리더·감사 기록은 변경한다. SDK/리스크/주문/보호/청산/키 보관/기간 기준/Compose/exports/기존 테스트는 수정하지 않는다.
++
++자식은 sys.executable -m scripts.check_demo_empty_worker_recovery의 내부 worker 경로다. argv는 작업 및 소유자 UUID와 플래그뿐이고, 키를 argv나 별도 환경변수에 넣지 않는다. 같은 API 컨테이너의 private tmpfs 캐시를 그대로 읽는다. stdin/stdout/stderr는 DEVNULL이며 raw 오류·URL·payload를 전달하지 않는다. 고유 owner UUID와 현재 fence의 DB marker/준비 상태를 확인한 뒤 해당 Popen 핸들만 kill한다. 종료 -9를 확인한다. 자식은 원래 session을 사용하고 부모 소실 시 관찰 대기는180초다.
++
++활성 lease 동안 competing acquire가 거부돼야 한다. kill 뒤 현재 소유자와 fence가 바뀌지 않았는지 읽기 전용 트랜잭션으로 확인하며 자연 만료를 기본75초 대기 예산으로 관찰한다(진행 중인 조회·정리 시간은 추가될 수 있다). 기존60초 lease 값을 직접 변경하지 않는다. 새로운 acquire가 fence를 정확히1 올려야 한다. acquire가 stream/reconciled를 false로 만드는 기존 동작과 진입 게이트 차단을 검사한다. stale lease의 effect callback은 절대 호출되면 안 되고 renew도 거부돼야 한다. 기존 SDK clock 동기화, metadata/REST 대조, WSS session 준비를 통과해야 한다. 세션 정리는 이전 수정의 drain_session으로 완료까지 기다린다.
++
++최종 기존 이력/기준값 보존·NORMAL·paused·stream/reconciled false·leader release를 모두 요구한다. fenced 감사 marker는 EMPTY_WORKER_CHECKED_RELEASE_PENDING으로 기록하며, release 성공은 이후 소유자 조회와 최종 출력으로 별도 검증한다. marker 자체가 최종 release 성공을 뜻하지 않는다. 어떤 실패/미확인 값도 통과로 올리지 않는다. 다른 소유자가 나타나면 takeover를 중단하고 소유권을 덮어쓰지 않는다.
++
++## 로컬 검증
++
++집중 테스트: 18 passed in 6.87s. Ruff check/format 및 mypy98소스 통과.
++전체 테스트: 1095 passed in 224.20s (0:03:44). Ruff check/format 통과, mypy98소스 통과.
++
++통합 테스트는 실제 OS 자식 Python 프로세스를 생성해 SIGKILL(-9)하고 실제 PostgreSQL 격리 schema에서 경쟁 리더/만료/새 fence/이전 효과·renew 거부/재대조를 검사한다. WSS는 localhost 서버이며 거래소는 synthetic signed SDK 응답이다. 테스트의 부모/자식 시각은 fixture 시각이고, kill 확인 후 테스트 시계를61초 진행해 기존60초 lease 만료를 결정적으로 검사한다. 실제60초 벽시계 대기를 클라우드에서 수행한 것으로 주장하지 않는다. Windows 실행은 실제 UTC 시각의 자연 만료를 기다린다.
++
++미만료 상태의 timeout은 기존소유자/fence 유지, 새 acquire 없음으로 검사한다. 추가로 이전 효과 함수가 실행되는 결함, 재대조 전 게이트 검사 실패, 재연결 실패, 입출금 변화의 이력 보존 실패, 기존 UUID/실제 포지션이 있는 경우 시작 차단, release 실패의 거부, CLI 플래그/LIVE 거부 및 키 없는 argv/추가 환경변수 부재를 검사했다.
++
++클라우드에서는 인증된 Binance 주문·WSS를 호출하지 않았다. 실제 Windows empty worker 검증은 아직 실행 전이다. 기존 실제 WSS 단절 통과 debe90bc-1195-4e1b-92ef-22f41229c64e는 별도 증거 문서로 포함했다. 실제 부분체결 보호와 보유 주문/포지션 Worker 중단·복구, 전체 호스트/DB 장애, 장기 운영은 미완료이며 Phase4 전체/LIVE/Phase5 완료로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_OPEN_DISCONNECT_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,43 @@
++# Windows DEMO 미체결 주문 중 WSS 단절·취소·재연결 실제 통과
++
++근거: 사용자가 제공한 CMD 최종 화면. 2026-10-31 한국 시간.
++배포: windows-demo-disconnect-drain-fix-20261031 / 8be775d.
++ZIP SHA256: 067562df57c011aadb6abda07850dda0942f269dbdf19e5df7c693839b19c31e.
++작업 ID: debe90bc-1195-4e1b-92ef-22f41229c64e.
++
++## 실제 결과
++
++- 단계 READY → BLOCKED → RECONNECTED
++- disconnect_check OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED
++- scope OPEN_ORDER_LOCAL_SOCKET_CLOSE
++- injected_close_count 1 / reconnect_count 1
++- disconnect_code SOCKET_CLOSED
++- entry_gate_blocked_after_disconnect true
++- same_order_observed_before_after true
++- cancelled_unfilled_order_verified true
++- new_entry_post_count 1 / entry_post_attempts 1
++- recovered_existing_intent false
++- failure NONE / failure_stage NONE / completion_failure NONE
++- flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true
++- filled_quantity 0.0000
++- risk_state NORMAL / final_paused true
++- final_stream_ready false / final_reconciled false
++- orders_enabled false / live_trading_enabled false
++- last_recorded_private_session_failure: RECEIVE / SOCKET_CLOSED
++
++## 실제 시각
++
++- first_session_started_at_utc 2026-10-31T09:04:04.691603+00:00 (한국 시간 18:04:04)
++- socket_close_requested_at_utc 2026-10-31T09:04:30.958860+00:00
++- socket_closed_at_utc 2026-10-31T09:04:32.963159+00:00
++- first_session_completed_at_utc 2026-10-31T09:04:51.735516+00:00
++- socket_observed_elapsed_ms 28275 / fault_observation_timeout_seconds 45
++
++단절은 최초 세션 시작 후 약28.3초로 45초 이내에 관측됐다. 최초 세션 정리 완료는 약47.0초 뒤였으며, 관측 타이머와 정리 drain을 분리한 경로로 재연결과 최종 확인을 수행했다. 이 계산은 이번 실행의 시각이며, 이전 실패 실행의 원래 예외 객체를 소급해 확인한 것은 아니다.
++
++## 판정 및 범위
++
++실제 DEMO에서 미체결 주문의 로컬 WSS를 한 번 닫고, 기존 세션의 진입 차단·잔량 취소를 수행했다. 재연결의 전체 REST 대조 후 동일 거래소 주문의 체결0/CANCELED 상태를 확인했고, 같은 의도 재호출이 추가 진입 POST를 만들지 않았다. 최종 flat/NORMAL/paused 및 기존 이력·기준 보존을 확인했다. 마지막 stream/reconciled false는 검증 세션 종료 뒤의 상태다. 보존된 SOCKET_CLOSED는 의도적으로 주입한 단절 기록이며 최종 failure NONE과 구분한다.
++
++이 항목은 실제 통과다. 기존 4e81bbe7-12f8-4e65-848a-f3a928b13a6e는 재연결0의 실패로 보존한다. 이번 검증은 인터넷 전체 단절, 실행 프로세스/호스트/DB 중단, 포지션 보유 중 장애, 실제 부분체결 보호, 장기 무인 운용 또는 Phase4 전체 통과를 의미하지 않는다. 추가 정리나 비상 잠금 해제, 같은 작업 재실행은 필요하지 않다.
+--- /dev/null
++++ b/scripts/check_demo_empty_worker_recovery.py
+@@ -0,0 +1,123 @@
++"""One empty-account observer child SIGKILL and natural-lease recovery; no order writes."""
++
++import argparse
++import asyncio
++import json
++import os
++import subprocess
++import sys
++from pathlib import Path
++from uuid import UUID
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT, ObservationClient
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_empty_worker_recovery import (
++    RecoveryCheckBlocked,
++    check_empty,
++    code,
++    run,
++    worker,
++)
++
++
++def spawn_worker(operation: UUID, owner: UUID) -> subprocess.Popen[bytes]:
++    # No added key arguments/environment. Child reads the existing private RAM cache.
++    return subprocess.Popen(
++        [
++            sys.executable,
++            "-m",
++            "scripts.check_demo_empty_worker_recovery",
++            "--enable-fault-injection",
++            "--operation-id",
++            str(operation),
++            "--worker",
++            "--owner-id",
++            str(owner),
++        ],
++        stdin=subprocess.DEVNULL,
++        stdout=subprocess.DEVNULL,
++        stderr=subprocess.DEVNULL,
++    )
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-fault-injection", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
++    parser.add_argument("--owner-id", type=UUID, help=argparse.SUPPRESS)
++    args = parser.parse_args()
++    if args.worker != bool(args.owner_id):
++        parser.error("Internal worker and owner must be supplied together")
++    engine = store = lease = None
++    report = {
++        "worker_recovery": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++            or os.name != "posix"
++        ):
++            raise RecoveryCheckBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = ObservationClient(cfg, key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        if args.worker:
++            check_empty(store.read(ACCOUNT))
++            if str(args.operation_id) in store.read(ACCOUNT).operations:
++                raise RecoveryCheckBlocked("OPERATION_ALREADY_EXISTS")
++            lease = store.acquire(ACCOUNT, args.owner_id)
++            coordinator = DemoCoordinator(store, lease, client)
++            coordinator.refresh_metadata()
++            coordinator.reconcile()
++            asyncio.run(worker(coordinator, args.operation_id))
++        else:
++            report = asyncio.run(
++                run(
++                    store,
++                    client,
++                    args.operation_id,
++                    lambda owner: spawn_worker(args.operation_id, owner),
++                )
++            )
++            success = report["worker_recovery"] == "EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED"
++    except Exception as error:
++        report["failure"] = code(error)
++    finally:
++        try:
++            if lease is not None and store is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report["failure"] = "LEASE_RELEASE_FAILED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_empty_worker_recovery.py
+@@ -0,0 +1,410 @@
++"""Empty-account observer process kill and natural-lease fenced takeover only."""
++
++import asyncio
++import json
++import time
++from collections.abc import Callable
++from typing import Any, Protocol
++from uuid import UUID, uuid4, uuid5
++
++from sqlalchemy import select, text
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import operational_snapshot
++from packages.persistence.demo import DemoStore, accounts
++from scripts.check_demo_disconnect import PRESERVED, gate_blocked
++from scripts.observe_demo_private import ACCOUNT, ObservationClient
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_validation import safe_failure
++from services.execution.models import Lease
++from services.risk.paper import RiskRejected
++
++
++class RecoveryCheckBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = (
++            code
++            if code
++            in {
++                "EMPTY_NORMAL_PAUSED_REQUIRED",
++                "READ_ONLY_CLIENT_REQUIRED",
++                "LIVE_CONTEXT_FORBIDDEN",
++                "WORKER_READY_TIMEOUT",
++                "WORKER_EXITED_BEFORE_READY",
++                "WORKER_STATE_INVALID",
++                "EARLY_TAKEOVER_SUCCEEDED",
++                "PROCESS_KILL_NOT_VERIFIED",
++                "LEASE_WAIT_TIMEOUT",
++                "LEADER_CHANGED",
++                "STALE_OWNER_NOT_REJECTED",
++                "RECOVERY_GATE_NOT_LOCKED",
++                "RECOVERY_NOT_READY",
++                "RECOVERY_SESSION_FAILED",
++                "HISTORY_CHANGED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "RESULT_AUDIT_FAILED",
++                "LEASE_RELEASE_FAILED",
++                "OPERATION_ALREADY_EXISTS",
++                "INTERNAL_OWNER_REQUIRED",
++                "CHECK_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++class Child(Protocol):
++    pid: int
++
++    def poll(self) -> int | None: ...
++    def kill(self) -> None: ...
++    def wait(self, timeout: float | None = None) -> int: ...
++
++
++def code(error: Exception) -> str:
++    return error.code if isinstance(error, RecoveryCheckBlocked) else safe_failure(error)
++
++
++def check_empty(ledger: DemoLedger) -> None:
++    if (
++        ledger.risk_state.value != "NORMAL"
++        or not ledger.paused
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.verified_leverage.get("BTCUSDT") != 2
++        or any(ledger.positions.values())
++        or any(
++            o.remaining or o.open_quantity or o.position_state.value != "CLOSED"
++            for o in ledger.orders.values()
++        )
++    ):
++        raise RecoveryCheckBlocked("EMPTY_NORMAL_PAUSED_REQUIRED")
++
++
++def remote_empty(store: DemoStore, client: ObservationClient, account: str) -> None:
++    ledger = store.read(account)
++    check_empty(ledger)
++    client.sync_clock()
++    remote = operational_snapshot(client, ledger, store.now())
++    if (
++        any(remote.positions.values())
++        or remote.margin_used
++        or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in remote.orders.values())
++        or any(r["algoStatus"] == "NEW" for r in remote.algos.values())
++    ):
++        raise RecoveryCheckBlocked("EMPTY_NORMAL_PAUSED_REQUIRED")
++
++
++def ownership(store: DemoStore, account: str) -> dict[str, Any]:
++    with store.engine.connect() as conn:
++        conn.execute(text("SET TRANSACTION READ ONLY"))
++        conn.execute(text("SET LOCAL statement_timeout=2000"))
++        row = (
++            conn.execute(select(accounts).where(accounts.c.account_id == account)).mappings().one()
++        )
++        return dict(row)
++
++
++def progress(stage: str, **details: Any) -> None:
++    print(
++        json.dumps(
++            {
++                "worker_recovery_stage": stage,
++                **details,
++                "entry_signal_supplied": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        ),
++        flush=True,
++    )
++
++
++async def worker(
++    coordinator: DemoCoordinator, operation: UUID, *, connector: Any = private_connect
++) -> None:
++    """Read-only observer: bounded 180s if the supervising process disappears."""
++    if not isinstance(coordinator.client, ObservationClient):
++        raise RecoveryCheckBlocked("READ_ONLY_CLIENT_REQUIRED")
++    check_empty(coordinator.store.read(coordinator.lease.account_id))
++
++    def ready() -> None:
++        ledger = coordinator.store.read(coordinator.lease.account_id)
++        check_empty(ledger)
++        if not ledger.stream_ready or not ledger.reconciled or coordinator.session_failed:
++            raise RecoveryCheckBlocked("WORKER_STATE_INVALID")
++
++        def marker(state: DemoLedger) -> None:
++            state.operations[str(operation)] = "EMPTY_WORKER_READY"
++
++        coordinator.store.change(coordinator.lease, "DEMO_EMPTY_WORKER_READY", marker)
++
++    await asyncio.wait_for(session(coordinator, connector=connector, on_ready=ready), timeout=180)
++
++
++async def recover_session(
++    coordinator: DemoCoordinator, *, connector: Any = private_connect, timeout: float = 45
++) -> None:
++    event = asyncio.Event()
++    loop = asyncio.get_running_loop()
++    ready_error = "NONE"
++
++    def ready() -> None:
++        nonlocal ready_error
++        try:
++            ledger = coordinator.store.read(coordinator.lease.account_id)
++            check_empty(ledger)
++            if not ledger.reconciled or not ledger.stream_ready or coordinator.session_failed:
++                raise RecoveryCheckBlocked("RECOVERY_NOT_READY")
++        except Exception as error:
++            ready_error = code(error)
++            raise
++        finally:
++            loop.call_soon_threadsafe(event.set)
++
++    task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++    waiter = asyncio.create_task(event.wait())
++    try:
++        done, _ = await asyncio.wait(
++            {task, waiter}, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
++        )
++        if task in done:
++            await task
++            raise RecoveryCheckBlocked("RECOVERY_SESSION_FAILED")
++        if waiter not in done or ready_error != "NONE" or coordinator.session_failed:
++            raise RecoveryCheckBlocked("RECOVERY_NOT_READY")
++    finally:
++        waiter.cancel()
++        try:
++            error = await drain_session(task, cancel=True)
++        finally:
++            await asyncio.gather(waiter, return_exceptions=True)
++        if error is not None or coordinator.session_failed:
++            raise RecoveryCheckBlocked("RECOVERY_SESSION_FAILED")
++
++
++async def run(
++    store: DemoStore,
++    client: ObservationClient,
++    operation: UUID,
++    spawn: Callable[[UUID], Child],
++    *,
++    account: str = ACCOUNT,
++    startup_timeout: float = 45,
++    lease_timeout: float = 75,
++    poll_seconds: float = 0.5,
++    connector: Any = private_connect,
++) -> dict[str, Any]:
++    if not isinstance(client, ObservationClient):
++        raise RecoveryCheckBlocked("READ_ONLY_CLIENT_REQUIRED")
++    before = store.read(account)
++    check_empty(before)
++    if str(operation) in before.operations:
++        raise RecoveryCheckBlocked("OPERATION_ALREADY_EXISTS")
++    await settled_call(remote_empty, store, client, account)
++    initial = ownership(store, account)
++    if initial["lease_until"] and initial["lease_until"] > store.now():
++        raise RecoveryCheckBlocked("LEADER_CHANGED")
++    owner = uuid4()
++    child: Child | None = None
++    old: Lease | None = None
++    lease: Lease | None = None
++    coordinator: DemoCoordinator | None = None
++    killed = early_blocked = stale_blocked = recovery_gate = restored = False
++    stale_renew_blocked = False
++    takeover_attempted = False
++    failure = "NONE"
++    cleanup_failure = "NONE"
++    stage = "WORKER_START"
++    failure_stage = "NONE"
++    wait_ms = 0
++
++    async def takeover() -> None:
++        nonlocal lease, coordinator, takeover_attempted, wait_ms
++        if old is None:
++            return
++        takeover_attempted = True
++        started = time.monotonic()
++        progress("WAIT_NATURAL_LEASE_EXPIRY")
++        while True:
++            row = await settled_call(ownership, store, account)
++            if row["owner"] != str(owner) or row["fence"] != old.fence:
++                raise RecoveryCheckBlocked("LEADER_CHANGED")
++            if row["lease_until"] <= store.now():
++                break
++            if time.monotonic() - started >= lease_timeout:
++                raise RecoveryCheckBlocked("LEASE_WAIT_TIMEOUT")
++            await asyncio.sleep(poll_seconds)
++        wait_ms = max(0, int((time.monotonic() - started) * 1000))
++        takeover_attempted = True
++        lease = await settled_call(store.acquire, account, uuid4())
++        if lease.fence != old.fence + 1:
++            raise RecoveryCheckBlocked("LEADER_CHANGED")
++        coordinator = DemoCoordinator(store, lease, client)
++
++    try:
++        child = spawn(owner)
++        progress("WORKER_STARTED", worker_pid=child.pid)
++        deadline = time.monotonic() + startup_timeout
++        stage = "WAIT_WORKER_READY"
++        while True:
++            row = await settled_call(ownership, store, account)
++            if row["owner"] == str(owner):
++                old = Lease(account_id=account, owner=owner, fence=row["fence"])
++                current = DemoLedger.model_validate(row["state"])
++                if current.operations.get(str(operation)) == "EMPTY_WORKER_READY":
++                    check_empty(current)
++                    if (
++                        not current.reconciled
++                        or not current.stream_ready
++                        or row["lease_until"] <= store.now()
++                    ):
++                        raise RecoveryCheckBlocked("WORKER_STATE_INVALID")
++                    break
++            if child.poll() is not None:
++                raise RecoveryCheckBlocked("WORKER_EXITED_BEFORE_READY")
++            if time.monotonic() >= deadline:
++                raise RecoveryCheckBlocked("WORKER_READY_TIMEOUT")
++            await asyncio.sleep(poll_seconds)
++        stage = "VERIFY_EXCLUSIVE_LEADER"
++        try:
++            competitor = await settled_call(store.acquire, account, uuid4())
++        except RiskRejected:
++            early_blocked = True
++        else:
++            await settled_call(store.release, competitor)
++            raise RecoveryCheckBlocked("EARLY_TAKEOVER_SUCCEEDED")
++        progress("WORKER_READY_KILLING", worker_pid=child.pid)
++        stage = "KILL_WORKER"
++        child.kill()
++        exit_code = await settled_call(child.wait, 5)
++        if exit_code != -9:
++            raise RecoveryCheckBlocked("PROCESS_KILL_NOT_VERIFIED")
++        killed = True
++        progress("WORKER_SIGKILL_VERIFIED")
++        stage = "WAIT_LEASE_EXPIRY"
++        await takeover()
++        assert coordinator is not None and lease is not None and old is not None
++        stage = "VERIFY_RECOVERY_GATE"
++        state = store.read(account)
++        recovery_gate = (
++            not state.reconciled and not state.stream_ready and gate_blocked(coordinator, state)
++        )
++        if not recovery_gate:
++            raise RecoveryCheckBlocked("RECOVERY_GATE_NOT_LOCKED")
++        stage = "VERIFY_STALE_OWNER_REJECTED"
++
++        # This effect must never be called: the fence check occurs before apply.
++        def forbidden(_: DemoLedger) -> None:
++            raise RecoveryCheckBlocked("STALE_OWNER_NOT_REJECTED")
++
++        try:
++            await settled_call(store.change, old, "DEMO_EMPTY_WORKER_STALE_PROBE", forbidden)
++        except RiskRejected:
++            stale_blocked = True
++        else:
++            raise RecoveryCheckBlocked("STALE_OWNER_NOT_REJECTED")
++        try:
++            await settled_call(store.renew, old)
++        except RiskRejected:
++            stale_renew_blocked = True
++        else:
++            raise RecoveryCheckBlocked("STALE_OWNER_NOT_REJECTED")
++        stage = "RESTORE_AND_RECONCILE"
++        await settled_call(client.sync_clock)
++        await settled_call(coordinator.refresh_metadata)
++        await settled_call(coordinator.reconcile)
++        await recover_session(coordinator, connector=connector)
++        await settled_call(remote_empty, store, client, account)
++        restored = True
++        progress("NEW_LEADER_RECONCILED")
++    except Exception as error:
++        failure, failure_stage = code(error), stage
++    finally:
++        try:
++            if child is not None and child.poll() is None:
++                child.kill()
++                await settled_call(child.wait, 5)
++            if child is not None and old is None:
++                row = await settled_call(ownership, store, account)
++                if row["owner"] == str(owner):
++                    old = Lease(account_id=account, owner=owner, fence=row["fence"])
++            if old is not None and lease is None and not takeover_attempted:
++                row = await settled_call(ownership, store, account)
++                if row["owner"] == str(owner) and row["fence"] == old.fence:
++                    await takeover()
++            if coordinator is not None:
++                await settled_call(coordinator.disconnect)
++            if lease is not None:
++
++                def checked(state: DemoLedger) -> None:
++                    state.operations.setdefault(
++                        str(uuid5(operation, "worker-recovery-result")),
++                        "EMPTY_WORKER_CHECKED_RELEASE_PENDING",
++                    )
++
++                try:
++                    await settled_call(
++                        store.change, lease, "DEMO_EMPTY_WORKER_RECOVERY_CHECKED", checked
++                    )
++                finally:
++                    await settled_call(store.release, lease)
++        except Exception as error:
++            cleanup_failure = code(error)
++    final = store.read(account)
++    history_ok = final.model_dump(mode="json", include=PRESERVED) == before.model_dump(
++        mode="json", include=PRESERVED
++    )
++    row = ownership(store, account)
++    accepted = bool(
++        killed
++        and early_blocked
++        and stale_blocked
++        and stale_renew_blocked
++        and recovery_gate
++        and restored
++        and failure == cleanup_failure == "NONE"
++        and history_ok
++        and row["owner"] is None
++        and final.paused
++        and final.risk_state.value == "NORMAL"
++        and not final.reconciled
++        and not final.stream_ready
++    )
++    if not accepted and failure == "NONE":
++        failure = "HISTORY_CHANGED" if not history_ok else "FINAL_STATE_NOT_VERIFIED"
++        failure_stage = "FINAL_STATE"
++    return {
++        "worker_recovery": "EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "EMPTY_ACCOUNT_OBSERVATION_WORKER_SIGKILL",
++        "operation_id": str(operation),
++        "worker_pid": child.pid if child else None,
++        "worker_exit_code": child.poll() if child else None,
++        "forced_kill_verified": killed,
++        "competing_leader_blocked": early_blocked,
++        "lease_fence_before": old.fence if old else None,
++        "lease_fence_after": lease.fence if lease else None,
++        "natural_lease_wait_ms": wait_ms,
++        "stale_owner_effect_blocked": stale_blocked,
++        "stale_owner_renew_blocked": stale_renew_blocked,
++        "entry_gate_blocked_before_reconciliation": recovery_gate,
++        "new_leader_reconciled": restored,
++        "history_and_baselines_preserved": history_ok,
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "cleanup_failure": cleanup_failure,
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "leader_released": row["owner"] is None,
++        "new_entry_post_count": 0,
++        "entry_signal_supplied": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_empty_worker_recovery.py
+@@ -0,0 +1,282 @@
++"""Real subprocess SIGKILL + real PostgreSQL; localhost WSS and synthetic SDK."""
++
++import asyncio
++import json
++import os
++import subprocess
++import sys
++from contextlib import asynccontextmanager
++from datetime import timedelta
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import text
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from scripts.observe_demo_private import ObservationClient
++from services.execution import demo_empty_worker_recovery as module
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++
++
++@pytest.fixture
++def case(preview_case):  # noqa: F811
++    store, c, fake, _, _ = preview_case
++    source = c.client
++    client = ObservationClient(
++        source.settings.model_copy(update={"demo_trading_enabled": True}),
++        source.credentials,
++        send=source.send,
++        clock_ms=source.clock_ms,
++    )
++    client.sync_clock()
++    store.change(c.lease, "TEST_WORKER_PAUSE", lambda state: setattr(state, "paused", True))
++    store.release(c.lease)
++    return store, client, fake
++
++
++async def exercise(
++    case, tmp_path, *, advance=True, lease_timeout=1, patch=None, reconnect_close=False
++):
++    store, client, fake = case
++    operation = uuid4()
++    with store.engine.connect() as conn:
++        schema = conn.execute(text("SHOW search_path")).scalar_one()
++    child_path = tmp_path / "worker.py"
++    child_path.write_text("""
++import asyncio,sys
++from uuid import UUID
++from sqlalchemy import create_engine
++from pydantic import SecretStr
++from contextlib import asynccontextmanager
++from websockets.asyncio.client import connect
++from integrations.binance_usdm.demo import DemoClient,DemoCredentials
++from packages.persistence.demo import DemoStore
++from scripts.observe_demo_private import ObservationClient
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_empty_worker_recovery import worker
++from tests.fixtures.demo import FakeDemo
++from tests.integration.test_demo import NOW,settings
++from tests.integration.test_demo_isolated import configure
++engine=create_engine(sys.argv[1],connect_args={"options":"-csearch_path="+sys.argv[2]})
++fake=FakeDemo(NOW)
++store=DemoStore(engine,clock=lambda:fake.at)
++lease=store.acquire("DEMO-test",UUID(sys.argv[3]))
++client=DemoClient(settings().model_copy(update={"margin_mode":"ISOLATED","symbols":("BTCUSDT",)}),DemoCredentials(SecretStr("synthetic-key"),SecretStr("synthetic-secret")),send=fake,clock_ms=lambda:int(fake.at.timestamp()*1000))
++client.sync_clock()
++c=DemoCoordinator(store,lease,client)
++(cstore,c,fake),controls=configure((store,c,fake))
++source=c.client
++c.client=ObservationClient(source.settings,source.credentials,send=source.send,clock_ms=source.clock_ms)
++c.client.sync_clock()
++@asynccontextmanager
++async def connector(url):
++ async with connect(sys.argv[5]) as socket:
++  yield socket
++asyncio.run(worker(c,UUID(sys.argv[4]),connector=connector))
++""")
++    processes = []
++
++    connections = 0
++
++    async def handler(socket):
++        nonlocal connections
++        connections += 1
++        if reconnect_close and connections > 1:
++            await socket.close(code=1011)
++        else:
++            await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        url = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
++
++        @asynccontextmanager
++        async def connector(url_secret):
++            async with connect(url) as socket:
++                yield socket
++
++        class Process:
++            def __init__(self, owner):
++                env = os.environ.copy()
++                env["PYTHONPATH"] = os.getcwd()
++                self.process = subprocess.Popen(
++                    [
++                        sys.executable,
++                        str(child_path),
++                        store.engine.url.render_as_string(hide_password=False),
++                        schema,
++                        str(owner),
++                        str(operation),
++                        url,
++                    ],
++                    env=env,
++                    stdout=subprocess.DEVNULL,
++                    stderr=subprocess.PIPE,
++                )
++                self.pid = self.process.pid
++                processes.append(self)
++
++            def poll(self):
++                return self.process.poll()
++
++            def kill(self):
++                self.process.kill()
++
++            def wait(self, timeout=None):
++                result = self.process.wait(timeout=timeout)
++                if advance:
++                    fake.at += timedelta(seconds=61)
++                if patch:
++                    patch()
++                return result
++
++        try:
++            result = await module.run(
++                store,
++                client,
++                operation,
++                Process,
++                account="DEMO-test",
++                startup_timeout=10,
++                lease_timeout=lease_timeout,
++                poll_seconds=0.02,
++                connector=connector,
++            )
++        finally:
++            for process in processes:
++                if process.poll() is None:
++                    process.kill()
++                    process.process.wait(timeout=5)
++                error = process.process.stderr.read().decode()
++                process.process.stderr.close()
++                assert not error, error
++        return result, operation
++
++
++def test_empty_observer_real_sigkill_successor_fence_and_full_reconcile(case, tmp_path):  # noqa: F811
++    store, _, fake = case
++    before = store.read("DEMO-test")
++    report, operation = asyncio.run(exercise(case, tmp_path))
++    assert report["worker_recovery"] == "EMPTY_WORKER_SIGKILL_FENCED_RECOVERY_VERIFIED", json.dumps(
++        report
++    )
++    assert report["forced_kill_verified"] and report["worker_exit_code"] == -9
++    assert report["competing_leader_blocked"] and report["stale_owner_effect_blocked"]
++    assert report["entry_gate_blocked_before_reconciliation"] and report["new_leader_reconciled"]
++    assert report["lease_fence_after"] == report["lease_fence_before"] + 1
++    assert report["failure"] == report["cleanup_failure"] == "NONE"
++    assert report["history_and_baselines_preserved"] and report["leader_released"]
++    after = store.read("DEMO-test")
++    assert after.orders == before.orders and after.requests == before.requests
++    assert after.paused and not after.stream_ready and not after.reconciled
++    assert [(m, p) for m, p, _ in fake.calls if m != "GET"] == [
++        ("POST", "/fapi/v1/listenKey"),
++        ("DELETE", "/fapi/v1/listenKey"),
++    ]
++    assert after.operations[str(operation)] == "EMPTY_WORKER_READY"
++
++
++def test_natural_expiry_is_required_and_no_forced_lease_reset(case, tmp_path):  # noqa: F811
++    store, _, _ = case
++    report, _ = asyncio.run(exercise(case, tmp_path, advance=False, lease_timeout=0.03))
++    assert report["worker_recovery"] == "NOT_ACCEPTED"
++    assert report["failure"] == "LEASE_WAIT_TIMEOUT"
++    assert report["lease_fence_after"] is None and not report["leader_released"]
++    assert store.read("DEMO-test").paused
++
++
++def test_stale_effect_must_be_rejected_before_callback(case, tmp_path, monkeypatch):  # noqa: F811
++    store, _, _ = case
++    original = store.change
++
++    def bypass(lease, marker, apply):
++        if marker == "DEMO_EMPTY_WORKER_STALE_PROBE":
++            return apply(store.read("DEMO-test"))
++        return original(lease, marker, apply)
++
++    monkeypatch.setattr(store, "change", bypass)
++    report, _ = asyncio.run(exercise(case, tmp_path))
++    assert report["worker_recovery"] == "NOT_ACCEPTED"
++    assert report["failure"] == "STALE_OWNER_NOT_REJECTED"
++    assert report["leader_released"] and report["new_entry_post_count"] == 0
++
++
++def test_gate_cannot_be_skipped_before_reconciliation(case, tmp_path, monkeypatch):  # noqa: F811
++    monkeypatch.setattr(module, "gate_blocked", lambda *args: False)
++    report, _ = asyncio.run(exercise(case, tmp_path))
++    assert report["failure"] == "RECOVERY_GATE_NOT_LOCKED"
++    assert not report["new_leader_reconciled"] and report["leader_released"]
++
++
++def test_recovery_wss_failure_is_not_hidden_by_final_pause(case, tmp_path):  # noqa: F811
++    report, _ = asyncio.run(exercise(case, tmp_path, reconnect_close=True))
++    assert report["worker_recovery"] == "NOT_ACCEPTED"
++    assert report["failure"] != "NONE" and not report["new_leader_reconciled"]
++    assert report["leader_released"] and report["final_paused"]
++
++
++def test_unexpected_cash_flow_prevents_history_preserved_acceptance(case, tmp_path):  # noqa: F811
++    _, _, fake = case
++
++    def drift():
++        fake.wallet += Decimal("0.1")
++        fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=123, income="0.1"))
++
++    report, _ = asyncio.run(exercise(case, tmp_path, patch=drift))
++    assert report["worker_recovery"] == "NOT_ACCEPTED"
++    assert not report["history_and_baselines_preserved"] and report["leader_released"]
++
++
++def test_existing_operation_is_rejected_before_spawn(case):  # noqa: F811
++    store, client, _ = case
++    operation = uuid4()
++    lease = store.acquire("DEMO-test", uuid4())
++    store.change(
++        lease,
++        "TEST_OLD_OPERATION",
++        lambda ledger: ledger.operations.update({str(operation): "EMPTY_WORKER_READY"}),
++    )
++    store.release(lease)
++    with pytest.raises(module.RecoveryCheckBlocked) as caught:
++        asyncio.run(
++            module.run(
++                store,
++                client,
++                operation,
++                lambda owner: pytest.fail("must not spawn"),
++                account="DEMO-test",
++            )
++        )
++    assert caught.value.code == "OPERATION_ALREADY_EXISTS"
++
++
++def test_exchange_position_is_rejected_before_spawn(case):  # noqa: F811
++    store, client, fake = case
++    fake.positions["BTCUSDT"] = Decimal("1")
++    fake.prices["BTCUSDT"] = Decimal("100")
++    with pytest.raises(module.RecoveryCheckBlocked) as caught:
++        asyncio.run(
++            module.run(
++                store,
++                client,
++                uuid4(),
++                lambda owner: pytest.fail("must not spawn"),
++                account="DEMO-test",
++            )
++        )
++    assert caught.value.code == "EMPTY_NORMAL_PAUSED_REQUIRED"
++
++
++def test_failed_release_never_claims_verified_recovery(case, tmp_path, monkeypatch):  # noqa: F811
++    store, _, _ = case
++
++    def fail(lease):
++        raise OSError("PRIVATE_DATABASE_URL")
++
++    monkeypatch.setattr(store, "release", fail)
++    report, _ = asyncio.run(exercise(case, tmp_path))
++    assert report["worker_recovery"] == "NOT_ACCEPTED"
++    assert report["cleanup_failure"] != "NONE" and not report["leader_released"]
++    assert "PRIVATE" not in json.dumps(report)
+--- /dev/null
++++ b/tests/unit/test_demo_empty_worker_recovery_cli.py
+@@ -0,0 +1,71 @@
++"""CLI opt-in, secret-free child launch and read-only SDK restrictions."""
++
++import json
++import subprocess
++from uuid import uuid4
++
++import pytest
++
++from scripts import check_demo_empty_worker_recovery as cli
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--enable-fault-injection"],
++        ["--operation-id", str(uuid4())],
++        ["--enable-fault-injection", "--operation-id", "bad"],
++        ["--enable-fault-injection", "--operation-id", str(uuid4()), "--worker"],
++        ["--enable-fault-injection", "--operation-id", str(uuid4()), "--owner-id", str(uuid4())],
++    ],
++)
++def test_flags_are_checked_before_keys(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("context", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_blocked_before_credentials_or_process(monkeypatch, capsys, context):
++    monkeypatch.setattr(
++        "sys.argv", ["check", "--enable-fault-injection", "--operation-id", str(uuid4())]
++    )
++    for key, value in context.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_child_has_no_secrets_in_argv_or_extra_environment(monkeypatch):
++    calls = []
++
++    def launch(*args, **kwargs):
++        calls.append((args, kwargs))
++        return object()
++
++    monkeypatch.setattr(cli.subprocess, "Popen", launch)
++    operation, owner = uuid4(), uuid4()
++    cli.spawn_worker(operation, owner)
++    args, kwargs = calls[0]
++    assert args[0] == [
++        cli.sys.executable,
++        "-m",
++        "scripts.check_demo_empty_worker_recovery",
++        "--enable-fault-injection",
++        "--operation-id",
++        str(operation),
++        "--worker",
++        "--owner-id",
++        str(owner),
++    ]
++    assert "env" not in kwargs and "shell" not in kwargs
++    assert kwargs == {
++        "stdin": subprocess.DEVNULL,
++        "stdout": subprocess.DEVNULL,
++        "stderr": subprocess.DEVNULL,
++    }
