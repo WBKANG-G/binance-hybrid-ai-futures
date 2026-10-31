@@ -1,0 +1,1051 @@
+--- /dev/null
++++ b/OPEN_DISCONNECT_START_HERE_KO.md
+@@ -0,0 +1,39 @@
++# 미체결 진입 주문 중 WebSocket 단절·취소·복구 검증
++
++새 폴더 windows-demo-open-disconnect-check에서 실행한다. Galaxybook 기존 hybrid-windows DB/볼륨과 기준값을 유지한다. down -v, 초기화, 기존 요청 삭제를 하지 않는다.
++
++## 실행 순서
++
++CMD창 하나만 사용한다. B창이나 직접 API 재시작은 필요 없다.
++
++1. 새 ZIP을 풀고 해당 폴더 주소창에 cmd 입력. 다음 빌드가 Healthy까지 끝나기를 기다린다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++2. API 재생성으로 사라진 키를 메모리 세션에 등록한다. DEMO 키와 Secret은 숨김 입력이며 채팅에 보내지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++3. 아래 한 번만 실행한다. 신규 DEMO 진입 주문 1건을 제출하는 명령이다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_open_disconnect --enable-demo --enable-fault-injection --operation-id 4e81bbe7-12f8-4e65-848a-f3a928b13a6e
++```
++
++READY → BLOCKED → RECONNECTED → 최종 결과까지 기다린다. 창을 닫거나 API를 재시작하지 않는다. 오류나 NOT_ACCEPTED가 나오면 재실행하지 않고 최종 화면 전체를 공유한다. 기존 ID 재사용은 복구 전용이며 신규 주문을 만들지 않는다. 새 주문을 위한 다른 ID를 임의로 생성하지 않는다.
++
++## 범위와 판정
++
++기존 API 재시작 실험과 같은 가격 계산을 사용한다. BTCUSDT ISOLATED 2x LONG, 현재 bid보다 0.3% 낮은 지정가, 거래소 최소 허용 수량, 진입명목 100 USDT 이하, 실험 주문 TTL 60초다. 기존 리스크·freshness·수량 cap·보호·청산·서명 경로를 그대로 통과한다. 체결되지 않는다고 보장하지 않는다.
++
++서명 조회 NEW/체결0 확인 뒤 이 프로그램의 WSS를 code1011로 딱 한 번 닫는다. 기존 session finally의 PAUSE_ENTRIES가 잔량을 취소한다. stream_ready/reconciled false와 신규 진입 게이트 차단을 확인하고, 한 번만 새 WSS 연결과 전체 REST 대조를 실행한다. 같은 거래소 주문 ID가 CANCELED/체결0인지 확인하고 같은 의도 submit이 POST를 추가하지 않는지도 검사한다. 주문을 NEW로 되돌리거나 재제출하지 않는다.
++
++성공: OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED, 신규 진입 POST1/attempt1, injected close1/reconnect1, gate blocked true, cancelled_unfilled_order_verified true, VERIFIED_FLAT, NORMAL, paused true, stream/reconciled false, 기존 주문·요청·기준값 보존.
++
++도중 체결·불확실한 조회·재연결 실패는 성공으로 판정하지 않는다. 기존 session 및 최종 pause/조건부 EMERGENCY_FLATTEN/confirm_exit로 보호와 정리를 시도하고 결과를 출력한다. UNKNOWN은 flat을 보장하지 않으므로 후속 확인이 필요하다. 재시도/위험 잠금 해제를 자동 실행하지 않는다.
++
++이는 로컬 소켓 단절 실험이며 인터넷 단절, guard 프로세스 강제 종료, 호스트/DB 재시작, 보유 포지션 중 장애, 실제 부분체결 보호 또는 장기 무인운용을 검증한 것이 아니다. LIVE/Phase5 승인이 아니다.
+--- /dev/null
++++ b/OPEN_DISCONNECT_VALIDATION_KO.md
+@@ -0,0 +1,39 @@
++# 미체결 진입 주문 중 WSS 단절·취소·재연결 검증 기록
++
++## 변경 범위
++
++부모 ZIP SHA256: 4f169d3a03132f0e7acc63e64125f25d17a5d4c9c4ee4ad53748bf66a2334eb5.
++기존 manifest 파일 334개 모두 바이트 단위로 동일하다. 새 실행 모듈, CLI, 통합/단위 테스트, 시작/검증 안내 및 최근 실제 검증 문서 4개를 추가한다.
++
++SDK 서명·REST/WSS 호스트·시계 검사·조회 계약·주문 cap·리스크·보호·청산·기준금·키 보관·Compose·exports·이전 테스트를 변경하지 않는다. 신규 진입에는 이미 실제 DEMO API 재시작에서 사용한 RestartClient/terms를 재사용한다. LIVE 컨텍스트는 키 읽기 전에 거부하고 DEMO 및 fault injection 두 플래그와 UUID가 필수다.
++
++## 새 실행의 검사
++
++- 처음에는 NORMAL/paused, ISOLATED BTCUSDT 2x, 거래소·로컬 빈 계좌가 필요하다. 다른 활성 의도는 거부한다.
++- 단일 LONG LIMIT 신규 진입 POST만 허용한다. 같은 의도 재호출은 SDK 진입 POST가 추가되지 않아야 한다. 두 번째 진입 transport 시도는 SDK 전에 거부하고 성공도 차단한다.
++- 서명 NEW/체결0의 주문을 확인한 후 소켓 close1011를 1회 주입한다. 전체 네트워크 차단이나 프로세스 강제 종료가 아니다.
++- 기존 session의 예외 처리와 finally가 pause/cancel/reconcile을 수행한다. 이 안전 동작을 우회해 주문을 열어 두지 않는다.
++- SOCKET_CLOSED와 paused true, stream_ready/reconciled false, paused만 제거한 깊은 복사본의 게이트 거부를 확인한다. 실제 계좌를 이 검사로 unpause하지 않는다.
++- 새 세션 한 번만 연결하며 원래 connected()의 전체 REST 대조·보호 경로가 먼저 수행된다. 이후 같은 주문 ID/종목/client ID/방향/LIMIT/원수량/가격/체결0/CANCELED/CLOSED를 확인한다. 재연결에서 resume_entries를 호출하지 않는다.
++- 첫 번째/두 번째 callback 오류는 thread 완료 신호보다 먼저 고정된 코드로 보존한다. 세션 thread는 원래 settled_call로 모두 drain한다. 두 번째 세션 취소 중 뒤늦게 확인된 수신 실패도 성공을 차단한다.
++- 신규 주문의 체결·모호한 취소·재연결 실패는 성공이 아니다. 최종 pause, 필요 시 기존 EMERGENCY_FLATTEN, 기존 bounded confirm_exit를 수행한다. 정리 실패는 UNKNOWN으로 출력하며 flat을 추정하지 않는다.
++- 기존 주문·요청·수량 cap·검증 증거·회복 기록·일/주 기준·고점·순입출금·설정·정책을 보존하는지 확인한다. 새 감사 operation tag는 fenced store.change로 기록하고 같은 결과 tag를 덮어쓰지 않는다.
++- 이미 존재하는 UUID는 기존 의도의 복구·정리만 하며 RECOVERY_ONLY로 보고한다. 신규 진입과 장애 주입·재연결을 추가하지 않는다.
++- 각 세션 대기는 최대 45초다. 기존의 취소 시 worker drain과 최종 SDK 정리는 이 대기시간 뒤에도 완료까지 수행할 수 있으므로 전체 실행의 강제 종료 타이머라고 주장하지 않는다. 주문 TTL60초와 실제 quote/signal/account/SDK clock/lease 제한은 늘리지 않는다.
++
++## 검증 결과
++
++전체 테스트: 1072 passed in 203.04s (0:03:23). Ruff check/format 통과, mypy 96 sources 통과.
++
++집중 테스트: 24 passed in 7.72s. 실제 PostgreSQL의 격리 schema와 로컬 WSS 서버, 결정적인 signed SDK 응답 fixture를 사용했다. 정상 취소·재연결, 기존 UUID 복구, 최초 소켓 실패, 취소 중 부분체결의 기존 보호 및 flat, 재연결 실패, 중복 transport 차단, callback 원인 보존, 입출금/기준 변화 거부, 게이트 검사 실패, flat 확인 실패, 감사 기록 실패, ACK 응답 유실, 기존 결과 tag 보존, 늦은 수신 실패, 이전 완료 주문과 cap/이력 보존을 검사했다.
++
++클라우드에서 인증된 Binance 주문을 제출하지 않았다. 테스트 fixture의 부분체결은 실제 DEMO 부분체결 통과 증거가 아니다.
++
++## 최근 실제 Windows 결과
++
++- 미체결 주문 중 API 재시작: a51c3737-ce9c-4645-ba59-44c259f32e91, OPEN_ORDER_API_RESTART_VERIFIED, 진입 POST1, 동일 주문 확인, VERIFIED_FLAT, NORMAL/paused, 기존 기준 보존.
++- LONG PASSIVE: 648b31e2-570c-4ac5-99a6-38b6dbb8bcee, 0.0007 전량 체결, SL/TP 확인, FINISHED_FLAT/CLOSED, session/정리/DB 오류 없음.
++- SHORT PASSIVE: 095b9d5c-b79d-4731-9d64-971e4ffde7d0, 0.0007 전량 체결, SL/TP 확인, FINISHED_FLAT/CLOSED, session/정리/DB 오류 없음.
++- 마지막 복구: 48 requests / 6 batches / 216 signed GET / clock1 / unresolved2 보존 / risk PASS / 포지션0 / 활성 주문0. 적용 88bc4aa7-8fc4-4940-8c2c-a759a05d1022, EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED.
++
++새 미체결 주문 중 WSS 장애 검증은 아직 Windows 실제 실행 전이다. 이전 실제 부분체결의 실패는 실패로 유지한다. 실제 부분체결 보호 성공, 실행 프로세스 강제 종료/호스트·DB 장애, 보유 포지션 장애 및 장기 운영은 미완료다. Phase4 전체 통과 또는 Phase5/LIVE 승인으로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_OPEN_API_RESTART_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,37 @@
++# Windows DEMO 미체결 주문 중 API 재시작 실제 검증 통과
++
++근거: 사용자가 제공한 A/B CMD 최종 화면. 2026-10-31, 한국 시간.
++배포: windows-demo-restart-handoff-fix-20261031 / 2383dd4.
++작업 ID: a51c3737-ce9c-4645-ba59-44c259f32e91.
++
++## 실제 출력
++
++- restart_check: OPEN_ORDER_API_RESTART_VERIFIED
++- scope: API_RESTART_WITH_INDEPENDENT_GUARD
++- api_instance_before: e20a39c1-8e9e-45ad-a44b-f13df5f54804
++- api_instance_after: ada1f9be-92a9-4fd1-836a-19ebec7bf636
++- same_order_observed_before_after: true
++- quantity: 0.0007 / limit_price: 77070.10
++- new_entry_post_count: 1 / entry_post_attempts: 1
++- recovered_existing_intent: false
++- failure / failure_stage / completion_failure: NONE
++- ready_at_utc: 2026-10-31T08:11:18.768534+00:00 (한국 시간 17:11:18)
++- wait_deadline_utc: 2026-10-31T08:12:03.768534+00:00
++- wait_elapsed_ms: 13740
++- api_reads: 4 / api_unavailable_count: 1
++- risk_state: NORMAL
++- flat_confirmation: VERIFIED_FLAT
++- history_and_baselines_preserved: true
++- filled_quantity: 0.0000
++- final_paused: true
++- orders_enabled / live_trading_enabled: false
++
++B창은 restart_handoff READY, guard_fence 46, database_changed false를 출력한 뒤 API를 재시작했다. 이후 DB/API 모두 Healthy였다.
++
++## 판정과 범위
++
++DEMO 미체결 주문이 있는 동안 API 컨테이너를 재시작하고, 별도 실행 컨테이너가 생존하여 변경된 API 인스턴스와 동일 미체결 주문을 확인했다. 신규 진입 제출은 총 1회이며 중복 제출이 없었다. 최종 정리 후 flat 확인, 일시정지, NORMAL 및 기존 이력·기준값 보존을 확인했다.
++
++이번 결과는 API 재시작 범위의 통과다. 독립 guard 자체의 강제 종료, 호스트/DB 재시작, 보유 포지션 중 재시작, 부분체결 보호 성공 또는 장시간 운용을 검증한 것은 아니다. Phase4 전체 완료 또는 LIVE 승인으로 확대하지 않는다.
++
++이전 eac8d62b-c2e2-4ebd-8be0-f6a408dfb882의 NOT_ACCEPTED 결과는 그대로 보존한다. 직전 09f48828-3294-4234-80f6-0fd79a5e7565 실행은 recovered_existing_intent true / RECOVERY_ONLY / 신규 제출 0 / VERIFIED_FLAT였으며, 재시작 통과 증거로 사용하지 않는다. 해당 기존 의도가 처음 만들어진 시점과 경위는 제공 화면만으로 확정하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PASSIVE_FULL_FILL_648b31e2_20261031_KO.md
+@@ -0,0 +1,24 @@
++# Windows DEMO PASSIVE 전량 체결 실제 검증
++
++사용자 CMD 최종 화면 근거, 2026-10-31 한국 시간. 배포 windows-demo-restart-handoff-fix.
++
++- 작업 ID: 648b31e2-570c-4ac5-99a6-38b6dbb8bcee
++- LONG / PASSIVE / BTCUSDT / 수량 및 cap 0.0007
++- 지정가 77396.00 / 손절 77005.10 / 익절 78170.00
++- validation FINISHED_FLAT / entry_outcome FULL_FILL
++- filled_quantity 0.0007 / entry_state FILLED / position_state CLOSED
++- stop_verified true / target_verified true
++- filled_protection_and_flat_verified true
++- session_error false / session_failure NONE
++- validation_stage OBSERVATION / completion_stage FLAT_CONFIRMATION
++- completion_failure NONE / completion_database_failure NONE
++- private diagnostic PING / NONE, received_events 6 / coalesced_events 5
++- ready_callback_ms 22223 / event_clock_offset_ms 753 / event_clock_rtt_ms 157
++- event_clock_wait_ms 0 / event_clock_local_age_ms 147
++- initial_fill_settled false / live_trading_enabled false
++
++전량 체결 후 보호 주문 확인 및 최종 flat 검증 통과. 부분체결 보호 성공의 증거로 사용하지 않는다. 손절 또는 익절 주문 자체가 트리거되어 청산됐다는 의미로 확대하지 않는다.
++
++화면의 last_reconciliation_mismatch_fields 및 reconciliation_settle_reason FILL_PROOF_MISMATCH는 ledger에 보존되는 진단 필드다. 일반 coherent 성공 경로는 이 필드를 지우지 않으며, 이번 실행의 session_failure는 NONE이고 보호 및 flat 통과 값은 true다. 해당 필드만으로 이번 실행 실패라고 판정하지 않는다.
++
++최종 risk_state는 이번 최종 출력에 없으므로 NORMAL로 추정하지 않는다. 후속 실행 전 현재 상태 확인이 필요하다. 이전 실제 실패 결과를 변경하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PASSIVE_SHORT_FULL_FILL_20261031_KO.md
+@@ -0,0 +1,27 @@
++# Windows DEMO SHORT PASSIVE 전량 체결 실제 검증 통과
++
++근거: 사용자가 제공한 CMD 최종 화면. 2026-10-31 한국 시간.
++배포: windows-demo-restart-handoff-fix.
++
++- 작업 ID: 095b9d5c-b79d-4731-9d64-971e4ffde7d0
++- 방향 SHORT / 진입 방식 PASSIVE / 수량 및 cap 0.0007 BTC
++- 지정가 77389.80 / 손절 77777.50 / 익절 76615.90
++- validation FINISHED_FLAT
++- entry_filled true / filled_quantity 0.0007
++- entry_state FILLED / position_state CLOSED / entry_outcome FULL_FILL
++- stop_verified true / target_verified true
++- filled_protection_and_flat_verified true
++- session_error false / session_failure NONE
++- validation_stage OBSERVATION / completion_stage FLAT_CONFIRMATION
++- completion_failure NONE / completion_database_failure NONE
++- private diagnostic RECEIVE / NONE
++- ready_callback_ms 19406 / received_events 6 / coalesced_events 4
++- event_clock_offset_ms 751 / event_clock_rtt_ms 150
++- event_clock_wait_ms 0 / event_clock_local_age_ms 176
++- initial_fill_settled false / live_trading_enabled false
++
++SHORT 전량 체결 후 보호 주문 확인 및 최종 flat 검증 통과. 손절·익절 자체의 트리거 체결, 부분체결 보호, 실행 컨테이너 자체 중단·복구 또는 Phase4 전체 완료를 뜻하지 않는다.
++
++last_reconciliation_mismatch_fields 및 reconciliation_settle_reason FILL_PROOF_MISMATCH는 ledger에 보존되는 진단 값이다. 일반 coherent 성공 경로는 이를 지우지 않는다. 이번 출력의 session_failure NONE, session_error false, 보호 및 flat 검증 true와 구분한다.
++
++이번 최종 출력에는 risk_state가 없으므로 NORMAL이라고 추정하지 않는다. 후속 상태 확인으로 잠금 유지 여부를 판단한다. 기존 실패 이력은 수정하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_88bc4aa7_20261031_KO.md
+@@ -0,0 +1,14 @@
++# Windows DEMO SHORT 검증 후 복구 완료
++
++사용자 CMD 화면 근거, 2026-10-31 한국 시간.
++
++SHORT 작업 095b9d5c-b79d-4731-9d64-971e4ffde7d0 전량 체결·보호·flat 통과 후 preflight에서 EMERGENCY가 확인됐다. 검증 코드는 잔여 포지션 정리에 EMERGENCY_FLATTEN을 사용하고 이 명령은 잠금을 유지한다. 실제 해당 잠금의 모든 전이 원인을 개별 감사 이벤트로 확정했다는 뜻은 아니다.
++
++복구 조회 REVIEW_ONLY_NO_DATABASE_CHANGE:
++- audited_request_count 48 / audit_batch_count 6
++- signed_query_count 216 / audit_clock_probes 1
++- unresolved_count 2 / risk_gates PASS
++- position_nonzero false / active_orders 0
++- risk_state EMERGENCY / paused true
++
++이 조회의 토큰으로 작업 88bc4aa7-8fc4-4940-8c2c-a759a05d1022 적용 결과 EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED를 실제 확인했다. 거래소 주문 제출 없이 NORMAL 복구, 진입 paused 유지, 기존 미해결 요청 2건 보존. 새 검증 전의 마지막 확인 상태다. 과거 토큰·작업을 다시 적용하지 않는다.
+--- /dev/null
++++ b/scripts/check_demo_open_disconnect.py
+@@ -0,0 +1,98 @@
++"""Explicit one-order DEMO WSS fault/reconnect test; no API restart or host command."""
++
++import argparse
++import asyncio
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import RestartClient, empty
++from services.execution.demo_open_disconnect_check import SocketCheckBlocked, failure_code, run
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-demo", action="store_true", required=True)
++    parser.add_argument("--enable-fault-injection", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report = {
++        "disconnect_check": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise SocketCheckBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = RestartClient(cfg, key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        state = store.read(ACCOUNT)
++        existing = state.orders.get(str(args.operation_id))
++        if existing is None:
++            empty(coordinator)
++        elif (
++            existing.signal.purpose != "DEMO_VALIDATION"
++            or existing.signal.direction != "LONG"
++            or existing.signal.symbol != "BTCUSDT"
++            or any(
++                k != str(args.operation_id) and (o.remaining or o.open_quantity)
++                for k, o in state.orders.items()
++            )
++        ):
++            raise SocketCheckBlocked("ENTRY_SCOPE_INVALID")
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        report = asyncio.run(run(coordinator, args.operation_id))
++        success = report["disconnect_check"] == "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED"
++    except Exception as error:
++        report["failure"] = failure_code(error)
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report = {
++                "disconnect_check": "BLOCKED",
++                "failure": "LEASE_RELEASE_FAILED",
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_open_disconnect_check.py
+@@ -0,0 +1,395 @@
++"""One capped DEMO resting order, one local WSS close, cancel and reconciled reconnect."""
++
++import asyncio
++import json
++from collections.abc import AsyncIterator, Callable
++from contextlib import AbstractAsyncContextManager, asynccontextmanager
++from decimal import Decimal
++from typing import Any
++from uuid import UUID, uuid5
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure
++from packages.domain.contracts import PositionState
++from scripts.check_demo_disconnect import PRESERVED, gate_blocked
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import (
++    RestartBlocked,
++    RestartClient,
++    empty,
++    open_order,
++    terms,
++)
++from services.execution.demo_stream import Connection, private_connect, session, settled_call
++from services.execution.demo_validation import confirm_exit, safe_failure
++
++
++class SocketCheckBlocked(DemoFailure):
++    def __init__(self, code: str):
++        # All callers use fixed local codes; raw exceptions never reach this field.
++        self.code = (
++            code
++            if code
++            in {
++                "RECOVERY_ONLY",
++                "ENTRY_SCOPE_INVALID",
++                "READY_STATE_INVALID",
++                "SOCKET_LOSS_NOT_VERIFIED",
++                "DISCONNECT_GATE_NOT_LOCKED",
++                "RECONNECT_NOT_VERIFIED",
++                "ORDER_IDENTITY_CHANGED",
++                "CANCELLATION_NOT_VERIFIED",
++                "DUPLICATE_ENTRY_ATTEMPT",
++                "CALLBACK_NOT_COMPLETED",
++                "PHASE_TIMEOUT",
++                "HISTORY_CHANGED",
++                "FLAT_NOT_CONFIRMED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "RESULT_AUDIT_FAILED",
++                "SECOND_SESSION_FAILED",
++                "LIVE_CONTEXT_FORBIDDEN",
++                "LEASE_RELEASE_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++def failure_code(error: Exception) -> str:
++    if isinstance(error, (SocketCheckBlocked, RestartBlocked)):
++        return error.code
++    return safe_failure(error)
++
++
++async def run(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    *,
++    connector: Callable[[SecretStr], AbstractAsyncContextManager[Connection]] = private_connect,
++    phase_timeout: float = 45,
++) -> dict[str, Any]:
++    store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    if not isinstance(client, RestartClient):
++        raise SocketCheckBlocked("ENTRY_SCOPE_INVALID")
++    key = str(operation)
++    original = store.read(lease.account_id)
++    existed = key in original.orders
++    if any(k != key and (o.remaining or o.open_quantity) for k, o in original.orders.items()):
++        raise SocketCheckBlocked("ENTRY_SCOPE_INVALID")
++    if existed and (
++        original.orders[key].signal.purpose != "DEMO_VALIDATION"
++        or original.orders[key].signal.direction != "LONG"
++        or original.orders[key].signal.symbol != "BTCUSDT"
++    ):
++        raise SocketCheckBlocked("ENTRY_SCOPE_INVALID")
++    if not existed:
++        empty(coordinator)
++    own_collections = {
++        "entry_quantity_caps",
++        "validation_entry_styles",
++        "initial_fill_settlements",
++        "validation_evidence",
++    }
++    preserved = (PRESERVED - {"orders", "requests"} - own_collections) | {
++        "margin_mode",
++        "symbols",
++        "verified_leverage",
++        "margin_types",
++    }
++    baseline = original.model_dump(mode="json", include=preserved)
++    old_orders = {k: v.model_dump(mode="json") for k, v in original.orders.items() if k != key}
++    # Existing request states must not be rewritten, including unresolved historical requests.
++    old_requests = dict(original.requests)
++    loop = asyncio.get_running_loop()
++    ready_event = asyncio.Event()
++    second_event = asyncio.Event()
++    injected = 0
++    close_completed = False
++    reconnect_count = 0
++    blocked = False
++    verified = False
++    before_row: dict[str, Any] = {}
++    callback_failure = "NONE"
++    stage = "SESSION_CONNECT"
++    failure_stage = "NONE"
++    failure = "NONE"
++    completion = "UNKNOWN"
++    completion_failure = "NONE"
++
++    def progress(marker: str) -> None:
++        store.change(lease, marker, lambda _: None)
++        print(
++            json.dumps(
++                {
++                    "disconnect_check_stage": marker,
++                    "operation_id": key,
++                    "new_entry_post_count": client.entry_post_sent,
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++
++    def first_ready() -> None:
++        nonlocal before_row, callback_failure, failure_stage, stage
++        try:
++            stage = "RESUME_ENTRIES"
++            coordinator.resume_entries(uuid5(operation, "socket-resume"))
++            stage = "PREPARE_ENTRY"
++            signal, gate, cap = terms(coordinator, operation)
++            stage = "RESERVE_ENTRY"
++            order = coordinator.reserve(signal, gate, quantity_cap=cap, entry_style="PASSIVE")
++            client.allowed_entry, client.allowed_quantity = order.client_id, order.quantity
++            stage = "SUBMIT_ENTRY"
++            coordinator.submit(key)
++            stage = "VERIFY_OPEN_ORDER"
++            before_row = open_order(coordinator, key)
++            if coordinator.session_failed:
++                raise SocketCheckBlocked("READY_STATE_INVALID")
++            progress("DEMO_OPEN_WS_FAULT_READY")
++            loop.call_soon_threadsafe(ready_event.set)
++        except Exception as error:
++            callback_failure, failure_stage = failure_code(error), stage
++            raise
++
++    @asynccontextmanager
++    async def interrupted(url: SecretStr) -> AsyncIterator[Connection]:
++        nonlocal injected, close_completed
++        async with connector(url) as socket:
++
++            async def close_once() -> None:
++                nonlocal injected, close_completed
++                await ready_event.wait()
++                injected += 1
++                await socket.close(code=1011)  # type: ignore[attr-defined]
++                close_completed = True
++
++            closer = asyncio.create_task(close_once())
++            try:
++                yield socket
++            finally:
++                if not injected:
++                    closer.cancel()
++                try:
++                    await asyncio.wait_for(asyncio.shield(closer), timeout=3)
++                except (asyncio.CancelledError, TimeoutError):
++                    closer.cancel()
++                    await asyncio.gather(closer, return_exceptions=True)
++
++    def second_ready() -> None:
++        nonlocal verified, callback_failure, failure_stage, stage
++        try:
++            stage = "VERIFY_RECONNECTED_ORDER"
++            ledger = store.read(lease.account_id)
++            if (
++                coordinator.session_failed
++                or not ledger.reconciled
++                or not ledger.stream_ready
++                or not ledger.paused
++            ):
++                raise SocketCheckBlocked("RECONNECT_NOT_VERIFIED")
++            order = ledger.orders[key]
++            row = client.request(
++                "GET", "/fapi/v1/order", {"symbol": "BTCUSDT", "origClientOrderId": order.client_id}
++            )
++            if not (
++                isinstance(row, dict)
++                and row.get("symbol") == "BTCUSDT"
++                and row.get("clientOrderId") == order.client_id
++                and row.get("status") == "CANCELED"
++                and row.get("executedQty") is not None
++                and Decimal(row["executedQty"]) == 0
++                and row.get("origQty") is not None
++                and Decimal(row["origQty"]) == order.quantity
++                and row.get("price") is not None
++                and Decimal(row["price"]) == order.signal.suggested_limit_price
++                and row.get("side") == "BUY"
++                and row.get("type") == "LIMIT"
++                and row.get("reduceOnly") in (False, "false")
++                and order.state.value == "CANCELED"
++                and not order.filled
++                and not order.remaining
++                and not order.open_quantity
++                and order.position_state == PositionState.CLOSED
++            ):
++                raise SocketCheckBlocked("CANCELLATION_NOT_VERIFIED")
++            if row["orderId"] != before_row["orderId"]:
++                raise SocketCheckBlocked("ORDER_IDENTITY_CHANGED")
++            stage = "VERIFY_NO_DUPLICATE_ENTRY"
++            coordinator.submit(key)
++            if client.entry_post_attempts != 1 or client.entry_post_sent != 1:
++                raise SocketCheckBlocked("DUPLICATE_ENTRY_ATTEMPT")
++            progress("DEMO_OPEN_WS_FAULT_RECONNECTED")
++            verified = True
++        except Exception as error:
++            callback_failure, failure_stage = failure_code(error), stage
++            raise
++        finally:
++            loop.call_soon_threadsafe(second_event.set)
++
++    try:
++        if existed:
++            raise SocketCheckBlocked("RECOVERY_ONLY")
++        try:
++            await asyncio.wait_for(
++                session(coordinator, connector=interrupted, on_ready=first_ready),
++                timeout=phase_timeout,
++            )
++        except DemoFailure:
++            # Expected only after our close, not after any other callback/session failure.
++            pass
++        if callback_failure != "NONE":
++            raise SocketCheckBlocked("CALLBACK_NOT_COMPLETED")
++        failed = store.read(lease.account_id)
++        detail = failed.last_private_session_failure
++        if not (
++            injected == 1
++            and close_completed
++            and ready_event.is_set()
++            and coordinator.session_failed
++            and detail
++            and detail.code == "SOCKET_CLOSED"
++        ):
++            raise SocketCheckBlocked("SOCKET_LOSS_NOT_VERIFIED")
++        stage = "VERIFY_DISCONNECTED_GATE"
++        blocked = (
++            not failed.stream_ready
++            and not failed.reconciled
++            and failed.paused
++            and gate_blocked(coordinator, failed)
++        )
++        if not blocked:
++            raise SocketCheckBlocked("DISCONNECT_GATE_NOT_LOCKED")
++        await settled_call(progress, "DEMO_OPEN_WS_FAULT_BLOCKED")
++        # Exactly one new session; connected() performs original full REST reconciliation
++        # (including fill protection) before second_ready. Never resume entries here.
++        await settled_call(store.renew, lease)
++        stage = "SESSION_RECONNECT"
++        reconnect_count += 1
++        task = asyncio.create_task(session(coordinator, connector=connector, on_ready=second_ready))
++        waiter = asyncio.create_task(second_event.wait())
++        try:
++            done, _ = await asyncio.wait(
++                {task, waiter}, timeout=phase_timeout, return_when=asyncio.FIRST_COMPLETED
++            )
++            if task in done:
++                await task
++                raise SocketCheckBlocked("SECOND_SESSION_FAILED")
++            if waiter not in done:
++                raise SocketCheckBlocked("PHASE_TIMEOUT")
++            if not verified or coordinator.session_failed:
++                raise SocketCheckBlocked("RECONNECT_NOT_VERIFIED")
++        finally:
++            waiter.cancel()
++            await asyncio.gather(waiter, return_exceptions=True)
++            task.cancel()
++            try:
++                await task
++            except asyncio.CancelledError:
++                pass
++            if coordinator.session_failed:
++                raise SocketCheckBlocked("SECOND_SESSION_FAILED")
++    except Exception as error:
++        failure = callback_failure if callback_failure != "NONE" else failure_code(error)
++        if failure_stage == "NONE":
++            failure_stage = stage
++    finally:
++        try:
++            await settled_call(store.renew, lease)
++            await settled_call(client.sync_clock)
++            await settled_call(
++                coordinator.command, uuid5(operation, "socket-pause"), "PAUSE_ENTRIES"
++            )
++            state = store.read(lease.account_id)
++            if any(state.positions.values()) or any(o.open_quantity for o in state.orders.values()):
++                await settled_call(
++                    coordinator.command, uuid5(operation, "socket-flat"), "EMERGENCY_FLATTEN"
++                )
++            completion = await confirm_exit(coordinator)
++            await settled_call(coordinator.disconnect)
++        except Exception as error:
++            completion_failure = failure_code(error)
++            completion = "UNKNOWN"
++    final = store.read(lease.account_id)
++    order = final.orders.get(key)
++    history_ok = (
++        final.model_dump(mode="json", include=preserved) == baseline
++        and {k: v.model_dump(mode="json") for k, v in final.orders.items() if k != key}
++        == old_orders
++        and all(final.requests.get(k) == v for k, v in old_requests.items())
++        and all(
++            {k: v for k, v in getattr(final, name).items() if k != key}
++            == {k: v for k, v in getattr(original, name).items() if k != key}
++            for name in own_collections
++        )
++    )
++    accepted = bool(
++        verified
++        and blocked
++        and injected == reconnect_count == 1
++        and not existed
++        and failure == completion_failure == "NONE"
++        and history_ok
++        and completion == "VERIFIED_FLAT"
++        and order
++        and not order.filled
++        and not order.remaining
++        and not order.open_quantity
++        and order.position_state == PositionState.CLOSED
++        and final.risk_state.value == "NORMAL"
++        and final.paused
++        and not final.stream_ready
++        and not final.reconciled
++        and client.entry_post_attempts == client.entry_post_sent == 1
++    )
++    if not accepted and failure == "NONE":
++        failure_stage = "FINAL_STATE"
++        failure = (
++            "HISTORY_CHANGED"
++            if not history_ok
++            else "FLAT_NOT_CONFIRMED"
++            if completion != "VERIFIED_FLAT"
++            else "FINAL_STATE_NOT_VERIFIED"
++        )
++    try:
++
++        def audit(ledger: Any) -> None:
++            ledger.operations.setdefault(
++                str(uuid5(operation, "socket-result")),
++                "OPEN_WS_DISCONNECT:" + ("VERIFIED" if accepted else failure),
++            )
++
++        store.change(lease, "DEMO_OPEN_WS_FAULT_RESULT", audit)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure, failure_stage = "RESULT_AUDIT_FAILED", "RESULT_AUDIT"
++    return {
++        "disconnect_check": "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "OPEN_ORDER_LOCAL_SOCKET_CLOSE",
++        "operation_id": key,
++        "injected_close_count": injected,
++        "reconnect_count": reconnect_count,
++        "disconnect_code": "SOCKET_CLOSED" if blocked else "NOT_VERIFIED",
++        "entry_gate_blocked_after_disconnect": blocked,
++        "same_order_observed_before_after": verified,
++        "cancelled_unfilled_order_verified": verified,
++        "new_entry_post_count": client.entry_post_sent,
++        "entry_post_attempts": client.entry_post_attempts,
++        "recovered_existing_intent": existed,
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "completion_failure": completion_failure,
++        "flat_confirmation": completion,
++        "history_and_baselines_preserved": history_ok,
++        "filled_quantity": str(order.filled) if order else "0",
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_open_disconnect.py
+@@ -0,0 +1,288 @@
++"""Production coordinator/PG with a local WSS server and deterministic signed SDK fixture."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo_open_disconnect_check as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++@pytest.fixture
++def disconnect_case(validation_case):  # noqa: F811
++    store, c, fake, options = validation_case
++    source = c.client
++    c.client = module.RestartClient(
++        source.settings, source.credentials, send=source.send, clock_ms=source.clock_ms
++    )
++    c.client.sync_clock()
++    store.change(c.lease, "TEST_SOCKET_PAUSED", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake, options
++
++
++async def exercise(case, operation, *, before_reconnect=None, server_close=False, timeout=5):
++    _, c, _, _ = case
++    connections = 0
++
++    async def handler(socket):
++        if server_close:
++            await socket.close(code=1011)
++        else:
++            await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            nonlocal connections
++            connections += 1
++            if connections == 2 and before_reconnect:
++                before_reconnect()
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        return await module.run(c, operation, connector=connector, phase_timeout=timeout)
++
++
++def test_open_order_socket_loss_gate_reconnect_same_order_one_post_flat(disconnect_case):
++    store, c, fake, _ = disconnect_case
++    before = store.read("DEMO-test")
++    operation = uuid4()
++    report = asyncio.run(exercise(disconnect_case, operation))
++    assert report["disconnect_check"] == "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED", (
++        json.dumps(report)
++    )
++    assert report["entry_gate_blocked_after_disconnect"]
++    assert report["same_order_observed_before_after"]
++    assert report["injected_close_count"] == report["reconnect_count"] == 1
++    assert report["new_entry_post_count"] == report["entry_post_attempts"] == 1
++    assert report["failure"] == report["completion_failure"] == "NONE"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert report["history_and_baselines_preserved"]
++    assert (
++        report["final_paused"]
++        and not report["final_stream_ready"]
++        and not report["final_reconciled"]
++    )
++    assert report["risk_state"] == "NORMAL" and len(posts(fake)) == 1
++    after = store.read("DEMO-test")
++    order = after.orders[str(operation)]
++    assert order.state.value == "CANCELED" and order.position_state.value == "CLOSED"
++    assert order.filled == order.remaining == order.open_quantity == 0
++    assert after.requests.items() >= before.requests.items()
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++
++
++def test_replayed_uuid_is_recovery_only_no_new_order_or_fault(disconnect_case):
++    _, _, fake, _ = disconnect_case
++    operation = uuid4()
++    asyncio.run(exercise(disconnect_case, operation))
++    count = len(posts(fake))
++    report = asyncio.run(exercise(disconnect_case, operation))
++    assert report["failure"] == "RECOVERY_ONLY"
++    assert report["recovered_existing_intent"] and report["injected_close_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == count
++
++
++def test_early_socket_failure_cannot_claim_injected_disconnect(disconnect_case):
++    _, _, fake, _ = disconnect_case
++    report = asyncio.run(exercise(disconnect_case, uuid4(), server_close=True))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["injected_close_count"] == 0 and len(posts(fake)) == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_fill_while_disconnected_uses_existing_protection_and_flat_never_accepts(disconnect_case):
++    store, _, fake, _ = disconnect_case
++    operation = uuid4()
++
++    source = disconnect_case[1].client.request
++    injected_fill = False
++
++    def racing_cancel(method, path, params=None):
++        nonlocal injected_fill
++        if method == "DELETE" and path == "/fapi/v1/order" and not injected_fill:
++            injected_fill = True
++            order = store.read("DEMO-test").orders[str(operation)]
++            fake.fill(order.client_id, order.quantity / 2, price=order.signal.suggested_limit_price)
++        return source(method, path, params)
++
++    disconnect_case[1].client.request = racing_cancel
++    report = asyncio.run(exercise(disconnect_case, operation))
++    assert report["disconnect_check"] == "NOT_ACCEPTED", report
++    assert Decimal(report["filled_quantity"]) > 0
++    assert fake.positions["BTCUSDT"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    entries = [p for p in posts(fake) if p.get("reduceOnly") != "true"]
++    assert len(entries) == 1
++
++
++def test_reconnect_failure_still_cancels_original_order(disconnect_case):
++    _, _, fake, _ = disconnect_case
++
++    def fail():
++        raise OSError("SECRET_PRIVATE_URL")
++
++    report = asyncio.run(exercise(disconnect_case, uuid4(), before_reconnect=fail))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert report["failure"] != "NONE" and "SECRET" not in json.dumps(report)
++    assert len(posts(fake)) == 1
++
++
++def test_duplicate_transport_attempt_is_blocked_and_rejected(disconnect_case, monkeypatch):
++    _, c, fake, _ = disconnect_case
++    original = c.submit
++    count = 0
++
++    def broken(key):
++        nonlocal count
++        count += 1
++        if count == 1:
++            return original(key)
++        c.client.request("POST", "/fapi/v1/order", {"newClientOrderId": "SECRET"})
++
++    monkeypatch.setattr(c, "submit", broken)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["failure"] == "DUPLICATE_ENTRY_ATTEMPT"
++    assert report["entry_post_attempts"] == 2 and len(posts(fake)) == 1
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_callback_failure_retains_primary_reason_and_cleans_order(disconnect_case, monkeypatch):
++    _, _, fake, _ = disconnect_case
++
++    def failed(*args):
++        raise module.RestartBlocked("ENTRY_NOT_OPEN_UNFILLED")
++
++    monkeypatch.setattr(module, "open_order", failed)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["failure"] == "ENTRY_NOT_OPEN_UNFILLED"
++    assert report["failure_stage"] == "VERIFY_OPEN_ORDER"
++    assert report["injected_close_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == 1
++
++
++def test_history_or_baseline_change_blocks_acceptance(disconnect_case):
++    store, c, fake, _ = disconnect_case
++
++    def drift():
++        fake.wallet += Decimal("0.1")
++        fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=123, income="0.1"))
++
++    report = asyncio.run(exercise(disconnect_case, uuid4(), before_reconnect=drift))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert not report["history_and_baselines_preserved"]
++    assert store.read(c.lease.account_id).paused
++
++
++def test_gate_not_blocked_cannot_reconnect_or_claim_pass(disconnect_case, monkeypatch):
++    _, _, fake, _ = disconnect_case
++    monkeypatch.setattr(module, "gate_blocked", lambda *args: False)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["failure"] == "DISCONNECT_GATE_NOT_LOCKED"
++    assert report["reconnect_count"] == 0 and not report["entry_gate_blocked_after_disconnect"]
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == 1
++
++
++def test_flat_confirmation_failure_never_reports_success(disconnect_case, monkeypatch):
++    async def unknown(*args):
++        return "UNKNOWN"
++
++    monkeypatch.setattr(module, "confirm_exit", unknown)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["failure"] == "FLAT_NOT_CONFIRMED"
++    assert report["same_order_observed_before_after"]
++
++
++def test_result_audit_failure_blocks_acceptance(disconnect_case, monkeypatch):
++    store, _, _, _ = disconnect_case
++    original = store.change
++
++    def broken(lease, marker, update):
++        if marker == "DEMO_OPEN_WS_FAULT_RESULT":
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(lease, marker, update)
++
++    monkeypatch.setattr(store, "change", broken)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["failure"] == "RESULT_AUDIT_FAILED"
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and "PRIVATE" not in json.dumps(report)
++
++
++def test_lost_entry_ack_is_queried_without_second_post(disconnect_case):
++    _, _, fake, _ = disconnect_case
++    fake.lost_submit = True
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert len(posts(fake)) == 1
++    assert report["new_entry_post_count"] == 1
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_completed_uuid_audit_marker_is_not_overwritten_by_recovery(disconnect_case):
++    from uuid import uuid5
++
++    store, _, _, _ = disconnect_case
++    operation = uuid4()
++    result = asyncio.run(exercise(disconnect_case, operation))
++    assert result["disconnect_check"] == "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED"
++    tag = str(uuid5(operation, "socket-result"))
++    before = store.read("DEMO-test").operations[tag]
++    asyncio.run(exercise(disconnect_case, operation))
++    assert store.read("DEMO-test").operations[tag] == before == "OPEN_WS_DISCONNECT:VERIFIED"
++
++
++def test_receiver_failure_during_second_session_shutdown_is_not_hidden(
++    disconnect_case, monkeypatch
++):
++    original = module.session
++    calls = 0
++
++    async def late_failure(*args, **kwargs):
++        nonlocal calls
++        calls += 1
++        index = calls
++        try:
++            return await original(*args, **kwargs)
++        finally:
++            if index == 2:
++                args[0].session_failed = True
++
++    monkeypatch.setattr(module, "session", late_failure)
++    report = asyncio.run(exercise(disconnect_case, uuid4()))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["failure"] == "SECOND_SESSION_FAILED"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_prior_completed_order_caps_and_audit_history_are_preserved(disconnect_case):
++    store, c, _, _ = disconnect_case
++    first = uuid4()
++    assert asyncio.run(exercise(disconnect_case, first))["failure"] == "NONE"
++    before = store.read("DEMO-test")
++    source = c.client
++    c.client = module.RestartClient(
++        source.settings, source.credentials, send=source.send, clock_ms=source.clock_ms
++    )
++    c.client.sync_clock()
++    second = uuid4()
++    report = asyncio.run(exercise(disconnect_case, second))
++    assert report["disconnect_check"] == "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED"
++    after = store.read("DEMO-test")
++    assert after.orders[str(first)] == before.orders[str(first)]
++    assert after.entry_quantity_caps[str(first)] == before.entry_quantity_caps[str(first)]
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert all(after.operations[k] == v for k, v in before.operations.items())
+--- /dev/null
++++ b/tests/unit/test_demo_open_disconnect_cli.py
+@@ -0,0 +1,60 @@
++"""Fault injection and DEMO opt-ins must precede credential access."""
++
++import json
++from uuid import uuid4
++
++import pytest
++
++from scripts import check_demo_open_disconnect as cli
++
++
++@pytest.mark.parametrize(
++    "arguments",
++    [
++        [],
++        ["--enable-demo"],
++        ["--enable-fault-injection"],
++        ["--enable-demo", "--enable-fault-injection"],
++        ["--enable-demo", "--operation-id", str(uuid4())],
++        ["--enable-demo", "--enable-fault-injection", "--operation-id", "not-a-uuid"],
++    ],
++)
++def test_execution_flags_are_required_before_credentials(monkeypatch, arguments):
++    monkeypatch.setattr("sys.argv", ["check"] + arguments)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("key must not be read"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_blocked_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr(
++        "sys.argv",
++        ["check", "--enable-demo", "--enable-fault-injection", "--operation-id", str(uuid4())],
++    )
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("key must not be read"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_credential_errors_are_sanitized_and_never_open_database(monkeypatch, capsys):
++    monkeypatch.setattr(
++        "sys.argv",
++        ["check", "--enable-demo", "--enable-fault-injection", "--operation-id", str(uuid4())],
++    )
++
++    def broken(**kwargs):
++        raise ValueError("PRIVATE_KEY_MUST_NOT_APPEAR")
++
++    monkeypatch.setattr(cli, "credentials", broken)
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: pytest.fail("must not touch DB"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    output = capsys.readouterr().out
++    assert "PRIVATE" not in output
++    assert json.loads(output)["orders_enabled"] is False
