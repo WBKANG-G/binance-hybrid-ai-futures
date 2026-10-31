@@ -1,0 +1,525 @@
+--- /dev/null
++++ b/MULTI_EXECUTION_START_HERE_KO.md
+@@ -0,0 +1,25 @@
++# 동일 가격의 초기 분할 체결 증거 보완
++
++실제 작업0feb6a0e-21b2-4f8b-aad5-f101606dc4bb는0.0007 BTC 주문 중0.0003씩 두 번 체결돼 총0.0006이 됐습니다. 진입은 CANCELED, 최종 포지션은 CLOSED이며 후속 거래소 조회도 포지션0·활성 일반/조건부 주문0을 확인했습니다. SL/TP는 검증되지 않았으므로 부분 체결 수락은 실패입니다. 기존 코드는 단일 체결만 허용했습니다. 당시 최초 세 스냅샷 값이 보존돼 있지 않아 어떤 검사가 가장 먼저 실패했는지까지 단정하지 않습니다.
++
++이번 보완은 동일 주문·동일 가격의 여러 체결 수량과 수수료를 정확히 합산합니다. 기존 초기 체결 경로의 자격과 안정된 마지막 두 스냅샷 요구는 유지합니다. 가격이 서로 다르거나 관찰 중 수량/담보가 계속 바뀌는 복잡한 진행은 여전히 차단할 수 있습니다. 임의 반올림이나 추가 허용 오차, 반복 주문 제출을 넣지 않았습니다.
++
++기존 Galaxybook에서 ZIP을 새 windows-demo-multi-execution-fix 폴더에 풀고 그 폴더의 탐색기 주소창에 cmd를 입력하세요. hybrid-windows 데이터베이스와 볼륨은 유지합니다. 삭제·초기화하지 마세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++컨테이너 교체로 메모리 키가 초기화되므로 한 번 등록합니다. 키는 숨김 입력에만 넣으세요. 이후 같은 컨테이너에서는 최대12시간 재사용합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++먼저 새 주문 없이 복구 검토만 실행하고 결과를 공유하세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_recovery
++```
++
++새 토큰을 확인하기 전 apply-review를 실행하거나 실패한 작업을 다시 제출하지 마세요. 이번 ZIP은 기존 실패 기록을 성공으로 변경하지 않습니다. 10월31일 일일 기준4999.35095801, 주간 기준4999.64804199, 고점5000과 미해결 이력은 보존합니다. 날짜가 다시 달라지면 기간 기준 검토가 별도로 필요할 수 있습니다. 복구 적용이 성공해도 진입 정지는 유지됩니다. 추가 실제 DEMO 검증은 복구 후 새 작업으로 진행해야 합니다. LIVE/Phase5와 전체 Phase4 완료는 포함하지 않습니다.
+--- /dev/null
++++ b/MULTI_EXECUTION_VALIDATION_KO.md
+@@ -0,0 +1,13 @@
++# 초기 다중 체결 증거 검사
++
++기존 초기 체결 보완 경로가 userTrades 응답을 정확히1건만 허용하던 조건을 최대32건의 검증된 동일 가격 체결 집합으로 보완했습니다. 단일 GET 응답만 사용하며 페이지 누락을 추정하거나 실패 시 재시도하지 않습니다. 총 수량은 현재 주문 executedQty와 정확히 같아야 합니다. 빈 응답·32건 초과·중복 ID·다른 주문/심볼/방향/positionSide·USDT 외 수수료·미래/30초 초과 체결·수량 초과/누락·가격 불일치·음수/상한 초과 수수료·0이 아닌 실현손익은 차단합니다. 수수료를 거래소 서명 응답의 Decimal 값으로 정확히 합산합니다. 체결 ID/시각 순으로 정렬한 전체 정규화 체결 목록을 증거 해시에 넣습니다.
++
++여러 체결의 가격은 모두 주문 avgPrice와 정확히 같아야 합니다. 가중 평균 반올림을 추정하지 않으므로 서로 다른 가격의 체결은 이 보완 경로에서 여전히 차단됩니다. 수수료 합산 뒤 현재 지갑은 기존 기준 자산에서 해당 합계를 뺀 값과 정확히 일치해야 합니다. 다른 자금 변화를 체결로 설명하지 않습니다.
++
++실행 코디네이터와 coherent_snapshot은 변경하지 않았습니다. 단일 DEMO_VALIDATION/BTCUSDT/ISOLATED·이전 체결0·기존 포지션0·한 개 진입 후보·수량cap·명목100USDT 상한·NORMAL/비정지 자격, 정확히 한 번 추가 관찰, 마지막 두 스냅샷 안정성, 원주문·다른 주문/알고·포지션·가격·담보·입출금·시각 검사와 실제 초기 변화 요구를 유지합니다. 관찰 도중 중간 부분 수량이 서로 다르게 나타나거나 담보가 계속 변하면 여전히 차단할 수 있습니다. 일반적인 모든 부분 체결 진행을 허용하는 변경은 아닙니다.
++
++고정된 검사 단계 진단을 추가했습니다: ORDER_PROOF_MISMATCH, POSITION_PROOF_MISMATCH, SNAPSHOT_PROOF_MISMATCH, COLLATERAL_PROOF_MISMATCH, EXECUTIONS_PROOF_MISMATCH, CASH_PROOF_MISMATCH, NO_INITIAL_TRANSITION. 기존 이유 값도 유지합니다. 원본 스냅샷·응답·예외·키·URL을 로그에 추가하지 않습니다. 실제 실패 캡처에는 최초 세 관찰 원본이 없어 이번 실패의 최초 검사 지점을 확정하지 않습니다.
++
++새 단위 검사는 실제 관측 수치0.0003+0.0003, 가격77296.90, 수수료0.00463781씩을 정확히 대조합니다. PostgreSQL/로컬WS 통합 검사는 합성 주문0.05 중0.02 부분 체결을 두 건으로 나누어 위치/지갑 반영 지연과 LONG/SHORT에서 SL·TP·잔량 취소·최종 청산을 검증합니다. 잘못된/불완전한 증거와 별도 현금 변화는 수락 없이 비상 정리하는지 확인합니다. 기존 multi_fill 오류 테스트의 중복된 전체 수량 두 건도 계속 거부합니다. 기존 테스트를 수정하거나 삭제하지 않았습니다.
++
++관련57개 검사 통과(10.98초). 동일 이전 ZIP에서 위치/지갑 지연의 유효한 두 분할 체결 사례가2건 실패함을 재현했습니다(1.31초). 전체 회귀·정적 검사 실제 수치는 manifest에 기록합니다. 클라우드에서 인증된 Binance 주문은 보내지 않았습니다. 실제 새 Windows 검증은 아직 확인해야 합니다. 보호 주문·청산·주문 제출·위험 한도·거래소 SDK·기간/복구 적용·Compose·메모리 키 보관·export 생성 코드는 이전 ZIP과 같습니다. 전체 Phase4와 무인 장기 운영 완료를 주장하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PARTIAL_EVIDENCE_20261031_KO.md
+@@ -0,0 +1,18 @@
++# Windows 실제 부분 체결 실패 및 후속 안전 상태
++
++사용자 캡처에서 관측한 사실입니다. 전체 Phase4 또는 부분 체결 수락 성공이 아닙니다.
++
++- 설치판 windows-demo-history-span-fix-20261031, 실제 작업0feb6a0e-21b2-4f8b-aad5-f101606dc4bb.
++- DEMO_VALIDATION/LONG/PASSIVE/LIMIT, 수량cap0.0007 BTC, 제시 지정가77296.90 USDT, 제시 SL76910.40/TP78071.80.
++- 결과 FINISHED_FLAT, entry_filled true, filled_quantity0.0006, entry_state CANCELED, position_state CLOSED, entry_outcome PARTIAL_FILL.
++- stop_verified false, target_verified false, filled_protection_and_flat_verified false, session_error true, session_failure DEMO_SESSION_OR_QUERY_FAILED.
++- 개인 이벤트 진단 EVENT/SNAPSHOT_CHANGED/ORDER_TRADE_UPDATE, event_age454ms, receive_age143ms, ready_callback17106ms, received12/coalesced3, 시각 보정-737ms/RTT156ms/대기0ms/local_age1113ms.
++- completion_stage FLAT_CONFIRMATION, completion_failure NONE, completion_database_failure NONE.
++- 마지막 차이 available_balance/equity/isolated_margins/isolated_wallets/margin_used/orders/positions/wallet_balance. settle_reason FILL_PROOF_MISMATCH, initial_fill_settled false. 첫 세 스냅샷 원본과 가장 먼저 차단된 세부 검사 지점은 수집되지 않았습니다.
++
++후속 PARTIAL_FILL_READ_ONLY 조회는 entry_status CANCELED, entry_executed0.0006, entry_average77296.900000, trade_count2를 확인했습니다.
++
++1. 2026-10-31T03:17:49.859Z: BUY0.0003 BTC,77296.90,USDT 수수료0.00463781,실현손익0.
++2. 2026-10-31T03:17:52.499Z: BUY0.0003 BTC,77296.90,USDT 수수료0.00463781,실현손익0.
++
++합계0.0006 BTC, 수수료0.00927562 USDT입니다. 거래소 현재 포지션{}, 활성 일반 주문0, 활성 조건부 주문0, risk_state EMERGENCY, paused true, database_changed false, orders_enabled false를 확인했습니다. 기존 단일 실행 증거 경로는 이 두 건 집합을 허용하지 않지만 이번 실패에서 그 조건까지 도달했는지는 확정하지 않습니다. 새 보완판은 실패 이력을 성공으로 덮어쓰지 않습니다.
+--- /dev/null
++++ b/services/execution/demo_execution_proof.py
+@@ -0,0 +1,75 @@
++"""Bounded signed executions for one initial fill at a single verified price."""
++
++from decimal import Decimal
++from typing import Any
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number
++
++MAX_EXECUTIONS = 32
++
++
++def execution_proof(
++    rows: Any,
++    *,
++    order_id: str,
++    side: str,
++    quantity: Decimal,
++    price: Decimal,
++    fee_rate: Decimal,
++    now_ms: int,
++    max_age_ms: int,
++) -> tuple[list[dict[str, str | int]], Decimal]:
++    """No partial results, guessed fees, weighted-price rounding or deduplication."""
++    if not isinstance(rows, list) or not 1 <= len(rows) <= MAX_EXECUTIONS:
++        raise DemoFailure("Initial execution set invalid")
++    result: list[dict[str, str | int]] = []
++    ids: set[str] = set()
++    total = Decimal(0)
++    commission = Decimal(0)
++    for row in rows:
++        if not isinstance(row, dict):
++            raise DemoFailure("Initial execution set invalid")
++        identifier = row.get("id")
++        stamp = row.get("time")
++        if (
++            type(identifier) not in (int, str)
++            or not str(identifier).isdigit()
++            or str(identifier) in ids
++            or type(row.get("orderId")) not in (int, str)
++            or str(row.get("orderId")) != order_id
++            or row.get("symbol") != "BTCUSDT"
++            or row.get("positionSide") != "BOTH"
++            or row.get("side") != side
++            or row.get("commissionAsset") != "USDT"
++            or type(stamp) is not int
++            or not 0 <= now_ms - stamp <= max_age_ms
++        ):
++            raise DemoFailure("Initial execution identity/time invalid")
++        qty = signed_number(row.get("qty"))
++        actual_price = signed_number(row.get("price"))
++        fee = signed_number(row.get("commission"))
++        if (
++            qty <= 0
++            or actual_price != price
++            or not 0 <= fee <= qty * price * fee_rate
++            or signed_number(row.get("realizedPnl")) != 0
++        ):
++            raise DemoFailure("Initial execution amount invalid")
++        ids.add(str(identifier))
++        total += qty
++        commission += fee
++        if total > quantity:
++            raise DemoFailure("Initial execution quantity exceeded")
++        result.append(
++            {
++                "id": str(identifier),
++                "time": stamp,
++                "quantity": str(qty),
++                "price": str(actual_price),
++                "commission": str(fee),
++            }
++        )
++    if total != quantity:
++        raise DemoFailure("Initial execution quantity incomplete")
++    return sorted(result, key=lambda r: (int(r["time"]), int(r["id"]))), commission
+--- a/services/execution/demo_initial_fill.py
++++ b/services/execution/demo_initial_fill.py
+@@ -8,6 +8,7 @@
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure
+ from integrations.binance_usdm.demo_snapshot import signed_number
+ from packages.domain.contracts import OrderState, PositionState, RiskState, TradingMode
++from services.execution.demo_execution_proof import execution_proof
+ from services.execution.demo_models import DemoLedger, DemoSnapshot, InitialFillSettleReason
+ from services.execution.demo_reconciliation import coherent_snapshot
+ 
+@@ -76,7 +77,7 @@
+     direction = 1 if order.signal.direction == "LONG" else -1
+     row = third.orders.get(order.client_id)
+     if not row:
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        raise InitialFillBlocked("ORDER_PROOF_MISMATCH")
+     quantity = signed_number(row["executedQty"])
+     expected_status = "FILLED" if quantity == order.quantity else "PARTIALLY_FILLED"
+     if (
+@@ -88,7 +89,7 @@
+         or (direction == -1 and signed_number(row["avgPrice"]) < order.signal.suggested_limit_price)
+         or (order.server_order_id is not None and row["orderId"] != order.server_order_id)
+     ):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        raise InitialFillBlocked("POSITION_PROOF_MISMATCH")
+     immutable = {
+         "clientOrderId": order.client_id,
+         "orderId": row["orderId"],
+@@ -102,7 +103,7 @@
+     }
+     other = {k: v for k, v in first.orders.items() if k != order.client_id}
+     if any(v["status"] in {"NEW", "PARTIALLY_FILLED"} for v in other.values()):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        raise InitialFillBlocked("SNAPSHOT_PROOF_MISMATCH")
+     for snap in (first, second, third):
+         own = snap.orders.get(order.client_id)
+         if (
+@@ -127,7 +128,7 @@
+             or snap.transfers != ledger.income_seen
+             or active(snap) not in ({}, {"BTCUSDT": quantity * direction})
+         ):
+-            raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++            raise InitialFillBlocked("SNAPSHOT_PROOF_MISMATCH")
+         if active(snap):
+             if (
+                 prices(snap) != prices(third)
+@@ -136,7 +137,7 @@
+                 or snap.isolated_margins.get("BTCUSDT", 0) <= 0
+                 or snap.liquidation_prices.get("BTCUSDT", 0) <= 0
+             ):
+-                raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++                raise InitialFillBlocked("COLLATERAL_PROOF_MISMATCH")
+     try:
+         fills = client.request(
+             "GET",
+@@ -145,31 +146,19 @@
+         )
+     except DemoFailure:
+         raise InitialFillBlocked("PROOF_QUERY_FAILED") from None
+-    # This narrow path supports one signed execution only. More complex partial
+-    # histories still require the ordinary stable-pair path or fail closed.
+-    if not isinstance(fills, list) or len(fills) != 1 or not isinstance(fills[0], dict):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
+-    fill = fills[0]
+-    stamp = fill.get("time")
+-    now_ms = client.clock_ms() + client.offset
+-    commission = signed_number(fill.get("commission"))
+-    if (
+-        fill.get("symbol") != "BTCUSDT"
+-        or str(fill.get("orderId")) != row["orderId"]
+-        or fill.get("positionSide") != "BOTH"
+-        or fill.get("side") != immutable["side"]
+-        or fill.get("commissionAsset") != "USDT"
+-        or commission < 0
+-        or commission > quantity * signed_number(row["avgPrice"]) * ledger.policy.fee_rate
+-        or not str(fill.get("id", "")).isdigit()
+-        or isinstance(fill.get("id"), bool)
+-        or type(stamp) is not int
+-        or not 0 <= now_ms - stamp <= ledger.policy.max_snapshot_age_seconds * 1000
+-        or signed_number(fill.get("qty")) != quantity
+-        or signed_number(fill.get("price")) != signed_number(row["avgPrice"])
+-        or signed_number(fill.get("realizedPnl")) != 0
+-    ):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++    try:
++        executions, commission = execution_proof(
++            fills,
++            order_id=row["orderId"],
++            side=immutable["side"],
++            quantity=quantity,
++            price=signed_number(row["avgPrice"]),
++            fee_rate=ledger.policy.fee_rate,
++            now_ms=client.clock_ms() + client.offset,
++            max_age_ms=ledger.policy.max_snapshot_age_seconds * 1000,
++        )
++    except (DemoFailure, ValueError, TypeError):
++        raise InitialFillBlocked("EXECUTIONS_PROOF_MISMATCH") from None
+     before_cash = ledger.value.equity
+     after_cash = before_cash - commission
+     if (
+@@ -178,7 +167,7 @@
+         or second.wallet_balance not in {before_cash, after_cash}
+         or (first.wallet_balance == after_cash and second.wallet_balance != after_cash)
+     ):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        raise InitialFillBlocked("CASH_PROOF_MISMATCH")
+     # Require an observable initial fill/fee transition, not arbitrary drift of
+     # a previously open position or fabricated fingerprint changes.
+     if not (
+@@ -187,7 +176,7 @@
+         != second.orders[order.client_id]["executedQty"]
+         or first.wallet_balance != second.wallet_balance
+     ):
+-        raise InitialFillBlocked("FILL_PROOF_MISMATCH")
++        raise InitialFillBlocked("NO_INITIAL_TRANSITION")
+     active_views = [s for s in (first, second, third) if active(s)]
+     bounded = bounded.model_copy(
+         update={
+@@ -211,10 +200,9 @@
+         json.dumps(
+             {
+                 "order": key,
+-                "trade": str(fill["id"]),
+-                "time": stamp,
++                "executions": executions,
+                 "quantity": str(quantity),
+-                "price": str(fill["price"]),
++                "price": str(row["avgPrice"]),
+                 "commission": str(commission),
+                 "first": first.fingerprint,
+                 "second": second.fingerprint,
+--- a/services/execution/demo_models.py
++++ b/services/execution/demo_models.py
+@@ -15,6 +15,13 @@
+     "NOT_ELIGIBLE",
+     "UNSTABLE_THIRD",
+     "FILL_PROOF_MISMATCH",
++    "ORDER_PROOF_MISMATCH",
++    "POSITION_PROOF_MISMATCH",
++    "SNAPSHOT_PROOF_MISMATCH",
++    "COLLATERAL_PROOF_MISMATCH",
++    "CASH_PROOF_MISMATCH",
++    "NO_INITIAL_TRANSITION",
++    "EXECUTIONS_PROOF_MISMATCH",
+     "PROOF_QUERY_FAILED",
+     "VERIFIED_INITIAL_FILL",
+ ]
+--- /dev/null
++++ b/tests/integration/test_demo_multiple_initial_executions.py
+@@ -0,0 +1,126 @@
++"""Multiple same-order executions retain all ordinary initial-fill safeguards."""
++
++import asyncio
++import json
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_initial_fill_settlement import fill_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++from tests.integration.test_demo_validation import exercise
++
++
++@pytest.fixture(autouse=True)
++def fast_confirmation(monkeypatch):
++    import services.execution.demo_validation as module
++
++    monkeypatch.setattr(module, "FLAT_CONFIRMATION_INTERVAL_SECONDS", 0)
++
++
++@pytest.fixture
++def multi_case(fill_case):  # noqa: F811
++    store, c, fake, options, state = fill_case
++    options["fill_quantity"] = Decimal("0.02")
++    source = c.client.send
++    controls = {"fault": None}
++
++    def send(method, path, query, key):
++        response = source(method, path, query, key)
++        if path != "/fapi/v1/userTrades":
++            return response
++        original = json.loads(response.body)[0]
++        a = original | {
++            "qty": str(Decimal(original["qty"]) / 2),
++            "commission": str(Decimal(original["commission"]) / 2),
++            "time": original["time"] - 2640,
++        }
++        b = a | {"id": 2, "time": original["time"]}
++        if controls["fault"] == "duplicate":
++            b["id"] = a["id"]
++        if controls["fault"] == "wrong_order":
++            b["orderId"] = "9999"
++        if controls["fault"] == "wrong_fee":
++            b["commission"] = "1"
++        if controls["fault"] == "different_price":
++            b["price"] = str(Decimal(b["price"]) + 1)
++        if controls["fault"] == "incomplete":
++            return fake.response([a])
++        if controls["fault"] == "stale":
++            a["time"] -= 31000
++        return fake.response([b, a])
++
++    c.client.send = send
++    return fill_case, controls
++
++
++@pytest.mark.parametrize(
++    "mode,direction", [("positions", "LONG"), ("wallet", "LONG"), ("positions", "SHORT")]
++)
++def test_two_initial_partial_executions_get_protection_and_finish_flat(
++    multi_case, monkeypatch, capsys, mode, direction
++):
++    (store, c, fake, options, state), _ = multi_case
++    state["mode"] = mode
++    if direction == "SHORT":
++        options["margin_controls"]["liquidation"] = "150"
++    operation = uuid4()
++    asyncio.run(
++        exercise(
++            c,
++            operation,
++            direction,
++            monkeypatch,
++            entry_style="OPPOSITE_QUOTE" if direction == "SHORT" else "PASSIVE",
++        )
++    )
++    ledger = store.read("DEMO-test")
++    order = ledger.orders[str(operation)]
++    assert str(operation) in ledger.initial_fill_settlements
++    assert ledger.validation_evidence[str(operation)] == {
++        "stop_verified": True,
++        "target_verified": True,
++    }
++    assert order.filled == Decimal("0.02") and order.remaining == 0 and order.open_quantity == 0
++    assert order.state.value == "CANCELED" and order.position_state.value == "CLOSED"
++    assert len(posts(fake)) == 2 and len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    assert fake.positions["BTCUSDT"] == 0
++    assert '"filled_protection_and_flat_verified": true' in capsys.readouterr().out
++
++
++@pytest.mark.parametrize(
++    "fault", ["duplicate", "wrong_order", "wrong_fee", "different_price", "incomplete", "stale"]
++)
++def test_incomplete_or_unverified_set_still_flattens_without_acceptance(
++    multi_case, monkeypatch, capsys, fault
++):
++    (store, c, fake, _, _), controls = multi_case
++    controls["fault"] = fault
++    operation = uuid4()
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    ledger = store.read("DEMO-test")
++    assert str(operation) not in ledger.initial_fill_settlements
++    assert ledger.reconciliation_settle_reason == "EXECUTIONS_PROOF_MISMATCH"
++    assert ledger.paused and ledger.risk_state.value == "EMERGENCY"
++    assert fake.positions["BTCUSDT"] == 0 and len(posts(fake)) == 2
++    assert not posts(fake, "/fapi/v1/algoOrder")
++    assert '"filled_protection_and_flat_verified": false' in capsys.readouterr().out
++
++
++def test_valid_multiple_executions_do_not_explain_unrelated_cash_change(multi_case, monkeypatch):
++    (store, c, fake, _, state), _ = multi_case
++    state["mode"] = "cash_mismatch"
++    operation = uuid4()
++    with pytest.raises(DemoFailure):
++        asyncio.run(exercise(c, operation, "LONG", monkeypatch))
++    ledger = store.read("DEMO-test")
++    assert ledger.reconciliation_settle_reason == "CASH_PROOF_MISMATCH"
++    assert str(operation) not in ledger.initial_fill_settlements
++    assert ledger.paused and ledger.risk_state.value == "EMERGENCY"
++    assert fake.positions["BTCUSDT"] == 0 and not posts(fake, "/fapi/v1/algoOrder")
+--- /dev/null
++++ b/tests/unit/test_demo_execution_proof.py
+@@ -0,0 +1,103 @@
++"""Exact two-execution Windows evidence; malformed sets never become valid fills."""
++
++from decimal import Decimal as D
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution.demo_execution_proof import execution_proof
++
++NOW = 1793416672499
++
++
++def row(identifier=1, **updates):
++    return (
++        dict(
++            symbol="BTCUSDT",
++            orderId="123",
++            id=identifier,
++            time=NOW - 2640,
++            positionSide="BOTH",
++            side="BUY",
++            commissionAsset="USDT",
++            qty="0.0003",
++            price="77296.90",
++            commission="0.00463781",
++            realizedPnl="0",
++        )
++        | updates
++    )
++
++
++def prove(rows, **updates):
++    return execution_proof(
++        rows,
++        **(
++            dict(
++                order_id="123",
++                side="BUY",
++                quantity=D("0.0006"),
++                price=D("77296.90"),
++                fee_rate=D("0.0004"),
++                now_ms=NOW,
++                max_age_ms=30000,
++            )
++            | updates
++        ),
++    )
++
++
++def test_actual_two_equal_price_executions_sum_exactly_and_sort_for_evidence():
++    a, b = row(), row(2, time=NOW)
++    proof, fee = prove([b, a])
++    assert fee == D("0.00927562")
++    assert sum(D(r["quantity"]) for r in proof) == D("0.0006")
++    assert [r["id"] for r in proof] == ["1", "2"]
++    assert prove([a, b]) == (proof, fee)
++
++
++@pytest.mark.parametrize(
++    "rows", [[], None, {}, [None], [row()] * 33, [row()], [row(), row()], [row(), row(2), row(3)]]
++)
++def test_empty_duplicate_oversized_or_incomplete_sets_fail(rows):
++    with pytest.raises(DemoFailure):
++        prove(rows)
++
++
++@pytest.mark.parametrize(
++    "updates",
++    [
++        {"symbol": "ETHUSDT"},
++        {"orderId": "999"},
++        {"orderId": True},
++        {"side": "SELL"},
++        {"positionSide": "LONG"},
++        {"commissionAsset": "BNB"},
++        {"id": True},
++        {"id": "bad"},
++        {"time": True},
++        {"time": NOW + 1},
++        {"time": NOW - 30001},
++        {"qty": "0"},
++        {"qty": "-1"},
++        {"price": "77296.80"},
++        {"price": "NaN"},
++        {"commission": "-1"},
++        {"commission": "1"},
++        {"realizedPnl": "0.01"},
++    ],
++)
++def test_invalid_execution_cannot_hide_in_other_valid_rows(updates):
++    with pytest.raises(DemoFailure):
++        prove([row(), row(2, **updates)])
++
++
++def test_distinct_prices_are_rejected_without_guessing_exchange_average_rounding():
++    with pytest.raises(DemoFailure):
++        prove([row(price="77296.80"), row(2, price="77297.00")])
++
++
++def test_short_same_price_and_exact_fee_boundary_are_supported():
++    rows = [row(side="SELL", commission="0.009275628"), row(2, side="SELL", commission="0")]
++    _, fee = prove(rows, side="SELL")
++    assert fee == D("0.009275628")
