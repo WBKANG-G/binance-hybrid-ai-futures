@@ -1,0 +1,948 @@
+--- /dev/null
++++ b/SL_FAULT_START_HERE_KO.md
+@@ -0,0 +1,31 @@
++# 손절 로컬 조립 실패와 원래 자동 비상 종료 검증
++
++이번 단계는 Phase4의 손절 생성 실패 대응 중 로컬 조립 실패 경로를 검증합니다. 실제 거래소 거부 응답을 만들거나 보호되지 않은 포지션을 유지하는 시험이 아닙니다. 실제 거래소 Algo 거부·외부 긴급 알림 전달까지 통과했다고 주장하지 않습니다.
++
++최소 cap/100 USDT 이내의 BTCUSDT LONG 지정가 진입1건을 DEMO에 실제 제출합니다. 현재 ask의 OPPOSITE_QUOTE LIMIT이며 시장가 신규 진입은 없습니다. 체결 뒤 같은 의도의 SL 조립에만 ValueError를1회 주입합니다. 그때 기존 coordinator가 NOT_SENT/LOCAL_VALIDATION_FAILED, EMERGENCY/paused를 기록하고 원래 reduce-only 비상 종료를 수행해야 통과입니다. 도구가 후속 정리로만 flat을 만든 경우에는 통과하지 않습니다.
++
++## CMD 실행 순서
++
++ZIP을 바탕 화면의 새 windows-demo-sl-fault-check 폴더에 풉니다. 기존 폴더에 덮어쓰지 않습니다. 새 폴더의 탐색기 주소창에 cmd를 입력하고 아래 명령을 한 줄씩 실행합니다. 같은 프로젝트 hybrid-windows 및 기존 볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++DB/API/web Healthy 확인 뒤 키를 RAM 등록합니다. 입력은 숨겨집니다. 키/Secret을 채팅에 보내지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++등록 성공 뒤 아래 명령을 한 번 실행합니다. 다른 수동 주문/봇/입출금은 하지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_sl_fault --enable-demo --enable-sl-build-fault --operation-id 5c96345b-f0c6-42cc-8132-534b26546577
++```
++
++전체 JSON 결과를 캡처합니다. 정상 결과는 SL_BUILD_FAILURE_GATE_AUTO_FLAT_VERIFIED이고, flat_confirmation VERIFIED_FLAT, exit_state FILLED, automatic_exit_observed_before_cleanup true, fallback_operator_emergency_requested false입니다. 최종 EMERGENCY/paused는 유지합니다. 성공 뒤에도 신규 진입을 자동 재개하지 않습니다. 결과 확인 후 별도의 읽기 전용 복구 검토와 승인이 필요합니다.
++
++NOT_ACCEPTED/BLOCKED/UNKNOWN이 나오거나 명령이 끊기면 새 UUID로 다시 주문하지 말고 결과를 공유합니다. 동일 의도 재실행은 새 진입·재주입 없이 정리만 하는 RECOVERY_ONLY 경로지만 임의 반복하지 않습니다. UNKNOWN 종료는 재POST하지 않습니다. DB/볼륨 삭제·기준금 재설정·exports 생성·과거 요청 삭제는 없습니다.
++
++기존 SL/TP/주문/리스크/청산 로직을 바꾸지 않습니다. 별도 CLI 프로세스 안에서 own SL 조립 함수만 임시 교체하고 세션/DB 작업 정리 뒤 원상 복원합니다. own SL/TP의 뜻밖의 POST는 별도 전송 장벽이 차단하고 통과를 거부합니다. 장애 이후 보호되지 않은 노출을 추가로 기다리거나 재진입하지 않습니다. 종료 응답이 불명확하면 성공으로 표시하지 않습니다. 관찰90초는 연결·체결·결과 관찰의 상한이며 무보호 상태를90초 유지하도록 만드는 타이머가 아닙니다.
+--- /dev/null
++++ b/SL_FAULT_VALIDATION_KO.md
+@@ -0,0 +1,21 @@
++# 손절 조립 실패 도구 검증
++
++전체1176개 테스트 통과(270.42초), 손절 실패 집중20개 통과(13.74초). Ruff check/format 및 mypy105개 소스 통과.
++
++## 범위
++
++별도 DEMO CLI, 검증 모듈, 테스트, 한국어 안내/증거만 추가합니다. 이전 ZIP의378개 manifest 파일은 모두 바이트 단위로 동일합니다. 기존 복구 HTTPS 재사용 수정과 실제 검토/승인 통과 증거도 포함했습니다. 기존 테스트·SDK·실행 coordinator·리스크·보호·청산·기간 기준금·키·Compose·exports를 수정하지 않았습니다.
++
++시작 상태는 NORMAL/paused, 원격·로컬 포지션/활성 주문 없음, ISOLATED BTCUSDT 레버리지2입니다. 기존 prepare의 닫힌 봉·신선도·기준금/리스크 게이트·최소 cap/100 USDT 상한을 사용합니다. 목적 DEMO_VALIDATION, LONG, OPPOSITE_QUOTE LIMIT1건으로 제한합니다. 재사용 의도는 고유 시작 표식과 목적/방향/종목/진입 스타일이 일치해야 하며 정리만 수행합니다. 다른 활성 의도는 거부합니다.
++
++SL 조립 직전에 own position/account/symbol/side/stop/workingType과 이미 확인된 로컬 체결·무보호 노출, 동일 SL 의도의 SUBMITTING 상태를 검사한 뒤 ValueError를1회 주입합니다. 실제 거래소 거부 응답을 꾸미지 않습니다. 원래 coordinator의 SL 효과 경로가 NOT_SENT/LOCAL_VALIDATION_FAILED와 EMERGENCY/paused를 기록합니다. 별도 observer가 원래 reduce-only POST 직전에 그 증거·진입 차단·TP 미생성을 확인합니다. 이 observer의 진단 오류는 종료 전송을 막지 않습니다. 정리 시작 후의 종료는 자동 대응 증거로 세지 않습니다.
++
++성공은 원래 자동 종료 관찰, LIMIT 진입1건, reduce-only 종료1건, SL/TP POST0건, FILLED/VERIFIED_FLAT, 미해결 이력·기준금 보존, 최종 EMERGENCY/paused, 세션/감사 실패 없음이 모두 필요합니다. 모호한 종료를 다시 제출하거나 flat으로 확정하지 않습니다. 기존 자동 대응이 동작하지 않아 도구의 명시적 비상 정리만 성공하면 NOT_ACCEPTED입니다.
++
++임시 build_protection 교체와 exit observer는 프로세스 안에서만 적용되고 세션과 DB worker를 drain한 뒤 복원합니다. 기존 lease60초, 시계 검증, 펜스, 스냅샷 일치, 손익/기준금 및 기본 주문 설정을 바꾸지 않았습니다. 결과 감사와 CLI lease 해제까지 확인해야 성공으로 반환합니다.
++
++## 시험
++
++실제 격리 PostgreSQL과 localhost WebSocket을 사용하며 거래소 SDK 전송은 합성 fixture입니다. 자동 비상 종료·NOT_SENT 증거·진입 차단·무보호 잔량0·기준금 보존, 미체결 무주입, 같은 의도 무재진입, UNKNOWN 종료 무재POST 및 재실행 무재POST, 후속 정리를 자동 대응으로 오인하지 않음, 진단 읽기 오류가 원래 종료를 막지 않음, 현금 이동 및 감사 실패 거부, 준비 실패 무주문, 함수/observer 복원, 명시적 플래그/LIVE 거부, own SL/TP 전송 장벽을 검사합니다.
++
++클라우드에서 인증된 거래소 요청이나 주문은 실행하지 않았습니다. Windows 실제 시험은 아직 실행 전입니다. 실제 거래소 SL 거부 응답, 외부 알림 전달, 부분체결 보호 성공, 주문/포지션 worker SIGKILL, 호스트/DB 장애까지 검증한 것으로 확대하지 않습니다. Phase4 전체 완료·main 병합·LIVE·Phase5 전환을 하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_75803610_20261031_KO.md
+@@ -0,0 +1,19 @@
++# Windows DEMO 비상 상태 복구 승인 완료
++
++근거: 사용자 CMD 결과 캡처. 2026-10-31 한국 시간.
++배포: windows-demo-recovery-https-reuse-20261031 / 4bd1ca2.
++작업 ID: 75803610-46ec-4498-b169-3338412081fa.
++검토 토큰: 136f461a61ecd53d2a027aa6cb11d7a8e1015a20714e9e46dc21b78260b11529.
++
++사용자가 review_demo_recovery --apply-review와 --acknowledge-unresolved-history로 실행했다.
++
++실제 결과:
++- recovery EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED
++- orders_enabled false
++- live_trading_enabled false
++
++이 결과는 적용 직전 전체 복구 검토를 다시 통과하고 토큰 일치를 확인한 뒤 비상 상태를 NORMAL로 전환했음을 뜻한다. 신규 진입은 paused이며 stream_ready/reconciled는 false로 유지한다. 미해결 이력3건, 기존 요청/주문/전송하지 않은 증거 및 회계/기준금/과거 이벤트를 보존하는 원래 승인 함수의 결과다. 이 출력 자체가 현재 잔고를 제공하는 것은 아니다.
++
++직전 읽기 전용 검토는 전체55개 요청,7배치,서명GET244회,추가 시계 프로브0회,미해결3건,리스크PASS,포지션없음,활성주문0이었다. HTTPS 연결1개/재사용243회/서버종료0/전송측정13891ms로 기존40초 제한 안에서 완료했다.
++
++TP 로컬 조립 실패 대응과 그 후 복구 검토 시간 초과 수정 및 명시적 비상 상태 승인까지 확인했다. 신규 주문/자동 진입 재개/실제 부분체결 보호 통과/Phase4 전체 완료/LIVE/Phase5 승인으로 확대하지 않는다. 같은 복구 명령을 반복할 필요가 없다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_HTTPS_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,22 @@
++# Windows DEMO 복구 HTTPS 연결 재사용 검토 통과
++
++사용자가 제공한 CMD 캡처 기준. 배포 windows-demo-recovery-https-reuse-20261031 / 4bd1ca2.
++ZIP SHA256 628b01a3e239812a20553ea8ee411be3384059f737e77d204ee30b79eca72f65.
++
++- 빌드 후 DB/web/API Healthy, 키 RAM 등록 성공
++- recovery REVIEW_ONLY_NO_DATABASE_CHANGE
++- review_token 136f461a61ecd53d2a027aa6cb11d7a8e1015a20714e9e46dc21b78260b11529
++- audited_request_count 55 / audit_batch_count 7
++- signed_query_count 244 / audit_clock_probes 0
++- unresolved_count 3 / risk_gates PASS
++- position_nonzero false / active_orders 0
++- audit_transport_mode POOLED_HTTPS
++- audit_http_attempts 244 / audit_connection_attempts 1
++- audit_reused_requests 243 / audit_server_close_responses 0
++- audit_transport_elapsed_ms 13891 / audit_last_route OTHER_GET
++- risk_state EMERGENCY / paused true
++- orders_enabled false / live_trading_enabled false
++
++이전 REQUEST_AUDIT_TIME_BUDGET 뒤 수정본의 실제 Windows 읽기 전용 검토가 전체55개 이력 조회를 완료했다. 연결1개를243회 재사용했고 전송 측정13.891초로 기존40초 제한 안에서 완료했다. 이는 명령 전체 소요 시간과 같다고 단정하지 않는다. 시계0회는 이 검토 감사 안의 추가 프로브 수이며 명령 시작 시 SDK 시계 동기화 생략을 뜻하지 않는다.
++
++미해결3건의 세부 신원은 이 집계 출력만으로 확정하지 않는다. 미해결 이력을 지우거나 상태를 재분류하지 않는다. 현재 포지션/활성 주문0 및 리스크 통과를 확인했지만 아직 복구 승인은 적용하지 않았다. 다음 별도 승인 명령은 최신 상태를 다시 감사해 토큰이 같을 때만 EMERGENCY를 NORMAL로 바꾸고 entries paused는 유지하며, 과거 이력과 기준금은 보존한다. 새 주문/Phase5/LIVE 승인이 아니다.
+--- /dev/null
++++ b/scripts/check_demo_sl_fault.py
+@@ -0,0 +1,102 @@
++"""Explicit capped DEMO local SL-build fault and original automatic emergency exit."""
++
++import argparse
++import asyncio
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4, uuid5
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import empty
++from services.execution.demo_sl_fault_check import SLFaultBlocked, SLFaultClient, code, run
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-demo", action="store_true", required=True)
++    parser.add_argument("--enable-sl-build-fault", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report = {
++        "sl_fault_check": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise SLFaultBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = SLFaultClient(cfg.model_copy(update={"demo_trading_enabled": False}), key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        state = store.read(ACCOUNT)
++        op = str(args.operation_id)
++        existing = state.orders.get(op)
++        start = str(uuid5(args.operation_id, "sl-fault-start"))
++        if existing and (
++            state.operations.get(start) != "SL_LOCAL_BUILD_FAULT_CHECK"
++            or existing.signal.purpose != "DEMO_VALIDATION"
++            or existing.signal.direction != "LONG"
++            or existing.signal.symbol != "BTCUSDT"
++            or state.validation_entry_styles.get(op) != "OPPOSITE_QUOTE"
++        ):
++            raise SLFaultBlocked("ENTRY_SCOPE_INVALID")
++        if any(k != op and (o.remaining or o.open_quantity) for k, o in state.orders.items()):
++            raise SLFaultBlocked("ENTRY_SCOPE_INVALID")
++        if existing is None and (
++            start in state.operations
++            or str(uuid5(args.operation_id, "sl-fault-result")) in state.operations
++        ):
++            raise SLFaultBlocked("OPERATION_ALREADY_EXISTS")
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        if existing is None:
++            empty(coordinator)
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        client.settings = cfg
++        report = asyncio.run(run(coordinator, args.operation_id))
++        success = report["sl_fault_check"] == "SL_BUILD_FAILURE_GATE_AUTO_FLAT_VERIFIED"
++    except Exception as error:
++        report["failure"] = code(error)
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report["sl_fault_check"] = "BLOCKED"
++            report["failure"] = "LEASE_RELEASE_FAILED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_sl_fault_check.py
+@@ -0,0 +1,445 @@
++"""Own-SL local build failure: original emergency gate and automatic reduce-only exit."""
++
++import asyncio
++import json
++import time
++from collections.abc import Callable, Mapping
++from typing import Any, Literal
++from unittest.mock import patch
++from uuid import UUID, uuid5
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.filters import SymbolRules
++from integrations.binance_usdm.orders import OrderIntent
++from packages.domain.contracts import AlgoOrder
++from services.execution import demo as core
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import RestartBlocked, RestartClient, empty
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_validation import confirm_exit, prepare, safe_failure
++from services.risk.paper import RiskRejected
++
++
++class SLFaultBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = (
++            code
++            if code
++            in {
++                "LIVE_CONTEXT_FORBIDDEN",
++                "ENTRY_SCOPE_INVALID",
++                "RECOVERY_ONLY",
++                "OPERATION_ALREADY_EXISTS",
++                "ENTRY_FILL_PROOF_NOT_VERIFIED",
++                "REPEATED_INJECTION",
++                "UNEXPECTED_PROTECTION_TRANSPORT",
++                "FAULT_NOT_OBSERVED",
++                "EXIT_UNRESOLVED",
++                "SESSION_FAILED",
++                "FAULT_GATE_NOT_VERIFIED",
++                "NO_SEND_PROOF_NOT_VERIFIED",
++                "HISTORY_CHANGED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "FLAT_NOT_CONFIRMED",
++                "RESULT_AUDIT_FAILED",
++                "LEASE_RELEASE_FAILED",
++                "CHECK_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++def code(error: Exception) -> str:
++    return (
++        error.code if isinstance(error, (SLFaultBlocked, RestartBlocked)) else safe_failure(error)
++    )
++
++
++class SLFaultClient(RestartClient):
++    def __init__(self, *args: Any, **kwargs: Any):
++        super().__init__(*args, **kwargs)
++        self.block_sl_id: str | None = None
++        self.block_tp_id: str | None = None
++        self.unexpected_protection_attempts = 0
++        self.reduce_post_attempts = 0
++        self.before_exit: Callable[[], None] | None = None
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        values = params or {}
++        if (
++            method == "POST"
++            and path == "/fapi/v1/algoOrder"
++            and values.get("clientAlgoId") in {self.block_sl_id, self.block_tp_id}
++            and values.get("clientAlgoId") is not None
++        ):
++            self.unexpected_protection_attempts += 1
++            raise SLFaultBlocked("UNEXPECTED_PROTECTION_TRANSPORT")
++        if method == "POST" and path == "/fapi/v1/order" and values.get("reduceOnly") == "true":
++            self.reduce_post_attempts += 1
++            if self.before_exit is not None:
++                self.before_exit()  # Records only; diagnostic failure must never block an exit.
++        return super().request(method, path, params)
++
++
++async def run(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    *,
++    connector: Any = private_connect,
++    observation_timeout: float = 90,
++    poll_seconds: float = 0.5,
++) -> dict[str, Any]:
++    store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    if not isinstance(client, SLFaultClient):
++        raise SLFaultBlocked("ENTRY_SCOPE_INVALID")
++    key = str(operation)
++    start_tag = str(uuid5(operation, "sl-fault-start"))
++    result_tag = str(uuid5(operation, "sl-fault-result"))
++    original = store.read(lease.account_id)
++    existed = key in original.orders
++    if any(k != key and (o.remaining or o.open_quantity) for k, o in original.orders.items()):
++        raise SLFaultBlocked("ENTRY_SCOPE_INVALID")
++    if existed and (
++        original.operations.get(start_tag) != "SL_LOCAL_BUILD_FAULT_CHECK"
++        or original.orders[key].signal.purpose != "DEMO_VALIDATION"
++        or original.orders[key].signal.direction != "LONG"
++        or original.orders[key].signal.symbol != "BTCUSDT"
++        or original.validation_entry_styles.get(key) != "OPPOSITE_QUOTE"
++    ):
++        raise SLFaultBlocked("ENTRY_SCOPE_INVALID")
++    if not existed:
++        if start_tag in original.operations or result_tag in original.operations:
++            raise SLFaultBlocked("OPERATION_ALREADY_EXISTS")
++        empty(coordinator)
++    old_orders = {k: v.model_dump(mode="json") for k, v in original.orders.items() if k != key}
++    callback_failure = proof_error = "NONE"
++    failure = completion_failure = "NONE"
++    stage = "SESSION_CONNECT"
++    failure_stage = "NONE"
++    injections = 0
++    fill_scope_verified = paused_verified = gate_verified = False
++    automatic_exit_observed = False
++    cleanup_started = False
++    no_send_verified = operator_emergency_requested = False
++    fault_at: str | None = None
++    completion = "UNKNOWN"
++    original_builder: Callable[..., OrderIntent] = vars(core)["build_protection"]
++
++    def guarded_builder(
++        protection: AlgoOrder,
++        rules: SymbolRules,
++        *,
++        working_type: Literal["MARK_PRICE", "CONTRACT_PRICE"],
++    ) -> OrderIntent:
++        nonlocal injections, fill_scope_verified, proof_error, fault_at
++        if protection.position_id != operation or protection.order_type != "STOP_MARKET":
++            return original_builder(protection, rules, working_type=working_type)
++        try:
++            ledger = store.read(lease.account_id)
++            order = ledger.orders[key]
++            if (
++                protection.client_algo_id != order.algo_id
++                or protection.client_algo_id != client.block_sl_id
++                or protection.account_id != lease.account_id
++                or protection.symbol != "BTCUSDT"
++                or protection.side != "SELL"
++                or protection.trigger_price != order.signal.initial_stop_price
++                or working_type != "MARK_PRICE"
++                or order.protected
++                or order.filled <= 0
++                or order.open_quantity <= 0
++                or ledger.requests.get(order.algo_id or "") != "SUBMITTING"
++            ):
++                raise SLFaultBlocked("ENTRY_FILL_PROOF_NOT_VERIFIED")
++            if injections:
++                raise SLFaultBlocked("REPEATED_INJECTION")
++            fill_scope_verified = True
++            injections += 1
++            fault_at = store.now().isoformat()
++        except Exception as error:
++            proof_error = code(error)
++            raise
++        # Original submission_attempted=False path: NOT_SENT / LOCAL_VALIDATION_FAILED.
++        # No exchange response is fabricated; original SL-failure emergency logic runs.
++        raise ValueError("Explicit own-SL local build fault injection")
++
++    def before_exit() -> None:
++        nonlocal automatic_exit_observed, paused_verified, gate_verified
++        nonlocal no_send_verified, proof_error
++        if cleanup_started:
++            return  # Fallback cleanup cannot count as the original automatic response.
++        try:
++            ledger = store.read(lease.account_id)
++            order = ledger.orders[key]
++            no_send_verified = bool(
++                injections == 1
++                and ledger.requests.get(order.algo_id or "") == "NOT_SENT"
++                and ledger.request_no_send_evidence.get(order.algo_id or "")
++                == "LOCAL_VALIDATION_FAILED"
++            )
++            paused_verified = bool(
++                ledger.paused
++                and ledger.risk_state.value == "EMERGENCY"
++                and not order.protected
++                and order.open_quantity > 0
++                and order.tp_algo_id is None
++            )
++            try:
++                coordinator._fresh(ledger.model_copy(deep=True))
++            except RiskRejected:
++                gate_verified = True
++            automatic_exit_observed = bool(no_send_verified and paused_verified and gate_verified)
++        except Exception as error:
++            proof_error = code(error)
++            # Always allow the original risk-reducing exit to proceed.
++
++    def ready() -> None:
++        nonlocal stage, callback_failure
++        try:
++            stage = "RESUME_ENTRIES"
++            coordinator.resume_entries(uuid5(operation, "sl-fault-resume"))
++            stage = "PREPARE_ENTRY"
++            signal, gate, cap = prepare(
++                coordinator, operation, "LONG", entry_style="OPPOSITE_QUOTE"
++            )
++            stage = "RESERVE_ENTRY"
++            order = coordinator.reserve(
++                signal, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE"
++            )
++            client.allowed_entry, client.allowed_quantity = order.client_id, order.quantity
++            client.block_sl_id = "DS-" + order.client_id[3:]
++            client.block_tp_id = "DT-" + order.client_id[3:]
++            print(
++                json.dumps(
++                    {
++                        "sl_fault_stage": "RESERVED_NOT_YET_SUBMITTED",
++                        "operation_id": key,
++                        "quantity": str(order.quantity),
++                        "quantity_cap": str(cap),
++                        "limit_price": str(signal.suggested_limit_price),
++                        "stop_price": str(signal.initial_stop_price),
++                        "target_price": str(signal.target_price),
++                        "live_trading_enabled": False,
++                    }
++                ),
++                flush=True,
++            )
++            stage = "SUBMIT_ENTRY"
++            coordinator.submit(key)
++            stage = "WAIT_SL_BUILD_FAULT"
++        except Exception as error:
++            callback_failure = code(error)
++            raise
++
++    task: asyncio.Task[None] | None = None
++    with (
++        patch.object(core, "build_protection", guarded_builder),
++        patch.object(client, "before_exit", before_exit),
++    ):
++        try:
++            if existed:
++                raise SLFaultBlocked("RECOVERY_ONLY")
++
++            def start(ledger: Any) -> None:
++                ledger.operations[start_tag] = "SL_LOCAL_BUILD_FAULT_CHECK"
++
++            store.change(lease, "DEMO_SL_FAULT_CHECK_START", start)
++            task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++            deadline = time.monotonic() + observation_timeout
++            while time.monotonic() < deadline:
++                if task.done():
++                    await task
++                    raise SLFaultBlocked("SESSION_FAILED")
++                if (
++                    callback_failure != "NONE"
++                    or proof_error != "NONE"
++                    or coordinator.session_failed
++                ):
++                    raise SLFaultBlocked("SESSION_FAILED")
++                current = await settled_call(store.read, lease.account_id)
++                order = current.orders.get(key)
++                if automatic_exit_observed and order and order.exit_state == "UNKNOWN":
++                    raise SLFaultBlocked("EXIT_UNRESOLVED")
++                if (
++                    automatic_exit_observed
++                    and order
++                    and order.exit_state == "FILLED"
++                    and not order.open_quantity
++                    and not order.remaining
++                ):
++                    print(
++                        json.dumps(
++                            {
++                                "sl_fault_stage": "SL_NOT_SENT_GATE_BLOCKED_AUTO_EXIT_FILLED",
++                                "fault_injection_count": injections,
++                                "automatic_exit_observed": automatic_exit_observed,
++                                "live_trading_enabled": False,
++                            }
++                        ),
++                        flush=True,
++                    )
++                    break
++                await asyncio.sleep(poll_seconds)
++            else:
++                raise SLFaultBlocked("FAULT_NOT_OBSERVED")
++        except Exception as error:
++            failure = (
++                callback_failure
++                if callback_failure != "NONE"
++                else proof_error
++                if proof_error != "NONE"
++                else code(error)
++            )
++            failure_stage = stage
++        finally:
++            cleanup_started = True
++            if task is not None:
++                session_error = await drain_session(task, cancel=True)
++                if (session_error is not None or coordinator.session_failed) and failure == "NONE":
++                    failure, failure_stage = "SESSION_FAILED", "SESSION_CLEANUP"
++            if callback_failure != "NONE":
++                failure = callback_failure
++            if proof_error != "NONE":
++                failure = proof_error
++            try:
++                await settled_call(store.renew, lease)
++                await settled_call(client.sync_clock)
++                await settled_call(
++                    coordinator.command, uuid5(operation, "sl-fault-pause"), "PAUSE_ENTRIES"
++                )
++                current = store.read(lease.account_id)
++                if any(current.positions.values()) or any(
++                    o.open_quantity for o in current.orders.values()
++                ):
++                    operator_emergency_requested = True
++                    await settled_call(
++                        coordinator.command, uuid5(operation, "sl-fault-flat"), "EMERGENCY_FLATTEN"
++                    )
++                completion = await confirm_exit(coordinator)
++                await settled_call(coordinator.disconnect)
++            except Exception as error:
++                completion_failure = code(error)
++    final = store.read(lease.account_id)
++    order = final.orders.get(key)
++    fixed_fields = (
++        "policy",
++        "daily_key",
++        "daily_base",
++        "weekly_key",
++        "weekly_base",
++        "high_water",
++        "net_transfers",
++        "margin_mode",
++        "symbols",
++        "recovery_receipts",
++        "cancelled_exposure_corrections",
++        "attested_day_baselines",
++        "attested_period_baselines",
++        "exit_anchored_day_baselines",
++    )
++    history_ok = (
++        {k: v.model_dump(mode="json") for k, v in final.orders.items() if k != key} == old_orders
++        and all(final.requests.get(k) == v for k, v in original.requests.items())
++        and all(final.income_seen.get(k) == v for k, v in original.income_seen.items())
++        and all(getattr(final, k) == getattr(original, k) for k in fixed_fields)
++        and all(
++            {k: v for k, v in getattr(final, name).items() if k != key}
++            == {k: v for k, v in getattr(original, name).items() if k != key}
++            for name in (
++                "entry_quantity_caps",
++                "validation_entry_styles",
++                "validation_evidence",
++                "initial_fill_settlements",
++            )
++        )
++        and all(
++            final.request_no_send_evidence.get(k) == v
++            for k, v in original.request_no_send_evidence.items()
++        )
++    )
++    accepted = bool(
++        not existed
++        and injections == 1
++        and fill_scope_verified
++        and paused_verified
++        and gate_verified
++        and no_send_verified
++        and automatic_exit_observed
++        and not operator_emergency_requested
++        and client.unexpected_protection_attempts == 0
++        and client.entry_post_attempts == client.entry_post_sent == 1
++        and client.reduce_post_attempts == 1
++        and failure == completion_failure == "NONE"
++        and completion == "VERIFIED_FLAT"
++        and history_ok
++        and order
++        and order.filled > 0
++        and not order.remaining
++        and not order.open_quantity
++        and order.position_state.value == "CLOSED"
++        and order.exit_state == "FILLED"
++        and order.tp_algo_id is None
++        and final.requests.get(order.algo_id or "") == "NOT_SENT"
++        and final.request_no_send_evidence.get(order.algo_id or "") == "LOCAL_VALIDATION_FAILED"
++        and final.risk_state.value == "EMERGENCY"
++        and final.paused
++        and not final.stream_ready
++        and not final.reconciled
++    )
++    if not accepted and failure == "NONE":
++        failure = (
++            "HISTORY_CHANGED"
++            if not history_ok
++            else "FLAT_NOT_CONFIRMED"
++            if completion != "VERIFIED_FLAT"
++            else "FINAL_STATE_NOT_VERIFIED"
++        )
++        failure_stage = "FINAL_STATE"
++    try:
++
++        def result(ledger: Any) -> None:
++            ledger.operations.setdefault(
++                result_tag, "SL_LOCAL_BUILD_FAULT:" + ("VERIFIED" if accepted else failure)
++            )
++
++        store.change(lease, "DEMO_SL_FAULT_CHECK_RESULT", result)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure, failure_stage = "RESULT_AUDIT_FAILED", "RESULT_AUDIT"
++    return {
++        "sl_fault_check": "SL_BUILD_FAILURE_GATE_AUTO_FLAT_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "LOCAL_SL_BUILD_FAILURE_ORIGINAL_AUTO_FLATTEN",
++        "operation_id": key,
++        "fault_injection_count": injections,
++        "fault_at_utc": fault_at,
++        "entry_fill_scope_verified": fill_scope_verified,
++        "entries_paused_after_fault": paused_verified,
++        "entry_gate_blocked_after_fault": gate_verified,
++        "sl_not_sent_proof_verified": no_send_verified,
++        "unexpected_protection_transport_attempts": client.unexpected_protection_attempts,
++        "new_entry_post_count": client.entry_post_sent,
++        "entry_post_attempts": client.entry_post_attempts,
++        "reduce_only_post_attempts": client.reduce_post_attempts,
++        "automatic_exit_observed_before_cleanup": automatic_exit_observed,
++        "fallback_operator_emergency_requested": operator_emergency_requested,
++        "recovered_existing_intent": existed,
++        "filled_quantity": str(order.filled) if order else "0",
++        "exit_state": order.exit_state if order else "NONE",
++        "flat_confirmation": completion,
++        "history_and_baselines_preserved": history_ok,
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "completion_failure": completion_failure,
++        "private_session_diagnostic": coordinator.session_diagnostic.model_dump(mode="json"),
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_sl_fault_check.py
+@@ -0,0 +1,214 @@
++"""Real PG/localhost WSS, signed SDK fixture, unchanged local no-send path."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo as core
++from services.execution import demo_sl_fault_check as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++@pytest.fixture
++def case(validation_case):  # noqa: F811
++    store, c, fake, options = validation_case
++    old = c.client
++    c.client = module.SLFaultClient(
++        old.settings, old.credentials, send=old.send, clock_ms=old.clock_ms
++    )
++    c.client.sync_clock()
++    options["fill"] = True
++    store.change(c.lease, "TEST_SL_FAULT_PAUSE", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake, options
++
++
++async def exercise(case, operation=None, timeout=3):
++    _, c, _, _ = case
++    operation = operation or uuid4()
++
++    async def handler(socket):
++        try:
++            while True:
++                await socket.send(json.dumps({"e": "ACCOUNT_UPDATE", "E": c.client.clock_ms()}))
++                await asyncio.sleep(0.01)
++        except Exception:
++            pass
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        return await module.run(
++            c, operation, connector=connector, observation_timeout=timeout, poll_seconds=0.01
++        ), operation
++
++
++def test_original_auto_exit_after_sl_local_failure_gate_and_no_send(case):  # noqa: F811
++    store, c, fake, _ = case
++    builder, observer = core.build_protection, c.client.before_exit
++    before = store.read("DEMO-test")
++    report, operation = asyncio.run(exercise(case))
++    assert report["sl_fault_check"] == "SL_BUILD_FAILURE_GATE_AUTO_FLAT_VERIFIED", report
++    assert report["fault_injection_count"] == 1 and report["entry_fill_scope_verified"]
++    assert report["entries_paused_after_fault"] and report["entry_gate_blocked_after_fault"]
++    assert report["sl_not_sent_proof_verified"]
++    assert report["automatic_exit_observed_before_cleanup"]
++    assert not report["fallback_operator_emergency_requested"]
++    assert report["unexpected_protection_transport_attempts"] == 0
++    assert report["new_entry_post_count"] == report["entry_post_attempts"] == 1
++    assert report["reduce_only_post_attempts"] == 1
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and report["exit_state"] == "FILLED"
++    assert report["failure"] == report["completion_failure"] == "NONE"
++    assert report["risk_state"] == "EMERGENCY" and report["final_paused"]
++    assert report["history_and_baselines_preserved"]
++    after = store.read("DEMO-test")
++    order = after.orders[str(operation)]
++    assert after.requests[order.algo_id] == "NOT_SENT"
++    assert after.request_no_send_evidence[order.algo_id] == "LOCAL_VALIDATION_FAILED"
++    assert order.tp_algo_id is None and not order.protected
++    assert order.position_state.value == "CLOSED" and order.open_quantity == order.remaining == 0
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert fake.positions["BTCUSDT"] == 0
++    assert [p["type"] for p in posts(fake)] == ["LIMIT", "MARKET"]
++    assert posts(fake)[1]["reduceOnly"] == "true"
++    assert not posts(fake, "/fapi/v1/algoOrder")
++    assert core.build_protection is builder and c.client.before_exit is observer
++
++
++def test_no_fill_never_injects_and_cancels_flat(case):  # noqa: F811
++    _, _, fake, options = case
++    options["fill"] = False
++    report, _ = asyncio.run(exercise(case, timeout=0.1))
++    assert report["sl_fault_check"] == "NOT_ACCEPTED" and report["fault_injection_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == 1
++    assert report["reduce_only_post_attempts"] == 0
++    assert not report["automatic_exit_observed_before_cleanup"]
++
++
++def test_completed_operation_recovers_without_entry_or_reinjection(case):  # noqa: F811
++    _, _, fake, _ = case
++    _, operation = asyncio.run(exercise(case))
++    count = len(posts(fake))
++    report, _ = asyncio.run(exercise(case, operation))
++    assert report["failure"] == "RECOVERY_ONLY" and report["fault_injection_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == count
++    assert report["recovered_existing_intent"]
++
++
++def test_unknown_exit_is_not_reposted_or_accepted(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.defer_exit = True
++    report, _ = asyncio.run(exercise(case, timeout=0.15))
++    assert report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "UNKNOWN" and report["reduce_only_post_attempts"] == 1
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) == 1
++
++
++def test_fallback_flat_cannot_count_as_original_automatic_response(case, monkeypatch):  # noqa: F811
++    _, c, fake, _ = case
++    original, command = c._flatten, c.command
++    allow_fallback = [False]
++
++    def block_auto():
++        if allow_fallback[0]:
++            original()
++
++    def mark_operator(operation, name):
++        if name == "EMERGENCY_FLATTEN":
++            allow_fallback[0] = True
++        return command(operation, name)
++
++    monkeypatch.setattr(c, "_flatten", block_auto)
++    monkeypatch.setattr(c, "command", mark_operator)
++    report, _ = asyncio.run(exercise(case, timeout=0.15))
++    assert report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert not report["automatic_exit_observed_before_cleanup"]
++    assert report["fallback_operator_emergency_requested"]
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and fake.positions["BTCUSDT"] == 0
++
++
++def test_cash_transfer_cannot_be_hidden(case, monkeypatch):  # noqa: F811
++    _, _, fake, _ = case
++    original = module.confirm_exit
++
++    async def drift(coordinator):
++        fake.wallet += Decimal("0.1")
++        fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=123, income="0.1"))
++        return await original(coordinator)
++
++    monkeypatch.setattr(module, "confirm_exit", drift)
++    report, _ = asyncio.run(exercise(case))
++    assert (
++        report["sl_fault_check"] == "NOT_ACCEPTED" and not report["history_and_baselines_preserved"]
++    )
++
++
++def test_audit_failure_blocks_acceptance_and_restores_hooks(case, monkeypatch):  # noqa: F811
++    store, c, _, _ = case
++    original = store.change
++    builder, observer = core.build_protection, c.client.before_exit
++
++    def fail(lease, kind, apply):
++        if kind == "DEMO_SL_FAULT_CHECK_RESULT":
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(lease, kind, apply)
++
++    monkeypatch.setattr(store, "change", fail)
++    report, _ = asyncio.run(exercise(case))
++    assert report["failure"] == "RESULT_AUDIT_FAILED" and report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert core.build_protection is builder and c.client.before_exit is observer
++    assert "PRIVATE_DATABASE_URL" not in json.dumps(report)
++
++
++def test_prepare_failure_never_submits_and_restores_hooks(case):  # noqa: F811
++    _, c, fake, options = case
++    options["stale_candle"] = True
++    builder, observer = core.build_protection, c.client.before_exit
++    report, _ = asyncio.run(exercise(case))
++    assert report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert report["new_entry_post_count"] == report["fault_injection_count"] == 0
++    assert not posts(fake) and core.build_protection is builder
++    assert c.client.before_exit is observer
++
++
++def test_diagnostic_read_failure_does_not_block_original_exit(case, monkeypatch):  # noqa: F811
++    store, _, fake, _ = case
++    original = store.read
++    once = [False]
++
++    def fail_at_exit(account):
++        ledger = original(account)
++        if not once[0] and any(o.exit_state == "SUBMITTING" for o in ledger.orders.values()):
++            once[0] = True
++            raise OSError("PRIVATE_DATABASE_URL")
++        return ledger
++
++    monkeypatch.setattr(store, "read", fail_at_exit)
++    report, _ = asyncio.run(exercise(case, timeout=0.25))
++    assert once[0] and report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and fake.positions["BTCUSDT"] == 0
++    assert report["reduce_only_post_attempts"] == 1
++    assert "PRIVATE_DATABASE_URL" not in json.dumps(report)
++
++
++def test_unknown_exit_same_operation_never_posts_again(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.defer_exit = True
++    _, operation = asyncio.run(exercise(case, timeout=0.15))
++    count = len(posts(fake))
++    report, _ = asyncio.run(exercise(case, operation, timeout=0.15))
++    assert report["failure"] == "RECOVERY_ONLY" and report["sl_fault_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "UNKNOWN" and len(posts(fake)) == count
+--- /dev/null
++++ b/tests/unit/test_demo_sl_fault_cli.py
+@@ -0,0 +1,70 @@
++"""Explicit DEMO/local fault consent and secondary transport safety barrier."""
++
++import json
++from pathlib import Path
++from uuid import uuid4
++
++import pytest
++import yaml
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoCredentials, DemoSettings
++from scripts import check_demo_sl_fault as cli
++from services.execution.demo_sl_fault_check import SLFaultBlocked, SLFaultClient
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--enable-demo"],
++        ["--enable-sl-build-fault"],
++        ["--enable-demo", "--enable-sl-build-fault"],
++        ["--enable-demo", "--enable-sl-build-fault", "--operation-id", "bad"],
++        ["--enable-demo", "--operation-id", str(uuid4())],
++    ],
++)
++def test_flags_precede_key_access(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_blocked_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr(
++        "sys.argv",
++        ["check", "--enable-demo", "--enable-sl-build-fault", "--operation-id", str(uuid4())],
++    )
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++@pytest.mark.parametrize(
++    "identifier,kind", [("DS-fixture", "STOP_MARKET"), ("DT-fixture", "TAKE_PROFIT_MARKET")]
++)
++def test_own_sl_cannot_reach_transport_even_if_builder_fault_is_bypassed(identifier, kind):
++    cfg = DemoSettings.model_validate(
++        yaml.safe_load(Path("configs/demo-isolated.example.yaml").read_text())
++    ).model_copy(update={"demo_trading_enabled": True})
++    client = SLFaultClient(
++        cfg,
++        DemoCredentials(SecretStr("fixture-key"), SecretStr("fixture-secret")),
++        send=lambda *a: pytest.fail("must not send"),
++    )
++    client.block_sl_id = "DS-fixture"
++    client.block_tp_id = "DT-fixture"
++    with pytest.raises(SLFaultBlocked) as caught:
++        client.request(
++            "POST",
++            "/fapi/v1/algoOrder",
++            {"clientAlgoId": identifier, "type": kind},
++        )
++    assert caught.value.code == "UNEXPECTED_PROTECTION_TRANSPORT"
++    assert client.unexpected_protection_attempts == 1 and client.entry_post_sent == 0
