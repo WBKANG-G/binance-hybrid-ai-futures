@@ -1,0 +1,889 @@
+--- /dev/null
++++ b/ENTRY_LOSS_START_HERE_KO.md
+@@ -0,0 +1,31 @@
++# 진입 주문 응답 유실과 동일 ID 복구 검증
++
++이번 시험은 Phase4 T-01 중 로컬 응답 유실 에뮬레이션입니다. 실제 SDK가 성공 응답을 받은 뒤 coordinator에 전달할 ACK만 한 번 버립니다. 실제 네트워크 timeout/응답 패킷 유실을 발생시키는 시험은 아닙니다. 기존 주문/리스크/보호/청산 코드는 변경하지 않습니다.
++
++최소 cap/100 USDT 이내 BTCUSDT LONG OPPOSITE_QUOTE LIMIT1건을 DEMO에 실제 제출합니다. 미체결이어도 응답 유실·UNKNOWN 기록·같은 ID 복구를 검증할 수 있습니다. 체결되면 원래 SL/TP 보호와 비상 정리 경로를 사용합니다. 추가 진입·수량 증가·시장가 신규 진입은 없습니다. 이전 SL 실패 시험을 반복하거나 손절 실패를 주입하지 않습니다.
++
++## CMD 순서
++
++ZIP을 바탕 화면의 새 windows-demo-entry-response-loss 폴더에 풉니다. 기존 폴더에 덮어쓰지 않습니다. 새 폴더의 탐색기 주소창에 cmd를 입력하고 아래 명령을 한 줄씩 실행합니다. 기존 hybrid-windows 프로젝트/볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 뒤 숨김 입력으로 DEMO 키를 RAM에 등록합니다. 키/Secret을 채팅에 보내지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++등록 성공 뒤 아래 명령을 한 번만 실행합니다. 시험 중 수동 주문/다른 봇/입출금은 하지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_entry_response_loss --enable-demo --enable-entry-response-loss --operation-id 9be80b67-25d4-43d6-b18b-7d12fdd9cd0e
++```
++
++전체 JSON을 캡처합니다. 정상 결과는 ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED입니다. response_drop_count1, unknown_intent_persisted true, entry_gate_blocked_while_unknown true, same_id_signed_query_verified true, local_order_recovered_before_cleanup true, 신규 진입 POST/시도 각각1, flat_confirmation VERIFIED_FLAT가 필요합니다.
++
++최종 신규 진입은 paused입니다. 체결 후 비상 정리를 사용했으면 EMERGENCY를 유지하고 결과 확인 뒤 별도 복구 검토로 진행합니다. 미체결·flat이면 NORMAL일 수 있으며 이를 비상 상태로 만들지 않습니다. 이 결과를 손절 실패나 실제 부분체결 보호의 Windows 통과로 분류하지 않습니다.
++
++NOT_ACCEPTED/BLOCKED/UNKNOWN 또는 명령 중단 시 새 UUID로 재주문하지 말고 결과를 공유합니다. 원래 이력의 UNKNOWN을 지우거나 ACKNOWLEDGED로 바꾸지 않습니다. 같은 의도의 재실행은 새 진입·재주입 없이 정리만 하는 경로지만 임의로 반복하지 않습니다. 종료 UNKNOWN도 재POST하지 않습니다. down -v, DB 초기화, 기준금/고점 재설정, exports 재요청은 없습니다.
+--- /dev/null
++++ b/ENTRY_LOSS_VALIDATION_KO.md
+@@ -0,0 +1,23 @@
++# 응답 유실 전용 도구 검증 결과
++
++전체1195개 테스트 통과(295.72초), 응답 유실 집중19개 통과(17.33초). Ruff check/format 및 mypy107개 소스 통과.
++
++## 변경과 수락 조건
++
++이전 손절 실패 ZIP의386개 manifest 파일은 모두 바이트 단위로 동일합니다. 새 모듈/CLI/테스트와 한국어 안내·최근 미체결 증거만 추가합니다. SDK, coordinator, 주문/보호/리스크/청산, 기간 기준금, 시계/리스/펜스, Compose/키/exports 및 기존 테스트를 변경하지 않습니다.
++
++시작은 NORMAL/paused, 로컬·원격 포지션/활성 주문 없음, ISOLATED BTCUSDT 레버리지2입니다. prepare의 원래 닫힌 봉/신선도/리스크 검사 및 최소 cap·100 USDT 상한을 사용합니다. LONG OPPOSITE_QUOTE LIMIT1건에만 응답 유실을 적용합니다. RestartClient의 중복 전송 장벽을 그대로 사용합니다.
++
++별도 클라이언트가 실제 SDK의 성공 응답에 같은 client ID, BTCUSDT, 유효한 거래소 주문 ID가 있는지 확인하고 coordinator 전달 전에 DemoUnknown을 한 번 발생시킵니다. SDK 내부 서명·HTTP·응답 판독은 원래대로입니다. 실제 전송 오류/거부가 먼저 발생하면 의도적 유실 횟수0이므로 통과하지 않습니다. 가짜 거래소 응답/UNKNOWN 재분류/자동 재시도는 없습니다.
++
++응답 유실 뒤 원래 submit이 UNKNOWN 의도를 DB에 기록합니다. 첫 후속 signed REST 조회 전에 읽기 전용 observer가 UNKNOWN 주문 및 요청 증거와 진입 게이트 차단을 확인합니다. 이 진단의 오류는 조회를 막지 않으며 통과를 거부합니다. 원래 스냅샷 대조가 로컬 주문을 복구한 뒤 명시적 signed GET으로 같은 client ID와 거래소 주문 ID, symbol/side/type/quantity/price/reduceOnly/positionSide를 확인합니다. 원래 snapshot/merge가 정합성을 받아들인 로컬 상태도 함께 확인합니다. 체결은 수락에 필수 조건이 아닙니다.
++
++새 진입 POST/시도 각각1, 유실1회, UNKNOWN 기록과 게이트 차단, 같은 ID signed GET, 정리 전 로컬 주문 복구, 최종 VERIFIED_FLAT, 이력·기준금 보존, 세션·감사·정리 실패 없음이 모두 필요합니다. 원래 requests의 UNKNOWN 증거는 그대로 둡니다. 실제 주문 상태와 server_order_id가 복구됐다는 의미이며 과거 요청 ACK를 다시 쓰는 것은 아닙니다.
++
++관찰90초는 연결/준비/조회 복구 상한입니다. 미체결이면 즉시 잔량 정리, 체결이면 기존 보호/비상 정리 및 flat 확인을 수행합니다. UNKNOWN 종료는 재POST하지 않습니다. 함수나 SDK 파일을 패치하지 않으며 임시 조회 observer만 프로세스 안에서 설치하고 세션/DB worker drain 및 정리 뒤 복원합니다. 재사용 의도는 고유 시작 표식/목적/방향/종목/스타일 검사를 통과해야 하며 새 진입과 유실 재주입 없이 정리만 합니다.
++
++## 검증 범위
++
++실제 격리 PostgreSQL/localhost WebSocket과 합성 SDK 전송으로 미체결·전량·부분체결의 동일 ID 복구, 원래 보호/비상 정리, 과거 UNKNOWN 증거 보존, 동일 의도 무재진입, 실제 전송 실패를 주입 성공으로 오인하지 않음, 잘못된 거래소 ID 거부, UNKNOWN 종료 및 재실행 무재POST, 감사 실패·준비 실패·진단 실패와 observer 복원, 명시적 플래그 및 LIVE 거부를 확인합니다.
++
++클라우드 인증 거래소 요청/주문은 없습니다. 새 Windows 시험은 아직 실행 전입니다. 실제 네트워크 장애·worker/호스트/DB 강제 종료·외부 알림 전달·실제 부분체결 보호·SL 실패 대응의 DEMO 통과로 확대하지 않습니다. 앞선 SL 시험은 미체결/주입0회/VERIFIED_FLAT/NORMALpaused로 검증 미완료이며 별도 증거에 보존했습니다. main/LIVE/Phase5 및 Phase4 전체 완료 판정은 진행하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_SL_FAULT_UNFILLED_20261031_KO.md
+@@ -0,0 +1,45 @@
++# Windows DEMO 손절 로컬 조립 실패 시험: 미체결로 검증 미완료
++
++근거: 사용자 CMD 결과 캡처. 2026-10-31 한국 시간.
++배포 windows-demo-sl-fault-check-20261031 / d9b3c4a.
++ZIP SHA256 900d502dfc0ec716d102bf92b1a172a2e335985a6208ff8a8f41d49ce6d23d88.
++작업 ID 5c96345b-f0c6-42cc-8132-534b26546577.
++
++## 실제 출력
++
++- DB/API/web Healthy, 키 private tmpfs RAM 등록 성공
++- RESERVED_NOT_YET_SUBMITTED
++- quantity/cap 0.0007 / limit_price 77418.70
++- stop_price 77031.10 / target_price 78192.90
++- sl_fault_check NOT_ACCEPTED
++- scope LOCAL_SL_BUILD_FAILURE_ORIGINAL_AUTO_FLATTEN
++- fault_injection_count 0 / fault_at_utc null
++- entry_fill_scope_verified false
++- entries_paused_after_fault false / entry_gate_blocked_after_fault false
++- sl_not_sent_proof_verified false
++- unexpected_protection_transport_attempts 0
++- new_entry_post_count 1 / entry_post_attempts 1
++- reduce_only_post_attempts 0
++- automatic_exit_observed_before_cleanup false
++- fallback_operator_emergency_requested false
++- recovered_existing_intent false
++- filled_quantity 0.0000 / exit_state NONE
++- flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true
++- failure FAULT_NOT_OBSERVED / failure_stage WAIT_SL_BUILD_FAULT
++- completion_failure NONE
++- private_session_diagnostic PING/NONE/event_kind NONE
++- ready_callback_ms 18754 / received_events 2 / coalesced_events 0
++- event_clock_offset_ms 836 / event_clock_rtt_ms 165 / event_clock_wait_ms 0
++- event_local_age_ms 6364
++- risk_state NORMAL / final_paused true
++- final_stream_ready false / final_reconciled false
++- orders_enabled false / live_trading_enabled false
++
++## 판정
++
++신규 DEMO 지정가 주문1건을 전송했으나 체결량0이므로 손절 조립에 도달하지 않았고 장애 주입0회로 관찰 창이 끝났다. 손절 실패 대응 통과나 실패로 확대하지 않고, 미체결로 필요한 조건이 충족되지 않은 미수락 결과로 보존한다. 최초 ask 기반 지정가가 체결되지 않은 시장 원인은 이 집계 출력만으로 확정하지 않는다. 실제 주문의 최종 일반 주문 상태는 이 출력에 없으므로 CANCELED/EXPIRED 중 하나로 단정하지 않는다.
++
++종료 정리 및 VERIFIED_FLAT, 이력·기준금 보존, NORMAL/paused를 확인했다. after_fault 계열 false는 장애가 발생한 뒤의 검증을 수행하지 않았다는 뜻이며 최종 paused true와 모순되지 않는다. 비상 상태가 아니므로 별도 비상 복구 승인 명령을 요구하지 않는다. Docker의 Gordon 안내는 앱의 비정상 종료 코드에 따른 일반 안내로, Compose 자체 고장을 입증하지 않는다.
++
++같은 명령 반복 또는 새 UUID로 임의 주문 재시도하지 않는다. 미체결을 피하려고 시장가 신규 진입·수량 증가·가격/관찰 시간 제한 완화를 적용하지 않는다. 손절 로컬 실패 자동 비상 종료의 실제 DEMO 수락 검증은 여전히 미완료다. 실제 거래소 거부/외부 알림/부분체결 보호/Phase4 전체 통과로 확대하지 않는다.
+--- /dev/null
++++ b/scripts/check_demo_entry_response_loss.py
+@@ -0,0 +1,107 @@
++"""Explicit capped DEMO entry ACK loss after real SDK success; same-ID recovery only."""
++
++import argparse
++import asyncio
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4, uuid5
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import empty
++from services.execution.demo_entry_response_loss import (
++    EntryLossBlocked,
++    EntryLossClient,
++    code,
++    run,
++)
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-demo", action="store_true", required=True)
++    parser.add_argument("--enable-entry-response-loss", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report = {
++        "entry_loss_check": "BLOCKED",
++        "failure": "CHECK_FAILED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise EntryLossBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = EntryLossClient(cfg.model_copy(update={"demo_trading_enabled": False}), key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        state = store.read(ACCOUNT)
++        op = str(args.operation_id)
++        existing = state.orders.get(op)
++        start = str(uuid5(args.operation_id, "entry-loss-start"))
++        if existing and (
++            state.operations.get(start) != "ENTRY_ACK_LOSS_CHECK"
++            or existing.signal.purpose != "DEMO_VALIDATION"
++            or existing.signal.direction != "LONG"
++            or existing.signal.symbol != "BTCUSDT"
++            or state.validation_entry_styles.get(op) != "OPPOSITE_QUOTE"
++        ):
++            raise EntryLossBlocked("ENTRY_SCOPE_INVALID")
++        if any(k != op and (o.remaining or o.open_quantity) for k, o in state.orders.items()):
++            raise EntryLossBlocked("ENTRY_SCOPE_INVALID")
++        if existing is None and (
++            start in state.operations
++            or str(uuid5(args.operation_id, "entry-loss-result")) in state.operations
++        ):
++            raise EntryLossBlocked("OPERATION_ALREADY_EXISTS")
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        if existing is None:
++            empty(coordinator)
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        client.settings = cfg
++        report = asyncio.run(run(coordinator, args.operation_id))
++        success = report["entry_loss_check"] == "ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED"
++    except Exception as error:
++        report["failure"] = code(error)
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report["entry_loss_check"] = "BLOCKED"
++            report["failure"] = "LEASE_RELEASE_FAILED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_entry_response_loss.py
+@@ -0,0 +1,415 @@
++"""One own-entry SDK acknowledgement loss, persisted UNKNOWN and signed same-ID recovery."""
++
++import asyncio
++import json
++import time
++from collections.abc import Callable, Mapping
++from decimal import Decimal
++from typing import Any
++from unittest.mock import patch
++from uuid import UUID, uuid5
++
++from integrations.binance_usdm.demo import DemoFailure, DemoUnknown
++from integrations.binance_usdm.demo_snapshot import ORDER_KEYS, pick
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_api_restart_check import RestartBlocked, RestartClient, empty
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_validation import confirm_exit, prepare, safe_failure
++from services.risk.paper import RiskRejected
++
++
++class EntryLossBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = (
++            code
++            if code
++            in {
++                "LIVE_CONTEXT_FORBIDDEN",
++                "ENTRY_SCOPE_INVALID",
++                "RECOVERY_ONLY",
++                "OPERATION_ALREADY_EXISTS",
++                "RECOVERY_PROOF_NOT_VERIFIED",
++                "REPEATED_INJECTION",
++                "RESPONSE_NOT_ELIGIBLE",
++                "FAULT_NOT_OBSERVED",
++                "SESSION_FAILED",
++                "FAULT_GATE_NOT_VERIFIED",
++                "NO_SEND_PROOF_NOT_VERIFIED",
++                "HISTORY_CHANGED",
++                "FINAL_STATE_NOT_VERIFIED",
++                "FLAT_NOT_CONFIRMED",
++                "RESULT_AUDIT_FAILED",
++                "LEASE_RELEASE_FAILED",
++                "CHECK_FAILED",
++            }
++            else "CHECK_FAILED"
++        )
++        super().__init__(self.code)
++
++
++def code(error: Exception) -> str:
++    return (
++        error.code if isinstance(error, (EntryLossBlocked, RestartBlocked)) else safe_failure(error)
++    )
++
++
++class EntryLossClient(RestartClient):
++    def __init__(self, *args: Any, **kwargs: Any):
++        super().__init__(*args, **kwargs)
++        self.drop_armed = False
++        self.drop_count = 0
++        self.expected_price = Decimal(0)
++        self.ack_server_id: str | None = None
++        self.lookup_count = 0
++        self.same_id_verified = False
++        self.reduce_post_attempts = 0
++        self.before_recovery_read: Callable[[], None] | None = None
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        values = params or {}
++        entry = method == "POST" and path == "/fapi/v1/order" and values.get("reduceOnly") != "true"
++        lookup = (
++            method == "GET"
++            and path == "/fapi/v1/order"
++            and self.drop_count == 1
++            and values.get("origClientOrderId") == self.allowed_entry
++        )
++        if method == "GET" and self.drop_count == 1 and self.before_recovery_read is not None:
++            self.before_recovery_read()  # Diagnostic only; cannot suppress the signed recovery query.
++        if method == "POST" and path == "/fapi/v1/order" and values.get("reduceOnly") == "true":
++            self.reduce_post_attempts += 1
++        result = super().request(method, path, params)
++        if entry and self.drop_armed:
++            identifier = result.get("orderId") if isinstance(result, dict) else None
++            if (
++                not isinstance(result, dict)
++                or result.get("clientOrderId") != self.allowed_entry
++                or result.get("symbol") != "BTCUSDT"
++                or type(identifier) not in {int, str}
++                or not str(identifier).isascii()
++                or not str(identifier).isdigit()
++                or int(str(identifier)) <= 0
++                or self.drop_count
++            ):
++                raise EntryLossBlocked("RESPONSE_NOT_ELIGIBLE")
++            self.ack_server_id = str(identifier)
++            self.drop_count = 1
++            self.drop_armed = False
++            # Actual SDK request succeeded; suppress only the coordinator's local ACK.
++            # This is not a real network timeout or an invented exchange response.
++            raise DemoUnknown("Explicit own-entry SDK acknowledgement loss injection")
++        if lookup:
++            self.lookup_count += 1
++            row = pick(result, ORDER_KEYS)
++            if (
++                row["clientOrderId"] == self.allowed_entry
++                and row["orderId"] == self.ack_server_id
++                and row["symbol"] == "BTCUSDT"
++                and row["side"] == "BUY"
++                and row["type"] == "LIMIT"
++                and row["reduceOnly"] == "false"
++                and row["positionSide"] == "BOTH"
++                and Decimal(row["origQty"]) == self.allowed_quantity
++                and Decimal(row["price"]) == self.expected_price
++                and row["status"] in {"NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "EXPIRED"}
++            ):
++                self.same_id_verified = True
++        return result
++
++
++async def run(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    *,
++    connector: Any = private_connect,
++    observation_timeout: float = 90,
++    poll_seconds: float = 0.5,
++) -> dict[str, Any]:
++    store, lease, client = coordinator.store, coordinator.lease, coordinator.client
++    if not isinstance(client, EntryLossClient):
++        raise EntryLossBlocked("ENTRY_SCOPE_INVALID")
++    key = str(operation)
++    start_tag = str(uuid5(operation, "entry-loss-start"))
++    result_tag = str(uuid5(operation, "entry-loss-result"))
++    original = store.read(lease.account_id)
++    existed = key in original.orders
++    if any(k != key and (o.remaining or o.open_quantity) for k, o in original.orders.items()):
++        raise EntryLossBlocked("ENTRY_SCOPE_INVALID")
++    if existed and (
++        original.operations.get(start_tag) != "ENTRY_ACK_LOSS_CHECK"
++        or original.orders[key].signal.purpose != "DEMO_VALIDATION"
++        or original.orders[key].signal.direction != "LONG"
++        or original.orders[key].signal.symbol != "BTCUSDT"
++        or original.validation_entry_styles.get(key) != "OPPOSITE_QUOTE"
++    ):
++        raise EntryLossBlocked("ENTRY_SCOPE_INVALID")
++    if not existed:
++        if start_tag in original.operations or result_tag in original.operations:
++            raise EntryLossBlocked("OPERATION_ALREADY_EXISTS")
++        empty(coordinator)
++    old_orders = {k: v.model_dump(mode="json") for k, v in original.orders.items() if k != key}
++    callback_failure = proof_error = "NONE"
++    failure = completion_failure = "NONE"
++    stage = "SESSION_CONNECT"
++    failure_stage = "NONE"
++    unknown_persisted = gate_verified = recovery_verified = False
++    operator_emergency_requested = False
++    completion = "UNKNOWN"
++
++    def before_recovery_read() -> None:
++        nonlocal unknown_persisted, gate_verified, proof_error
++        try:
++            ledger = store.read(lease.account_id)
++            order = ledger.orders[key]
++            if order.state.value == "UNKNOWN" and ledger.requests.get(order.client_id) == "UNKNOWN":
++                unknown_persisted = True
++                try:
++                    coordinator._fresh(ledger.model_copy(deep=True))
++                except RiskRejected:
++                    gate_verified = True
++        except Exception as error:
++            proof_error = code(error)  # Query still proceeds; never hide a proof failure.
++
++    def ready() -> None:
++        nonlocal stage, callback_failure
++        try:
++            stage = "RESUME_ENTRIES"
++            coordinator.resume_entries(uuid5(operation, "entry-loss-resume"))
++            stage = "PREPARE_ENTRY"
++            signal, gate, cap = prepare(
++                coordinator, operation, "LONG", entry_style="OPPOSITE_QUOTE"
++            )
++            stage = "RESERVE_ENTRY"
++            order = coordinator.reserve(
++                signal, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE"
++            )
++            client.allowed_entry, client.allowed_quantity = order.client_id, order.quantity
++            client.expected_price = signal.suggested_limit_price
++            client.drop_armed = True
++            print(
++                json.dumps(
++                    {
++                        "entry_loss_stage": "RESERVED_NOT_YET_SUBMITTED",
++                        "operation_id": key,
++                        "quantity": str(order.quantity),
++                        "quantity_cap": str(cap),
++                        "limit_price": str(signal.suggested_limit_price),
++                        "stop_price": str(signal.initial_stop_price),
++                        "target_price": str(signal.target_price),
++                        "live_trading_enabled": False,
++                    }
++                ),
++                flush=True,
++            )
++            stage = "SUBMIT_ENTRY"
++            coordinator.submit(key)
++            stage = "SIGNED_SAME_ID_QUERY"
++            client.request(
++                "GET", "/fapi/v1/order", {"symbol": "BTCUSDT", "origClientOrderId": order.client_id}
++            )
++            stage = "WAIT_SAME_ID_RECOVERY"
++        except Exception as error:
++            callback_failure = code(error)
++            raise
++
++    task: asyncio.Task[None] | None = None
++    with patch.object(client, "before_recovery_read", before_recovery_read):
++        try:
++            if existed:
++                raise EntryLossBlocked("RECOVERY_ONLY")
++
++            def start(ledger: Any) -> None:
++                ledger.operations[start_tag] = "ENTRY_ACK_LOSS_CHECK"
++
++            store.change(lease, "DEMO_ENTRY_LOSS_CHECK_START", start)
++            task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++            deadline = time.monotonic() + observation_timeout
++            while time.monotonic() < deadline:
++                if task.done():
++                    await task
++                    raise EntryLossBlocked("SESSION_FAILED")
++                if (
++                    callback_failure != "NONE"
++                    or proof_error != "NONE"
++                    or coordinator.session_failed
++                ):
++                    raise EntryLossBlocked("SESSION_FAILED")
++                current = await settled_call(store.read, lease.account_id)
++                order = current.orders.get(key)
++                if (
++                    client.drop_count == 1
++                    and unknown_persisted
++                    and gate_verified
++                    and client.same_id_verified
++                    and order
++                    and order.server_order_id == client.ack_server_id
++                    and order.state.value not in {"UNKNOWN", "SUBMITTING", "RISK_RESERVED"}
++                ):
++                    recovery_verified = True
++                    print(
++                        json.dumps(
++                            {
++                                "entry_loss_stage": "PERSISTED_UNKNOWN_SAME_ID_QUERY_RECOVERED",
++                                "response_drop_count": client.drop_count,
++                                "new_entry_post_count": client.entry_post_sent,
++                                "live_trading_enabled": False,
++                            }
++                        ),
++                        flush=True,
++                    )
++                    break
++                await asyncio.sleep(poll_seconds)
++            else:
++                raise EntryLossBlocked("FAULT_NOT_OBSERVED")
++        except Exception as error:
++            failure = (
++                callback_failure
++                if callback_failure != "NONE"
++                else proof_error
++                if proof_error != "NONE"
++                else code(error)
++            )
++            failure_stage = stage
++        finally:
++            if task is not None:
++                session_error = await drain_session(task, cancel=True)
++                if (session_error is not None or coordinator.session_failed) and failure == "NONE":
++                    failure, failure_stage = "SESSION_FAILED", "SESSION_CLEANUP"
++            if callback_failure != "NONE":
++                failure = callback_failure
++            if proof_error != "NONE":
++                failure = proof_error
++            try:
++                await settled_call(store.renew, lease)
++                await settled_call(client.sync_clock)
++                await settled_call(
++                    coordinator.command, uuid5(operation, "entry-loss-pause"), "PAUSE_ENTRIES"
++                )
++                current = store.read(lease.account_id)
++                if any(current.positions.values()) or any(
++                    o.open_quantity for o in current.orders.values()
++                ):
++                    operator_emergency_requested = True
++                    await settled_call(
++                        coordinator.command,
++                        uuid5(operation, "entry-loss-flat"),
++                        "EMERGENCY_FLATTEN",
++                    )
++                completion = await confirm_exit(coordinator)
++                await settled_call(coordinator.disconnect)
++            except Exception as error:
++                completion_failure = code(error)
++    final = store.read(lease.account_id)
++    order = final.orders.get(key)
++    fixed_fields = (
++        "policy",
++        "daily_key",
++        "daily_base",
++        "weekly_key",
++        "weekly_base",
++        "high_water",
++        "net_transfers",
++        "margin_mode",
++        "symbols",
++        "recovery_receipts",
++        "cancelled_exposure_corrections",
++        "attested_day_baselines",
++        "attested_period_baselines",
++        "exit_anchored_day_baselines",
++    )
++    history_ok = (
++        {k: v.model_dump(mode="json") for k, v in final.orders.items() if k != key} == old_orders
++        and all(final.requests.get(k) == v for k, v in original.requests.items())
++        and all(final.income_seen.get(k) == v for k, v in original.income_seen.items())
++        and all(getattr(final, k) == getattr(original, k) for k in fixed_fields)
++        and all(
++            {k: v for k, v in getattr(final, name).items() if k != key}
++            == {k: v for k, v in getattr(original, name).items() if k != key}
++            for name in (
++                "entry_quantity_caps",
++                "validation_entry_styles",
++                "validation_evidence",
++                "initial_fill_settlements",
++            )
++        )
++        and all(
++            final.request_no_send_evidence.get(k) == v
++            for k, v in original.request_no_send_evidence.items()
++        )
++    )
++    accepted = bool(
++        not existed
++        and client.drop_count == 1
++        and unknown_persisted
++        and gate_verified
++        and recovery_verified
++        and client.same_id_verified
++        and client.entry_post_attempts == client.entry_post_sent == 1
++        and failure == completion_failure == "NONE"
++        and completion == "VERIFIED_FLAT"
++        and history_ok
++        and order
++        and not order.remaining
++        and not order.open_quantity
++        and order.position_state.value == "CLOSED"
++        and order.server_order_id == client.ack_server_id
++        and final.requests.get(order.client_id) == "UNKNOWN"  # Original evidence preserved.
++        and final.risk_state.value in {"NORMAL", "EMERGENCY"}
++        and final.paused
++        and not final.stream_ready
++        and not final.reconciled
++    )
++    if not accepted and failure == "NONE":
++        failure = (
++            "HISTORY_CHANGED"
++            if not history_ok
++            else "FLAT_NOT_CONFIRMED"
++            if completion != "VERIFIED_FLAT"
++            else "FINAL_STATE_NOT_VERIFIED"
++        )
++        failure_stage = "FINAL_STATE"
++    try:
++
++        def result(ledger: Any) -> None:
++            ledger.operations.setdefault(
++                result_tag, "ENTRY_ACK_LOSS_CHECK:" + ("VERIFIED" if accepted else failure)
++            )
++
++        store.change(lease, "DEMO_ENTRY_LOSS_CHECK_RESULT", result)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure, failure_stage = "RESULT_AUDIT_FAILED", "RESULT_AUDIT"
++    return {
++        "entry_loss_check": "ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED",
++        "scope": "LOCAL_SDK_ENTRY_ACK_LOSS_AFTER_SUCCESS_RESPONSE",
++        "operation_id": key,
++        "response_drop_count": client.drop_count,
++        "unknown_intent_persisted": unknown_persisted,
++        "entry_gate_blocked_while_unknown": gate_verified,
++        "same_id_signed_query_verified": client.same_id_verified,
++        "same_id_query_count": client.lookup_count,
++        "local_order_recovered_before_cleanup": recovery_verified,
++        "new_entry_post_count": client.entry_post_sent,
++        "entry_post_attempts": client.entry_post_attempts,
++        "reduce_only_post_attempts": client.reduce_post_attempts,
++        "operator_emergency_requested": operator_emergency_requested,
++        "recovered_existing_intent": existed,
++        "filled_quantity": str(order.filled) if order else "0",
++        "exit_state": order.exit_state if order else "NONE",
++        "flat_confirmation": completion,
++        "history_and_baselines_preserved": history_ok,
++        "failure": failure,
++        "failure_stage": failure_stage,
++        "completion_failure": completion_failure,
++        "private_session_diagnostic": coordinator.session_diagnostic.model_dump(mode="json"),
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_entry_response_loss.py
+@@ -0,0 +1,206 @@
++"""Real PG/localhost WSS, signed SDK fixture, unchanged local no-send path."""
++
++import asyncio
++import json
++from contextlib import asynccontextmanager
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo_entry_response_loss as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++@pytest.fixture
++def case(validation_case):  # noqa: F811
++    store, c, fake, options = validation_case
++    old = c.client
++    c.client = module.EntryLossClient(
++        old.settings, old.credentials, send=old.send, clock_ms=old.clock_ms
++    )
++    c.client.sync_clock()
++    options["fill"] = True
++    store.change(c.lease, "TEST_ENTRY_LOSS_PAUSE", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake, options
++
++
++async def exercise(case, operation=None, timeout=3):
++    _, c, _, _ = case
++    operation = operation or uuid4()
++
++    async def handler(socket):
++        try:
++            while True:
++                await socket.send(json.dumps({"e": "ACCOUNT_UPDATE", "E": c.client.clock_ms()}))
++                await asyncio.sleep(0.01)
++        except Exception:
++            pass
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        return await module.run(
++            c, operation, connector=connector, observation_timeout=timeout, poll_seconds=0.01
++        ), operation
++
++
++def test_unfilled_ack_loss_recovers_same_id_without_duplicate_then_flat(case):  # noqa: F811
++    store, c, fake, options = case
++    options["fill"] = False
++    before = store.read("DEMO-test")
++    report, operation = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED", report
++    assert report["response_drop_count"] == 1 and report["unknown_intent_persisted"]
++    assert report["entry_gate_blocked_while_unknown"] and report["same_id_signed_query_verified"]
++    assert report["local_order_recovered_before_cleanup"] and report["same_id_query_count"] >= 1
++    assert report["new_entry_post_count"] == report["entry_post_attempts"] == 1
++    assert (
++        report["reduce_only_post_attempts"] == 0 and report["flat_confirmation"] == "VERIFIED_FLAT"
++    )
++    assert report["failure"] == report["completion_failure"] == "NONE"
++    assert report["risk_state"] == "NORMAL" and report["final_paused"]
++    final = store.read("DEMO-test")
++    order = final.orders[str(operation)]
++    assert final.requests[order.client_id] == "UNKNOWN"
++    assert order.state.value == "CANCELED" and order.position_state.value == "CLOSED"
++    assert order.server_order_id == c.client.ack_server_id
++    assert len(posts(fake)) == 1 and not posts(fake, "/fapi/v1/algoOrder")
++    assert final.daily_base == before.daily_base and report["history_and_baselines_preserved"]
++    assert c.client.before_recovery_read is None
++
++
++def test_fill_after_lost_ack_uses_original_protection_and_exit(case):  # noqa: F811
++    _, _, fake, _ = case
++    report, _ = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED", report
++    assert report["reduce_only_post_attempts"] == 1 and report["operator_emergency_requested"]
++    assert report["exit_state"] == "FILLED" and fake.positions["BTCUSDT"] == 0
++    assert [p["type"] for p in posts(fake)] == ["LIMIT", "MARKET"]
++    assert [p["type"] for p in posts(fake, "/fapi/v1/algoOrder")] == [
++        "STOP_MARKET",
++        "TAKE_PROFIT_MARKET",
++    ]
++
++
++def test_completed_operation_never_submits_or_drops_again(case):  # noqa: F811
++    _, _, fake, _ = case
++    _, operation = asyncio.run(exercise(case))
++    count = len(posts(fake))
++    report, _ = asyncio.run(exercise(case, operation))
++    assert report["failure"] == "RECOVERY_ONLY" and report["recovered_existing_intent"]
++    assert len(posts(fake)) == count and report["entry_loss_check"] == "NOT_ACCEPTED"
++
++
++def test_real_submit_failure_without_success_response_is_not_injection(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.lost_submit = True
++    report, _ = asyncio.run(exercise(case, timeout=0.15))
++    assert report["entry_loss_check"] == "NOT_ACCEPTED" and report["response_drop_count"] == 0
++    assert report["new_entry_post_count"] == 1
++    assert len([p for p in posts(fake) if p["type"] == "LIMIT"]) == 1
++
++
++def test_wrong_same_id_server_proof_is_rejected(case, monkeypatch):  # noqa: F811
++    _, _, _, options = case
++    options["fill"] = False
++    original = module.pick
++
++    def wrong(raw, keys):
++        row = original(raw, keys)
++        row["orderId"] = "999999999"
++        return row
++
++    monkeypatch.setattr(module, "pick", wrong)
++    report, _ = asyncio.run(exercise(case, timeout=0.15))
++    assert (
++        report["entry_loss_check"] == "NOT_ACCEPTED" and not report["same_id_signed_query_verified"]
++    )
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_unknown_exit_is_never_reposted_or_claimed_flat(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.defer_exit = True
++    report, _ = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "NOT_ACCEPTED" and report["flat_confirmation"] == "UNKNOWN"
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) == 1
++
++
++def test_audit_failure_blocks_and_restores_lookup_observer(case, monkeypatch):  # noqa: F811
++    store, c, _, options = case
++    options["fill"] = False
++    original = store.change
++
++    def fail(lease, kind, apply):
++        if kind == "DEMO_ENTRY_LOSS_CHECK_RESULT":
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(lease, kind, apply)
++
++    monkeypatch.setattr(store, "change", fail)
++    report, _ = asyncio.run(exercise(case))
++    assert (
++        report["failure"] == "RESULT_AUDIT_FAILED" and report["entry_loss_check"] == "NOT_ACCEPTED"
++    )
++    assert c.client.before_recovery_read is None and "PRIVATE_DATABASE_URL" not in json.dumps(
++        report
++    )
++
++
++def test_prepare_failure_never_submits(case):  # noqa: F811
++    _, c, fake, options = case
++    options["stale_candle"] = True
++    report, _ = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "NOT_ACCEPTED"
++    assert report["new_entry_post_count"] == report["response_drop_count"] == 0
++    assert not posts(fake) and c.client.before_recovery_read is None
++
++
++def test_partial_fill_after_lost_ack_is_protected_and_residual_cancelled(case):  # noqa: F811
++    _, _, fake, options = case
++    options["fill_quantity"] = Decimal("0.02")
++    report, _ = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "ENTRY_ACK_LOSS_SAME_ID_NO_DUPLICATE_FLAT_VERIFIED", report
++    assert Decimal(report["filled_quantity"]) == Decimal("0.02")
++    assert report["same_id_signed_query_verified"] and fake.positions["BTCUSDT"] == 0
++    assert len(posts(fake)) == 2 and posts(fake)[1]["quantity"] == "0.02"
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++
++
++def test_unknown_proof_diagnostic_error_cannot_prevent_signed_query_or_cleanup(case, monkeypatch):  # noqa: F811
++    _, c, fake, options = case
++    options["fill"] = False
++    original = c._fresh
++
++    def diagnostic_error(ledger):
++        if any(o.state.value == "UNKNOWN" for o in ledger.orders.values()):
++            raise OSError("PRIVATE_DATABASE_URL")
++        return original(ledger)
++
++    monkeypatch.setattr(c, "_fresh", diagnostic_error)
++    report, _ = asyncio.run(exercise(case))
++    assert report["entry_loss_check"] == "NOT_ACCEPTED"
++    assert (
++        report["same_id_signed_query_verified"] and report["flat_confirmation"] == "VERIFIED_FLAT"
++    )
++    assert len(posts(fake)) == 1 and "PRIVATE_DATABASE_URL" not in json.dumps(report)
++
++
++def test_unknown_exit_same_operation_cannot_generate_another_entry_or_exit(case):  # noqa: F811
++    _, _, fake, _ = case
++    fake.defer_exit = True
++    _, operation = asyncio.run(exercise(case))
++    count = len(posts(fake))
++    report, _ = asyncio.run(exercise(case, operation))
++    assert report["failure"] == "RECOVERY_ONLY" and report["entry_loss_check"] == "NOT_ACCEPTED"
++    assert report["flat_confirmation"] == "UNKNOWN" and len(posts(fake)) == count
+--- /dev/null
++++ b/tests/unit/test_demo_entry_loss_cli.py
+@@ -0,0 +1,41 @@
++"""Explicit DEMO/local fault consent and secondary transport safety barrier."""
++
++import json
++from uuid import uuid4
++
++import pytest
++
++from scripts import check_demo_entry_response_loss as cli
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--enable-demo"],
++        ["--enable-entry-response-loss"],
++        ["--enable-demo", "--enable-entry-response-loss"],
++        ["--enable-demo", "--enable-entry-response-loss", "--operation-id", "bad"],
++        ["--enable-demo", "--operation-id", str(uuid4())],
++    ],
++)
++def test_flags_precede_key_access(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_blocked_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr(
++        "sys.argv",
++        ["check", "--enable-demo", "--enable-entry-response-loss", "--operation-id", str(uuid4())],
++    )
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
