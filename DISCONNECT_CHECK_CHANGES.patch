@@ -1,0 +1,756 @@
+--- /dev/null
++++ b/DISCONNECT_CHECK_START_HERE_KO.md
+@@ -0,0 +1,27 @@
++# 빈 계정의 개인 WS 단절·재연결 검증
++
++이번 단계는 새 진입 없이 개인 WebSocket을 의도적으로 한 번 닫고, 차단 상태를 확인한 뒤 한 번 재연결해 REST 재대조하는 검사입니다. 인터넷 전체 차단이나 주문이 열린 상태의 장애 검증과는 범위가 다릅니다. 기존 정상 연결20초 관찰·빈 API 재시작 성공 기록은 WINDOWS_DEMO_EMPTY_RESTART_AND_WS_20261031_KO.md에 보존했습니다.
++
++기존 Galaxybook에서 ZIP을 새 windows-demo-disconnect-check 폴더에 풀고 그 폴더의 탐색기 주소창에 cmd를 입력하세요. 기존 hybrid-windows 데이터베이스와 볼륨을 유지합니다. 삭제·초기화하지 마세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++컨테이너 교체로 메모리 키가 초기화되므로 한 번 등록합니다. 키는 숨김 입력에만 넣으세요. 이후 같은 컨테이너에서는 최대12시간 재사용합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++명시적으로 단절 주입을 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_disconnect --enable-fault-injection
++```
++
++정상 흐름에서는 READY → BLOCKED → RECONNECTED 단계 출력 뒤 최종 EMPTY_SOCKET_LOSS_RECONNECT_VERIFIED가 나옵니다. 의도한 첫 단절의 SOCKET_CLOSED는 이 검사에서 확인하려는 증거이며, 최종 성공 판정과 함께 보세요. 자동 재시도 루프 없이 소켓 종료1회·재연결1회만 수행합니다. 단계별 연결/관찰 예산은45초이며 초기 조회와 종료 정리 시간이 더해질 수 있습니다. 터미널 입력창으로 돌아온 뒤 전체 결과를 공유하세요.
++
++이 도구는 NORMAL·진입 정지·로컬 포지션0·모든 기존 포지션 CLOSED를 요구하고, 현재 거래소 포지션/활성 주문도 확인합니다. 조건이 맞지 않거나 시간 초과·재연결 실패·기록 변경이 생기면 성공으로 처리하지 않습니다. 주문·계정 변경 요청은 전송 전에 차단합니다. 허용되는 쓰기 요청은 기존 SDK를 통한 개인 세션 listenKey 생성/종료뿐입니다. 데이터베이스에는 임대·재대조·세션·차단 확인 감사 기록을 남기므로 DB 읽기 전용 검사는 아닙니다.
++
++검사 중에도 진입 정지를 해제하거나 진입 신호를 공급하지 않습니다. 성공 후에는 정상적으로 세션을 닫아 stream_ready/reconciled=false, paused=true로 종료합니다. 마지막 소켓 실패 진단은 과거 증거로 남을 수 있습니다. 일일/주간 기준·고점·과거 주문과 미해결 요청은 보존합니다. LIVE/Phase5, 실제 부분 체결 보호, 열린 주문 중 재시작, 무인 장시간 운영 완료는 포함하지 않습니다.
+--- /dev/null
++++ b/DISCONNECT_CHECK_VALIDATION_KO.md
+@@ -0,0 +1,15 @@
++# 주문 없는 단절 검증의 범위와 회귀 검사
++
++추가 파일은 scripts.check_demo_disconnect 및 전용 테스트·한국어 문서·실제 기존 검증 기록뿐입니다. 기존 실행 코디네이터, 스트림 수신기, SDK, 위험 한도, 주문/보호/청산, 저장 모델, 기간/복구 적용, 키 보관, Compose, export 생성 경로는 이전 ZIP과 바이트 단위로 같습니다. main은 변경하지 않습니다.
++
++명시적 --enable-fault-injection이 없으면 인자 검사에서 종료합니다. LIVE 문맥에서는 키를 읽기 전에 차단합니다. 정상 사용 시 기존 숨김 등록된 메모리 키를 사용합니다. 원래 DEMO 전용 private_connect를 통해 호스트 제한·타임아웃·비공개 로깅 설정을 유지합니다. 기존 ObservationClient를 사용하여 generic request의 모든 GET 외 메서드를 전송 전에 거부합니다. SDK의 별도 listenKey POST/DELETE는 세션 수명 관리에만 사용합니다. 새 진입 신호·진입 재개·주문 제출·취소·보호/청산 명령을 사용자 행동으로 공급하지 않습니다. 기존 스트림 종료의 PAUSE_ENTRIES 감사 동작은 계속 수행하지만 빈 계정을 요구하며 주문 변경 전송도 클라이언트에서 차단합니다.
++
++첫 연결의 기존 REST 재대조와 ready 콜백이 성공한 뒤1초 기다려 로컬 소켓을 코드1011로 한 번 닫습니다. 기존 수신기가 SOCKET_CLOSED를 영속 진단으로 남기고 stream_ready/reconciled=false, session_failed=true, paused=true가 되는지 확인합니다. 입장 게이트도 별도 검사합니다. 이 게이트 검사는 깊은 복사본에서만 paused를 제거해 연결/실패 게이트를 확인하며, 실제 DB의 정지를 해제하거나 주문을 예약하지 않습니다. 첫 단절 증거와 준비/주입 완료 플래그가 모두 없으면 성공하지 않습니다.
++
++그 뒤1초 간격을 두고 임대를 갱신해 한 번만 재연결합니다. 재연결에서도 원래 session의 REST 재대조가 끝나야 ready가 됩니다. 5초 추가 관찰 중 다시 실패하면 차단합니다. 마지막에는 세션을 정상 취소·정리하고 영속 게이트가 다시 잠겼는지, 거래소 노출과 활성 주문이 없는지 확인합니다. 각 연결/관찰 단계의45초 예산과 기존 HTTP/WS 타임아웃·DB 임대/펜싱은 유지합니다. 초기/최종 REST와 정리 시간은 이 단계 예산 밖에 있으며 전체 과정이 정확히90초 이내에 끝난다는 보장은 아닙니다. 오류를 무한 재시도하지 않습니다.
++
++임대 보유 중 기존 감사 이벤트에 READY/BLOCKED/RECONNECTED/COMPLETE 단계를 기록합니다. 과거 주문·요청·미전송 증거·수량cap·검증 증거·기준 적용/복구 영수증·정책·일일/주간 기준·고점·입출금 기준을 전후 비교합니다. 변경되면 차단합니다. 새 스키마/상태 필드는 없습니다. 최종 성공 출력은 임대 해제까지 확인된 경우에만 반환하며 해제 실패는 별도 BLOCKED로 처리합니다. 원본 오류·개인 이벤트·키·URL은 출력하지 않습니다.
++
++로컬 실제 WebSocket과 PostgreSQL 테스트는 의도한 단절 감지·영속 게이트 잠금·재연결 전 재대조·전체 기록/미해결2건 보존·최종 정지, listenKey 외 쓰기0건, 비어 있지 않은 계정/활성 외부 주문/비정지/비상 상태의 사전 차단, 예기치 않은 단절, 재연결 실패, 기록 변경, 첫 단계/관찰 시간 초과, 실제 CLI 실행, 임대 해제 실패의 성공 방지와 오류 비공개를 검증합니다. 인자·LIVE 문맥·클라이언트 제약 검사도 포함합니다. 기존 테스트는 수정하거나 삭제하지 않았습니다.
++
++관련23개 검사가 통과했습니다(11.21초). 전체 회귀/정적 검사 결과는 manifest에 실제 완료 수치로 기록합니다. 클라우드에서 인증된 Binance 요청이나 주문은 보내지 않았습니다. 사용자의 실제 DEMO 신규 단절 검사 결과는 아직 확인해야 합니다. 로컬 소켓 닫기와 재연결의 빈 계정 검증이며 인터넷 전체 단절·서버 장애·보호 포지션 중 단절·열린 진입 주문 중 재시작·무인 운영을 모두 수락하는 증거가 아닙니다. 실제 부분 체결 보호 성공도 별도로 남아 있습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_EMPTY_RESTART_AND_WS_20261031_KO.md
+@@ -0,0 +1,13 @@
++# 기존 Windows 실제 빈 API 재시작·정상 WS 관찰
++
++사용자 터미널 캡처에 근거한 기록입니다. 설치판은 windows-demo-multi-execution-fix-20261031, commit62e9720, ZIP SHA256 b2a3dc813f8f70e9c62a3423f3c2ce3e6809684fabfd308baa1902e1124f7677입니다.
++
++실제 PASSIVE 작업1394c054-7da1-4113-a8ef-ddb37ac1e285는0.0007 BTC 전량 체결, SL/TP 조회 확인, 최종 청산과 FINISHED_FLAT을 확인했습니다. session_error=false, filled_protection_and_flat_verified=true입니다. 전량 체결이므로 부분 체결 수락으로 세지 않습니다. 그 전 실제0.0006 부분 체결 실패는 포함된 WINDOWS_DEMO_PARTIAL_EVIDENCE_20261031_KO.md에 보존돼 있습니다.
++
++후속 복구 감사는37건/5묶음, 서명GET172회, 시각1회, 미해결2건, 위험PASS, 포지션0/활성 주문0을 확인했습니다. 토큰308d3a9b80689931461e6a9f5aef8219484bfead0355167ef11b202fc6c03c8b, 작업569c5414-363a-4f65-b346-d4c8af61c837로 복구 적용이 성공했고 진입 정지는 유지됐습니다.
++
++사용자가 API 컨테이너를 restart한 뒤 up -d --wait api에서 DB/API Healthy를 확인했습니다. 메모리 키를 숨김 재등록했고, 기본 run_demo preflight는 READ_ONLY, account_reconciled=true, private_stream_ready=false, orders_enabled=false, LIVE=false, risk_state=NORMAL, BTCUSDT ISOLATED/2배를 출력했습니다. 이 단계는 WS에 연결하지 않으므로 stream_ready=false는 연결 오류가 아닙니다.
++
++이후 --enable-demo --check-private 실행 캡처는 CONNECTED, account_reconciled=true, private_stream_ready=true, entry_signal_supplied=false, LIVE=false를 출력했고 OBSERVATION_FINISHED로 정상 종료했습니다. 약20초 연결 관찰을 완료한 증거이며 실제 강제 단절 주입은 포함하지 않습니다. 사용자 요청에 따라 다음 단계로 전용 빈 계정 단절·재연결 검사를 추가합니다. 신규 도구의 실제 사용자 실행 결과는 아직 없습니다.
++
++기존 기준은 일일4999.35095801 USDT(10월31일), 주간4999.64804199(10월26일), 고점5000입니다. 초기 기준/과거 손실을 리셋하지 않습니다. 원본 WS 장기 보관·열린 주문 중 재시작·실제 부분 체결 보호·무인 장기 운영과 전체 Phase4 완료를 주장하지 않습니다.
+--- /dev/null
++++ b/scripts/check_demo_disconnect.py
+@@ -0,0 +1,353 @@
++"""Explicit, bounded empty-account socket loss/reconnect check; never order writes."""
++
++import argparse
++import asyncio
++import json
++import os
++from collections.abc import AsyncIterator, Callable
++from contextlib import AbstractAsyncContextManager, asynccontextmanager
++from pathlib import Path
++from typing import Any
++from uuid import uuid4
++
++import yaml
++from pydantic import SecretStr
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoFailure, DemoSettings
++from integrations.binance_usdm.demo_snapshot import operational_snapshot
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT, ObservationClient
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_stream import Connection, private_connect, session, settled_call
++from services.risk.paper import RiskRejected
++
++CODES = frozenset(
++    {
++        "LIVE_CONTEXT_FORBIDDEN",
++        "READ_ONLY_CLIENT_REQUIRED",
++        "PAUSED_EMPTY_NORMAL_REQUIRED",
++        "EXCHANGE_NOT_EMPTY",
++        "HISTORY_OR_BASELINES_CHANGED",
++        "READY_STATE_INVALID",
++        "EXPECTED_SOCKET_FAILURE_NOT_OBSERVED",
++        "DISCONNECT_GATE_NOT_LOCKED",
++        "RECONNECT_NOT_VERIFIED",
++        "FINAL_GATE_NOT_LOCKED",
++        "CHECK_FAILED",
++        "LEASE_RELEASE_FAILED",
++    }
++)
++PRESERVED = {
++    "orders",
++    "requests",
++    "request_no_send_evidence",
++    "entry_quantity_caps",
++    "initial_fill_settlements",
++    "validation_evidence",
++    "recovery_receipts",
++    "cancelled_exposure_corrections",
++    "attested_day_baselines",
++    "attested_period_baselines",
++    "exit_anchored_day_baselines",
++    "validation_entry_styles",
++    "policy",
++    "daily_key",
++    "daily_base",
++    "weekly_key",
++    "weekly_base",
++    "high_water",
++    "net_transfers",
++    "income_seen",
++}
++
++
++class CheckBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = code if code in CODES else "CHECK_FAILED"
++        super().__init__(self.code)
++
++
++def empty_state(coordinator: DemoCoordinator) -> DemoLedger:
++    if not isinstance(coordinator.client, ObservationClient):
++        raise CheckBlocked("READ_ONLY_CLIENT_REQUIRED")
++    ledger = coordinator.store.read(coordinator.lease.account_id)
++    if (
++        ledger.risk_state.value != "NORMAL"
++        or not ledger.paused
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or any(ledger.positions.values())
++        or any(
++            o.remaining or o.open_quantity or o.position_state.value != "CLOSED"
++            for o in ledger.orders.values()
++        )
++    ):
++        raise CheckBlocked("PAUSED_EMPTY_NORMAL_REQUIRED")
++    return ledger
++
++
++def remote_empty(coordinator: DemoCoordinator) -> None:
++    ledger = empty_state(coordinator)
++    coordinator.client.sync_clock()
++    remote = operational_snapshot(coordinator.client, ledger, coordinator.store.now())
++    if (
++        any(remote.positions.values())
++        or remote.margin_used != 0
++        or any(
++            r["status"] not in {"FILLED", "CANCELED", "EXPIRED", "REJECTED", "EXPIRED_IN_MATCH"}
++            for r in remote.orders.values()
++        )
++        or any(
++            r["algoStatus"] not in {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++            for r in remote.algos.values()
++        )
++    ):
++        raise CheckBlocked("EXCHANGE_NOT_EMPTY")
++
++
++def unchanged(coordinator: DemoCoordinator, before: dict[str, Any]) -> DemoLedger:
++    ledger = empty_state(coordinator)
++    if ledger.model_dump(mode="json", include=PRESERVED) != before:
++        raise CheckBlocked("HISTORY_OR_BASELINES_CHANGED")
++    return ledger
++
++
++def gate_blocked(coordinator: DemoCoordinator, ledger: DemoLedger) -> bool:
++    # Probe a deep copy with only paused removed, to verify readiness/failure
++    # gates independently. Never unpause the durable account or submit a signal.
++    probe = ledger.model_copy(deep=True)
++    probe.paused = False
++    try:
++        coordinator._fresh(probe)
++    except RiskRejected:
++        return True
++    return False
++
++
++def progress(stage: str) -> None:
++    print(
++        json.dumps(
++            {
++                "disconnect_check_stage": stage,
++                "entry_signal_supplied": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        ),
++        flush=True,
++    )
++
++
++async def check(
++    coordinator: DemoCoordinator,
++    *,
++    connector: Callable[[SecretStr], AbstractAsyncContextManager[Connection]] = private_connect,
++    drop_delay: float = 1,
++    observe_seconds: float = 5,
++    phase_timeout: float = 45,
++) -> dict[str, Any]:
++    await settled_call(remote_empty, coordinator)
++    before = empty_state(coordinator).model_dump(mode="json", include=PRESERVED)
++    loop = asyncio.get_running_loop()
++    first_ready = asyncio.Event()
++    control = {"requested": False, "completed": False}
++
++    def ready(marker: str, event: asyncio.Event) -> None:
++        ledger = unchanged(coordinator, before)
++        if coordinator.session_failed or not ledger.reconciled or not ledger.stream_ready:
++            raise CheckBlocked("READY_STATE_INVALID")
++        coordinator.store.change(coordinator.lease, marker, lambda _: None)
++        progress(marker)
++        loop.call_soon_threadsafe(event.set)
++
++    @asynccontextmanager
++    async def interrupted(url: SecretStr) -> AsyncIterator[Connection]:
++        async with connector(url) as socket:
++
++            async def close_once() -> None:
++                await first_ready.wait()
++                await asyncio.sleep(drop_delay)
++                control["requested"] = True
++                await socket.close(code=1011)  # type: ignore[attr-defined]
++                control["completed"] = True
++
++            closer = asyncio.create_task(close_once())
++            try:
++                yield socket
++            finally:
++                if not control["requested"]:
++                    closer.cancel()
++                try:
++                    await asyncio.wait_for(asyncio.shield(closer), timeout=3)
++                except (asyncio.CancelledError, TimeoutError):
++                    closer.cancel()
++                    await asyncio.gather(closer, return_exceptions=True)
++
++    expected_failure = False
++    try:
++        await asyncio.wait_for(
++            session(
++                coordinator,
++                connector=interrupted,
++                on_ready=lambda: ready("DEMO_EMPTY_WS_FAULT_READY", first_ready),
++            ),
++            timeout=phase_timeout,
++        )
++    except DemoFailure:
++        expected_failure = True
++    failed = unchanged(coordinator, before)
++    failure = failed.last_private_session_failure
++    if not (
++        expected_failure
++        and first_ready.is_set()
++        and control["requested"]
++        and control["completed"]
++        and coordinator.session_failed
++        and failure is not None
++        and failure.code == "SOCKET_CLOSED"
++    ):
++        raise CheckBlocked("EXPECTED_SOCKET_FAILURE_NOT_OBSERVED")
++    if failed.stream_ready or failed.reconciled or not gate_blocked(coordinator, failed):
++        raise CheckBlocked("DISCONNECT_GATE_NOT_LOCKED")
++    await settled_call(
++        coordinator.store.change, coordinator.lease, "DEMO_EMPTY_WS_FAULT_BLOCKED", lambda _: None
++    )
++    progress("DEMO_EMPTY_WS_FAULT_BLOCKED")
++    # One deliberate reconnect, no retry loop. Every connection runs the
++    # existing REST reconciliation before ready(). No entry callback exists.
++    await asyncio.sleep(1)
++    await settled_call(coordinator.store.renew, coordinator.lease)
++    second_ready = asyncio.Event()
++    task = asyncio.create_task(
++        session(
++            coordinator,
++            connector=connector,
++            on_ready=lambda: ready("DEMO_EMPTY_WS_FAULT_RECONNECTED", second_ready),
++        )
++    )
++    try:
++
++        async def observe() -> None:
++            await second_ready.wait()
++            await asyncio.sleep(observe_seconds)
++
++        observation = asyncio.create_task(observe())
++        try:
++            done, _ = await asyncio.wait(
++                {task, observation}, timeout=phase_timeout, return_when=asyncio.FIRST_COMPLETED
++            )
++            if task in done:
++                await task
++                raise CheckBlocked("RECONNECT_NOT_VERIFIED")
++            if observation not in done or not second_ready.is_set() or coordinator.session_failed:
++                raise CheckBlocked("RECONNECT_NOT_VERIFIED")
++            live = unchanged(coordinator, before)
++            if not live.stream_ready or not live.reconciled:
++                raise CheckBlocked("RECONNECT_NOT_VERIFIED")
++        finally:
++            observation.cancel()
++            await asyncio.gather(observation, return_exceptions=True)
++    finally:
++        task.cancel()
++        try:
++            await task
++        except asyncio.CancelledError:
++            pass
++    final = unchanged(coordinator, before)
++    if (
++        coordinator.session_failed
++        or final.stream_ready
++        or final.reconciled
++        or not gate_blocked(coordinator, final)
++    ):
++        raise CheckBlocked("FINAL_GATE_NOT_LOCKED")
++    await settled_call(remote_empty, coordinator)
++    await settled_call(
++        coordinator.store.change, coordinator.lease, "DEMO_EMPTY_WS_FAULT_COMPLETE", lambda _: None
++    )
++    return {
++        "disconnect_check": "EMPTY_SOCKET_LOSS_RECONNECT_VERIFIED",
++        "scope": "EMPTY_ACCOUNT_LOCAL_SOCKET_CLOSE",
++        "injected_close_count": 1,
++        "reconnect_count": 1,
++        "disconnect_code": failure.code,
++        "entry_gate_blocked_after_disconnect": True,
++        "reconnect_reconciled": True,
++        "history_and_baselines_preserved": True,
++        "final_paused": final.paused,
++        "final_stream_ready": final.stream_ready,
++        "final_reconciled": final.reconciled,
++        "risk_state": final.risk_state.value,
++        "entry_signal_supplied": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-fault-injection", action="store_true", required=True)
++    parser.parse_args()
++    engine = store = lease = coordinator = None
++    report: dict[str, Any] = {
++        "disconnect_check": "BLOCKED",
++        "code": "CHECK_FAILED",
++        "entry_signal_supplied": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise CheckBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = ObservationClient(cfg, key)
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        lease = store.acquire(ACCOUNT, uuid4())
++        coordinator = DemoCoordinator(store, lease, client)
++        empty_state(coordinator)
++        remote_empty(coordinator)
++        coordinator.refresh_metadata()
++        coordinator.reconcile()
++        report = asyncio.run(check(coordinator))
++        success = True
++    except Exception as error:
++        report["code"] = error.code if isinstance(error, CheckBlocked) else "CHECK_FAILED"
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++        except Exception:
++            success = False
++            report = {
++                "disconnect_check": "BLOCKED",
++                "code": "LEASE_RELEASE_FAILED",
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/tests/fault_injection/test_demo_empty_disconnect_check.py
+@@ -0,0 +1,276 @@
++"""Real PostgreSQL + local WS: deliberate loss, durable gate, one reconnect."""
++
++import asyncio
++from contextlib import asynccontextmanager
++from decimal import Decimal
++
++import pytest
++from sqlalchemy import select
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++import scripts.check_demo_disconnect as cli
++from integrations.binance_usdm.demo import DemoFailure
++from packages.domain.contracts import PositionState, RiskState
++from packages.persistence.demo import events
++from scripts.observe_demo_private import ObservationClient
++from tests.integration.test_demo import enter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++
++
++@pytest.fixture
++def empty_case(demo_system):  # noqa: F811
++    system, _ = configure(demo_system)
++    store, c, fake = system
++    signal, _ = enter(system)
++    c.cancel(str(signal.signal_id))
++
++    def paused(ledger):
++        # Seed the terminal closed state produced by completed validation,
++        # retaining the real synthetic exchange cancellation and all requests.
++        canceled = ledger.orders[str(signal.signal_id)]
++        assert canceled.state.value == "CANCELED" and not canceled.filled
++        canceled.position_state = PositionState.CLOSED
++        ledger.paused = True
++        ledger.requests["DS-old-unresolved"] = "UNKNOWN"
++        ledger.requests["DX-old-unresolved"] = "SUBMITTING"
++
++    store.change(c.lease, "TEST_EMPTY_PAUSED_HISTORY", paused)
++    c.client = ObservationClient(
++        c.client.settings, c.client.credentials, send=c.client.send, clock_ms=c.client.clock_ms
++    )
++    c.client.sync_clock()
++    return store, c, fake
++
++
++async def run_check(c, behavior="normal", **kwargs):
++    connections = []
++
++    async def handler(socket):
++        await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            connections.append(len(connections) + 1)
++            if behavior == "reconnect_fails" and len(connections) == 2:
++                raise RuntimeError("PRIVATE_KEY_URL_MUST_NOT_LEAK")
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                if behavior == "premature_close":
++                    await socket.close()
++                yield socket
++
++        options = dict(connector=connector, drop_delay=0.01, observe_seconds=0.03, phase_timeout=3)
++        options.update(kwargs)
++        return await cli.check(c, **options), connections
++
++
++def test_disconnect_marks_untrusted_then_one_reconnect_reconciles_and_preserves_history(empty_case):
++    store, c, fake = empty_case
++    before = store.read("DEMO-test")
++    start = len(fake.calls)
++    report, connections = asyncio.run(run_check(c))
++    after = store.read("DEMO-test")
++    assert report["disconnect_check"] == "EMPTY_SOCKET_LOSS_RECONNECT_VERIFIED"
++    assert report["disconnect_code"] == "SOCKET_CLOSED"
++    assert report["entry_gate_blocked_after_disconnect"] and report["reconnect_reconciled"]
++    assert connections == [1, 2]
++    assert not c.session_failed and after.paused and not after.stream_ready and not after.reconciled
++    assert after.orders == before.orders and after.requests == before.requests
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert after.high_water == before.high_water and after.risk_state == RiskState.NORMAL
++    assert after.last_private_session_failure.code == "SOCKET_CLOSED"
++    writes = [(m, p) for m, p, _ in fake.calls[start:] if m != "GET"]
++    assert writes == [("POST", "/fapi/v1/listenKey"), ("DELETE", "/fapi/v1/listenKey")] * 2
++    with store.engine.connect() as conn:
++        rows = conn.execute(
++            select(events.c.kind, events.c.payload).where(events.c.account_id == "DEMO-test")
++        ).all()
++    kinds = [kind for kind, _ in rows]
++    assert kinds.index("DEMO_EMPTY_WS_FAULT_BLOCKED") < kinds.index(
++        "DEMO_EMPTY_WS_FAULT_RECONNECTED"
++    )
++    assert kinds[-1] == "DEMO_EMPTY_WS_FAULT_COMPLETE"
++    assert all("PRIVATE_KEY_URL" not in payload for _, payload in rows)
++
++
++@pytest.mark.parametrize("kind", ["local_position", "unpaused", "emergency", "pending_order"])
++def test_occupied_or_unapproved_context_cannot_open_socket(empty_case, kind):
++    store, c, fake = empty_case
++
++    def change(ledger):
++        if kind == "local_position":
++            ledger.positions["BTCUSDT"] = Decimal("0.1")
++        if kind == "unpaused":
++            ledger.paused = False
++        if kind == "emergency":
++            ledger.risk_state = RiskState.EMERGENCY
++        if kind == "pending_order":
++            next(iter(ledger.orders.values())).open_quantity = Decimal("0.001")
++
++    store.change(c.lease, "TEST_BLOCK_FAULT", change)
++    start = len(fake.calls)
++    with pytest.raises(cli.CheckBlocked, match="PAUSED_EMPTY_NORMAL_REQUIRED"):
++        asyncio.run(run_check(c))
++    assert len(fake.calls) == start
++
++
++def test_remote_unowned_order_is_not_canceled_and_prevents_injection(empty_case):
++    store, c, fake = empty_case
++    raw = next(iter(fake.orders.values()))
++    fake.orders["foreign"] = dict(
++        raw, clientOrderId="foreign", orderId="9999", status="NEW", executedQty="0"
++    )
++    start = len(fake.calls)
++    with pytest.raises(cli.CheckBlocked, match="EXCHANGE_NOT_EMPTY"):
++        asyncio.run(run_check(c))
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++    assert fake.orders["foreign"]["status"] == "NEW"
++
++
++@pytest.mark.parametrize("behavior", ["premature_close", "reconnect_fails"])
++def test_unplanned_failure_is_never_reported_as_expected_pass(empty_case, behavior, capsys):
++    store, c, _ = empty_case
++    with pytest.raises(DemoFailure):
++        asyncio.run(run_check(c, behavior))
++    assert "PRIVATE_KEY_URL" not in capsys.readouterr().out
++    with store.engine.connect() as conn:
++        assert not conn.execute(
++            select(events.c.event_id).where(events.c.kind == "DEMO_EMPTY_WS_FAULT_COMPLETE")
++        ).all()
++    assert store.read("DEMO-test").paused
++
++
++def test_gate_probe_uses_copy_and_checks_disconnect_independently_of_paused(empty_case):
++    store, c, _ = empty_case
++    before = store.read("DEMO-test")
++    assert not cli.gate_blocked(c, before)  # Underlying ready stream, paused copy removed.
++    c.disconnect()
++    after = store.read("DEMO-test")
++    assert cli.gate_blocked(c, after)
++    assert before.paused and after.paused
++    assert store.read("DEMO-test") == after
++
++
++def test_changed_history_during_reconnect_blocks_completion(empty_case, monkeypatch):
++    store, c, _ = empty_case
++    original = c.connected
++    count = 0
++
++    def connected():
++        nonlocal count
++        original()
++        count += 1
++        if count == 2:
++            store.change(
++                c.lease,
++                "TEST_FOREIGN_HISTORY_CHANGE",
++                lambda ledger: ledger.requests.update({"DS-old-unresolved": "SUBMITTING"}),
++            )
++
++    monkeypatch.setattr(c, "connected", connected)
++    with pytest.raises(DemoFailure):
++        asyncio.run(run_check(c))
++    with store.engine.connect() as conn:
++        assert not conn.execute(
++            select(events.c.event_id).where(events.c.kind == "DEMO_EMPTY_WS_FAULT_COMPLETE")
++        ).all()
++    assert store.read("DEMO-test").paused
++
++
++@pytest.mark.parametrize("release_fails", [False, True])
++def test_cli_runs_real_checked_flow_and_refuses_success_on_release_failure(
++    empty_case, monkeypatch, capsys, release_fails
++):
++    import json
++
++    store, c, fake = empty_case
++    source = c.client
++    store.release(c.lease)
++    monkeypatch.setattr(cli, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr("sys.argv", ["check_demo_disconnect", "--enable-fault-injection"])
++    monkeypatch.setattr(cli, "credentials", lambda **kw: source.credentials)
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: store.engine)
++    monkeypatch.setattr(cli, "DemoStore", lambda engine: store)
++
++    class BoundClient(ObservationClient):
++        def __init__(self, cfg, key):
++            super().__init__(source.settings, key, send=source.send, clock_ms=source.clock_ms)
++
++    monkeypatch.setattr(cli, "ObservationClient", BoundClient)
++    original_check = cli.check
++    start = len(fake.calls)
++
++    async def run():
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            async def local_check(coordinator):
++                return await original_check(
++                    coordinator,
++                    connector=connector,
++                    drop_delay=0.01,
++                    observe_seconds=0.03,
++                    phase_timeout=3,
++                )
++
++            monkeypatch.setattr(cli, "check", local_check)
++            if release_fails:
++
++                def fail_release(lease):
++                    raise RuntimeError("PRIVATE_KEY_URL_RELEASE")
++
++                monkeypatch.setattr(store, "release", fail_release)
++                with pytest.raises(SystemExit) as caught:
++                    await asyncio.to_thread(cli.main)
++                assert caught.value.code == 2
++            else:
++                await asyncio.to_thread(cli.main)
++
++    asyncio.run(run())
++    output = capsys.readouterr().out
++    report = json.loads(output.splitlines()[-1])
++    assert "PRIVATE_KEY_URL" not in output
++    if release_fails:
++        assert report["disconnect_check"] == "BLOCKED" and report["code"] == "LEASE_RELEASE_FAILED"
++    else:
++        assert report["disconnect_check"] == "EMPTY_SOCKET_LOSS_RECONNECT_VERIFIED"
++    assert store.read("DEMO-test").paused
++    assert all(m == "GET" or p == "/fapi/v1/listenKey" for m, p, _ in fake.calls[start:])
++
++
++def test_timeout_before_deliberate_close_is_not_a_verified_fault(empty_case):
++    store, c, _ = empty_case
++    with pytest.raises((TimeoutError, cli.CheckBlocked)):
++        asyncio.run(run_check(c, drop_delay=2, phase_timeout=0.1))
++    assert store.read("DEMO-test").paused
++    with store.engine.connect() as conn:
++        assert not conn.execute(
++            select(events.c.event_id).where(events.c.kind == "DEMO_EMPTY_WS_FAULT_COMPLETE")
++        ).all()
++
++
++def test_reconnect_observation_timeout_cannot_report_success(empty_case):
++    store, c, _ = empty_case
++    with pytest.raises(cli.CheckBlocked, match="RECONNECT_NOT_VERIFIED"):
++        asyncio.run(run_check(c, observe_seconds=2, phase_timeout=0.5))
++    final = store.read("DEMO-test")
++    assert final.paused and not final.stream_ready and not final.reconciled
++    with store.engine.connect() as conn:
++        assert conn.execute(
++            select(events.c.event_id).where(events.c.kind == "DEMO_EMPTY_WS_FAULT_BLOCKED")
++        ).all()
++        assert not conn.execute(
++            select(events.c.event_id).where(events.c.kind == "DEMO_EMPTY_WS_FAULT_COMPLETE")
++        ).all()
+--- /dev/null
++++ b/tests/unit/test_demo_disconnect_cli.py
+@@ -0,0 +1,54 @@
++"""Explicit intent, context restrictions and sanitized failure output."""
++
++import json
++
++import pytest
++
++import scripts.check_demo_disconnect as cli
++from integrations.binance_usdm.demo import DemoFailure
++from scripts.observe_demo_private import ObservationClient
++
++
++def test_flag_is_required_before_reading_credentials(monkeypatch):
++    monkeypatch.setattr("sys.argv", ["check_demo_disconnect"])
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read keys"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("context", ["LIVE_TRADING_ENABLED", "TRADING_MODE"])
++def test_live_context_rejected_before_credentials(monkeypatch, capsys, context):
++    monkeypatch.setattr("sys.argv", ["check_demo_disconnect", "--enable-fault-injection"])
++    monkeypatch.setenv(context, "true" if context == "LIVE_TRADING_ENABLED" else "LIVE")
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read keys"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["code"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_raw_private_failure_is_never_printed(monkeypatch, capsys):
++    monkeypatch.setattr("sys.argv", ["check_demo_disconnect", "--enable-fault-injection"])
++
++    def fail(**kw):
++        raise RuntimeError("PRIVATE_API_KEY_URL_RAW_ERROR")
++
++    monkeypatch.setattr(cli, "credentials", fail)
++    with pytest.raises(SystemExit):
++        cli.main()
++    output = capsys.readouterr().out
++    assert "PRIVATE_API_KEY" not in output
++    assert json.loads(output)["code"] == "CHECK_FAILED"
++
++
++@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE", "PATCH"])
++def test_existing_order_mutation_guard_applies_before_transport(method):
++    with pytest.raises(DemoFailure, match="forbids"):
++        object.__new__(ObservationClient).request(method, "/fapi/v1/order")
++
++
++def test_non_observation_client_rejected_before_store_access():
++    from types import SimpleNamespace
++
++    with pytest.raises(cli.CheckBlocked, match="READ_ONLY_CLIENT_REQUIRED"):
++        cli.empty_state(SimpleNamespace(client=object()))
