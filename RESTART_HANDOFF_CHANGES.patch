@@ -1,0 +1,946 @@
+--- /dev/null
++++ b/RESTART_HANDOFF_START_HERE_KO.md
+@@ -0,0 +1,24 @@
++# 재시작 준비 자동 대기와 실패 원인 보존 보완
++
++기존 실제 작업 eac8d62b-c2e2-4ebd-8be0-f6a408dfb882는 미체결 취소·CLOSED·잔량/노출0·VERIFIED_FLAT·진입 정지를 확인했지만 API 재시작 검증은 미통과입니다. API는 실제로 재시작됐습니다. 다만 준비 시각과 조회 경과가 기록되지 않아 실제 관찰 창과의 관계를 확정할 수 없었습니다. failure=NONE은 검증 도구의 오류였고 이전판에서 재현했습니다. 원래 실패를 성공으로 덮어쓰지 않습니다.
++
++새 windows-demo-restart-handoff-fix 폴더에 ZIP을 풀고 기존 Galaxybook에서 CMD를 여세요. hybrid-windows DB와 볼륨은 유지합니다. 삭제·초기화하지 마세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++이번에는 실제 실행 전에 독립된 A/B CMD 창을 같은 폴더에서 미리 열어둡니다. 새 작업 UUID가 들어간 A/B 명령은 결과 안내에서 함께 제공합니다. 예전 작업 UUID를 새 진입으로 재사용하지 않습니다.
++
++1. A에서 독립 demo_restart_guard 실행 명령을 시작합니다.
++2. A에서 DEMO API Key(hidden) 안내가 나오면 아직 입력하지 말고 B로 이동합니다.
++3. B에서 같은 작업 UUID의 wait_demo_restart_ready를 docker exec로 실행하고, 성공 시에만 API restart 및 up --wait를 이어 실행하는 한 줄을 먼저 시작합니다.
++4. A로 돌아와 DEMO 키와 Secret을 숨김 입력합니다. 이때만 키를 한 번 입력하며 B는 키를 읽지 않습니다.
++5. A가 실제 미체결 주문을 확인해 준비 증거를 기록하면 B가 자동으로 확인하고 API를 재시작합니다. 사람이 READY 출력을 보고45초 안에 창을 바꿔 명령을 입력하는 절차를 없앴습니다.
++6. A 창을 닫지 말고 최종 결과까지 기다린 뒤 A/B 전체 결과를 공유합니다. NOT_ACCEPTED면 같은 명령을 반복하지 않습니다.
++
++B의 대기는 PostgreSQL READ ONLY로만 동작합니다. 정확한 작업 UUID·현재 감시자 임대 세대/유효성·NORMAL·미체결 ACK·수량cap 일치·체결/노출0·진입 가능 전제·현재 세대의5초 이내 준비 기록을 확인한 경우에만 종료 코드0을 반환합니다. 대기 자체는 최대180초이며 주문·계정·임대·키를 변경하지 않습니다. 준비가 오래됐거나 작업이 이미 취소/체결됐거나 감시자가 끝났으면 비정상 종료합니다. B의 CMD는 && 연결을 사용해 이때 API 재시작을 실행하지 않습니다.
++
++A의 주문 실험 조건은 이전판과 같습니다: 독립 감시자, 최소 유효 수량 LIMIT LONG, 현재 bid보다0.3% 아래, 명목100USDT 이하, 기존 위험/필터/시각/2배 조건, 주문 TTL60초, API 관찰 최대45초. 시간 한도를 늘리거나 API가 바뀌지 않아도 통과시키지 않습니다. 새 진입은1회뿐이며 도중 체결/불확실성은 기존 보호·정리 경로를 사용하고 수락하지 않습니다. 미체결 상태는 계속 조회하며 상태/체결 변화가 있으면 원래 재대조·보호 경로로 처리합니다. API만 재시작하고 감시자 자체의 종료/인계는 별도 검증입니다.
++
++최종 출력에는 원인/실패 단계, 준비 및 관찰 종료 UTC, 경과시간, API 조회/일시 불가 횟수, 마지막 관측 API 식별자, 위험 상태와 정리 결과가 추가됩니다. READY/RESULT는 기존 감사 이벤트와 고정된 operations 태그로 남기며 기존 기록을 삭제하지 않습니다. NOT_ACCEPTED를 failure=NONE으로 출력하지 않습니다. 계정은 계속 일시 정지로 종료합니다. API 메모리 키는 설치/재시작으로 초기화되지만 이번 A/B 실행은 A의 독립 메모리 키와 B의 DB 조회를 사용하므로 API 키 캐시 재등록은 이 단계에 필요하지 않습니다.
+--- /dev/null
++++ b/RESTART_HANDOFF_VALIDATION_KO.md
+@@ -0,0 +1,19 @@
++# 진단 전달과 호스트 재시작 인계 검사
++
++변경은 demo_api_restart_check.run과 신규 읽기 전용 wait_demo_restart_ready, 새 테스트/문서/실제 실패 증거뿐입니다. 기존 API 식별자 엔드포인트·기본/감시자 Compose·SDK·위험 계산·주문 제출/보호/청산·기간 기준·임대/펜싱·키 보관·export 생성 구현은 이전 ZIP과 바이트 단위로 동일합니다. run 외의 기존 함수/클래스도 그대로입니다. 이전판의 체결0 종료 상태 수정도 보존합니다.
++
++on_ready의 finally 완료 알림이 실제 예외 전달보다 먼저 도착하고 바깥 정리가 세션 awaiter를 취소하면 원래 실패 코드가 사라질 수 있었습니다. 정확한 이전 소스에서 API 식별자가 바뀌지 않아 대기가 만료되는 사례가 API_RESTART_NOT_OBSERVED 대신 NONE을 반환함을 재현했습니다(1 failed,0.83초). 이 재현만으로 사용자의 최초 실패를 시간 초과로 확정하지는 않습니다.
++
++수정판은 작업 스레드에서 예외를 안전한 고정 코드와 단계로 먼저 저장한 뒤 완료를 알립니다. 정리 중 발생한 예외가 원래 작업 원인을 덮지 않으며 정리 실패는 별도 필드에 기록합니다. 수락되지 않은 최종 상태/기존 작업 복구/입출금 또는 기록 변경/미확인 flat/결과 감사 실패에도 NONE 대신 고정된 이유를 남깁니다. 원본 예외·URL·개인 이벤트·키는 출력하지 않습니다. 준비 UTC·관찰 종료 UTC·단조 시계 경과시간·API 조회 수·일시 불가 수·마지막 식별자를 기록합니다. 기존 실패 기록을 추정한 값으로 바꾸지 않습니다.
++
++준비를 발행한 뒤 미체결 NEW/체결0이 계속 확인되는 동안에는 주문 상태 조회로 감시하며, 매번 전체 재대조를 시작해 reconciled를 잠깐 false로 바꾸지 않습니다. 준비 대기 프로세스가 그 중간 상태를 실패로 오인하는 경합을 방지합니다. 주문 상태/체결이 바뀌면 즉시 원래 코디네이터의 재대조·보호 경로를 실행하고 이 미체결 재시작 시나리오는 수락하지 않습니다. API 식별자 변경 뒤의 전체 REST 재대조와 최종 전체 flat 확인은 그대로입니다. 새 진입 허용 한도나 원래 정합성 검사를 완화하지 않습니다.
++
++API 관찰 최대45초와 주문 TTL60초는 유지합니다. 진행 중 HTTP/DB 호출의 기존 타임아웃도 그대로입니다. 느린 재대조나 HTTP 호출 후에도 마감 시각을 다시 확인해 창 밖에서 처음 관측한 API 변경을 통과시키지 않습니다. 준비 시점에 기존 fenced store.change로 DEMO_OPEN_API_RESTART_READY와 작업 UUID별 고정 준비 태그를 기록합니다. 검사 결과도 기존 감사 이벤트/operations에 고정 이유로 남기며 기존 결과 태그를 덮지 않습니다. 결과 감사가 실패하면 성공으로 표시하지 않습니다.
++
++새 B창 대기 도구는 거래소 클라이언트나 자격 증명을 사용하지 않습니다. 현재 작업의 필요한 JSON 필드와 현재 lease/fence를 조회하고 같은 세대의 READY 이벤트를 확인합니다. 모든 연결은 PostgreSQL READ ONLY, 쿼리 제한2초, 연결 제한2초입니다. 준비 기록은5초 이내이며 미래 시각을 거부합니다. 기본 비교 시각은 DB 조회 완료 뒤에 읽어 조회 도중 정상적으로 생성된 준비 기록을 미래로 오인하지 않으며, 임대·주문 만료도 마지막 비교 시각으로 다시 확인합니다. 주문은 DEMO_VALIDATION/LONG/BTCUSDT, ACKNOWLEDGED, 정확한 작업 UUID/수량cap, 체결/노출0, 전체 잔량, 유효한 서버 주문 ID, 만료까지5초 초과, NORMAL/비정지/재대조/개인 스트림 준비를 요구합니다. 임대 종료·다른 작업·과거 세대·오래된/미래 준비·체결·불완전한 수량·늦은 만료는 재시작 허가가 되지 않습니다. 부모가 새 주문을 준비하기 전에는 최대180초 기다리지만 잘못된 종료 상태는 비정상 종료합니다.
++
++호스트 CMD의 B 명령은 docker exec로 이 도구를 실행한 종료 코드가0일 때만 && 뒤의 compose restart api와 up --wait api를 실행합니다. B는 A 컨테이너가 생성돼 숨김 키 입력을 기다리는 동안 먼저 시작합니다. 독립 감시자는 원래 동작대로 실행되며 별도 Docker 소켓/키 공유/새 API 제어 라우트를 추가하지 않습니다. A 컨테이너가 중단돼 exec가 실패해도 호스트 재시작은 진행하지 않습니다. 이 구성은 API만의 재시작이며 감시자 자체가 죽었을 때 보호를 보장하는 인계 검증과 구분합니다.
++
++관련30개 검사 통과(9.90초). 새 회귀는 완료/취소 경합 뒤 원인·단계·영속 결과 보존, 민감 예외 비공개, 최종 기록 변경/정리 실패/결과 감사 실패에 NONE 금지, 진짜 PostgreSQL READ ONLY 및 임대 불변, 실제 대기 CLI 실행, 조회 도중 새 준비 기록 생성과 준비 상태 보존, 대기 중 부분 체결의 원래 보호/청산, 정확한 UUID/현재 세대/5초 신선도/시간 방향, 임대·위험·정지·수량cap·체결·만료·준비 태그 이상, 대기 시간 초과와 LIVE 차단을 검사합니다. 이전 열린 주문 검증8건도 포함합니다. 기존 테스트는 수정/삭제/완화하지 않았습니다. 전체 회귀/정적 검사 실제 결과는 manifest에 기록합니다.
++
++클라우드는 합성 거래소·로컬 WS·실제 PostgreSQL을 사용했습니다. 인증된 Binance 요청·주문은 보내지 않았습니다. 새 실제 Windows 인계/재시작 검증은 아직 확인해야 합니다. 미체결 취소/최종 flat이 성공한 기존 실제 시도는 별도 증거에 기록합니다. 전체 Phase4, 실제 부분 체결 보호, 감시자 강제 종료/인계, 무인 운영, LIVE/Phase5 완료를 주장하지 않습니다. main은 변경하지 않았습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RESTART_TIMELINE_20261031_KO.md
+@@ -0,0 +1,21 @@
++# 기존 실제 재시작 미통과의 후속 읽기 전용 증거
++
++사용자 캡처에 근거합니다. 부모 배포판 windows-demo-open-api-restart-20261031, commit d2d645d, ZIP SHA256 78a30b30657c89939d0e6836b653415d8cda39f4e096d21dd7894192f0012a83. 작업 eac8d62b-c2e2-4ebd-8be0-f6a408dfb882입니다.
++
++A는 독립 guard 생성/키 숨김 입력 뒤 OPEN_ORDER_READY_RESTART_API_NOW를 출력했습니다. 수량0.0007, 지정가77001.90, 신규 진입 POST1회입니다. 이전 API 식별자139dcd09-4452-45b7-92ba-69151c9241ab. 최종은 NOT_ACCEPTED, api_instance_after null, same_order_observed_before_after false, entry_post_attempts/new_entry_post_count1, failure NONE, flat_confirmation VERIFIED_FLAT, history_and_baselines_preserved true, filled_quantity0.000, final_paused true, LIVE false였습니다.
++
++B에서는 API restart와 Healthy 복귀를 확인했습니다. 후속 docker inspect 시작 시각은 UTC2026-10-31T05:30:35.44709676Z(한국14:30:35경)이며 현재 API 식별자는 a9b95dfc-c29c-40bc-82e3-924d6501f55b로 바뀌었습니다. 재시작 자체가 발생한 것은 확인됐습니다.
++
++읽기 전용 DB 조회는 risk_state NORMAL/paused true, 현재 주문 CANCELED/CLOSED, filled0.000, remaining0, open_quantity0, exit_state NONE을 확인했습니다. database_changed false, orders_enabled false입니다.
++
++감사 타임라인 UTC(한국 시간은+9시간):
++
++-05:29:43.578642 ENTRY_RESERVED.
++-05:29:45.914070 ENTRY_EFFECT.
++-05:30:54.826698 SESSION_CLOSE.
++-05:31:16.967743 FLAT_CONFIRMATION_CHECK.
++-05:31:41.442785 LEADER_RELEASED.
++
++API 시작은 ENTRY_EFFECT 약49.5초 뒤입니다. 그러나 실제 READY 시각·관찰 마감·각 API 조회 결과가 저장되지 않아 45초 관찰 안에 재시작을 관측할 수 있었는지 단정하지 않습니다. 조회한 종류의 해당 작업 이벤트에는 RECONCILIATION_FAILED/PRIVATE_SESSION_FAILED/GATE_LOCKED/RESTART_OBSERVED가 없었습니다. 이것을 보존되지 않은 원본 예외가 없었다는 증거로 확대하지 않습니다. 세션 정리·최종 flat·임대 해제는 API 기동 이후에도 기록됐으므로 독립 감시자는 후속 정리를 수행했습니다.
++
++과거 미통과를 성공으로 변경하지 않습니다. 진단 누락은 별도로 재현한 완료 알림/취소 경합 문제로 보완하고, 다음 실제 시도는 새 UUID와 사전 대기 B 명령으로 수행합니다. 대기시간을 연장하거나 기존 주문/미해결 기록/손실 기준을 리셋하지 않습니다.
+--- /dev/null
++++ b/scripts/wait_demo_restart_ready.py
+@@ -0,0 +1,178 @@
++"""Credential-free, PostgreSQL READ ONLY handoff for the host's API restart command."""
++
++import argparse
++import json
++import os
++import time
++from datetime import UTC, datetime, timedelta
++from decimal import Decimal, DecimalException
++from typing import Any
++from uuid import UUID, uuid5
++
++from sqlalchemy import create_engine, select, text
++from sqlalchemy.engine import Engine
++
++from packages.domain.config import database_url
++from packages.persistence.demo import accounts, events
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++MAX_WAIT_SECONDS = 180
++READY_MAX_AGE_SECONDS = 5
++
++
++def utc_now() -> datetime:
++    return datetime.now(UTC)
++
++
++def inspect_ready(
++    engine: Engine, operation: UUID, now: datetime | None = None
++) -> tuple[str, dict[str, Any]]:
++    op = str(operation)
++    ready_key = str(uuid5(operation, "restart-ready"))
++    with engine.connect() as connection:
++        connection.execute(text("SET TRANSACTION READ ONLY"))
++        connection.execute(text("SET LOCAL statement_timeout = '2s'"))
++        row = (
++            connection.execute(
++                select(
++                    accounts.c.owner,
++                    accounts.c.fence,
++                    accounts.c.lease_until,
++                    accounts.c.state["orders"][op].label("order"),
++                    accounts.c.state["risk_state"].as_string().label("risk"),
++                    accounts.c.state["paused"].as_boolean().label("paused"),
++                    accounts.c.state["reconciled"].as_boolean().label("reconciled"),
++                    accounts.c.state["stream_ready"].as_boolean().label("stream"),
++                    accounts.c.state["entry_quantity_caps"][op].as_string().label("cap"),
++                    accounts.c.state["operations"][ready_key].as_string().label("ready_tag"),
++                ).where(accounts.c.account_id == ACCOUNT)
++            )
++            .mappings()
++            .one_or_none()
++        )
++        if row is None:
++            return "ACCOUNT_NOT_FOUND", {}
++        order = row["order"]
++        if order is None:
++            return "WAITING_FOR_ORDER", {}
++        if not isinstance(order, dict):
++            return "INVALID_ORDER", {}
++        if order.get("state") in {"CANCELED", "EXPIRED", "REJECTED", "FILLED"}:
++            return "ENTRY_NOT_OPEN", {}
++        observed_now = now or utc_now()
++        if not row["owner"] or row["lease_until"] is None or row["lease_until"] <= observed_now:
++            return "GUARD_NOT_ACTIVE", {}
++        try:
++            quantity = Decimal(str(order.get("quantity", "NaN")))
++            filled = Decimal(str(order.get("filled", "NaN")))
++            remaining = Decimal(str(order.get("remaining", "NaN")))
++            open_quantity = Decimal(str(order.get("open_quantity", "NaN")))
++            cap = Decimal(str(row["cap"]))
++            if not all(v.is_finite() for v in (quantity, filled, remaining, open_quantity, cap)):
++                return "INVALID_ORDER", {}
++            if filled != 0 or open_quantity != 0:
++                return "ENTRY_FILLED", {}
++            if quantity <= 0 or remaining != quantity or cap != quantity:
++                return "INVALID_ORDER", {}
++        except (ValueError, TypeError, DecimalException):
++            return "INVALID_ORDER", {}
++        signal = order.get("signal") or {}
++        if (
++            signal.get("signal_id") != op
++            or signal.get("environment") != "DEMO"
++            or signal.get("purpose") != "DEMO_VALIDATION"
++            or signal.get("symbol") != "BTCUSDT"
++            or signal.get("direction") != "LONG"
++        ):
++            return "INVALID_ORDER", {}
++        try:
++            expiry = datetime.fromisoformat(str(signal.get("expires_at", "")))
++            if expiry.tzinfo is None or expiry <= observed_now + timedelta(seconds=5):
++                return "ENTRY_TOO_CLOSE_TO_EXPIRY", {}
++        except ValueError:
++            return "INVALID_ORDER", {}
++        if order.get("state") != "ACKNOWLEDGED":
++            return "WAITING_FOR_READY", {}
++        if not str(order.get("server_order_id") or "").isdigit():
++            return "INVALID_ORDER", {}
++        if row["risk"] != "NORMAL" or row["paused"] or not row["reconciled"] or not row["stream"]:
++            return "GUARD_NOT_READY", {}
++        if row["ready_tag"] != "OPEN_API_RESTART_READY":
++            return "WAITING_FOR_READY", {}
++        marker = connection.execute(
++            select(events.c.as_of)
++            .where(
++                events.c.account_id == ACCOUNT,
++                events.c.fence == row["fence"],
++                events.c.kind == "DEMO_OPEN_API_RESTART_READY",
++            )
++            .order_by(events.c.as_of.desc())
++            .limit(1)
++        ).scalar_one_or_none()
++        if marker is None:
++            return "WAITING_FOR_READY", {}
++        # Default reference is sampled AFTER the marker read. A newly committed
++        # READY must not look future merely because the query began earlier.
++        reference_now = now or utc_now()
++        if row["lease_until"] <= reference_now:
++            return "GUARD_NOT_ACTIVE", {}
++        if expiry <= reference_now + timedelta(seconds=5):
++            return "ENTRY_TOO_CLOSE_TO_EXPIRY", {}
++        if not 0 <= (reference_now - marker).total_seconds() <= READY_MAX_AGE_SECONDS:
++            return "READY_EXPIRED_OR_FUTURE", {}
++        return "READY", {
++            "operation_id": op,
++            "ready_at_utc": marker.isoformat(),
++            "guard_fence": row["fence"],
++        }
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = None
++    code = "WAIT_FAILED"
++    details: dict[str, Any] = {}
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            code = "LIVE_CONTEXT_FORBIDDEN"
++        else:
++            engine = create_engine(
++                database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++            )
++            deadline = time.monotonic() + MAX_WAIT_SECONDS
++            while True:
++                code, details = inspect_ready(engine, args.operation_id)
++                if code not in {"WAITING_FOR_ORDER", "WAITING_FOR_READY"}:
++                    break
++                if time.monotonic() >= deadline:
++                    code = "WAIT_TIMEOUT"
++                    break
++                time.sleep(0.5)
++    except Exception:
++        code = "WAIT_FAILED"
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(
++        json.dumps(
++            {
++                "restart_handoff": code,
++                **details,
++                "database_changed": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        ),
++        flush=True,
++    )
++    if code != "READY":
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- a/services/execution/demo_api_restart_check.py
++++ b/services/execution/demo_api_restart_check.py
+@@ -17,7 +17,7 @@
+ from services.execution.demo import DemoCoordinator
+ from services.execution.demo_preview import ceil_step
+ from services.execution.demo_stream import session, settled_call
+-from services.execution.demo_validation import confirm_exit, prepare
++from services.execution.demo_validation import confirm_exit, prepare, safe_failure
+ from services.risk.paper import GateSnapshot, RiskRejected, minimum_entry_quantity, size, unit_loss
+ 
+ API_URL = "http://api:8000/api/v1/system/instance"
+@@ -284,31 +284,78 @@
+         empty(coordinator)
+     baseline_orders = {k: v.model_dump(mode="json") for k, v in original.orders.items() if k != key}
+     baseline_requests = dict(original.requests)
+-    before_instance = instance_reader() if not existed else None
++    api_reads = 0
++    api_unavailable = 0
++    last_seen_instance: str | None = None
++
++    def read_api() -> str:
++        nonlocal api_reads, api_unavailable, last_seen_instance
++        api_reads += 1
++        try:
++            value = instance_reader()
++        except RestartBlocked as error:
++            if error.code == "API_INSTANCE_UNAVAILABLE":
++                api_unavailable += 1
++            raise
++        last_seen_instance = value
++        return value
++
++    before_instance = read_api() if not existed else None
+     after_instance: str | None = None
+     verified = False
+     callback_done = asyncio.Event()
+     loop = asyncio.get_running_loop()
+     failure = "NONE"
+     completion = "UNKNOWN"
++    completion_failure = "NONE"
++    callback_failure = "NONE"
++    failure_stage = "NONE"
++    stage = "SESSION_CONNECT"
++    ready_at_utc: str | None = None
++    wait_deadline_utc: str | None = None
++    wait_started: float | None = None
++    wait_elapsed_ms = 0
+ 
+     def ready() -> None:
+-        nonlocal verified, after_instance
++        nonlocal verified, after_instance, callback_failure, failure_stage, stage
++        nonlocal ready_at_utc, wait_deadline_utc, wait_started, wait_elapsed_ms
+         try:
+             if existed:
+                 return  # Recover the existing intent in finally; never make another entry.
++            stage = "RESUME_ENTRIES"
+             coordinator.resume_entries(uuid5(operation, "restart-resume"))
++            stage = "PREPARE_ENTRY"
+             signal, gate, cap = terms(coordinator, operation)
++            stage = "RESERVE_ENTRY"
+             order = coordinator.reserve(signal, gate, quantity_cap=cap, entry_style="PASSIVE")
+             client.allowed_entry, client.allowed_quantity = order.client_id, order.quantity
++            stage = "SUBMIT_ENTRY"
+             coordinator.submit(key)
++            stage = "VERIFY_OPEN_ORDER"
+             before_row = open_order(coordinator, key)
++            ready_time = store.now()
++            wait_limit = min(
++                wait_seconds, max(0, (signal.expires_at - ready_time).total_seconds() - 2)
++            )
++            if wait_limit <= 0:
++                raise RestartBlocked("API_RESTART_NOT_OBSERVED")
++            ready_at_utc = ready_time.isoformat()
++            wait_deadline_utc = (ready_time + timedelta(seconds=wait_limit)).isoformat()
++            wait_started = time.monotonic()
++            deadline = wait_started + wait_limit
++
++            def publish_ready(ledger: Any) -> None:
++                ledger.operations[str(uuid5(operation, "restart-ready"))] = "OPEN_API_RESTART_READY"
++
++            store.change(lease, "DEMO_OPEN_API_RESTART_READY", publish_ready)
+             print(
+                 json.dumps(
+                     {
+                         "restart_check_stage": "OPEN_ORDER_READY_RESTART_API_NOW",
+                         "operation_id": key,
+                         "api_instance_before": before_instance,
++                        "ready_at_utc": ready_at_utc,
++                        "wait_deadline_utc": wait_deadline_utc,
+                         "quantity": str(order.quantity),
+                         "limit_price": str(signal.suggested_limit_price),
+                         "new_entry_post_count": client.entry_post_sent,
+@@ -317,23 +364,35 @@
+                 ),
+                 flush=True,
+             )
+-            deadline = time.monotonic() + min(
+-                wait_seconds, max(0, (signal.expires_at - store.now()).total_seconds() - 2)
+-            )
+             while time.monotonic() < deadline:
+                 if coordinator.session_failed:
+                     raise RestartBlocked("STREAM_FAILED")
+                 store.renew(lease)
+                 client.sync_clock()
+-                coordinator.reconcile()  # Protect/handle a fill using the original coordinator.
+-                open_order(coordinator, key)
++                stage = "VERIFY_PENDING_ORDER"
+                 try:
+-                    current = instance_reader()
++                    open_order(coordinator, key)
++                except RestartBlocked:
++                    # A changed/filling entry must immediately enter the original
++                    # reconciliation/protection path. While it remains signed NEW
++                    # with zero fill, keep the just-published ready state stable
++                    # for the host handoff instead of repeatedly invalidating it.
++                    stage = "RECONCILE_CHANGED_ORDER"
++                    coordinator.reconcile()
++                    raise
++                if time.monotonic() >= deadline:
++                    raise RestartBlocked("API_RESTART_NOT_OBSERVED")
++                stage = "READ_API_INSTANCE"
++                try:
++                    current = read_api()
+                 except RestartBlocked as error:
+                     if error.code != "API_INSTANCE_UNAVAILABLE":
+                         raise
+                 else:
++                    if time.monotonic() >= deadline:
++                        raise RestartBlocked("API_RESTART_NOT_OBSERVED")
+                     if current != before_instance:
++                        stage = "LOCK_RESTART_GATE"
+                         after_instance = current
+ 
+                         def lock(ledger: Any) -> None:
+@@ -349,12 +408,14 @@
+                             pass
+                         else:
+                             raise RestartBlocked("PRE_RECONCILIATION_GATE_NOT_LOCKED")
++                        stage = "RECONCILE_AFTER_API_RESTART"
+                         coordinator.connected()  # Existing guard WSS remains alive; REST recheck.
+                         if coordinator.session_failed:
+                             raise RestartBlocked("STREAM_FAILED")
+                         after_row = open_order(coordinator, key)
+                         if after_row["orderId"] != before_row["orderId"]:
+                             raise RestartBlocked("ENTRY_SCOPE_INVALID")
++                        stage = "VERIFY_NO_DUPLICATE_ENTRY"
+                         coordinator.submit(key)  # Same durable intent: must not issue another POST.
+                         if client.entry_post_attempts != 1 or client.entry_post_sent != 1:
+                             raise RestartBlocked("DUPLICATE_ENTRY_ATTEMPT")
+@@ -362,8 +423,21 @@
+                         store.change(lease, "DEMO_OPEN_API_RESTART_OBSERVED", lambda _: None)
+                         return
+                 time.sleep(poll_seconds)
++            stage = "WAIT_API_RESTART"
+             raise RestartBlocked("API_RESTART_NOT_OBSERVED")
++        except Exception as error:
++            # Preserve the worker's reason BEFORE announcing completion. The
++            # session awaiter may be canceled before it receives this exception.
++            callback_failure = (
++                error.code if isinstance(error, RestartBlocked) else safe_failure(error)
++            )
++            failure_stage = stage
++            raise
+         finally:
++            if wait_started is not None:
++                wait_elapsed_ms = min(
++                    3600000, max(0, int((time.monotonic() - wait_started) * 1000))
++                )
+             loop.call_soon_threadsafe(callback_done.set)
+ 
+     task = asyncio.create_task(session_call(coordinator, on_ready=ready))
+@@ -377,7 +451,13 @@
+         if waiter not in done or coordinator.session_failed:
+             raise RestartBlocked("CHECK_FAILED")
+     except Exception as error:
+-        failure = error.code if isinstance(error, RestartBlocked) else "CHECK_FAILED"
++        failure = (
++            callback_failure
++            if callback_failure != "NONE"
++            else (error.code if isinstance(error, RestartBlocked) else safe_failure(error))
++        )
++        if failure_stage == "NONE":
++            failure_stage = stage
+     finally:
+         waiter.cancel()
+         await asyncio.gather(waiter, return_exceptions=True)
+@@ -388,6 +468,8 @@
+             pass
+         except Exception as error:
+             failure = error.code if isinstance(error, RestartBlocked) else "CHECK_FAILED"
++        if callback_failure != "NONE":
++            failure = callback_failure
+         if coordinator.session_failed and failure == "NONE":
+             failure = "STREAM_FAILED"
+         try:
+@@ -403,8 +485,9 @@
+                 )
+             completion = await confirm_exit(coordinator)
+             await settled_call(coordinator.disconnect)
+-        except Exception:
++        except Exception as error:
+             completion = "UNKNOWN"
++            completion_failure = safe_failure(error)
+     final = store.read(lease.account_id)
+     order = final.orders.get(key)
+     history_ok = (
+@@ -450,6 +533,35 @@
+         and not final.stream_ready
+         and not final.reconciled
+     )
++    if not accepted and failure == "NONE":
++        failure_stage = "FINAL_STATE"
++        if existed:
++            failure = "RECOVERY_ONLY"
++        elif not verified:
++            failure = "API_RESTART_NOT_VERIFIED"
++        elif completion != "VERIFIED_FLAT":
++            failure = "FLAT_NOT_CONFIRMED"
++        elif not history_ok:
++            failure = "HISTORY_CHANGED"
++        elif order and order.filled:
++            failure = "ENTRY_FILLED_DURING_CHECK"
++        else:
++            failure = "FINAL_STATE_NOT_VERIFIED"
++    try:
++        result_key = str(uuid5(operation, "restart-result"))
++
++        def record_result(ledger: Any) -> None:
++            if result_key not in ledger.operations:
++                ledger.operations[result_key] = "OPEN_API_RESTART:" + (
++                    "VERIFIED" if accepted else failure
++                )
++
++        store.change(lease, "DEMO_OPEN_API_RESTART_RESULT", record_result)
++    except Exception:
++        accepted = False
++        if failure == "NONE":
++            failure = "RESULT_AUDIT_FAILED"
++            failure_stage = "RESULT_AUDIT"
+     return {
+         "restart_check": "OPEN_ORDER_API_RESTART_VERIFIED" if accepted else "NOT_ACCEPTED",
+         "scope": "API_RESTART_WITH_INDEPENDENT_GUARD",
+@@ -461,6 +573,15 @@
+         "entry_post_attempts": client.entry_post_attempts,
+         "recovered_existing_intent": existed,
+         "failure": failure,
++        "failure_stage": failure_stage if failure != "NONE" else "NONE",
++        "completion_failure": completion_failure,
++        "ready_at_utc": ready_at_utc,
++        "wait_deadline_utc": wait_deadline_utc,
++        "wait_elapsed_ms": wait_elapsed_ms,
++        "api_reads": api_reads,
++        "api_unavailable_count": api_unavailable,
++        "last_seen_api_instance": last_seen_instance,
++        "risk_state": final.risk_state.value,
+         "flat_confirmation": completion,
+         "history_and_baselines_preserved": history_ok,
+         "filled_quantity": str(order.filled) if order else "0",
+--- /dev/null
++++ b/tests/integration/test_demo_restart_handoff.py
+@@ -0,0 +1,374 @@
++"""A host-side helper sees only fresh ready evidence under the active fence."""
++
++# ruff: noqa: F811 -- imported pytest fixtures share test argument names
++
++import asyncio
++import json
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import event, select
++
++import scripts.wait_demo_restart_ready as waiter
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_open_api_restart import exercise, restart_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++def test_host_handoff_is_fresh_read_only_and_bound_to_current_operation(restart_case, monkeypatch):
++    store, c, _, _ = restart_case
++    monkeypatch.setattr(waiter, "ACCOUNT", "DEMO-test")
++    operation = uuid4()
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++    observed = []
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        before = store.read("DEMO-test")
++        code, details = waiter.inspect_ready(store.engine, operation, store.now())
++        assert code == "READY" and details["operation_id"] == str(operation)
++        assert details["guard_fence"] == c.lease.fence
++        assert store.read("DEMO-test") == before
++        assert waiter.inspect_ready(store.engine, uuid4(), store.now())[0] == "WAITING_FOR_ORDER"
++        assert (
++            waiter.inspect_ready(store.engine, operation, store.now() + timedelta(seconds=6))[0]
++            == "READY_EXPIRED_OR_FUTURE"
++        )
++        assert (
++            waiter.inspect_ready(store.engine, operation, store.now() - timedelta(seconds=1))[0]
++            == "READY_EXPIRED_OR_FUTURE"
++        )
++        observed.append(details)
++        return new
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert report["restart_check"] == "OPEN_ORDER_API_RESTART_VERIFIED", report
++    assert len(observed) == 1
++    assert waiter.inspect_ready(store.engine, operation, store.now())[0] == "ENTRY_NOT_OPEN"
++
++
++def test_waiter_cli_needs_no_api_key_and_exits_zero_only_when_ready(
++    restart_case, monkeypatch, capsys
++):
++    store, c, _, _ = restart_case
++    monkeypatch.setattr(waiter, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(waiter, "create_engine", lambda *a, **kw: store.engine)
++    monkeypatch.setattr(waiter, "utc_now", store.now)
++    operation = uuid4()
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++    statements = []
++
++    def collect(conn, cursor, statement, parameters, context, executemany):
++        statements.append(statement)
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        monkeypatch.setattr(
++            "sys.argv", ["wait_demo_restart_ready", "--operation-id", str(operation)]
++        )
++        event.listen(store.engine, "before_cursor_execute", collect)
++        try:
++            waiter.main()
++        finally:
++            event.remove(store.engine, "before_cursor_execute", collect)
++        return new
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert report["restart_check"] == "OPEN_ORDER_API_RESTART_VERIFIED"
++    output = capsys.readouterr().out
++    handoff = [json.loads(line) for line in output.splitlines() if "restart_handoff" in line][0]
++    assert handoff["restart_handoff"] == "READY" and handoff["database_changed"] is False
++    assert statements[0] == "SET TRANSACTION READ ONLY"
++    assert not any(
++        s.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE")) for s in statements
++    )
++
++
++@pytest.mark.parametrize(
++    "mutation,expected",
++    [
++        ("lease", "GUARD_NOT_ACTIVE"),
++        ("risk", "GUARD_NOT_READY"),
++        ("paused", "GUARD_NOT_READY"),
++        ("cap", "INVALID_ORDER"),
++        ("filled", "ENTRY_FILLED"),
++        ("expiry", "ENTRY_TOO_CLOSE_TO_EXPIRY"),
++        ("tag", "WAITING_FOR_READY"),
++        ("fence", "WAITING_FOR_READY"),
++    ],
++)
++def test_waiter_never_signals_restart_with_stale_or_invalid_guard_state(
++    restart_case, monkeypatch, mutation, expected
++):
++    store, c, _, _ = restart_case
++    monkeypatch.setattr(waiter, "ACCOUNT", "DEMO-test")
++    operation = uuid4()
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        now = store.now()
++        # Inspect controlled snapshots through a real read-only connection.
++        # Restore only this synthetic test mutation before normal cleanup.
++        from sqlalchemy import update
++
++        from packages.persistence.demo import accounts
++
++        with store.engine.begin() as conn:
++            original = (
++                conn.execute(select(accounts).where(accounts.c.account_id == "DEMO-test"))
++                .mappings()
++                .one()
++            )
++            state = json.loads(json.dumps(original["state"]))
++            values = {}
++            if mutation == "lease":
++                values["lease_until"] = now - timedelta(seconds=1)
++            if mutation == "risk":
++                state["risk_state"] = "EMERGENCY"
++            if mutation == "paused":
++                state["paused"] = True
++            if mutation == "cap":
++                state["entry_quantity_caps"][str(operation)] = "999"
++            if mutation == "filled":
++                state["orders"][str(operation)]["filled"] = "0.001"
++            if mutation == "expiry":
++                state["orders"][str(operation)]["signal"]["expires_at"] = now.isoformat()
++            if mutation == "tag":
++                state["operations"].clear()
++            if mutation == "fence":
++                values["fence"] = original["fence"] + 1
++            values["state"] = state
++            conn.execute(
++                update(accounts).where(accounts.c.account_id == "DEMO-test").values(**values)
++            )
++        try:
++            assert waiter.inspect_ready(store.engine, operation, now)[0] == expected
++        finally:
++            with store.engine.begin() as conn:
++                conn.execute(
++                    update(accounts)
++                    .where(accounts.c.account_id == "DEMO-test")
++                    .values(
++                        state=original["state"],
++                        fence=original["fence"],
++                        lease_until=original["lease_until"],
++                    )
++                )
++        return new
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert report["restart_check"] == "OPEN_ORDER_API_RESTART_VERIFIED", report
++
++
++def test_callback_timeout_reason_and_durable_result_survive_session_cancellation(restart_case):
++    store, c, _, _ = restart_case
++    operation = uuid4()
++    identity = str(uuid4())
++    report = asyncio.run(exercise(restart_case, operation, lambda: identity))
++    assert report["restart_check"] == "NOT_ACCEPTED"
++    assert report["failure"] == "API_RESTART_NOT_OBSERVED"
++    assert report["failure_stage"] in {
++        "WAIT_API_RESTART",
++        "RECONCILE_PENDING_ORDER",
++        "VERIFY_PENDING_ORDER",
++        "READ_API_INSTANCE",
++    }
++    assert report["ready_at_utc"] and report["wait_deadline_utc"] and report["api_reads"] >= 1
++    assert report["last_seen_api_instance"] == identity and report["wait_elapsed_ms"] > 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert report["risk_state"] == "NORMAL" and report["final_paused"]
++    from uuid import uuid5
++
++    assert (
++        store.read("DEMO-test").operations[str(uuid5(operation, "restart-result"))]
++        == "OPEN_API_RESTART:API_RESTART_NOT_OBSERVED"
++    )
++
++
++def test_private_exception_is_classified_without_printing_text(restart_case, monkeypatch, capsys):
++    store, c, _, _ = restart_case
++    operation = uuid4()
++    identity = str(uuid4())
++    calls = 0
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return identity
++        raise RuntimeError("PRIVATE_API_KEY_URL_RAW")
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert (
++        report["failure"] == "OTHER_VALIDATION_FAILURE"
++        and report["failure_stage"] == "READ_API_INSTANCE"
++    )
++    assert "PRIVATE_API_KEY_URL_RAW" not in json.dumps(report) + capsys.readouterr().out
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_final_history_rejection_cannot_keep_none_failure(restart_case):
++    from decimal import Decimal
++
++    store, c, fake, _ = restart_case
++    store.change(
++        c.lease,
++        "TEST_PRIOR_HIGH_WATER",
++        lambda ledger: setattr(ledger, "high_water", Decimal("10001")),
++    )
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        fake.wallet += Decimal("0.1")
++        fake.incomes.append(dict(incomeType="TRANSFER", asset="USDT", tranId=123, income="0.1"))
++        return new
++
++    report = asyncio.run(exercise(restart_case, uuid4(), reader))
++    assert report["failure"] == "HISTORY_CHANGED" and report["failure_stage"] == "FINAL_STATE"
++    assert report["restart_check"] == "NOT_ACCEPTED"
++
++
++def test_cleanup_failure_has_distinct_cause_and_never_leaks_private_text(
++    restart_case, monkeypatch, capsys
++):
++    from integrations.binance_usdm.demo import DemoFailure
++
++    _, c, _, _ = restart_case
++
++    def fail():
++        raise DemoFailure("PRIVATE_CLEANUP_ERROR_URL")
++
++    monkeypatch.setattr(c, "confirm_flat", fail)
++    ids = iter([str(uuid4()), str(uuid4())])
++    report = asyncio.run(exercise(restart_case, uuid4(), lambda: next(ids)))
++    assert report["failure"] == "FLAT_NOT_CONFIRMED" and report["flat_confirmation"] == "UNKNOWN"
++    assert report["completion_failure"] == "DEMO_SESSION_OR_QUERY_FAILED"
++    assert "PRIVATE_CLEANUP_ERROR_URL" not in json.dumps(report) + capsys.readouterr().out
++
++
++def test_result_audit_failure_prevents_success_even_after_flat(restart_case, monkeypatch, capsys):
++    store, c, _, _ = restart_case
++    original = store.change
++
++    def changed(lease, kind, callback):
++        if kind == "DEMO_OPEN_API_RESTART_RESULT":
++            raise RuntimeError("PRIVATE_DATABASE_URL")
++        return original(lease, kind, callback)
++
++    monkeypatch.setattr(store, "change", changed)
++    ids = iter([str(uuid4()), str(uuid4())])
++    report = asyncio.run(exercise(restart_case, uuid4(), lambda: next(ids)))
++    assert report["restart_check"] == "NOT_ACCEPTED" and report["failure"] == "RESULT_AUDIT_FAILED"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert "PRIVATE_DATABASE_URL" not in json.dumps(report) + capsys.readouterr().out
++
++
++def test_ready_committed_during_query_is_measured_at_read_completion(restart_case, monkeypatch):
++    store, c, _, _ = restart_case
++    monkeypatch.setattr(waiter, "ACCOUNT", "DEMO-test")
++    operation = uuid4()
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++    clock = [store.now() - timedelta(milliseconds=1)]
++    monkeypatch.setattr(waiter, "utc_now", lambda: clock[0])
++
++    def marker_read(conn, cursor, statement, parameters, context, executemany):
++        if "demo_events" in statement:
++            clock[0] = store.now() + timedelta(milliseconds=1)
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        event.listen(store.engine, "before_cursor_execute", marker_read)
++        try:
++            code, _ = waiter.inspect_ready(store.engine, operation)
++            assert code == "READY"
++        finally:
++            event.remove(store.engine, "before_cursor_execute", marker_read)
++        return new
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert report["restart_check"] == "OPEN_ORDER_API_RESTART_VERIFIED", report
++
++
++def test_ready_does_not_become_untrusted_again_before_host_handoff(restart_case, monkeypatch):
++    store, c, _, _ = restart_case
++    monkeypatch.setattr(waiter, "ACCOUNT", "DEMO-test")
++    operation = uuid4()
++    old, new = str(uuid4()), str(uuid4())
++    calls = 0
++    original = store.change
++    state = {"ready": False, "locked": False}
++
++    def changed(lease, kind, callback):
++        if kind == "DEMO_API_RESTART_GATE_LOCKED":
++            state["locked"] = True
++        result = original(lease, kind, callback)
++        if kind == "DEMO_OPEN_API_RESTART_READY":
++            state["ready"] = True
++        if state["ready"] and not state["locked"]:
++            ledger = store.read("DEMO-test")
++            assert ledger.reconciled and ledger.stream_ready
++        return result
++
++    monkeypatch.setattr(store, "change", changed)
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return old
++        assert waiter.inspect_ready(store.engine, operation, store.now())[0] == "READY"
++        return new
++
++    report = asyncio.run(exercise(restart_case, operation, reader))
++    assert report["restart_check"] == "OPEN_ORDER_API_RESTART_VERIFIED", report
++
++
++def test_partial_fill_on_pending_poll_enters_original_protection_before_cleanup(restart_case):
++    from decimal import Decimal
++
++    from tests.integration.test_demo import posts
++
++    store, c, fake, _ = restart_case
++    identity = str(uuid4())
++    calls = 0
++
++    def reader():
++        nonlocal calls
++        calls += 1
++        if calls == 1:
++            return identity
++        current = next(o for o in store.read("DEMO-test").orders.values() if o.remaining)
++        fake.fill(current.client_id, Decimal("0.001"), price=current.signal.suggested_limit_price)
++        return identity
++
++    report = asyncio.run(exercise(restart_case, uuid4(), reader))
++    assert report["restart_check"] == "NOT_ACCEPTED"
++    assert report["failure"] == "ENTRY_NOT_OPEN_UNFILLED"
++    assert report["failure_stage"] == "RECONCILE_CHANGED_ORDER"
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++    assert fake.positions["BTCUSDT"] == 0
++    assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
+--- /dev/null
++++ b/tests/unit/test_demo_restart_waiter_cli.py
+@@ -0,0 +1,54 @@
++"""No restart eligibility is emitted on missing context, timeout or private errors."""
++
++import json
++from uuid import uuid4
++
++import pytest
++
++import scripts.wait_demo_restart_ready as waiter
++
++
++def test_waiter_requires_exact_operation_id_before_database(monkeypatch):
++    monkeypatch.setattr("sys.argv", ["wait"])
++    monkeypatch.setattr(waiter, "create_engine", lambda *a, **kw: pytest.fail("no database access"))
++    with pytest.raises(SystemExit):
++        waiter.main()
++
++
++def test_waiter_rejects_live_before_database(monkeypatch, capsys):
++    monkeypatch.setattr("sys.argv", ["wait", "--operation-id", str(uuid4())])
++    monkeypatch.setenv("LIVE_TRADING_ENABLED", "true")
++    monkeypatch.setattr(waiter, "create_engine", lambda *a, **kw: pytest.fail("no database access"))
++    with pytest.raises(SystemExit):
++        waiter.main()
++    assert json.loads(capsys.readouterr().out)["restart_handoff"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_waiter_does_not_print_raw_connection_error(monkeypatch, capsys):
++    monkeypatch.setattr("sys.argv", ["wait", "--operation-id", str(uuid4())])
++
++    def fail(*a, **kw):
++        raise RuntimeError("PRIVATE_DATABASE_URL")
++
++    monkeypatch.setattr(waiter, "create_engine", fail)
++    with pytest.raises(SystemExit):
++        waiter.main()
++    output = capsys.readouterr().out
++    assert "PRIVATE_DATABASE_URL" not in output
++    assert json.loads(output)["restart_handoff"] == "WAIT_FAILED"
++
++
++def test_waiter_timeout_is_nonzero_and_cannot_authorize_restart(monkeypatch, capsys):
++    from types import SimpleNamespace
++
++    monkeypatch.setattr("sys.argv", ["wait", "--operation-id", str(uuid4())])
++    monkeypatch.setattr(
++        waiter, "create_engine", lambda *a, **kw: SimpleNamespace(dispose=lambda: None)
++    )
++    monkeypatch.setattr(waiter, "inspect_ready", lambda *a: ("WAITING_FOR_ORDER", {}))
++    ticks = iter([0, 181])
++    monkeypatch.setattr(waiter.time, "monotonic", lambda: next(ticks, 181))
++    with pytest.raises(SystemExit) as caught:
++        waiter.main()
++    assert caught.value.code == 2
++    assert json.loads(capsys.readouterr().out)["restart_handoff"] == "WAIT_TIMEOUT"
