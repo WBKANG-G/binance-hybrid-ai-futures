@@ -1,0 +1,796 @@
+--- /dev/null
++++ b/EMPTY_DB_START_HERE_KO.md
+@@ -0,0 +1,55 @@
++# 빈 계좌 DB 서버 재시작·장부 보존 점검
++
++신규 진입·청산·보호 주문을 보내지 않는 Phase4 점검입니다. 범위는 작업이 실행 중이지 않은 빈 계좌에서 PostgreSQL 컨테이너를 정상 재시작한 뒤 장부 이력·기준금·회계·일시정지와 빈 계좌 상태가 보존되는지 확인하는 것입니다. 실행 중 DB 장애, 전원 손실, 호스트 재부팅, 포지션 worker 장애를 재현하는 시험은 아닙니다.
++
++점검 도구 자체는 Docker를 제어하지 않습니다. Docker 소켓/권한/의존성을 추가하지 않습니다. before/after 감사 표식만 기존 DB에 기록하며 두 단계가 끝나면 리더를 반환합니다. 키는 기존 private tmpfs RAM을 사용합니다.
++
++## 1. 빌드와 키 등록
++
++ZIP을 새 windows-demo-empty-db-restart 폴더에 풉니다. 기존 폴더에 덮어쓰지 않습니다. 새 폴더의 탐색기 주소창에 cmd를 입력합니다. 기존 hybrid-windows 프로젝트와 볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 뒤 숨김 입력으로 키를 등록합니다. 키/Secret을 채팅에 보내지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++## 2. 재시작 전 준비만 먼저 실행
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_empty_db_restart --prepare --operation-id 98e59d82-c594-4ceb-936e-fa1a81ee83eb
++```
++
++PREPARED_EMPTY_NO_ORDERS, exchange_empty_verified true, history_and_baselines_preserved true, risk_state NORMAL, paused true, leader_released true를 확인해야 합니다. 먼저 전체 결과를 캡처해 공유합니다. 이 준비 결과를 확인하기 전에는 DB를 재시작하지 않습니다. BLOCKED면 준비를 반복하거나 UUID를 바꾸지 않습니다.
++
++두 번의 독립 GET 스냅샷으로 포지션/활성 일반·Algo 주문/마진 사용이 없는지 확인하고, 로컬 장부 전체의 비교 해시와 원격 상태 해시, PostgreSQL 시작 시각, 펜스를 저장합니다. stream_ready/reconciled와 이 점검 자체의 두 표식만 로컬 비교에서 제외합니다. 그 밖의 장부 필드, 기존 운영 표식, UNKNOWN/NOT_SENT 증거, 기준금·고점·회계는 모두 비교합니다. 기준금 날짜를 새로 맞추거나 진입 준비가 됐다고 승인하는 도구는 아닙니다.
++
++## 3. 준비 결과 확인 후 DB만 재시작
++
++준비 결과를 확인한 뒤 아래 순서로 한 줄씩 실행합니다. 단계 사이에 다른 DEMO 명령·봇·수동 거래·입출금을 실행하지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml restart db
++```
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --wait
++```
++
++모두 Healthy가 된 뒤 같은 UUID로 검증합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_empty_db_restart --verify --operation-id 98e59d82-c594-4ceb-936e-fa1a81ee83eb
++```
++
++정상 결과는 EMPTY_DB_RESTART_HISTORY_PRESERVED_VERIFIED, postgres_restart_observed true, history_and_baselines_preserved true, exchange_empty_verified true, leader_released true입니다. 실제 PostgreSQL 시작 시각이 뒤로 바뀌고, 펜스가 prepare 때보다 정확히1 증가해야 합니다. 리스 만료를 강제하거나 펜스를 초기화하지 않습니다.
++
++BLOCKED이면 다시 시작하거나 같은 prepare/verify를 반복하지 말고 전체 결과를 공유합니다. 다른 작업이 개입하거나 장부/원격 상태가 바뀌면 재시작이 정상이어도 통과하지 않습니다. 준비/검증이 끝난 UUID는 재사용하지 않습니다.
++
++## 유지할 것
++
++현재 NORMAL/paused를 유지합니다. 신규 진입과 LIVE는 비활성입니다. down -v, 볼륨 삭제, DB 초기화, 기준금/고점/UNKNOWN 재설정, exports 생성은 없습니다. API를 의도적으로 재시작하지 않습니다. 키 캐시가 없어졌다면 키 값을 출력하지 말고 오류 결과를 공유합니다. 이전 SL 로컬 실패 통과·복구 승인, 응답 유실 미통과 및 종료 확인 수정 통과 기록은 그대로 보존합니다.
+--- /dev/null
++++ b/EMPTY_DB_VALIDATION_KO.md
+@@ -0,0 +1,27 @@
++# 빈 계좌 DB 재시작 점검 검증 결과
++
++전체1228개 시험 통과(295.86초), 집중22개 통과(7.08초). Ruff check/format 및 mypy110개 소스 통과. 기존1206개 시험은 변경하지 않았습니다.
++
++별도 실제 로컬 DB 컨테이너 재시작 시험1개 통과(3.69초). 자체 테스트 PostgreSQL에서 prepare를 저장하고 docker restart 후 verify를 수행했습니다. 서버 시작 시각은 UTC2026-10-31 14:35:04.160619 → 14:40:38.163337, 펜스5→6이었고 전체 장부 해시·기준금·UNKNOWN 증거가 보존됐습니다. 원격은 합성 SDK로 GET18회만 사용했습니다. 테스트용 관리 연결도 재시작 후 재접속하도록 외부 검증 하니스에 pool_pre_ping을 적용해 종료 시 스키마 정리까지 통과했습니다. 제품 CLI는 단계마다 새 엔진을 만들고 이미 pool_pre_ping을 사용합니다. 이는 Windows 실제 DB 재시작의 통과를 의미하지 않습니다.
++
++## 변경 범위
++
++이전 flat-confirmation-fix ZIP의403개 manifest 파일은 모두 바이트 단위로 동일합니다. 새 점검 모듈/CLI/테스트와 한국어 안내/최근 수락 증거만 추가합니다. 기존 실행/보호/리스크/시계/리스/펜스/청산/복구/기준금/키/Compose/exports를 수정하지 않습니다. 새 스키마/마이그레이션/패키지/호스트 권한은 없습니다.
++
++prepare와 verify는 정상·일시정지·ISOLATED BTCUSDT·레버리지2·로컬 포지션/잔량/위험/보호 없음인 계좌만 허용합니다. SDK는 명시적으로 readonly 설정이며 GET 전용 RecoveryReadClient 및 기본 전송의 기존 TLS 재사용을 사용합니다. 각 단계는40초/서명GET600회/시계6회 및20초 시계 갱신 한도를 유지합니다. listenKey를 만들거나 주문/계정 변경을 하지 않습니다. 별도 전체 요청 복구 감사나 WSS 재접속 검증을 대신하지 않습니다.
++
++로컬 비교 해시는 Pydantic 장부의 모든 JSON 필드를 포함하되 acquire/release가 바꾸는 stream_ready/reconciled 및 이 UUID의 before/after 표식만 제외합니다. 이전 모든 운영 표식/주문/요청/UNKNOWN·NOT_SENT 증거/기준금/고점/회계/설정은 포함합니다. PostgreSQL 감사 이벤트/outbox 전체의 내용 해시를 비교한 것으로 확대하지 않습니다. 해당 표의 새 점검 감사 이벤트는 정상 추가됩니다.
++
++각 단계에서 원래 operational_snapshot을 두 번 읽어 모두 원격 포지션·활성 일반/Algo 주문·마진 사용이 없고, 시각 필드를 제외한 상태/이체 해시가 같은지 확인합니다. verify에서는 prepare 때의 원격 해시와도 같아야 합니다. 부분적인 현금 변경이나 외부 주문이 있으면 차단합니다. 운영 snapshot의 기존 검증을 완화하거나 과거 이력을 지우지 않습니다.
++
++PostgreSQL pg_postmaster_start_time()을 SQL 읽기 전용 트랜잭션으로 조회해 실제 서버 시작 시각이 prepare 이후인지 확인합니다. Docker StartedAt 문자열만으로 판정하지 않습니다. 같은 계좌의 리더 펜스는 prepare보다 정확히1 증가해야 하므로 다른 작업의 개입도 차단합니다. 기존60초 리스와 fenced DB change/사후 리스 검사를 사용하며 중간 리스 갱신/초기화는 하지 않습니다. 저장 직전 장부/표식/서버 시작 시각을 다시 확인합니다.
++
++각 CLI는 리더 반환 뒤 owner 없음과 같은 펜스를 읽기 전용으로 확인한 후에만 성공을 출력합니다. 준비 표식은 재시작 전에 영속 DB에 저장하고 자체 비교 해시를 바꾸지 않습니다. 완료 표식이 있거나 같은 prepare를 반복하면 통과를 재생성하지 않습니다. 체크포인트가 없거나 손상되면 복구해서 만들지 않습니다. raw 예외/키/서명/URL을 출력하지 않습니다.
++
++## 시험과 한계
++
++실제 PostgreSQL로 준비/검증·장부 보존·미해결 증거를 포함한31개 요청 보존·동일 서버 시작 거부·체크포인트 누락/손상 거부·재실행 거부·기준금 변경·다른 리더 개입·원격 현금 변경·노출·writable 클라이언트·서버가 준비 도중 바뀐 경우를 검사합니다. CLI 명시적 모드/UUID 및 LIVE 사전 차단을 검사합니다.
++
++로컬 실제 컨테이너 재시작 시험은 독립 실행하며 합성 거래소 SDK와 자체 테스트 DB만 사용합니다. 이 시험은 클라우드에서 인증된 거래소를 호출하거나 주문을 실행하지 않습니다. Windows 실제 재시작은 준비 결과를 검토한 뒤 진행하며 아직 미검증입니다.
++
++통과 범위는 빈 계좌의 유휴 DB 정상 재시작 및 장부 보존입니다. 동작 중인 트랜잭션/worker의 DB 단절, 데이터 손상, 강제 전원 차단, 호스트 장애, 포지션/주문 worker crash, WSS 재연결, 실제 부분체결 보호 통과로 확대하지 않습니다. 신규 진입 재개·Phase4 전체 완료·main/LIVE/Phase5 전환을 하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_FLAT_CONFIRMATION_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,27 @@
++# Windows DEMO 기존 종료 확인 수정본 실제 통과
++
++근거: 사용자 CMD 결과 캡처. 배포 windows-demo-flat-confirmation-fix-20261031 / 6e88c76.
++ZIP SHA256 d738f8a5dbcbe8cc285dc2df779e7658164647cc654534a9cdccd48a80adda93.
++컨테이너 DB/web/API Healthy, 키 private tmpfs RAM 등록 성공.
++실행: run_demo --config configs/demo-isolated.example.yaml --account DEMO-WINDOWS-ISOLATED-BTC-V1 --enable-demo --confirm-flat.
++
++## 실제 결과
++
++- completion_confirmation VERIFIED_FLAT
++- confirmation_stage VERIFY
++- audit_transport_mode POOLED_HTTPS
++- audit_http_attempts340 / audit_connection_attempts1 / audit_reused_requests339
++- audit_server_close_responses0 / audit_transport_elapsed_ms18825
++- audit_last_route OTHER_GET
++- confirmation_signed_requests340 / confirmation_clock_probes0
++- confirmation_cleanup_attempts0 / confirmation_last_route SIGNED_GET
++- environment DEMO / risk_state NORMAL / paused true
++- orders_enabled false / live_trading_enabled false
++
++## 판정
++
++기존 종료 체결·포지션/일반 주문/잔여 보호 정리의 원래 flat 증거 판정이 수정본에서 실제 Windows 통과했다. 전체 기존 과거 주문 증거를 포함한 조회340회를 연결1개로 수행하고 전송 측정18.825초로40초 예산 안에서 완료했다. 이는 명령 전체 실행 시간을 의미하지 않는다. 추가 시계 프로브0회는 확인 문맥 내부 추가 조회 수이며 명령 시작의 SDK 시계 동기화 생략을 뜻하지 않는다. 잔여 보호 정리 시도0회였으며 신규 진입/종료 POST를 허용하지 않는 확인 경로만 실행했다. 현재 NORMAL/paused여서 별도 비상 상태 복구 승인은 필요하지 않다.
++
++이전 confirm-flat의 약60초 일반 오류 및 응답 유실 시험의 NOT_ACCEPTED는 삭제하거나 통과로 바꾸지 않는다. 이번 결과는 기존 종료 확인 경로 수정의 실제 수락 증거다. 이전 응답 유실 시험에서는 동일 ID 복구와 중복 진입 방지를 확인했고, 종료 체결/flat 및 복구 승인은 별도 후속 단계로 확인했다. 자동 단일 시험 전체 통과와 구분한다.
++
++현재 신규 진입은 계속 일시정지다. 같은 명령 반복이나 신규 거래는 필요하지 않다. 손절 로컬 실패의 실제 DEMO 시험은 미체결로 미완료, 수정 후 실제 부분체결 보호 성공은 미완료다. Phase4 전체 완료/LIVE/Phase5 전환으로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_6c1c7945_20261031_KO.md
+@@ -0,0 +1,18 @@
++# 손절 로컬 실패 대응 후 비상 상태 복구 승인 완료
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-flat-confirmation-fix-20261031 / 6e88c76.
++적용 작업 ID: 6c1c7945-79bb-4d3a-b9b2-44c761863c3a.
++검토 토큰: 9767ec69e532eb3140a354a481ba30aa0a805e30465274a423950aee5c780afa.
++
++실제 출력:
++- recovery EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED
++- orders_enabled false
++- live_trading_enabled false
++
++기존 승인 함수가 최신 전체 검토와 토큰 일치를 다시 확인한 뒤 risk_state NORMAL로 전환했다. paused true, stream_ready false, reconciled false를 유지한다. 미해결 이력4건과 기존 요청/주문/전송하지 않은 증거/회계/기준금/과거 이벤트를 보존한다. 적용 결과에 현재 잔고 수치는 없으므로 잔고를 추정하지 않는다.
++
++직전 읽기 전용 검토는 요청63개/8배치/서명GET276회/추가 시계0회/미해결4건/리스크PASS/포지션없음/활성주문0이었다. HTTPS 연결1개/재사용275회/서버종료0/전송측정15623ms로 완료됐다.
++
++손절 로컬 조립 실패 시험77db044e-1bcd-4358-80e6-df9730630213는 실패 주입1회, 원래 진입 차단/자동 비상 종료, 진입1건/종료1건, 보호 전송 시도0, 후속 강제 정리 없음, FILLED/VERIFIED_FLAT/이력·기준금 보존/실패NONE으로 통과했다. 이후 최신 복구 검토 및 명시적 비상 상태 승인을 별도 완료했다. 같은 명령 또는 장애 시험을 반복할 필요가 없다.
++
++통과 범위는 로컬 SL 조립 실패 경로이며 실제 거래소 SL 거부·외부 긴급 알림 전달까지 포함하지 않는다. 실제 부분체결 보호와 주문/포지션 worker 강제 종료 등 미완료 항목 및 앞선 응답 유실 시험 NOT_ACCEPTED 기록을 유지한다. 신규 진입 재개·Phase4 전체 완료·LIVE·Phase5 전환으로 확대하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_SL_FAULT_ACCEPTANCE_20261031_KO.md
+@@ -0,0 +1,42 @@
++# Windows DEMO 손절 로컬 조립 실패·진입 차단·원래 자동 비상 종료 통과
++
++근거: 사용자가 제공한 CMD 결과 캡처. 배포 windows-demo-flat-confirmation-fix-20261031 / 6e88c76.
++ZIP SHA256 d738f8a5dbcbe8cc285dc2df779e7658164647cc654534a9cdccd48a80adda93.
++작업 ID 77db044e-1bcd-4358-80e6-df9730630213.
++
++## 실제 출력
++
++- 예약 quantity/cap 0.0007 / limit_price77442.30
++- stop_price77054.90 / target_price78216.80
++- 단계 RESERVED_NOT_YET_SUBMITTED → SL_NOT_SENT_GATE_BLOCKED_AUTO_EXIT_FILLED
++- sl_fault_check SL_BUILD_FAILURE_GATE_AUTO_FLAT_VERIFIED
++- scope LOCAL_SL_BUILD_FAILURE_ORIGINAL_AUTO_FLATTEN
++- fault_injection_count1
++- fault_at_utc 2026-10-31T14:23:07.751365+00:00 (한국 시간23:23:07)
++- entry_fill_scope_verified true
++- entries_paused_after_fault true / entry_gate_blocked_after_fault true
++- sl_not_sent_proof_verified true
++- unexpected_protection_transport_attempts0
++- new_entry_post_count1 / entry_post_attempts1 / reduce_only_post_attempts1
++- automatic_exit_observed_before_cleanup true
++- fallback_operator_emergency_requested false
++- recovered_existing_intent false
++- filled_quantity0.0007 / exit_state FILLED / flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true
++- failure NONE / failure_stage NONE / completion_failure NONE
++- private_session_diagnostic EVENT/NONE/event_kind ORDER_TRADE_UPDATE
++- event_age_ms1413 / ready_callback_ms22812 / event_receive_age_ms178
++- received_events8 / coalesced_events7
++- event_clock_offset_ms847 / event_clock_rtt_ms158 / event_clock_wait_ms0
++- event_local_age_ms513
++- risk_state EMERGENCY / final_paused true
++- final_stream_ready false / final_reconciled false
++- orders_enabled false / live_trading_enabled false
++
++## 판정
++
++실제 DEMO에서 최소 cap 진입 체결 뒤 같은 SL의 로컬 조립에 ValueError를1회 주입했다. 원래 coordinator가 NOT_SENT/LOCAL_VALIDATION_FAILED 증거와 EMERGENCY/paused 및 신규 진입 게이트 차단을 기록하고, 도구의 후속 정리가 시작되기 전에 원래 reduce-only 비상 종료를 수행한 것이 확인됐다. 진입1건/종료1건, 보호 전송 시도0, 종료 FILLED/VERIFIED_FLAT 및 이력·기준금 보존이 모두 통과했다. 후속 운영자 비상 정리는 요청하지 않았다.
++
++이는 로컬 SL 조립 실패에 대한 실제 DEMO 대응 통과이며 거래소의 실제 SL 거부 응답이나 외부 긴급 알림 전달까지 입증하지 않는다. 이전 미체결 작업5c96345b는 주입0회/미수락 기록으로 별도 보존한다. 이번 결과로 이전 응답 유실 시험의 NOT_ACCEPTED나 실제 부분체결 보호 미완료를 바꾸지 않는다. Phase4 전체/LIVE/Phase5 완료로 확대하지 않는다.
++
++최종 EMERGENCY/paused는 원래 위험 대응 잠금으로 유지됐다. 다음은 인자 없는 review_demo_recovery로 최신 포지션/활성 일반·Algo 주문/전체 요청/기간·리스크를 읽기 전용으로 검토하는 것이다. 아직 복구 승인은 적용하지 않았고 이전 토큰을 재사용하지 않는다. 같은 장애·진입 시험을 다시 실행하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_SL_FAULT_RECOVERY_REVIEW_20261031_KO.md
+@@ -0,0 +1,23 @@
++# 손절 로컬 실패 시험 후 복구 검토 통과
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-flat-confirmation-fix-20261031 / 6e88c76.
++대상 SL 시험77db044e-1bcd-4358-80e6-df9730630213.
++
++- recovery REVIEW_ONLY_NO_DATABASE_CHANGE
++- review_token 9767ec69e532eb3140a354a481ba30aa0a805e30465274a423950aee5c780afa
++- audited_request_count63 / audit_batch_count8
++- signed_query_count276 / audit_clock_probes0
++- unresolved_count4 / risk_gates PASS
++- position_nonzero false / active_orders0
++- audit_transport_mode POOLED_HTTPS
++- audit_http_attempts276 / audit_connection_attempts1 / audit_reused_requests275
++- audit_server_close_responses0 / audit_transport_elapsed_ms15623
++- audit_last_route OTHER_GET
++- risk_state EMERGENCY / paused true
++- orders_enabled false / live_trading_enabled false
++
++최신 전체 요청 감사·원격 스냅샷·기간/리스크 검사를 통과했다. 미해결 집계는 이전3건에서4건이 됐지만 이 출력만으로 새1건의 세부 신원을 확정하지 않는다. 로컬 SL NOT_SENT 증거와 과거 모호한 요청을 삭제/재분류하지 않는다. 전송 측정15.623초로 기존40초 예산 안에서 완료했다. 아직 복구 승인은 적용하지 않았다.
++
++다음 적용 작업 ID: 
++6c1c7945-79bb-4d3a-b9b2-44c761863c3a
++최신 검토를 다시 수행하고 토큰 일치 시에만 기존 승인 함수가 NORMAL/paused로 전환한다. 미해결4건·주문/회계/기준금/과거 증거를 보존한다. 새 진입/종료 POST나 자동 재개를 하지 않는다. SL 시험의 실제 로컬 실패 대응 통과와 별도 복구 승인을 구분한다.
+--- /dev/null
++++ b/scripts/check_demo_empty_db_restart.py
+@@ -0,0 +1,84 @@
++"""Prepare or verify one idle empty-account DB restart; no Docker or exchange mutations."""
++
++import argparse
++import json
++import os
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoClient, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo_empty_db_restart import DBRestartBlocked, check, released
++from services.execution.demo_validation import safe_failure
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    mode = parser.add_mutually_exclusive_group(required=True)
++    mode.add_argument("--prepare", action="store_true")
++    mode.add_argument("--verify", action="store_true")
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    engine = store = lease = None
++    report: dict[str, object] = {
++        "db_restart_check": "BLOCKED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise DBRestartBlocked("LIVE_CONTEXT_FORBIDDEN")
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        client = DemoClient(cfg, credentials(prompt=False))
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(),
++            connect_args={"connect_timeout": 2},
++            pool_pre_ping=True,
++        )
++        store = DemoStore(engine)
++        lease = store.acquire(ACCOUNT, uuid4())
++        report = check(store, lease, client, args.operation_id, prepare=args.prepare)
++        success = True
++    except Exception as error:
++        report = {
++            "db_restart_check": "BLOCKED",
++            "failure": error.code if isinstance(error, DBRestartBlocked) else safe_failure(error),
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++    finally:
++        try:
++            if store is not None and lease is not None:
++                store.release(lease)
++                if not released(store, lease):
++                    raise DBRestartBlocked("LEASE_RELEASE_NOT_VERIFIED")
++                report["leader_released"] = True
++        except Exception:
++            success = False
++            report["db_restart_check"] = "BLOCKED"
++            report["failure"] = "LEASE_RELEASE_NOT_VERIFIED"
++        finally:
++            if engine is not None:
++                engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/execution/demo_empty_db_restart.py
+@@ -0,0 +1,248 @@
++"""Empty idle-account DB restart checkpoint; no Docker control or exchange writes."""
++
++import hashlib
++import json
++from datetime import UTC, datetime
++from typing import Any
++from uuid import UUID, uuid5
++
++from sqlalchemy import select, text
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import operational_snapshot
++from integrations.binance_usdm.recovery_transport import recovery_connection
++from packages.persistence.demo import DemoStore, accounts
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_recovery_budget import RecoveryReadClient
++from services.execution.models import Lease
++
++SCOPE = "EMPTY_IDLE_DB_SERVER_RESTART"
++CODES = frozenset(
++    {
++        "EMPTY_NORMAL_PAUSED_REQUIRED",
++        "READ_ONLY_CONTEXT_REQUIRED",
++        "EXCHANGE_NOT_EMPTY",
++        "SNAPSHOT_CHANGED",
++        "HISTORY_CHANGED",
++        "CHECKPOINT_MISSING",
++        "CHECKPOINT_INVALID",
++        "OPERATION_ALREADY_EXISTS",
++        "POSTGRES_RESTART_NOT_OBSERVED",
++        "FENCE_CHANGED",
++        "LEASE_RELEASE_NOT_VERIFIED",
++        "LIVE_CONTEXT_FORBIDDEN",
++        "CHECK_FAILED",
++    }
++)
++
++
++class DBRestartBlocked(DemoFailure):
++    def __init__(self, code: str):
++        self.code = code if code in CODES else "CHECK_FAILED"
++        super().__init__(self.code)
++
++
++def tags(operation: UUID) -> tuple[str, str]:
++    return str(uuid5(operation, "empty-db-before")), str(uuid5(operation, "empty-db-after"))
++
++
++def digest(value: Any) -> str:
++    return hashlib.sha256(
++        json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
++    ).hexdigest()
++
++
++def history_digest(ledger: DemoLedger, operation: UUID) -> str:
++    data = ledger.model_dump(mode="json", exclude={"stream_ready", "reconciled"})
++    before, after = tags(operation)
++    data["operations"] = {k: v for k, v in ledger.operations.items() if k not in {before, after}}
++    return digest(data)
++
++
++def empty(ledger: DemoLedger) -> None:
++    if (
++        ledger.risk_state.value != "NORMAL"
++        or not ledger.paused
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or ledger.verified_leverage.get("BTCUSDT") != 2
++        or any(ledger.positions.values())
++        or any(
++            o.remaining
++            or o.open_quantity
++            or o.actual_risk
++            or o.protected
++            or o.position_state.value != "CLOSED"
++            for o in ledger.orders.values()
++        )
++    ):
++        raise DBRestartBlocked("EMPTY_NORMAL_PAUSED_REQUIRED")
++
++
++def server_started(store: DemoStore) -> str:
++    with store.engine.connect() as conn:
++        conn.execute(text("SET TRANSACTION READ ONLY"))
++        conn.execute(text("SET LOCAL statement_timeout = '2s'"))
++        value = conn.execute(text("SELECT pg_postmaster_start_time()")).scalar_one()
++    if not isinstance(value, datetime) or value.tzinfo is None:
++        raise DBRestartBlocked("CHECKPOINT_INVALID")
++    return value.astimezone(UTC).isoformat()
++
++
++def released(store: DemoStore, lease: Lease) -> bool:
++    with store.engine.connect() as conn:
++        conn.execute(text("SET TRANSACTION READ ONLY"))
++        row = conn.execute(
++            select(accounts.c.owner, accounts.c.fence).where(
++                accounts.c.account_id == lease.account_id
++            )
++        ).one()
++    return row.owner is None and row.fence == lease.fence
++
++
++def exchange_digest(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger
++) -> tuple[str, dict[str, str | int]]:
++    if (
++        client.settings.demo_trading_enabled
++        or client.settings.margin_mode != "ISOLATED"
++        or client.settings.symbols != ("BTCUSDT",)
++        or client.settings.policy != ledger.policy
++    ):
++        raise DBRestartBlocked("READ_ONLY_CONTEXT_REQUIRED")
++    with recovery_connection(client) as pooled:
++        bounded = RecoveryReadClient(client)
++        hashes = []
++        for _ in range(2):
++            snap = operational_snapshot(bounded, ledger, store.now())
++            if (
++                any(snap.positions.values())
++                or snap.margin_used
++                or any(r["status"] in {"NEW", "PARTIALLY_FILLED"} for r in snap.orders.values())
++                or any(r["algoStatus"] == "NEW" for r in snap.algos.values())
++            ):
++                raise DBRestartBlocked("EXCHANGE_NOT_EMPTY")
++            hashes.append(digest(snap.model_dump(mode="json", exclude={"as_of"})))
++        bounded.budget.check()
++        if hashes[0] != hashes[1]:
++            raise DBRestartBlocked("SNAPSHOT_CHANGED")
++        return hashes[-1], {
++            **(pooled.diagnostics() if pooled else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}),
++            "signed_get_count": bounded.budget.signed_queries,
++            "clock_probe_count": bounded.budget.clock_probes,
++        }
++
++
++def check(
++    store: DemoStore, lease: Lease, client: DemoClient, operation: UUID, *, prepare: bool
++) -> dict[str, Any]:
++    state = store.read(lease.account_id)
++    empty(state)
++    before_tag, after_tag = tags(operation)
++    if (
++        after_tag in state.operations
++        or str(operation) in state.operations
++        or str(operation) in state.orders
++    ):
++        raise DBRestartBlocked("OPERATION_ALREADY_EXISTS")
++    local = history_digest(state, operation)
++    started = server_started(store)
++    record: dict[str, Any]
++    if prepare:
++        if before_tag in state.operations:
++            raise DBRestartBlocked("OPERATION_ALREADY_EXISTS")
++        record = {
++            "schema": 1,
++            "scope": SCOPE,
++            "operation_id": str(operation),
++            "history_digest": local,
++            "server_started": started,
++            "fence": lease.fence,
++        }
++    else:
++        if before_tag not in state.operations:
++            raise DBRestartBlocked("CHECKPOINT_MISSING")
++        try:
++            record = json.loads(state.operations[before_tag])
++            if (
++                not isinstance(record, dict)
++                or set(record)
++                != {
++                    "schema",
++                    "scope",
++                    "operation_id",
++                    "history_digest",
++                    "exchange_digest",
++                    "server_started",
++                    "fence",
++                }
++                or record["schema"] != 1
++                or record["scope"] != SCOPE
++                or record["operation_id"] != str(operation)
++                or type(record["fence"]) is not int
++            ):
++                raise ValueError
++            old_started = datetime.fromisoformat(record["server_started"])
++            if old_started.tzinfo is None:
++                raise ValueError
++        except (ValueError, TypeError, KeyError):
++            raise DBRestartBlocked("CHECKPOINT_INVALID") from None
++        if local != record["history_digest"]:
++            raise DBRestartBlocked("HISTORY_CHANGED")
++        if lease.fence != record["fence"] + 1:
++            raise DBRestartBlocked("FENCE_CHANGED")
++        if datetime.fromisoformat(started) <= old_started:
++            raise DBRestartBlocked("POSTGRES_RESTART_NOT_OBSERVED")
++    remote, metrics = exchange_digest(store, client, state)
++    if not prepare and remote != record["exchange_digest"]:
++        raise DBRestartBlocked("SNAPSHOT_CHANGED")
++    if prepare:
++        record["exchange_digest"] = remote
++
++    def save(ledger: DemoLedger) -> None:
++        empty(ledger)
++        if history_digest(ledger, operation) != local:
++            raise DBRestartBlocked("HISTORY_CHANGED")
++        if (
++            ledger.operations.get(before_tag) != state.operations.get(before_tag)
++            or after_tag in ledger.operations
++        ):
++            raise DBRestartBlocked("CHECKPOINT_INVALID")
++        if server_started(store) != started:
++            raise DBRestartBlocked("POSTGRES_RESTART_NOT_OBSERVED")
++        if prepare:
++            ledger.operations[before_tag] = json.dumps(
++                record, sort_keys=True, separators=(",", ":")
++            )
++        else:
++            ledger.operations[after_tag] = "EMPTY_DB_RESTART_HISTORY_PRESERVED_VERIFIED"
++
++    store.change(
++        lease,
++        "DEMO_EMPTY_DB_RESTART_PREPARED" if prepare else "DEMO_EMPTY_DB_RESTART_VERIFIED",
++        save,
++    )
++    final = store.read(lease.account_id)
++    if history_digest(final, operation) != local:
++        raise DBRestartBlocked("HISTORY_CHANGED")
++    return {
++        "db_restart_check": "PREPARED_EMPTY_NO_ORDERS"
++        if prepare
++        else "EMPTY_DB_RESTART_HISTORY_PRESERVED_VERIFIED",
++        "scope": SCOPE,
++        "operation_id": str(operation),
++        "history_and_baselines_preserved": True,
++        "postgres_restart_observed": not prepare,
++        "server_started_before_utc": record["server_started"],
++        "server_started_current_utc": started,
++        "fence_before": record["fence"],
++        "fence_current": lease.fence,
++        "exchange_empty_verified": True,
++        "risk_state": final.risk_state.value,
++        "paused": final.paused,
++        "entry_signal_supplied": False,
++        "new_entry_post_count": 0,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++        "read_diagnostic": metrics,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_empty_db_restart.py
+@@ -0,0 +1,200 @@
++"""Real PostgreSQL checkpoints and immutable history; simulated server start for units."""
++
++from datetime import UTC, datetime, timedelta
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++
++from services.execution import demo_empty_db_restart as module
++from services.execution.demo_recovery import acknowledge_flat_emergency, review
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++from tests.integration.test_demo_recovery_batches import history_case  # noqa: F401
++
++
++@pytest.fixture
++def case(history_case):  # noqa: F811
++    store, c, fake = history_case
++    report = review(store, c.client, store.read("DEMO-test"))
++    acknowledge_flat_emergency(
++        store, c.lease, c.client, uuid4(), report["review_token"], acknowledge_unresolved=True
++    )
++    store.release(c.lease)
++    return store, c.client, fake
++
++
++@pytest.fixture
++def started(monkeypatch):
++    value = [datetime(2026, 10, 31, 14, tzinfo=UTC)]
++    monkeypatch.setattr(module, "server_started", lambda store: value[0].isoformat())
++    return value
++
++
++def phase(case, operation, *, prepare):
++    store, client, _ = case
++    lease = store.acquire("DEMO-test", uuid4())
++    try:
++        return module.check(store, lease, client, operation, prepare=prepare)
++    finally:
++        store.release(lease)
++        assert module.released(store, lease)
++
++
++def test_prepare_then_changed_server_start_preserves_all_ledger_history(case, started):
++    store, _, fake = case
++    operation = uuid4()
++    before = store.read("DEMO-test")
++    count = len(fake.calls)
++    prepared = phase(case, operation, prepare=True)
++    assert prepared["db_restart_check"] == "PREPARED_EMPTY_NO_ORDERS"
++    assert not prepared["postgres_restart_observed"]
++    started[0] += timedelta(seconds=1)
++    result = phase(case, operation, prepare=False)
++    assert result["db_restart_check"] == "EMPTY_DB_RESTART_HISTORY_PRESERVED_VERIFIED"
++    assert result["postgres_restart_observed"] and result["exchange_empty_verified"]
++    assert result["fence_current"] == result["fence_before"] + 1
++    after = store.read("DEMO-test")
++    assert module.history_digest(before, operation) == module.history_digest(after, operation)
++    assert after.requests == before.requests and len(after.requests) == 31
++    assert after.paused and after.risk_state.value == "NORMAL"
++    assert all(m == "GET" for m, p, fields in fake.calls[count:])
++
++
++def test_same_server_start_cannot_be_claimed_as_restart(case, started):
++    op = uuid4()
++    phase(case, op, prepare=True)
++    with pytest.raises(module.DBRestartBlocked, match="POSTGRES_RESTART_NOT_OBSERVED"):
++        phase(case, op, prepare=False)
++
++
++def test_missing_checkpoint_is_not_recreated(case, started):
++    with pytest.raises(module.DBRestartBlocked, match="CHECKPOINT_MISSING"):
++        phase(case, uuid4(), prepare=False)
++
++
++def test_prepare_and_completed_verify_cannot_be_repeated(case, started):
++    op = uuid4()
++    phase(case, op, prepare=True)
++    with pytest.raises(module.DBRestartBlocked, match="OPERATION_ALREADY_EXISTS"):
++        phase(case, op, prepare=True)
++
++
++def test_baseline_change_blocks_without_reset(case, started):
++    store, _, _ = case
++    op = uuid4()
++    phase(case, op, prepare=True)
++    lease = store.acquire("DEMO-test", uuid4())
++    store.change(
++        lease,
++        "TEST_BASELINE_CHANGE",
++        lambda ledger: setattr(ledger, "daily_base", ledger.daily_base + Decimal("1")),
++    )
++    store.release(lease)
++    started[0] += timedelta(seconds=1)
++    with pytest.raises(module.DBRestartBlocked, match="HISTORY_CHANGED"):
++        phase(case, op, prepare=False)
++    assert module.tags(op)[1] not in store.read("DEMO-test").operations
++
++
++def test_intervening_leader_blocks_even_if_history_unchanged(case, started):
++    store, _, _ = case
++    op = uuid4()
++    phase(case, op, prepare=True)
++    lease = store.acquire("DEMO-test", uuid4())
++    store.release(lease)
++    started[0] += timedelta(seconds=1)
++    with pytest.raises(module.DBRestartBlocked, match="FENCE_CHANGED"):
++        phase(case, op, prepare=False)
++
++
++def test_remote_cash_change_blocks_without_ledger_rewrite(case, started):
++    store, _, fake = case
++    op = uuid4()
++    phase(case, op, prepare=True)
++    before = store.read("DEMO-test")
++    started[0] += timedelta(seconds=1)
++    fake.wallet += Decimal("1")
++    with pytest.raises(module.DBRestartBlocked, match="SNAPSHOT_CHANGED"):
++        phase(case, op, prepare=False)
++    assert module.history_digest(before, op) == module.history_digest(store.read("DEMO-test"), op)
++
++
++def test_writable_client_cannot_prepare(case, started):
++    _, client, _ = case
++    client.settings = client.settings.model_copy(update={"demo_trading_enabled": True})
++    with pytest.raises(module.DBRestartBlocked, match="READ_ONLY_CONTEXT_REQUIRED"):
++        phase(case, uuid4(), prepare=True)
++
++
++def test_nonempty_local_ledger_cannot_prepare(case, started):
++    store, _, _ = case
++    lease = store.acquire("DEMO-test", uuid4())
++    store.change(
++        lease,
++        "TEST_NONEMPTY",
++        lambda ledger: ledger.positions.update({"BTCUSDT": Decimal("0.001")}),
++    )
++    store.release(lease)
++    with pytest.raises(module.DBRestartBlocked, match="EMPTY_NORMAL_PAUSED_REQUIRED"):
++        phase(case, uuid4(), prepare=True)
++
++
++def test_postgres_timestamp_reader_is_real_timezone_aware(case):
++    store, _, _ = case
++    stamp = datetime.fromisoformat(module.server_started(store))
++    assert stamp.tzinfo is not None
++
++
++def test_verified_operation_cannot_be_replayed_as_new_success(case, started):
++    op = uuid4()
++    phase(case, op, prepare=True)
++    started[0] += timedelta(seconds=1)
++    phase(case, op, prepare=False)
++    with pytest.raises(module.DBRestartBlocked, match="OPERATION_ALREADY_EXISTS"):
++        phase(case, op, prepare=False)
++
++
++def test_invalid_checkpoint_never_exports_raw_marker(case, started):
++    store, _, _ = case
++    op = uuid4()
++    phase(case, op, prepare=True)
++    lease = store.acquire("DEMO-test", uuid4())
++    store.change(
++        lease,
++        "TEST_INVALID_CHECKPOINT",
++        lambda ledger: ledger.operations.update({module.tags(op)[0]: "PRIVATE_URL"}),
++    )
++    store.release(lease)
++    with pytest.raises(module.DBRestartBlocked, match="CHECKPOINT_INVALID") as blocked:
++        phase(case, op, prepare=False)
++    assert "PRIVATE_URL" not in str(blocked.value)
++
++
++def test_remote_exposure_cannot_prepare(case, started, monkeypatch):
++    original = module.operational_snapshot
++
++    def exposure(*args):
++        return original(*args).model_copy(update={"positions": {"BTCUSDT": Decimal("0.001")}})
++
++    monkeypatch.setattr(module, "operational_snapshot", exposure)
++    with pytest.raises(module.DBRestartBlocked, match="EXCHANGE_NOT_EMPTY"):
++        phase(case, uuid4(), prepare=True)
++
++
++def test_server_restart_during_checkpoint_cannot_leave_prepared_marker(case, monkeypatch):
++    store, _, _ = case
++    op = uuid4()
++    old = datetime(2026, 10, 31, 14, tzinfo=UTC)
++    calls = []
++
++    def started(store):
++        calls.append(1)
++        return (old + timedelta(seconds=len(calls))).isoformat()
++
++    monkeypatch.setattr(module, "server_started", started)
++    with pytest.raises(module.DBRestartBlocked, match="POSTGRES_RESTART_NOT_OBSERVED"):
++        phase(case, op, prepare=True)
++    assert module.tags(op)[0] not in store.read("DEMO-test").operations
+--- /dev/null
++++ b/tests/unit/test_demo_empty_db_restart_cli.py
+@@ -0,0 +1,42 @@
++"""Checkpoint flags and LIVE guard precede credentials; no Docker API in the tool."""
++
++import json
++from uuid import uuid4
++
++import pytest
++
++from scripts import check_demo_empty_db_restart as cli
++from services.execution.demo_empty_db_restart import DBRestartBlocked
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--prepare"],
++        ["--verify"],
++        ["--prepare", "--verify", "--operation-id", str(uuid4())],
++        ["--prepare", "--operation-id", "bad"],
++    ],
++)
++def test_flags_before_credentials(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit) as caught:
++        cli.main()
++    assert caught.value.code == 2
++
++
++@pytest.mark.parametrize("env", [{"LIVE_TRADING_ENABLED": "true"}, {"TRADING_MODE": "LIVE"}])
++def test_live_context_blocked_before_credentials(monkeypatch, capsys, env):
++    monkeypatch.setattr("sys.argv", ["check", "--prepare", "--operation-id", str(uuid4())])
++    for key, value in env.items():
++        monkeypatch.setenv(key, value)
++    monkeypatch.setattr(cli, "credentials", lambda **kw: pytest.fail("must not read key"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["failure"] == "LIVE_CONTEXT_FORBIDDEN"
++
++
++def test_unknown_failure_code_cannot_export_private_values():
++    assert DBRestartBlocked("PRIVATE_DATABASE_URL").code == "CHECK_FAILED"
