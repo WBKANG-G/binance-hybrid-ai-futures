@@ -1,0 +1,709 @@
+--- /dev/null
++++ b/FLAT_FIX_START_HERE_KO.md
+@@ -0,0 +1,33 @@
++# 기존 종료 확인 경로 수정본
++
++추가 진입·청산 시험이 아닙니다. 이미 체결된 종료와 현재 flat을 다시 확인하는 명령만 실행합니다. 현재 NORMAL/paused 상태를 유지하며 새 UUID나 거래 주문은 없습니다.
++
++## CMD 순서
++
++ZIP을 바탕 화면의 새 windows-demo-flat-confirmation-fix 폴더에 풉니다. 기존 폴더에 덮어쓰지 않습니다. 해당 폴더의 탐색기 주소창에 cmd를 입력하고 아래 명령을 한 줄씩 실행합니다. 기존 hybrid-windows 프로젝트와 볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 뒤 DEMO 키를 RAM 등록합니다. 숨김 입력이며 키/Secret을 채팅에 보내지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++기존 종료 확인을 한 번 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.run_demo --config configs/demo-isolated.example.yaml --account DEMO-WINDOWS-ISOLATED-BTC-V1 --enable-demo --confirm-flat
++```
++
++정상 결과는 completion_confirmation VERIFIED_FLAT입니다. confirmation_stage와 confirmation_diagnostic도 포함한 전체 결과를 캡처합니다. 이 명령은 신규 진입/종료 POST를 허용하지 않습니다. flat과 종료 체결 증거를 확인한 뒤 자기 이력의 잔여 보호 Algo가 있을 때만 기존 DELETE 정리를 허용합니다. 이미 정리됐으면 DELETE도0회입니다. DB의 최신 조회 증거/감사 이벤트는 기록하지만 기준금/과거 요청/UNKNOWN 증거를 고치지 않습니다.
++
++BLOCKED_KEEP_LOCK 또는 UNKNOWN이면 반복하지 말고 전체 결과를 공유합니다. 40초 등 예산 초과도 상한을 늘리거나 잠금을 풀지 않습니다. 현재 일시정지를 유지합니다. down -v, 기준금/고점 초기화, exports 재요청, 과거 요청 삭제를 실행하지 않습니다. 손절 실패·진입 응답 유실 시험을 재실행하지 않습니다.
++
++## 이번 수정
++
++기존 종료 확인의 과거 주문 조회와 독립 스냅샷 최대5회, 정합성/종료 체결/flat/잔여 보호 검증은 그대로입니다. 한 번의 확인 안에서 GET 연결을 재사용하고, 필요한 시계 동기화를 제한된 횟수로 갱신합니다. 인증서·호스트·프록시·리다이렉트 거부는 이전 검증된 HTTPS 전송과 동일합니다. 보호 DELETE는 원래 SDK 전송으로 처리하며 자동 재전송하지 않습니다.
++
++QUERY는 첫 flat 증거 조회, CLEANUP은 입증 후 보호 정리, VERIFY는 최종 재검증입니다. PREFLIGHT 또는 TRANSPORT_SETUP에서 막혔다면 본 확인 전입니다. 시계 수명60초·리스60초·펜스 및 사후 리스 검사를 그대로 유지하며 중간 리스 갱신/조회 생략/캐시/병렬 조회를 추가하지 않았습니다.
+--- /dev/null
++++ b/FLAT_FIX_VALIDATION_KO.md
+@@ -0,0 +1,29 @@
++# 기존 종료 확인 지연 수정 검증
++
++전체1206개 테스트 통과(305.82초), 집중25개 통과(9.56초). Ruff check/format 및 mypy108개 소스 통과. 기존1195개 시험을 변경하지 않았습니다.
++
++## 확인한 문제와 제한
++
++실제 Windows 응답 유실 시험에서 동일 ID 조회 복구와 중복 진입 방지는 확인됐지만 종료가 ACKNOWLEDGED인 상태에서 FLAT_NOT_CONFIRMED 및 DEMO_SESSION_OR_QUERY_FAILED로 NOT_ACCEPTED였습니다. 별도 confirm-flat도 일반 문구로 차단됐습니다. 이후 signed 포지션 조회에 BTCUSDT가 없고 장부가 CLOSED/exit FILLED/open_quantity0인 것을 확인했습니다. 전체 복구 검토60건/264GET/활성주문0/리스크PASS를 별도로 통과하고 명시적 승인25cd5a54를 적용해 현재 NORMAL/paused입니다. 최초 NOT_ACCEPTED는 그대로 보존합니다.
++
++Windows 기록의 DEMO_FLAT_CONFIRMATION_QUERY부터 리더 반환까지60.228초가 걸렸습니다. 집계 출력만으로 당시의 정확한 예외는 확정할 수 없습니다. 다만 원래 확인 함수는 과거 주문까지 포함한 snapshot을 첫 조회2회와 최종 검증3회에 사용하며, 원래 전송은 요청마다 HTTPS 연결을 새로 만들고 함수 안에서는 시계를 갱신하지 않습니다. 시계·리스60초를 소모할 수 있는 구조를 재현했습니다.
++
++이전 ZIP의 정확한 confirm_flat 함수를 대조 시험에 그대로 넣고 실제 로컬 검증 TLS/PostgreSQL에 연결마다0.8초/요청마다0.001초를 결정론적 시계로 반영했습니다. 이전 함수는60.075초에 Clock stale or cooldown active로 중단했습니다. 이 시간은 시험의 합성 지연이며 사용자망 측정이 아닙니다. 같은 전체 증거를 읽는 수정본은 연결1개를 재사용해 VERIFIED_FLAT를 완료합니다. 느린 개별 응답 조건에서는 새40초 예산이 기존60초 리스보다 먼저 차단하고 실패한 fenced 효과는 롤백됩니다. 앞선 효과에서 성공적으로 기록한 조회 증거까지 명령 전체가 롤백되는 구조는 아니며, 원래 함수도 동일합니다.
++
++## 변경
++
++DemoCoordinator의 confirm_flat을 제한된 클라이언트 문맥으로 감싸고, 원래 본문은 _confirm_flat_checked로 이동했습니다. 단계 라벨 대입을 제외한 본문의 AST가 원본과 같고 다른 coordinator 메서드는 모두 동일합니다. 실행/보호/청산/진입 게이트/손익/기준금·주문 상태 판정은 변경하지 않았습니다.
++
++별도 ConfirmationClient가 원래 SDK/사용자 지정 클라이언트의 request로 위임하므로 기존 transport 테스트와 별도 진입 제한을 유지합니다. 기본 SDK 전송을 쓸 때만 GET에 기존 검증된 RecoveryTransport를 사용합니다. 고정 DEMO 호스트, 허용된 GET 경로, TLS/프록시/리다이렉트 거부는 그대로입니다. 원래 cleanup이 flat 확인 뒤 요청하는 DELETE /algoOrder와 단일 clientAlgoId만 허용하고 원래 전송으로 보냅니다. 진입/청산 POST, 다른 DELETE/PUT, exports 생성은 차단합니다. 문맥 종료/오류 뒤 원래 클라이언트·전송을 복원하고 연결을 닫습니다.
++
++한 번의 확인 전체에 기존 RecoveryBudget의40초/서명 요청600회/시계6회 한도를 적용합니다. DELETE도 서명 요청 예산에 포함됩니다.20초 이상 지난 시계는 원래 SDK 검증을 거쳐 동기화합니다. 시계 수명60초·리스60초·post-effect 펜스·잠금·타임아웃은 늘리지 않습니다. 중간 리스 갱신이나 HTTP 실패 재시도는 없습니다. 기존 confirm_exit의 최대4회 관찰은 그대로이며 신규 종료 POST는 없습니다.
++
++전체 과거 **주문에 연결된 ID**의 원래 조회를 유지합니다. flat 확인은 본래 모든 독립 request를 감사하는 복구 검토와 다릅니다. 주문에 연결되지 않은 과거 모호한 요청도 지우지 않고 그대로 보존하며, 별도 review_demo_recovery의 독립 전체 감사는 변경하지 않습니다.
++
++CLI confirm-flat 결과/실패에는 단계와 숫자/분류 진단을 추가합니다. 원시 예외/키/서명/URL을 출력하지 않습니다. 예산 오류는 허용된 고정 코드만 출력하며 SQL 오류도 기존 분류에 단계와 진단을 더합니다. 다른 CLI 흐름의 일반 오류 처리는 유지합니다.
++
++## 시험 범위
++
++원래 flat 확인14개 시험을 그대로 유지합니다. 새 시험에서 정확한 부모 함수의 시계 만료, 같은 조건의 전체 조회/연결 재사용 성공,40초 차단과 해당 트랜잭션 롤백/리스크·이력·기준금 보존,20초 경과 시 verified 시계 갱신, POST/다른 DELETE/PUT/exports 거부, readonly 보호 DELETE 거부, 사용자 지정 전송 보존, GET 풀과 원래 DELETE 전송 분리 및 오류 복원을 확인합니다.
++
++실제 격리 PostgreSQL/로컬 TLS/WSS와 합성 SDK로 검사했으며 클라우드 인증 거래소 요청/주문은 없습니다. 새 Windows confirm-flat 통과는 아직 확인 전입니다. 이번 변경은 앞선 응답 유실 시험이나 SL 실패/부분체결 시험을 통과로 바꾸지 않습니다. main/LIVE/Phase5 및 Phase4 전체 완료 판정 변경은 없습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_CLOSED_DIAGNOSTIC_20261031_KO.md
+@@ -0,0 +1,37 @@
++# Windows DEMO 응답 유실 시험 후 현재 포지션·장부 진단
++
++근거: 사용자 CMD 캡처. windows-demo-entry-response-loss 배포.
++대상 작업 ID 9be80b67-25d4-43d6-b18b-7d12fdd9cd0e.
++
++## 원격 signed GET
++
++SIGNED_POSITION_GET_ONLY / positions []
++
++단일 BTCUSDT 필터 조회에서 현재 BTCUSDT 포지션 행이 반환되지 않았다. 이 결과를 모든 주문/보호 정리 확인으로 확대하지 않는다.
++
++## 로컬 읽기 전용 진단
++
++LOCAL_DATABASE_READ_ONLY / risk_state EMERGENCY / paused true / failure_category OTHER_DEMO_FAILURE
++order state FILLED / position_state CLOSED / filled0.0007 / open_quantity0 / protected false / exit_state FILLED
++live_trading_enabled false
++
++종료 의도가 ACKNOWLEDGED에서 FILLED로 장부에 반영돼 현재 관리 노출0 및 CLOSED가 확인됐다. 원격 포지션 조회와 결합해 종료 체결을 확인하되 잔여 SL/TP·전체 이력·현재 리스크 검토는 별도 필요하다. 전체 시험 결과 NOT_ACCEPTED를 성공으로 덮어쓰지 않는다.
++
++## 최근 이벤트 UTC / KST
++
++- 2026-10-31 13:55:45.523400+00:00 DEMO_REDUCE_ONLY_INTENT (KST22:55:45)
++- 13:55:45.572115 DEMO_REDUCE_ONLY_EFFECT
++- 13:55:46.078042 HEARTBEAT
++- 13:56:00.410806 DEMO_ENTRY_LOSS_CHECK_RESULT
++- 13:56:00.466288 DEMO_LEADER_RELEASED
++- 13:58:02.837382 DEMO_LEADER_ACQUIRED
++- 13:58:03.511560 DEMO_RECONCILING
++- 13:58:03.546069 DEMO_REST_SNAPSHOT
++- 13:58:09.097727 DEMO_READ_ONLY_OBSERVATION
++- 13:58:09.120832 HEARTBEAT
++- 13:58:09.352979 DEMO_FLAT_CONFIRMATION_QUERY
++- 13:59:09.581231 DEMO_LEADER_RELEASED (KST22:59:09)
++
++전체 최근 이벤트의 failure_category OTHER_DEMO_FAILURE는 저장된 장부 필드다. 각 이벤트마다 새 오류가 발생했다고 단정하지 않는다. confirm-flat의 QUERY 시작부터 리더 반환까지 약60.228초이며, 원래 confirm_flat은 전체 과거 이력을 포함한 복수 스냅샷을 하나의 fenced 효과 안에서 조회한다. SDK 시계 수명과 lease 모두60초이지만 이 집계 출력만으로 정확한 예외/최종 원인을 확정하지 않는다. 상한 연장·조회 생략·lease 변경을 하지 않는다.
++
++다음 단계는 이미 배포된 HTTPS 연결 재사용이 적용되는 인자 없는 review_demo_recovery 읽기 전용 검토다. 잠금/장부를 바꾸지 않고 전체 요청·독립 스냅샷·활성 일반/Algo 주문·현재 리스크를 검사한다. BLOCKED면 반복하지 않는다. 통과해도 별도 승인 전까지 EMERGENCY/paused 유지. 신규 진입/청산/보호 POST를 하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_CONFIRM_BLOCKED_20261031_KO.md
+@@ -0,0 +1,9 @@
++# 기존 종료 확인도 일반 오류로 차단됨
++
++사용자 캡처: 동일 windows-demo-entry-response-loss 폴더에서 run_demo --config configs/demo-isolated.example.yaml --account DEMO-WINDOWS-ISOLATED-BTC-V1 --enable-demo --confirm-flat 실행.
++
++출력: DEMO operation blocked or unresolved; inspect sanitized ledger/status, network and runtime credential bindings
++
++이 출력은 run_demo가 DemoFailure/RiskRejected/ValueError/KeyError/OSError를 일반 문구로 처리하는 경로다. 어느 단계/구체적 예외인지 확정할 수 없다. 포지션 잔존·flat·종료 체결 어느 것도 입증하지 않는다. 이전 응답 유실 시험의 종료 POST1회/ACKNOWLEDGED/UNKNOWN flat 및 EMERGENCY/paused 상태를 보존하며, 새 종료/진입/시험/복구 승인을 실행하지 않는다. Docker Gordon 문구를 Compose 고장으로 단정하지 않는다.
++
++다음은 현재 BTCUSDT positionRisk의 signed GET1회와, 기존 diagnose_demo_ledger의 OPERATION 상수를 현재 UUID로 메모리에서만 지정한 읽기 전용 DB 조회다. 코드 파일·DB 상태·주문은 변경하지 않는다. 키는 기존 private tmpfs에서 읽고 포지션의 허용 필드만 출력한다. 원격 응답과 로컬 장부를 분리해 판단한다.
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_RECOVERY_REVIEW_20261031_KO.md
+@@ -0,0 +1,22 @@
++# 응답 유실 시험 후 전체 복구 검토 통과
++
++사용자 CMD 캡처. windows-demo-entry-response-loss 배포 / 0e03d75.
++대상 시험 9be80b67-25d4-43d6-b18b-7d12fdd9cd0e.
++
++- recovery REVIEW_ONLY_NO_DATABASE_CHANGE
++- review_token 4806a8983d682f20c5fc0bdf251d494f2cbe91f3f58ec1a04de74c51ef48388c
++- audited_request_count60 / audit_batch_count8
++- signed_query_count264 / audit_clock_probes0
++- unresolved_count3 / risk_gates PASS
++- position_nonzero false / active_orders0
++- audit_transport_mode POOLED_HTTPS
++- audit_http_attempts264 / audit_connection_attempts1 / audit_reused_requests263
++- audit_server_close_responses0 / audit_transport_elapsed_ms15904
++- audit_last_route OTHER_GET
++- risk_state EMERGENCY / paused true
++- orders_enabled false / live_trading_enabled false
++
++현재 전체 복구 감사가 완료됐다. 기존 포지션 조회 없음 및 로컬 CLOSED/exit FILLED 증거에 더해 현재 활성 주문0·리스크 통과를 확인했다. 전송 측정15.904초로 기존40초 상한 안에서 완료했다. 아직 잠금 해제는 적용하지 않았다. 미해결 이력3건의 신원을 집계 출력으로 확정하거나 지우지 않는다. 원래 시험 NOT_ACCEPTED와 별도 confirm-flat 일반 오류 기록을 성공으로 덮어쓰지 않는다.
++
++다음은 최신 상태를 다시 검토하고 토큰이 같을 때만 NORMAL/paused로 전환하는 기존 명시적 승인 명령이다. 신규 주문/청산/보호 POST는 없다. 적용 작업 ID 
++25cd5a54-fe2c-451f-b0c1-b738814ea522
+--- /dev/null
++++ b/WINDOWS_DEMO_ENTRY_LOSS_UNCONFIRMED_20261031_KO.md
+@@ -0,0 +1,29 @@
++# Windows DEMO 진입 응답 유실: 동일 ID 복구 확인, 종료 미확정
++
++근거: 사용자 CMD 캡처. 배포 windows-demo-entry-response-loss-20261031 / 0e03d75.
++ZIP SHA256 c3864f63eeb8a5542c331a0353c142dfdf5d29c5a6d1c3b91ccb8edb27c4247d.
++작업 ID 9be80b67-25d4-43d6-b18b-7d12fdd9cd0e.
++
++- quantity/cap 0.0007 / limit 77536.00 / stop 77141.00 / target 78311.40
++- 단계 RESERVED_NOT_YET_SUBMITTED → PERSISTED_UNKNOWN_SAME_ID_QUERY_RECOVERED
++- entry_loss_check NOT_ACCEPTED
++- scope LOCAL_SDK_ENTRY_ACK_LOSS_AFTER_SUCCESS_RESPONSE
++- response_drop_count1 / unknown_intent_persisted true
++- entry_gate_blocked_while_unknown true / same_id_signed_query_verified true
++- same_id_query_count15 / local_order_recovered_before_cleanup true
++- new_entry_post_count1 / entry_post_attempts1 / reduce_only_post_attempts1
++- operator_emergency_requested true / recovered_existing_intent false
++- filled_quantity0.0007 / exit_state ACKNOWLEDGED
++- flat_confirmation UNKNOWN / history_and_baselines_preserved true
++- failure FLAT_NOT_CONFIRMED / failure_stage FINAL_STATE
++- completion_failure DEMO_SESSION_OR_QUERY_FAILED
++- private_session_diagnostic READY_CALLBACK/NONE/event_kind NONE
++- ready_callback_ms2296 / received_events6 / coalesced_events0
++- event clocks/age null / event_clock_wait_ms0
++- risk_state EMERGENCY / final_paused true
++- final_stream_ready false / final_reconciled true
++- orders_enabled false / live_trading_enabled false
++
++동일 ID 조회 복구와 중복 진입 방지는 확인됐으나 전체 시험은 종료 미확정으로 미수락이다. ACKNOWLEDGED는 종료 체결 또는 flat 증거가 아니다. final_reconciled true만으로 현재 포지션0을 단정하지 않는다. completion_failure의 구체적 원인은 이 집계 출력만으로 확정하지 않는다.
++
++새 의도/시험/비상 종료를 다시 실행하지 않는다. EMERGENCY/paused를 유지한다. 다음 단계는 기존 run_demo --confirm-flat으로 기존 종료를 조회하고 정합한 flat을 확인하는 것이다. 이 경로는 신규 진입·종료 POST를 하지 않으며, flat 증명 후 남은 보호 주문이 있을 때만 취소한다. 원래 이력/기준금/UNKNOWN 증거는 보존한다. 검토/복구 승인과 Phase4 전체 완료는 보류한다.
+--- /dev/null
++++ b/WINDOWS_DEMO_RECOVERY_25cd5a54_20261031_KO.md
+@@ -0,0 +1,18 @@
++# Windows DEMO 응답 유실 시험 후 비상 상태 복구 승인 완료
++
++근거: 사용자 CMD 캡처. windows-demo-entry-response-loss / 0e03d75.
++적용 작업 ID: 25cd5a54-fe2c-451f-b0c1-b738814ea522.
++검토 토큰: 4806a8983d682f20c5fc0bdf251d494f2cbe91f3f58ec1a04de74c51ef48388c.
++
++실제 결과:
++- recovery EMERGENCY_ACKNOWLEDGED_ENTRIES_STILL_PAUSED
++- orders_enabled false
++- live_trading_enabled false
++
++최신 전체 검토 및 토큰 일치 확인 뒤 원래 승인 함수가 risk_state NORMAL로 전환하고 paused true / stream_ready false / reconciled false를 유지했다. 미해결 이력3건과 기존 요청/주문/UNKNOWN 증거/기준금/과거 이벤트를 보존한다. 주문 실행 및 LIVE 거래는 비활성이다.
++
++직전 검토는 요청60개/8배치/서명GET264회/추가 시계0회/미해결3건/리스크PASS/포지션없음/활성주문0이었다. HTTPS 연결1개/재사용263회/서버종료0/전송측정15904ms로 완료됐다.
++
++앞선 작업9be80b67-25d4-43d6-b18b-7d12fdd9cd0e는 로컬 ACK 유실1회, UNKNOWN 기록·진입 차단·동일 ID signed GET 복구·신규 진입1건을 확인했으나 자동 정리 관찰에서 FLAT_NOT_CONFIRMED 및 completion_failure DEMO_SESSION_OR_QUERY_FAILED로 NOT_ACCEPTED였다. 이후 기존 종료 FILLED/로컬CLOSED/노출0과 현재 원격 포지션 없음, 전체 검토 활성주문0을 확인하고 별도 복구 승인을 적용했다. 앞선 NOT_ACCEPTED 결과를 통과로 덮어쓰지 않는다.
++
++confirm-flat 일반 오류 및 약60초 관찰 구간의 정확한 원인은 아직 확정되지 않았다. 동일 명령 재실행 또는 신규 진입은 필요하지 않다. 다음 개발은 추가 거래보다 기존 종료 확인 경로의 지연/오류 단계를 재현·진단하는 것이 우선이다. SL 실패 실제 DEMO 검증 미완료, 실제 부분체결 보호 미완료를 유지하며 Phase4 전체 완료/LIVE/Phase5 전환으로 확대하지 않는다.
+--- a/scripts/run_demo.py
++++ b/scripts/run_demo.py
+@@ -27,7 +27,12 @@
+ from services.execution.demo_models import DemoLedger
+ from services.execution.demo_preview import PreviewBlocked, preview
+ from services.execution.demo_stream import session
+-from services.execution.demo_validation import confirm_exit, database_failure, validate_once
++from services.execution.demo_validation import (
++    confirm_exit,
++    database_failure,
++    safe_failure,
++    validate_once,
++)
+ from services.risk.paper import AccountValue, GateSnapshot, RiskRejected, period_keys
+ 
+ 
+@@ -284,6 +289,8 @@
+                 json.dumps(
+                     {
+                         "completion_confirmation": result,
++                        "confirmation_stage": coordinator.flat_confirmation_stage,
++                        "confirmation_diagnostic": coordinator.flat_confirmation_diagnostic,
+                         "environment": "DEMO",
+                         "risk_state": ledger.risk_state.value,
+                         "paused": ledger.paused,
+@@ -372,12 +379,48 @@
+                 {
+                     "operation": "BLOCKED",
+                     "database_failure": database_failure(error),
++                    **(
++                        {
++                            "confirmation_stage": getattr(
++                                locals().get("coordinator"), "flat_confirmation_stage", "PREFLIGHT"
++                            ),
++                            "confirmation_diagnostic": getattr(
++                                locals().get("coordinator"), "flat_confirmation_diagnostic", {}
++                            ),
++                        }
++                        if args.confirm_flat
++                        else {}
++                    ),
+                     "orders_enabled": False,
+                     "live_trading_enabled": False,
+                 }
+             )
+         ) from None
+-    except (DemoFailure, RiskRejected, ValueError, KeyError, OSError):
++    except (DemoFailure, RiskRejected, ValueError, KeyError, OSError) as error:
++        if args.confirm_flat:
++            raise SystemExit(
++                json.dumps(
++                    {
++                        "completion_confirmation": "BLOCKED_KEEP_LOCK",
++                        "failure": getattr(error, "code", safe_failure(error))
++                        if getattr(error, "code", "")
++                        in {
++                            "REQUEST_AUDIT_TIME_BUDGET",
++                            "REQUEST_AUDIT_QUERY_BUDGET",
++                            "REQUEST_AUDIT_CLOCK_BUDGET",
++                        }
++                        else safe_failure(error),
++                        "confirmation_stage": getattr(
++                            locals().get("coordinator"), "flat_confirmation_stage", "PREFLIGHT"
++                        ),
++                        "confirmation_diagnostic": getattr(
++                            locals().get("coordinator"), "flat_confirmation_diagnostic", {}
++                        ),
++                        "orders_enabled": False,
++                        "live_trading_enabled": False,
++                    }
++                )
++            ) from None
+         raise SystemExit(
+             "DEMO operation blocked or unresolved; inspect sanitized ledger/status, network and runtime credential bindings"
+         ) from None
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -22,6 +22,7 @@
+ )
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_event_clock import validate_event_time
++from services.execution.demo_flat_transport import confirmation_context
+ from services.execution.demo_initial_fill import InitialFillBlocked, settle_initial_fill
+ from services.execution.demo_models import (
+     DemoLedger,
+@@ -1032,6 +1033,18 @@
+         self.store.change(self.lease, "DEMO_VERIFIED_FLAT_CLEANUP", effect)
+ 
+     def confirm_flat(self) -> str:
++        source = self.client
++        self.flat_confirmation_stage = "TRANSPORT_SETUP"
++        self.flat_confirmation_diagnostic: dict[str, str | int] = {}
++        with confirmation_context(source) as bounded:
++            self.client = bounded
++            try:
++                return self._confirm_flat_checked()
++            finally:
++                self.flat_confirmation_diagnostic = bounded.diagnostics()
++                self.client = source
++
++    def _confirm_flat_checked(self) -> str:
+         """Query existing intents; never submit/cancel an entry or submit an exit.
+ 
+         Leftover protection is removed only after both exchange and local history
+@@ -1065,8 +1078,10 @@
+                 and all(not o.remaining and not o.open_quantity for o in ledger.orders.values())
+             )
+ 
++        self.flat_confirmation_stage = "QUERY"
+         if not self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_QUERY", observe):
+             return "UNKNOWN"
++        self.flat_confirmation_stage = "CLEANUP"
+         if self.client.settings.demo_trading_enabled:
+             for key in tuple(cleanup_keys):
+                 self._cleanup(key)
+@@ -1083,6 +1098,7 @@
+                 )
+             )
+ 
++        self.flat_confirmation_stage = "VERIFY"
+         return (
+             "VERIFIED_FLAT"
+             if self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_CHECK", verify)
+--- /dev/null
++++ b/services/execution/demo_flat_transport.py
+@@ -0,0 +1,91 @@
++"""Bounded confirmation transport; original flat/cleanup proof remains mandatory."""
++
++from collections.abc import Iterator, Mapping
++from contextlib import contextmanager
++from typing import Any
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, transport
++from integrations.binance_usdm.recovery_transport import GET_PATHS, RecoveryTransport
++from integrations.binance_usdm.rest import RESTResponse
++from services.execution.demo_recovery_budget import CLOCK_REFRESH_MS, RecoveryBudget
++
++
++class ConfirmationClient(DemoClient):
++    def __init__(self, source: DemoClient, pooled: RecoveryTransport | None):
++        super().__init__(
++            source.settings, source.credentials, send=source.send, clock_ms=source.clock_ms
++        )
++        self.source = source
++        self.pooled = pooled
++        self.budget = RecoveryBudget()
++        self.last_route = "NONE"
++        self.cleanup_attempts = 0
++
++    def sync_clock(self) -> None:
++        self.budget.probe()
++        try:
++            self.source.sync_clock()
++        finally:
++            self.budget.check()
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        if method == "GET" and path in GET_PATHS:
++            self.last_route = "SIGNED_GET"
++        elif (
++            method == "DELETE"
++            and path == "/fapi/v1/algoOrder"
++            and self.settings.demo_trading_enabled
++        ):
++            if not params or set(params) != {"clientAlgoId"} or not params["clientAlgoId"]:
++                raise DemoFailure("Flat confirmation cleanup scope forbidden")
++            self.last_route = "PROTECTION_DELETE"
++            self.cleanup_attempts += 1
++        else:
++            raise DemoFailure("Flat confirmation forbids entry/exit POST and other mutations")
++        self.budget.signed()
++        synced = self.source.synced_at
++        if synced is None or not 0 <= self.source.clock_ms() - synced < CLOCK_REFRESH_MS:
++            self.sync_clock()
++        try:
++            return self.source.request(method, path, params)
++        finally:
++            self.budget.check()
++
++    def diagnostics(self) -> dict[str, str | int]:
++        return {
++            **(
++                self.pooled.diagnostics()
++                if self.pooled
++                else {"audit_transport_mode": "UNPOOLED_TRANSPORT"}
++            ),
++            "confirmation_signed_requests": self.budget.signed_queries,
++            "confirmation_clock_probes": self.budget.clock_probes,
++            "confirmation_cleanup_attempts": self.cleanup_attempts,
++            "confirmation_last_route": self.last_route,
++        }
++
++
++@contextmanager
++def confirmation_context(source: DemoClient) -> Iterator[ConfirmationClient]:
++    original = source.send
++    pooled = RecoveryTransport() if original is transport else None
++
++    def dispatch(
++        method: str, path: str, query: SecretStr, api_key: SecretStr | None
++    ) -> RESTResponse:
++        if method == "GET" and path in GET_PATHS and pooled is not None:
++            return pooled(method, path, query, api_key)
++        if method == "DELETE" and path == "/fapi/v1/algoOrder":
++            return original(method, path, query, api_key)
++        raise DemoFailure("Flat confirmation transport route forbidden")
++
++    try:
++        if pooled is not None:
++            source.send = dispatch
++        yield ConfirmationClient(source, pooled)
++    finally:
++        source.send = original
++        if pooled is not None:
++            pooled.close()
+--- /dev/null
++++ b/tests/integration/test_demo_flat_transport.py
+@@ -0,0 +1,209 @@
++# ruff: noqa: F811
++"""Exact parent confirmation control, real PG/TLS and deterministic setup cost."""
++
++from decimal import Decimal
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure, transport
++from packages.domain.contracts import PositionState
++from services.execution import demo_flat_transport as flat
++from services.execution.demo import coherent_snapshot, historical_snapshot
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_recovery_budget import AuditBudgetExceeded, RecoveryBudget
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_period_review import period_case  # noqa: F401
++from tests.integration.test_demo_recovery_batches import history_case  # noqa: F401
++from tests.integration.test_demo_recovery_https import wire
++from tests.unit.test_recovery_https_transport import tls_server  # noqa: F401
++
++
++def parent_confirm(self) -> str:
++    """Query existing intents; never submit/cancel an entry or submit an exit.
++
++    Leftover protection is removed only after both exchange and local history
++    establish flat. An ACK, a missing order, or a zero position alone is insufficient.
++    """
++
++    cleanup_keys: list[str] = []
++
++    def observe(ledger: DemoLedger) -> bool:
++        if not ledger.paused:
++            raise DemoFailure("Flat confirmation requires paused entries")
++        first = historical_snapshot(self.client, ledger, self.store.now())
++        second = historical_snapshot(self.client, ledger, self.store.now())
++        remote = coherent_snapshot(first, second, ledger)
++        self._merge(ledger, remote)
++        cleanup_keys[:] = [
++            key
++            for key, order in ledger.orders.items()
++            if order.position_state == PositionState.CLOSED
++            and any(
++                remote.algos.get(identifier or "", {}).get("algoStatus") == "NEW"
++                for identifier in (order.algo_id, order.tp_algo_id)
++            )
++        ]
++        return bool(
++            ledger.reconciled
++            and not any(remote.positions.values())
++            and not any(
++                row["status"] in {"NEW", "PARTIALLY_FILLED"} for row in remote.orders.values()
++            )
++            and all(not o.remaining and not o.open_quantity for o in ledger.orders.values())
++        )
++
++    if not self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_QUERY", observe):
++        return "UNKNOWN"
++    if self.client.settings.demo_trading_enabled:
++        for key in tuple(cleanup_keys):
++            self._cleanup(key)
++
++    def verify(ledger: DemoLedger) -> bool:
++        if not observe(ledger):
++            return False
++        remote = historical_snapshot(self.client, ledger, self.store.now())
++        return bool(
++            remote.fingerprint == ledger.fingerprint
++            and all(
++                row["algoStatus"] in {"CANCELED", "EXPIRED", "FINISHED", "REJECTED"}
++                for row in remote.algos.values()
++            )
++        )
++
++    return (
++        "VERIFIED_FLAT"
++        if self.store.change(self.lease, "DEMO_FLAT_CONFIRMATION_CHECK", verify)
++        else "UNKNOWN"
++    )
++
++
++def setup(history_case, tls_server, monkeypatch, setup_cost="0.8", request_cost="0.001"):
++    result = wire(
++        history_case,
++        tls_server,
++        monkeypatch,
++        setup_cost=Decimal(setup_cost),
++        request_cost=Decimal(request_cost),
++    )
++    elapsed = result[5]
++    monkeypatch.setattr(flat, "RecoveryBudget", lambda: RecoveryBudget(lambda: float(elapsed[0])))
++    return result
++
++
++def track_rollback(store, monkeypatch):
++    original = store.change
++    failed = []
++
++    def change(lease, kind, apply):
++        before = store.read(lease.account_id)
++        try:
++            return original(lease, kind, apply)
++        except Exception:
++            failed.append((kind, before, store.read(lease.account_id)))
++            raise
++
++    monkeypatch.setattr(store, "change", change)
++    return failed
++
++
++def preserved(before, after):
++    for name in (
++        "policy",
++        "risk_state",
++        "paused",
++        "requests",
++        "orders",
++        "daily_base",
++        "weekly_base",
++        "high_water",
++        "net_transfers",
++        "recovery_receipts",
++    ):
++        assert getattr(before, name) == getattr(after, name), name
++
++
++def test_exact_parent_clock_expires_but_same_full_proof_pooled_completes(
++    history_case, tls_server, monkeypatch
++):
++    store, c, fake, before, saved, elapsed, base = setup(history_case, tls_server, monkeypatch)
++    call_start = len(fake.calls)
++    failed = track_rollback(store, monkeypatch)
++    source = c.client
++    source.send = transport
++    try:
++        with pytest.raises(DemoFailure, match="Clock stale or cooldown active"):
++            parent_confirm(c)
++        assert elapsed[0] >= 60
++        assert failed and all(a == b for _, a, b in failed)
++        preserved(before, store.read("DEMO-test"))
++        elapsed[0] = Decimal(0)
++        fake.at = base
++        result = c.confirm_flat()
++        assert result == "VERIFIED_FLAT"
++        metrics = c.flat_confirmation_diagnostic
++        assert metrics["audit_connection_attempts"] == 1
++        assert (
++            metrics["audit_reused_requests"] > 100 and metrics["confirmation_cleanup_attempts"] == 0
++        )
++        assert c.client is source and source.send is transport
++        final = store.read("DEMO-test")
++        assert final.requests == before.requests and final.daily_base == before.daily_base
++        queried = {
++            fields.get("origClientOrderId") or fields.get("clientAlgoId")
++            for m, p, fields in fake.calls[call_start:]
++            if m == "GET"
++        }
++        bound = {
++            identifier
++            for order in before.orders.values()
++            for identifier in (order.client_id, order.algo_id, order.tp_algo_id, order.exit_id)
++            if identifier
++        }
++        assert bound <= queried
++        assert final.requests == before.requests  # Unbound legacy ambiguous requests are preserved.
++        assert all(m == "GET" for m, p, fields in fake.calls[call_start:])
++    finally:
++        source.send = saved
++
++
++def test_slow_queries_still_block_before_lease_and_restore_client(
++    history_case, tls_server, monkeypatch
++):
++    store, c, _, before, saved, elapsed, _ = setup(
++        history_case, tls_server, monkeypatch, setup_cost="0.01", request_cost="0.4"
++    )
++    failed = track_rollback(store, monkeypatch)
++    source = c.client
++    source.send = transport
++    try:
++        with pytest.raises(AuditBudgetExceeded) as error:
++            c.confirm_flat()
++        assert error.value.code == "REQUEST_AUDIT_TIME_BUDGET"
++        assert 40 <= elapsed[0] < 45
++        assert failed and all(a == b for _, a, b in failed)
++        preserved(before, store.read("DEMO-test"))
++        assert c.client is source
++        assert source.send is transport
++        assert c.flat_confirmation_stage in {"QUERY", "VERIFY"}
++        assert c.flat_confirmation_diagnostic["audit_connection_attempts"] == 1
++    finally:
++        source.send = saved
++
++
++def test_clock_refresh_within_unchanged40_budget_and_all_history(
++    history_case, tls_server, monkeypatch
++):
++    _, c, _, _, saved, elapsed, _ = setup(
++        history_case, tls_server, monkeypatch, setup_cost="0.01", request_cost="0.14"
++    )
++    source = c.client
++    source.send = transport
++    try:
++        assert c.confirm_flat() == "VERIFIED_FLAT"
++        assert 20 <= elapsed[0] < 40
++        assert c.flat_confirmation_diagnostic["confirmation_clock_probes"] >= 1
++        assert c.flat_confirmation_stage == "VERIFY"
++    finally:
++        source.send = saved
+--- /dev/null
++++ b/tests/unit/test_demo_flat_transport_guards.py
+@@ -0,0 +1,79 @@
++"""No entry/exit replay; original transport for eligible flat protection cleanup."""
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.rest import RESTResponse
++from services.execution import demo_flat_transport as module
++from tests.unit.test_demo_transport import client
++
++
++@pytest.mark.parametrize(
++    "method,path",
++    [
++        ("POST", "/fapi/v1/order"),
++        ("POST", "/fapi/v1/algoOrder"),
++        ("DELETE", "/fapi/v1/order"),
++        ("GET", "/fapi/v1/trade/asyn"),
++        ("PUT", "/fapi/v1/listenKey"),
++    ],
++)
++def test_disallowed_mutations_and_exports_never_reach_sdk(method, path):
++    source, fake = client()
++    count = len(fake.calls)
++    with module.confirmation_context(source) as bounded:
++        with pytest.raises(DemoFailure):
++            bounded.request(method, path, {"symbol": "BTCUSDT"})
++    assert len(fake.calls) == count
++
++
++def test_custom_send_preserved_and_context_restored_on_error():
++    source, _ = client()
++    original = source.send
++    with pytest.raises(ValueError):
++        with module.confirmation_context(source) as bounded:
++            assert source.send is original and bounded.pooled is None
++            raise ValueError("test")
++    assert source.send is original
++
++
++def test_pooled_get_but_cleanup_delete_uses_original_sender(monkeypatch):
++    source, _ = client()
++    calls = []
++
++    def sender(method, path, query, key):
++        calls.append((method, path))
++        return RESTResponse(200, b"{}", {})
++
++    class Pool:
++        closed = False
++
++        def __call__(self, *args):
++            assert args[0] == "GET"
++            calls.append(("POOLED", args[1]))
++            return RESTResponse(200, b"{}", {})
++
++        def close(self):
++            self.closed = True
++
++    pool = Pool()
++    monkeypatch.setattr(module, "transport", sender)
++    monkeypatch.setattr(module, "RecoveryTransport", lambda: pool)
++    source.send = sender
++    with module.confirmation_context(source):
++        source.send("GET", "/fapi/v1/order", SecretStr(""), None)
++        source.send("DELETE", "/fapi/v1/algoOrder", SecretStr(""), None)
++        with pytest.raises(DemoFailure):
++            source.send("POST", "/fapi/v1/order", SecretStr(""), None)
++    assert calls == [("POOLED", "/fapi/v1/order"), ("DELETE", "/fapi/v1/algoOrder")]
++    assert source.send is sender and pool.closed
++
++
++def test_readonly_source_cannot_delete_protection():
++    source, fake = client(enabled=False)
++    count = len(fake.calls)
++    with module.confirmation_context(source) as bounded:
++        with pytest.raises(DemoFailure):
++            bounded.request("DELETE", "/fapi/v1/algoOrder", {"clientAlgoId": "DS-test"})
++    assert len(fake.calls) == count
