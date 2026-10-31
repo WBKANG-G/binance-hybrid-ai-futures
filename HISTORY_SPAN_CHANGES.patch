@@ -1,0 +1,326 @@
+--- /dev/null
++++ b/HISTORY_SPAN_START_HERE_KO.md
+@@ -0,0 +1,27 @@
++# 오래된 주문을 보존하는 일일 기준 검토
++
++현재 사용자는 2026-10-31 일일 기준 검토에서 INVALID_HISTORY_WINDOW로 차단됐습니다. 기존 검토는 가장 오래된 주문 신호부터 현재까지의 전체 기간을 사용하지만 조회 도우미의 총 기간 제한이7일이었습니다. 10월20일부터 보존한 주문이 있어 이 제한을 넘습니다. 실제 오류의 원본 숫자 범위는 출력되지 않았으며 코드와 기존 주문 날짜에 근거한 진단입니다.
++
++새 windows-demo-history-span-fix 폴더에 ZIP을 풀고 기존 Galaxybook에서 탐색기 주소창에 cmd를 입력하세요. 기존 hybrid-windows 데이터베이스와 볼륨을 유지합니다. 삭제·초기화하지 마세요.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++컨테이너 교체로 메모리 키가 초기화되므로 한 번 등록합니다. 키는 터미널의 숨김 입력에만 넣으세요. 같은 컨테이너에서는 최대12시간 재사용합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++사용자가 마지막 실제 검증·청산 이후 수동/다른 봇 거래·입출금이 없다고 확인했습니다. 이 확인과 거래소 서명 응답을 대조하는 검토만 실행합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_attested_day --attest-no-other-trades-since-exit
++```
++
++결과를 공유하세요. 이 명령은 주문·데이터베이스 변경·잠금 해제를 하지 않습니다. 아직 apply-review나 복구 적용을 실행하지 마세요. 최신 검토 토큰과 실제 결과를 확인한 뒤 별도의 적용 명령이 필요합니다. 일일 기준이 적용돼도 비상 상태와 일시 정지, 주간 기준·고점·과거 요청은 보존됩니다.
++
++마지막 확인된 경계 조회는 10월31일0시 이후 USDT 손익·수수료·입출금 기록0건, 현재 지갑4999.35095801 USDT입니다. 현재 잔액만으로 자정 자산을 확정하지 않습니다. 최근 청산·전체 BTC 기록·그 이후 입출금·USDT 자산 범위·계정 정합성·기존 손실 한도를 함께 검증합니다. 계정 전체 export 검증을 완료한 것으로 표시하지 않습니다.
++
++31건 복구 감사 보완도 포함돼 있습니다. 날짜 기준 검토가 성공한 뒤 새 복구 검토가 필요합니다. LIVE/Phase5나 추가 거래를 시작하지 않습니다.
+--- /dev/null
++++ b/HISTORY_SPAN_VALIDATION_KO.md
+@@ -0,0 +1,13 @@
++# 전체 과거 기록 조회 기간 보완
++
++기존 7일 trades_window 공개 계약은 유지합니다. 전체 보존 기록을 확인하는 review_flat_history에서만7일 초과 구간을 별도 경로로 처리합니다. 가장 오래된 주문 신호부터 현재까지 모두 포함하고 최대31일을 넘으면 차단합니다. 오래된 기록을 삭제하거나 조회 시작을 최근7일로 잘라내지 않습니다.
++
++각 userTrades HTTP 호출의 기간은 여전히 최대 하루이며, 경계는 밀리초 단위로 빠짐없이 연결됩니다. 한 전체 기록 조회당 최대40회 제한은 모든 날짜와 포화 응답 분할을 합산합니다. 응답1000개 포화 시 구간을 분할하며1밀리초 포화·40회 초과·ID 충돌·잘못된 시간/심볼/수치 등은 기존대로 차단합니다. 전체 거래·입출금은 같은 범위로 두 번 대조하므로 거래 조회 합계는 최대80회입니다. 기존 income 페이지 한도도 유지합니다.
++
++긴 기간의 history 검토에는 기존 GET 전용 RecoveryReadClient를 재사용합니다. 이 구성 요소의 서명 GET600회, 시각 확인6회, 단조 시계40초 한도와 필요 시20초 시각 갱신을 적용합니다. 실패한 요청을 재시도하지 않습니다. 각 HTTP 호출 전후에 검사하므로40초에 진행 중 요청을 강제 중단한다는 보장은 아닙니다. 일일 검토 전체가 아니라 내부의 긴 기간 history 구성 요소에 적용되는 예산입니다. 기존 임대60초와 종료 시 검증은 그대로입니다. 한도 초과가 적용 중 발생하면 감사 상태 전이를 롤백합니다.
++
++조회 자료를 합친 뒤 수행하는 최신 청산 수량/ID 검증·마지막 청산 후 추가 거래 검사·자금 변화 대조·자정 이후 기록 검사·반복 조회 일치·USDT 자산 범위·과거 손실 한도는 변경하지 않았습니다. 일일 기준 검토/적용 코드 자체와 토큰·명시적 확인·중복 방지·감사·비상 상태 유지도 이전 ZIP과 같습니다. SDK·실행·위험 계산·보호 주문·청산·저장 모델·Compose·키 저장·export 생성 경로는 바이트 단위로 그대로입니다. 짧은 기간 조회 동작도 보존합니다.
++
++새 단위 검사는11일 구간의 최초/최종/날짜 경계 포함, 7일 계약 유지,31일 초과 사전 차단, 모든 날짜/분할 합산40회, 가장 오래된 잘못된 기록 차단을 포함합니다. 실제 PostgreSQL 검사는 오래된 취소 주문을 보존한 일일 검토·적용, 전체 주문/요청/주간 기준/고점/기존 자산 시각 보존, 미해결 기록 유지, 비상/정지 유지, 중복 적용 방지, 오래된 잘못된 기록 및 청산 후 추가 거래 차단, 시간 초과 롤백을 포함합니다. 기존 테스트는 수정하거나 삭제하지 않았습니다.
++
++검증 결과는 배포 manifest에 실제 완료 수치로 기록합니다. 클라우드 검사는 합성 거래소·로컬 WS·실제 PostgreSQL이며 인증된 Binance 주문은 보내지 않았습니다. 새 Windows 검토·일일 기준 적용·31건 복구 검토는 아직 확인해야 합니다. 실제 기본 흐름 한 건 성공 기록은 포함된 WINDOWS_DEMO_ACCEPTANCE_20261030_KO.md에 보존돼 있습니다. 전체 Phase4 수락이나 LIVE/Phase5 승인은 아닙니다.
+--- a/services/execution/demo_history_review.py
++++ b/services/execution/demo_history_review.py
+@@ -13,10 +13,14 @@
+ from packages.persistence.demo import DemoStore
+ from services.execution.demo_day_review import income_window
+ from services.execution.demo_models import DemoLedger
++from services.execution.demo_recovery_budget import AuditBudgetExceeded, RecoveryReadClient
+ 
+ CODES = frozenset(
+     {
+         "INVALID_HISTORY_WINDOW",
++        "REQUEST_AUDIT_TIME_BUDGET",
++        "REQUEST_AUDIT_QUERY_BUDGET",
++        "REQUEST_AUDIT_CLOCK_BUDGET",
+         "HISTORY_QUERY_LIMIT",
+         "INVALID_TRADE_RESPONSE",
+         "TRADE_WINDOW_SATURATED",
+@@ -41,10 +45,24 @@
+ 
+ 
+ def trades_window(client: DemoClient, start_ms: int, end_ms: int) -> dict[str, dict[str, str]]:
++    return _trades_window(client, start_ms, end_ms, max_days=7)
++
++
++def historical_trades_window(
++    client: DemoClient, start_ms: int, end_ms: int
++) -> dict[str, dict[str, str]]:
++    # Full retained history: no moving cutoff that drops old orders. Each query
++    # spans at most one day. The global 40-call cap includes saturation splits.
++    return _trades_window(client, start_ms, end_ms, max_days=31)
++
++
++def _trades_window(
++    client: DemoClient, start_ms: int, end_ms: int, *, max_days: int
++) -> dict[str, dict[str, str]]:
+     if (
+         client.settings.demo_trading_enabled
+         or start_ms < 0
+-        or not 0 <= end_ms - start_ms <= 7 * 86400000
++        or not 0 <= end_ms - start_ms <= max_days * 86400000
+     ):
+         raise HistoryBlocked("INVALID_HISTORY_WINDOW")
+     pending = []
+@@ -117,6 +135,15 @@
+ def review_flat_history(
+     store: DemoStore, client: DemoClient, ledger: DemoLedger
+ ) -> dict[str, object]:
++    try:
++        return _review_flat_history(store, client, ledger)
++    except AuditBudgetExceeded as error:
++        raise HistoryBlocked(error.code) from None
++
++
++def _review_flat_history(
++    store: DemoStore, client: DemoClient, ledger: DemoLedger
++) -> dict[str, object]:
+     if (
+         client.settings.demo_trading_enabled
+         or client.settings.margin_mode != "ISOLATED"
+@@ -154,11 +181,18 @@
+         [anchor, *(o.signal.signal_closed_candle_at for o in ledger.orders.values())]
+     )
+     start_ms = int(window_start.timestamp() * 1000)
++    # Preserve the short-window contract and existing injected validators.
++    extended = int(store.now().timestamp() * 1000) - start_ms > 7 * 86400000
++    if extended:
++        if int(store.now().timestamp() * 1000) - start_ms > 31 * 86400000:
++            raise HistoryBlocked("INVALID_HISTORY_WINDOW")
++        client = RecoveryReadClient(client)
++    fetch_trades = historical_trades_window if extended else trades_window
+     first = snapshot(client, ledger, store.now())
+     end_ms = int(store.now().timestamp() * 1000)
+-    trades = trades_window(client, start_ms, end_ms)
++    trades = fetch_trades(client, start_ms, end_ms)
+     incomes = income_window(client, start_ms, end_ms)
+-    if trades != trades_window(client, start_ms, end_ms) or incomes != income_window(
++    if trades != fetch_trades(client, start_ms, end_ms) or incomes != income_window(
+         client, start_ms, end_ms
+     ):
+         raise HistoryBlocked("HISTORY_CHANGED")
+--- /dev/null
++++ b/tests/integration/test_demo_day_long_history.py
+@@ -0,0 +1,134 @@
++"""An old retained canceled order cannot prevent same-week daily evidence."""
++
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++
++from packages.domain.contracts import RiskState
++from services.execution.demo_day_reconstruction import (
++    DayReconstructionBlocked,
++    apply_day_reconstruction,
++    review_day_reconstruction,
++)
++from services.execution.demo_history_review import HistoryBlocked
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.unit.test_demo_trade_history_window import row
++
++
++@pytest.fixture
++def long_history(day_case):  # noqa: F811
++    store, c, *_ = day_case
++
++    def retain_old_signal(ledger):
++        order = next(o for o in ledger.orders.values() if not o.filled)
++        order.signal = order.signal.model_copy(
++            update={
++                "signal_closed_candle_at": order.signal.signal_closed_candle_at - timedelta(days=10)
++            }
++        )
++
++    store.change(c.lease, "TEST_RETAIN_OLD_CANCELLED_SIGNAL", retain_old_signal)
++    return day_case
++
++
++def preview(case):
++    store, c, *_ = case
++    return review_day_reconstruction(
++        store,
++        c.client,
++        store.read("DEMO-test"),
++        account_id="DEMO-test",
++        attest_no_other_trades=True,
++    )
++
++
++def test_old_signal_day_preview_preserves_entire_ledger(long_history):
++    store, _, fake, *_ = long_history
++    before = store.read("DEMO-test")
++    start = len(fake.calls)
++    report = preview(long_history)
++    assert report["proposed_daily_base_usdt"] == str(fake.wallet)
++    assert report["weekly_base_preserved"] and report["high_water_preserved"]
++    assert report["source"] == "OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE"
++    assert not report["account_wide_exchange_export_verified"]
++    assert not report["database_changed"] and not report["recovery_eligible"]
++    assert store.read("DEMO-test") == before
++    assert all(m == "GET" for m, _, _ in fake.calls[start:])
++
++
++def test_old_signal_day_apply_preserves_history_week_highwater_and_lock(long_history):
++    store, c, *_ = long_history
++    before = store.read("DEMO-test")
++    token = preview(long_history)["review_token"]
++    op = uuid4()
++    result = apply_day_reconstruction(
++        store,
++        c.lease,
++        c.client,
++        op,
++        token,
++        attest_no_other_trades=True,
++        accept_operator_evidence=True,
++    )
++    assert result == "OPERATOR_ATTESTED_DAILY_BASELINE_ADOPTED_KEEP_LOCK"
++    after = store.read("DEMO-test")
++    assert after.orders == before.orders and after.requests == before.requests
++    assert after.weekly_base == before.weekly_base and after.weekly_key == before.weekly_key
++    assert after.high_water == before.high_water and after.value == before.value
++    assert after.risk_state == RiskState.EMERGENCY and after.paused
++    assert after.daily_key == "2026-10-21"
++    assert (
++        apply_day_reconstruction(
++            store,
++            c.lease,
++            c.client,
++            op,
++            token,
++            attest_no_other_trades=True,
++            accept_operator_evidence=True,
++        )
++        == "ALREADY_RECORDED_NO_ACTION"
++    )
++
++
++def test_invalid_trade_in_oldest_day_blocks_without_writes(long_history):
++    store, _, _, rows, *_ = long_history
++    before = store.read("DEMO-test")
++    oldest = min(o.signal.signal_closed_candle_at for o in before.orders.values())
++    rows.append(row(time=int(oldest.timestamp() * 1000), symbol="ETHUSDT"))
++    with pytest.raises(HistoryBlocked, match="INVALID_TRADE_IDENTITY"):
++        preview(long_history)
++    assert store.read("DEMO-test") == before
++
++
++def test_post_exit_trade_cannot_hide_in_long_history(long_history):
++    store, _, _, rows, *_ = long_history
++    before = store.read("DEMO-test")
++    rows.append(row(id=999, orderId=999, time=int(before.last_reconciled.timestamp() * 1000) + 1))
++    with pytest.raises(DayReconstructionBlocked, match="BTC_EXIT_AND_HISTORY_NOT_CONFIRMED"):
++        preview(long_history)
++    assert store.read("DEMO-test") == before
++
++
++def test_long_history_time_budget_blocks_apply_and_rolls_back(long_history, monkeypatch):
++    import services.execution.demo_recovery_budget as budget
++
++    store, c, *_ = long_history
++    token = preview(long_history)["review_token"]
++    before = store.read("DEMO-test")
++    ticks = iter([0, 41])
++    monkeypatch.setattr(budget.time, "monotonic", lambda: next(ticks, 41))
++    with pytest.raises(HistoryBlocked, match="REQUEST_AUDIT_TIME_BUDGET"):
++        apply_day_reconstruction(
++            store,
++            c.lease,
++            c.client,
++            uuid4(),
++            token,
++            attest_no_other_trades=True,
++            accept_operator_evidence=True,
++        )
++    assert store.read("DEMO-test") == before
+--- /dev/null
++++ b/tests/unit/test_demo_historical_span.py
+@@ -0,0 +1,60 @@
++"""Retain oldest history without widening individual API requests."""
++
++import pytest
++
++from services.execution.demo_history_review import (
++    HistoryBlocked,
++    historical_trades_window,
++    trades_window,
++)
++from tests.unit.test_demo_trade_history_window import Client, row
++
++DAY = 86400000
++
++
++def test_eleven_days_includes_oldest_newest_and_chunk_boundaries():
++    points = [0, DAY - 1, DAY, 7 * DAY - 1, 7 * DAY, 11 * DAY]
++    rows = [row(id=i, time=t) for i, t in enumerate(points)]
++    client = Client(
++        lambda p: [r for r in rows if int(p["startTime"]) <= r["time"] <= int(p["endTime"])]
++    )
++    result = historical_trades_window(client, 0, 11 * DAY)
++    assert set(result) == {str(i) for i in range(len(rows))}
++    intervals = sorted((int(p["startTime"]), int(p["endTime"])) for p in client.calls)
++    assert intervals[0][0] == 0 and intervals[-1][1] == 11 * DAY
++    assert all(right - left < DAY for left, right in intervals)
++    assert all(b + 1 == c for (_, b), (c, _) in zip(intervals, intervals[1:], strict=False))
++
++
++def test_existing_seven_day_contract_and_extended_31_day_ceiling():
++    client = Client([])
++    with pytest.raises(HistoryBlocked, match="INVALID_HISTORY_WINDOW"):
++        trades_window(client, 0, 11 * DAY)
++    with pytest.raises(HistoryBlocked, match="INVALID_HISTORY_WINDOW"):
++        historical_trades_window(client, 0, 31 * DAY + 1)
++    assert not client.calls
++    assert historical_trades_window(client, 0, 31 * DAY) == {}
++    assert len(client.calls) == 32
++
++
++def test_global_40_call_budget_includes_all_days_and_splits():
++    client = Client(lambda p: [row()] * 1000 if int(p["endTime"]) > int(p["startTime"]) else [])
++    with pytest.raises(HistoryBlocked, match="HISTORY_QUERY_LIMIT"):
++        historical_trades_window(client, 0, 11 * DAY)
++    assert len(client.calls) == 40
++
++
++@pytest.mark.parametrize(
++    "updates,code",
++    [
++        ({"symbol": "ETHUSDT"}, "INVALID_TRADE_IDENTITY"),
++        ({"time": -1}, "INVALID_TRADE_TIME"),
++        ({"price": "NaN"}, "INVALID_TRADE_NUMBER"),
++    ],
++)
++def test_bad_record_in_oldest_day_cannot_be_hidden(updates, code):
++    client = Client(
++        lambda p: [row(**dict({"time": 150}, **updates))] if int(p["startTime"]) == 0 else []
++    )
++    with pytest.raises(HistoryBlocked, match=code):
++        historical_trades_window(client, 0, 11 * DAY)
