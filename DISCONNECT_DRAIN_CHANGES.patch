@@ -1,0 +1,464 @@
+--- /dev/null
++++ b/DISCONNECT_DRAIN_START_HERE_KO.md
+@@ -0,0 +1,45 @@
++# 단절 관측과 세션 정리 대기를 분리한 WSS 검증
++
++새 폴더 windows-demo-disconnect-drain-fix에서 실행한다. Galaxybook 기존 hybrid-windows DB/볼륨과 기준값을 유지한다. down -v, 초기화, 기존 요청 삭제를 하지 않는다.
++
++## 실행 순서
++
++CMD창 하나만 사용한다. B창이나 직접 API 재시작은 필요 없다.
++
++1. 새 ZIP을 풀고 해당 폴더 주소창에 cmd 입력. 다음 빌드가 Healthy까지 끝나기를 기다린다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++2. API 재생성으로 사라진 키를 메모리 세션에 등록한다. DEMO 키와 Secret은 숨김 입력이며 채팅에 보내지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --register
++```
++
++3. 아래 한 번만 실행한다. 신규 DEMO 진입 주문 1건을 제출하는 명령이다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_open_disconnect --enable-demo --enable-fault-injection --operation-id debe90bc-1195-4e1b-92ef-22f41229c64e
++```
++
++READY → BLOCKED → RECONNECTED → 최종 결과까지 기다린다. 창을 닫거나 API를 재시작하지 않는다. 오류나 NOT_ACCEPTED가 나오면 재실행하지 않고 최종 화면 전체를 공유한다. 기존 ID 재사용은 복구 전용이며 신규 주문을 만들지 않는다. 새 주문을 위한 다른 ID를 임의로 생성하지 않는다.
++
++## 범위와 판정
++
++기존 API 재시작 실험과 같은 가격 계산을 사용한다. BTCUSDT ISOLATED 2x LONG, 현재 bid보다 0.3% 낮은 지정가, 거래소 최소 허용 수량, 진입명목 100 USDT 이하, 실험 주문 TTL 60초다. 기존 리스크·freshness·수량 cap·보호·청산·서명 경로를 그대로 통과한다. 체결되지 않는다고 보장하지 않는다.
++
++서명 조회 NEW/체결0 확인 뒤 이 프로그램의 WSS를 code1011로 딱 한 번 닫는다. 기존 session finally의 PAUSE_ENTRIES가 잔량을 취소한다. stream_ready/reconciled false와 신규 진입 게이트 차단을 확인하고, 한 번만 새 WSS 연결과 전체 REST 대조를 실행한다. 같은 거래소 주문 ID가 CANCELED/체결0인지 확인하고 같은 의도 submit이 POST를 추가하지 않는지도 검사한다. 주문을 NEW로 되돌리거나 재제출하지 않는다.
++
++성공: OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED, 신규 진입 POST1/attempt1, injected close1/reconnect1, gate blocked true, cancelled_unfilled_order_verified true, VERIFIED_FLAT, NORMAL, paused true, stream/reconciled false, 기존 주문·요청·기준값 보존.
++
++도중 체결·불확실한 조회·재연결 실패는 성공으로 판정하지 않는다. 기존 session 및 최종 pause/조건부 EMERGENCY_FLATTEN/confirm_exit로 보호와 정리를 시도하고 결과를 출력한다. UNKNOWN은 flat을 보장하지 않으므로 후속 확인이 필요하다. 재시도/위험 잠금 해제를 자동 실행하지 않는다.
++
++이는 로컬 소켓 단절 실험이며 인터넷 단절, guard 프로세스 강제 종료, 호스트/DB 재시작, 보유 포지션 중 장애, 실제 부분체결 보호 또는 장기 무인운용을 검증한 것이 아니다. LIVE/Phase5 승인이 아니다.
++
++## 이번 수정
++
++단절을 제시간에 관측했는데도 초기 연결/준비/세션 정리를 통합한 타이머 때문에 실패하던 경로를 수정했다. 최초 연결/준비/recv의 ConnectionClosed 관측에는 기존45초를 유지한다. 이후 시작된 session finally의 취소·대조·키 삭제는 완료까지 drain한 뒤 게이트 확인과 재연결을 수행한다. SDK HTTP timeout, clock, lease, 신호 TTL60초, 리스크 cap은 늘리지 않는다. 45초는 전체 명령 실행시간을 강제 종료하는 값이 아니다.
++
++최종 결과에 단절 요청/recv 관측/정리 완료 UTC와 관측 경과 ms를 추가한다. last_recorded_private_session_failure의 SOCKET_CLOSED는 의도적으로 주입한 단절의 보존 기록이며, 최종 failure NONE과 구분한다. 기존 시도의 실제 미통과 판정은 변경하지 않는다.
+--- /dev/null
++++ b/DISCONNECT_DRAIN_VALIDATION_KO.md
+@@ -0,0 +1,29 @@
++# WebSocket 단절 관측/정리 분리 수정 검증
++
++부모 ZIP SHA256 86e938597771647f078701f24c41b2f74c2d19e5896c78204a93cf4d554e7530.
++기존 파일 중 services/execution/demo_open_disconnect_check.py만 수정한다. 기존 테스트는 그대로 보존하며 새 통합/단위 테스트, 안내 및 실제 실패 타임라인을 추가한다.
++
++## 확인된 실제 결과
++
++4e81bbe7-12f8-4e65-848a-f3a928b13a6e는 미통과다. 신규 진입1/close요청1/재연결0, OTHER_VALIDATION_FAILURE, 최종 flat/NORMAL/paused. 후속 READ ONLY 조회에서 같은 주문 CANCELED/CLOSED/체결0/잔량0 및 last_private_session_failure SOCKET_CLOSED를 확인했다. READY 08:46:56.835974Z, 실패기록 08:47:03.381453Z, 최종결과 08:48:14.469915Z다. 정확한 최초 타이머 시작과 원래 예외 객체는 보존 출력에 없으므로 원본 예외를 관측했다고 주장하지 않는다.
++
++## 수정 동작
++
++기존 코드는 최초 session 전체를 asyncio.wait_for45초로 감싸 준비·단절 후 finally 정리까지 취소 대상으로 삼았다. 정리 중 타이머가 만료되면 cleanup이 중단되고 TimeoutError도 OTHER_VALIDATION_FAILURE로 분류됐다. 의도적으로 정리를 지연시킨 기존판 테스트가 통과를 거부하는 현상과 타이머 분류 오류를 재현했다.
++
++변경은 recv를 한 번만 위임하는 얇은 연결 wrapper로 ConnectionClosed 발생을 기록하고 원래 수신기에 같은 예외를 그대로 전달한다. 이벤트 내용·E·검증·인박스·SDK·coordinator 동작을 수정하지 않는다. 최초 연결·준비·단절 recv 관측은 같은45초 안에 끝나야 한다. 관측 시각이 제한 밖이면 실패한다. 관측 뒤 session의 finally를 끝까지 기다리고 반환된 오류를 소비한다. 대기 중 반복된 호출자 취소도 cleanup을 다시 중단시키지 않으며, cleanup 완료 후 호출자 취소를 전파한다.
++
++관측하지 못한 채 제한이 만료되면 해당 세션에 취소를 1회 요청하고 정리를 drain하며 PHASE_TIMEOUT/WAIT_SOCKET_LOSS로 보고한다. 정상 단절 확인 뒤에는 기존 SOCKET_CLOSED/게이트 차단 검사를 통과해야 한 번만 재연결한다. 이후에도 같은 주문 CANCELED/체결0, 중복 POST0, 기존 이력·기준 보존, VERIFIED_FLAT/NORMAL/paused 조건은 그대로다. 재연결 대기도 기존45초, SDK clock/HTTP/fencing/TTL/리스크 제한은 변경하지 않는다.
++
++단절 요청/수신 관측/최초 세션 완료 UTC, 관측 경과 ms와 제한 값을 보고한다. 마지막 보존 세션 오류는 별도 이름 last_recorded_private_session_failure로 출력한다. 단계는 WAIT_SOCKET_LOSS/DRAIN_DISCONNECTED_SESSION을 구분한다. 성공을 못하면 이전 판정을 재작성하지 않는다.
++
++## 재현·검증
++
++부모판 바이트 그대로인 실행 모듈에 새 회귀 테스트를 적용: 2 failed in 3.13s. 단절은 관측했지만 session 정리를 2.1초 지연해 2초 관측 제한을 넘기는 경우의 거부 및 최초 연결 지연의 PHASE_TIMEOUT 분류 누락을 확인했다. 이는 실제 Binance 네트워크 지연을 그대로 재현했다는 뜻은 아니다.
++
++집중 테스트: 29 passed in 9.83s. Ruff check/format 및 mypy 96 sources 통과.
++전체 테스트: 1077 passed in 218.10s (0:03:38). Ruff check/format 통과, mypy 96 sources 통과.
++
++검증에는 실제 PostgreSQL 격리 schema, 로컬 WSS 서버, signed SDK 응답 fixture를 사용했다. 새 테스트는 관측 후 지연된 정리의 완료/재연결, 제한 내 단절 미관측 거부, 반복 호출자 취소 중 정상 cleanup 보존 및 취소 전파, 단일 취소 요청 뒤 finally drain, 예외 소비·비노출을 검사한다. 기존 단절·체결 중 취소·보호·중복 방지·회복·기준 보존 테스트도 그대로 실행한다.
++
++클라우드에서 인증된 실제 거래소 주문을 보내지 않았다. 새 ZIP의 실제 Windows 검증은 아직 진행 전이며, 부분체결 보호/worker·호스트·DB 중단/장기 무인 운용 및 Phase4 전체 통과로 확대하지 않는다. main/LIVE/Phase5/exports/영구 키/기준금 변경은 없다.
+--- /dev/null
++++ b/WINDOWS_DEMO_OPEN_DISCONNECT_FAILED_20261031_KO.md
+@@ -0,0 +1,40 @@
++# 실제 미체결 주문 중 WSS 단절 검증 미통과
++
++사용자 CMD 화면 근거, 2026-10-31 한국 시간.
++ZIP windows-demo-open-disconnect-check, SHA256 86e938597771647f078701f24c41b2f74c2d19e5896c78204a93cf4d554e7530.
++작업 4e81bbe7-12f8-4e65-848a-f3a928b13a6e.
++
++READY 출력 후 NOT_ACCEPTED.
++- injected_close_count 1 / reconnect_count 0
++- disconnect_code NOT_VERIFIED / entry_gate_blocked_after_disconnect false
++- same_order_observed_before_after false / cancelled_unfilled_order_verified false
++- 신규 진입 POST1 / attempts1 / recovered_existing_intent false
++- failure OTHER_VALIDATION_FAILURE / failure_stage VERIFY_OPEN_ORDER
++- completion_failure NONE / flat_confirmation VERIFIED_FLAT
++- history_and_baselines_preserved true / filled_quantity 0.0000
++- risk_state NORMAL / final_paused true / stream_ready false / reconciled false
++- orders_enabled false / LIVE false
++
++검증 미통과 상태로 보존한다. close 요청 1회가 단절 확인 성공을 뜻하지 않는다. 재연결은 수행되지 않았다. stage가 READY 이후에도 VERIFY_OPEN_ORDER에 남고 TimeoutError가 공통 OTHER_VALIDATION_FAILURE로 분류될 수 있어 실제 원인을 이 출력만으로 확정하지 않는다. 최초 세션의 wait_for45초가 초기 연결·준비·단절·session finally 정리를 모두 포함하므로 정리 소요에 따른 타이머 가능성을 조사하되 사실로 단정하지 않는다.
++
++최종 flat/NORMAL/paused 확인으로 재실행이나 비상 해제는 필요하지 않다. 현재 fence의 허용된 감사 시각/개인 세션 고정 코드/주문 상태만 DB 강제 READ ONLY로 조회하는 후속 명령을 준비했다. API 키 접근, 거래소 호출, lease획득, DB쓰기는 없다.
++
++## 추가로 받은 강제 READ ONLY 조회 결과
++
++현재 주문 CANCELED/CLOSED, filled 0.0000, remaining 0, open_quantity 0, risk NORMAL, paused true.
++last_private_session_failure: stage RECEIVE, code SOCKET_CLOSED, event_kind NONE, ready_callback_ms 19166.
++
++감사 UTC (한국 시간은 +09:00):
++- 2026-10-31T08:46:56.835974+00:00 DEMO_OPEN_WS_FAULT_READY
++- 2026-10-31T08:47:03.381453+00:00 DEMO_PRIVATE_SESSION_FAILED
++- 2026-10-31T08:47:03.410348+00:00 DEMO_STREAM_UNTRUSTED
++- 2026-10-31T08:47:03.604852+00:00 DEMO_OPERATION_INTENT
++- 2026-10-31T08:47:17.216203+00:00 DEMO_OPERATION_INTENT
++- 2026-10-31T08:47:44.066213+00:00 DEMO_FLAT_CONFIRMATION_CHECK
++- 2026-10-31T08:48:14.431387+00:00 DEMO_STREAM_UNTRUSTED
++- 2026-10-31T08:48:14.469915+00:00 DEMO_OPEN_WS_FAULT_RESULT
++- 2026-10-31T08:48:14.529519+00:00 DEMO_LEADER_RELEASED
++
++같은 fence의 지정된 이벤트 조회에는 DEMO_SESSION_CLOSE가 없었다. 출력은 최대25건 조회 중9건이었다. 원본 진입/준비 시작 시각과 원래 예외 객체는 출력에 없으므로 타이머의 정확한 시작/예외 종류를 이 기록만으로 단정하지 않는다. 다만 원래 session 전체를 wait_for45초로 감싸면 SOCKET_CLOSED 기록 후 finally 정리 중 타이머가 취소를 주입할 수 있는 코드 경로가 확인됐으며, 단절을 제시간에 관측했어도 정리를 지연시키면 기존판이 거부하는 재현 테스트를 확보했다.
++
++이 실제 시도는 재연결0의 미통과로 유지한다. SDK/위험 제한을 완화하지 않고 단절 관측 타이머와 session 정리 완료 대기를 분리하는 수정판은 별도 새 UUID의 실제 검증이 필요하다.
+--- a/services/execution/demo_open_disconnect_check.py
++++ b/services/execution/demo_open_disconnect_check.py
+@@ -2,6 +2,7 @@
+ 
+ import asyncio
+ import json
++import time
+ from collections.abc import AsyncIterator, Callable
+ from contextlib import AbstractAsyncContextManager, asynccontextmanager
+ from decimal import Decimal
+@@ -9,6 +10,7 @@
+ from uuid import UUID, uuid5
+ 
+ from pydantic import SecretStr
++from websockets.exceptions import ConnectionClosed
+ 
+ from integrations.binance_usdm.demo import DemoFailure
+ from packages.domain.contracts import PositionState
+@@ -60,6 +62,29 @@
+     if isinstance(error, (SocketCheckBlocked, RestartBlocked)):
+         return error.code
+     return safe_failure(error)
++
++
++async def drain_session(task: asyncio.Task[None], *, cancel: bool = False) -> BaseException | None:
++    """Consume all session cleanup, including repeated caller cancellation.
++
++    A fault-observation deadline does not cancel cleanup after the receiver has
++    already observed the closed socket. SDK and fencing limits remain unchanged.
++    """
++    current = asyncio.current_task()
++    cancellations = current.cancelling() if current is not None else 0
++    if cancel:
++        task.cancel()
++    while not task.done():
++        try:
++            await asyncio.shield(task)
++        except asyncio.CancelledError:
++            continue
++        except Exception:
++            break
++    error = None if task.cancelled() else task.exception()
++    if current is not None and current.cancelling() > cancellations:
++        raise asyncio.CancelledError
++    return error
+ 
+ 
+ async def run(
+@@ -104,6 +129,13 @@
+     loop = asyncio.get_running_loop()
+     ready_event = asyncio.Event()
+     second_event = asyncio.Event()
++    socket_observed = asyncio.Event()
++    first_started_at = store.now().isoformat()
++    first_started = time.monotonic()
++    requested_at: str | None = None
++    observed_at: str | None = None
++    drained_at: str | None = None
++    observed_elapsed_ms: int | None = None
+     injected = 0
+     close_completed = False
+     reconnect_count = 0
+@@ -147,6 +179,7 @@
+             before_row = open_order(coordinator, key)
+             if coordinator.session_failed:
+                 raise SocketCheckBlocked("READY_STATE_INVALID")
++            stage = "WAIT_SOCKET_LOSS"
+             progress("DEMO_OPEN_WS_FAULT_READY")
+             loop.call_soon_threadsafe(ready_event.set)
+         except Exception as error:
+@@ -158,16 +191,33 @@
+         nonlocal injected, close_completed
+         async with connector(url) as socket:
+ 
++            class ObservedConnection:
++                async def recv(self) -> str | bytes:
++                    nonlocal observed_at, observed_elapsed_ms
++                    try:
++                        return await socket.recv()
++                    except ConnectionClosed:
++                        # Observe the same recv exception before EventInbox classifies
++                        # it. No extra reader, frame mutation or exception suppression.
++                        observed_at = store.now().isoformat()
++                        observed_elapsed_ms = max(0, int((time.monotonic() - first_started) * 1000))
++                        socket_observed.set()
++                        raise
++
++                async def ping(self) -> Any:
++                    return await socket.ping()
++
+             async def close_once() -> None:
+-                nonlocal injected, close_completed
++                nonlocal injected, close_completed, requested_at
+                 await ready_event.wait()
+                 injected += 1
++                requested_at = store.now().isoformat()
+                 await socket.close(code=1011)  # type: ignore[attr-defined]
+                 close_completed = True
+ 
+             closer = asyncio.create_task(close_once())
+             try:
+-                yield socket
++                yield ObservedConnection()
+             finally:
+                 if not injected:
+                     closer.cancel()
+@@ -231,20 +281,47 @@
+     try:
+         if existed:
+             raise SocketCheckBlocked("RECOVERY_ONLY")
+-        try:
+-            await asyncio.wait_for(
+-                session(coordinator, connector=interrupted, on_ready=first_ready),
+-                timeout=phase_timeout,
++        # Bound connection/setup/fault observation, not the session's finally
++        # network/DB cleanup. Cancellation there can abort listen-key deletion
++        # and falsely reject a socket loss already recorded as SOCKET_CLOSED.
++        first = asyncio.create_task(
++            session(coordinator, connector=interrupted, on_ready=first_ready)
++        )
++        observer = asyncio.create_task(socket_observed.wait())
++        timed_out = False
++        first_error: BaseException | None = None
++        try:
++            done, _ = await asyncio.wait(
++                {first, observer}, timeout=phase_timeout, return_when=asyncio.FIRST_COMPLETED
+             )
+-        except DemoFailure:
+-            # Expected only after our close, not after any other callback/session failure.
+-            pass
++            timed_out = not done
++            if socket_observed.is_set() and observed_elapsed_ms is not None:
++                # The receive itself must have occurred inside the original window.
++                timed_out = observed_elapsed_ms / 1000 >= phase_timeout
++        finally:
++            observer.cancel()
++            stage = "DRAIN_DISCONNECTED_SESSION"
++            try:
++                first_error = await drain_session(
++                    first, cancel=not socket_observed.is_set() and not first.done()
++                )
++                drained_at = store.now().isoformat()
++            finally:
++                await asyncio.gather(observer, return_exceptions=True)
+         if callback_failure != "NONE":
+             raise SocketCheckBlocked("CALLBACK_NOT_COMPLETED")
++        if timed_out:
++            failure_stage = "WAIT_SOCKET_LOSS"
++            raise SocketCheckBlocked("PHASE_TIMEOUT")
++        if first_error is not None and not isinstance(first_error, DemoFailure):
++            if isinstance(first_error, Exception):
++                raise first_error
++            raise SocketCheckBlocked("SOCKET_LOSS_NOT_VERIFIED")
+         failed = store.read(lease.account_id)
+         detail = failed.last_private_session_failure
+         if not (
+-            injected == 1
++            socket_observed.is_set()
++            and injected == 1
+             and close_completed
+             and ready_event.is_set()
+             and coordinator.session_failed
+@@ -282,12 +359,12 @@
+                 raise SocketCheckBlocked("RECONNECT_NOT_VERIFIED")
+         finally:
+             waiter.cancel()
+-            await asyncio.gather(waiter, return_exceptions=True)
+-            task.cancel()
+             try:
+-                await task
+-            except asyncio.CancelledError:
+-                pass
++                second_error = await drain_session(task, cancel=True)
++            finally:
++                await asyncio.gather(waiter, return_exceptions=True)
++            if isinstance(second_error, Exception):
++                raise second_error
+             if coordinator.session_failed:
+                 raise SocketCheckBlocked("SECOND_SESSION_FAILED")
+     except Exception as error:
+@@ -380,6 +457,20 @@
+         "new_entry_post_count": client.entry_post_sent,
+         "entry_post_attempts": client.entry_post_attempts,
+         "recovered_existing_intent": existed,
++        "first_session_started_at_utc": first_started_at,
++        "socket_close_requested_at_utc": requested_at,
++        "socket_closed_at_utc": observed_at,
++        "first_session_completed_at_utc": drained_at,
++        "socket_observed_elapsed_ms": observed_elapsed_ms,
++        "fault_observation_timeout_seconds": phase_timeout,
++        "last_recorded_private_session_failure": (
++            {
++                "stage": final.last_private_session_failure.stage,
++                "code": final.last_private_session_failure.code,
++            }
++            if final.last_private_session_failure
++            else None
++        ),
+         "failure": failure,
+         "failure_stage": failure_stage,
+         "completion_failure": completion_failure,
+--- /dev/null
++++ b/tests/integration/test_demo_disconnect_drain.py
+@@ -0,0 +1,52 @@
++"""Fault observation deadline must not interrupt already-started session cleanup."""
++
++import asyncio
++from contextlib import asynccontextmanager
++from uuid import uuid4
++
++from services.execution import demo_open_disconnect_check as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_open_disconnect import disconnect_case as case  # noqa: F401
++from tests.integration.test_demo_open_disconnect import exercise
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_validation import case as validation_case  # noqa: F401
++
++
++def test_observed_close_drains_cleanup_beyond_fault_deadline_then_reconnects(case, monkeypatch):  # noqa: F811
++    original = module.session
++    calls = 0
++    completed = False
++
++    async def slow_cleanup(*args, **kwargs):
++        nonlocal calls, completed
++        calls += 1
++        index = calls
++        try:
++            return await original(*args, **kwargs)
++        finally:
++            if index == 1:
++                await asyncio.sleep(2.1)
++                completed = True
++
++    monkeypatch.setattr(module, "session", slow_cleanup)
++    report = asyncio.run(exercise(case, uuid4(), timeout=2))
++    assert report["disconnect_check"] == "OPEN_ORDER_SOCKET_LOSS_CANCEL_RECONNECT_VERIFIED", report
++    assert completed and calls == 2
++    assert report["new_entry_post_count"] == 1
++    assert report["flat_confirmation"] == "VERIFIED_FLAT"
++
++
++def test_fault_not_observed_before_deadline_is_rejected_without_entry(case):  # noqa: F811
++    _, c, fake, _ = case
++
++    @asynccontextmanager
++    async def stalled(url):
++        await asyncio.sleep(10)
++        yield None
++
++    report = asyncio.run(module.run(c, uuid4(), connector=stalled, phase_timeout=0.02))
++    assert report["disconnect_check"] == "NOT_ACCEPTED"
++    assert report["failure"] == "PHASE_TIMEOUT"
++    assert report["injected_close_count"] == 0 and report["reconnect_count"] == 0
++    assert report["flat_confirmation"] == "VERIFIED_FLAT" and len(posts(fake)) == 0
+--- /dev/null
++++ b/tests/unit/test_demo_socket_session_drain.py
+@@ -0,0 +1,82 @@
++"""A deadline or repeated caller cancellation must not strand session cleanup."""
++
++import asyncio
++
++import pytest
++
++from services.execution.demo_open_disconnect_check import drain_session
++
++
++def test_caller_cancellation_waits_for_session_cleanup_and_propagates():
++    async def exercise():
++        entered = asyncio.Event()
++        release = asyncio.Event()
++        finished = False
++
++        async def session_cleanup():
++            nonlocal finished
++            entered.set()
++            await release.wait()
++            finished = True
++
++        child = asyncio.create_task(session_cleanup())
++        await entered.wait()
++        parent = asyncio.create_task(drain_session(child))
++        await asyncio.sleep(0)
++        parent.cancel()
++        await asyncio.sleep(0)
++        parent.cancel()
++        await asyncio.sleep(0)
++        assert not parent.done() and not child.done()
++        release.set()
++        with pytest.raises(asyncio.CancelledError):
++            await parent
++        assert child.done() and not child.cancelled() and finished
++
++    asyncio.run(exercise())
++
++
++def test_cancel_once_does_not_interrupt_finally_on_repeated_caller_cancel():
++    async def exercise():
++        entered = asyncio.Event()
++        cleanup = asyncio.Event()
++        release = asyncio.Event()
++        finished = False
++
++        async def supervised():
++            nonlocal finished
++            try:
++                entered.set()
++                await asyncio.Future()
++            finally:
++                cleanup.set()
++                await release.wait()
++                finished = True
++
++        child = asyncio.create_task(supervised())
++        await entered.wait()
++        parent = asyncio.create_task(drain_session(child, cancel=True))
++        await cleanup.wait()
++        parent.cancel()
++        await asyncio.sleep(0)
++        parent.cancel()
++        await asyncio.sleep(0)
++        assert not parent.done() and not child.done()
++        release.set()
++        with pytest.raises(asyncio.CancelledError):
++            await parent
++        assert child.done() and child.cancelled() and finished
++
++    asyncio.run(exercise())
++
++
++def test_session_exception_is_consumed_without_raw_output(capsys):
++    async def exercise():
++        async def failed():
++            raise OSError("PRIVATE_URL_NEVER_PRINT")
++
++        error = await drain_session(asyncio.create_task(failed()))
++        assert isinstance(error, OSError)
++
++    asyncio.run(exercise())
++    assert capsys.readouterr().out == ""
