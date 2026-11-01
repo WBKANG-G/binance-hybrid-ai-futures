@@ -1,0 +1,356 @@
+--- /dev/null
++++ b/DB_DISCONNECT_REPORT_KO.md
+@@ -0,0 +1,34 @@
++# 작업 중 PostgreSQL 연결 단절 검증
++
++다음 Phase4 항목으로, 실제 PostgreSQL 연결이 작업 도중 끊길 때의 원자성·중복 방지·리더 차단을 격리 환경에서 검증했다. 사용 중인 Windows DB와 실제 DEMO 계좌에는 장애를 주거나 주문을 추가하지 않았다. 부모 배포의 실행 코드·설정은 모두 유지하고 독립적인 통합 시험과 증거 문서만 추가했다.
++
++## 시험 방법
++
++시험별 고유 schema와 DEMO-test 장부를 만든 기존 PostgreSQL fixture를 사용했다. 실행 엔진에서 정확히 그 시험 연결의 backend PID를 구한 뒤 별도 제어 연결로 pg_terminate_backend(pid, 2000)를 호출해 종료를 기다렸다. 서버 전체나 Docker를 중지하지 않았다. 예외 객체를 흉내 낸 것이 아니라 이후 원래 SQL이 실제 DBAPI 연결 오류로 실패하는 것을 확인했다.
++
++종료 지점은 장부 UPDATE 이후 감사 이벤트 INSERT 전, 아직 COMMIT되지 않은 트랜잭션이다. 요청·응답은 기존 합성 거래소 fixture를 사용했고, 세션 장애·인계 경로는 실제 로컬 WSS 연결을 사용했다. 인증된 Binance 요청과 실제 API 키는 사용하지 않았다.
++
++## 결과
++
++| 지점 | 확인 결과 |
++|---|---|
++| 예약 저장 중 연결 종료 | 예약 및 감사 이벤트/outbox가 함께 롤백됐다. 신규 entry POST0, 장부는 이전 상태와 동일했다. |
++| 진입 의도 COMMIT 전 연결 종료 | RISK_RESERVED를 유지하고 SUBMITTING 변경과 감사 이벤트/outbox가 함께 롤백됐다. 신규 entry POST0이었다. |
++| 합성 거래소 접수 ACK 이후 effect COMMIT 전 연결 종료 | 이미 COMMIT된 SUBMITTING 의도와 요청 증거가 남고 ACK 저장·effect 감사 이벤트/outbox는 롤백됐다. 거래소 POST는1회뿐이었다. 같은 ID 재호출도 추가 전송하지 않았고 새 리더가 같은 client/server 주문 ID를 조회해 회복했다. |
++| SL/TP 보호 중 heartbeat 저장 실패 | 세션 실패·진입 정지·stream/reconciled false가 확인됐다. 거래소의 기존 SL/TP는 NEW로 유지됐고 신규 진입이 거부됐다. 새 리더가 WSS/REST 재검증으로 같은 보호 ID를 채택했으며 중복 entry/protection POST는 없었다. |
++
++두 인계 시험에서 기존 리스가 유효할 때 경쟁 리더를 거부했다. 시험용 논리 시계를61초 전진한 뒤 새 리더의 펜스가 정확히1 증가했고, 이전 리더의 renew/change/SL 삭제가 부작용 전에 거부됐다. 새 리더도 재검증 전에는 진입하지 못했다. 이61초는 실제 시간을 기다린 결과가 아니며, 원래60초 리스 정책을 바꾸거나 자연 만료 시험으로 주장하지 않는다.
++
++보호 세션의 실제 DB 연결 종료는 기존 진단에서 OTHER_DATABASE로 기록됐다. 현재 매핑은 관리자 종료 코드57P01을 별도 연결 분류로 열거하지 않는다. 시험은 이 현재 동작과 세션 차단을 확인하며, 진단 코드를 유리하게 바꾸지 않았다. 저장 실패 이후의 정상 실패 감사 기록과, 롤백된 미완료 트랜잭션의 감사 기록을 구분했다. 원래 SUBMITTING 증거는 상태 조회 후에도 보존했다.
++
++검증 수치: 전체1282개 통과(314.23초), 집중4개 통과(2.02초), 실패·건너뛰기 없음. Ruff 검사/포맷 검사 및 mypy115개 소스 통과.
++
++## 수락 범위와 남은 항목
++
++이번 결과는 실제 DB 연결 종료 + 합성 거래소 + 로컬 WSS의 통합 검증이다. 실제 Windows DEMO 주문/포지션을 유지한 채 DB 서버를 중지한 시험, 서버 강제 종료·디스크/전원 손실·네트워크 장기 단절, 실행 worker 자체 SIGKILL, 실제 환경의 자연 리스 만료를 대체하지 않는다. 사용자의 실행 환경에 이 장애 명령을 적용하지 않는다.
++
++직전 실제 TP 시험15d30a13은 미체결 취소/VERIFIED_FLAT/NORMAL/paused로 종료됐고 TP 실제 체결은 미수락이다. 기존 부분체결 실패와 이후 실제 부분체결 보호 미확인도 유지한다. 체결을 만들기 위해 주문을 반복하거나 수량·가격을 늘리지 않는다. 실제 긴급 알림 전달과 장기 운영·원본 WSS 재생 수락도 별도로 남아 있다. Phase4 전체 완료나 Phase5/LIVE 전환은 선언하지 않는다.
++
++## Windows에서 할 일
++
++이번 묶음은 시험·검토 자료다. 앱 실행 코드와 Compose/키는 부모와 같으므로 새 폴더 교체·재빌드·키 재입력·DB 중지 명령이 필요하지 않다. 현재 실제 NORMAL/paused 상태를 유지한다. 이미 끝난 TP 관찰이나 복구 적용을 반복하지 않는다.
+--- /dev/null
++++ b/DB_DISCONNECT_VALIDATION_KO.md
+@@ -0,0 +1,15 @@
++# DB 연결 단절 검증 상세
++
++부모는 windows-demo-tp-trigger-check-20261101 / 512e169, ZIP SHA256 3da7206f161a6f877ed61067ed3ab4dfc12c6273a2d3101b3d34bc911d1fa30c다. 부모439개 파일을 바이트 동일하게 보존하며 새 통합 시험 하나와 한국어 보고서/검증/실제 TP 미체결 기록만 추가한다. 원래 시험의 기대나 실행 구현은 바꾸지 않는다.
++
++추가 시험은 tests/integration/test_demo_database_disconnect.py다. 기존 isolated DEMO fixture와 고유 PostgreSQL schema를 사용한다. 제어 엔진은 실행 엔진과 별도 연결이고, 정확히 실행 중인 연결의 backend PID만 종료한다. 관리자와 대상 PID가 다름을 확인하며 pg_terminate_backend(pid, 2000)의 성공·실제 DBAPIError·connection_invalidated를 요구한다. listener는 context 종료 시 제거하고 제어 엔진은 dispose한다. 시험 schema는 원래 fixture가 정리한다.
++
++예약/의도 단계는 이전 장부 완전 일치 및 이벤트/outbox 수량 동시 롤백, POST0을 검사한다. effect 단계는 의도 이벤트/outbox 한 쌍만 COMMIT되고 효과 이벤트가 없음을 검사한다. SUBMITTING 증거와 동일 주문 조회를 보존하며 ACK를 임의로 기록하지 않는다. 연결 복구 직후 같은 ID 재호출이 추가 POST를 만들지 않는지 검사한다.
++
++보호 중 heartbeat 단절은 원래 실제 로컬 WSS session에서 발생한다. session_failed와 장부의 차단 상태, 기존 SL/TP NEW, 새 진입 거부를 확인한다. 논리 시계61초 전진 뒤 펜스+1과 이전 소유자 부작용/갱신 거부를 확인한다. 새 WSS handshake 및 원래 REST 대조를 거친 새 리더가 동일한 보호 ID를 회복하는지 검사하며, 이후 합성 포지션은 기존 비상 종료와 VERIFIED_FLAT으로 정리한다.
++
++실제 DBAPI 예외를 로컬로 바꿔치기하지 않고 PostgreSQL backend를 종료한다. 거래소는 합성이므로 실제 Binance DB 장애 수락으로 확대하지 않는다. 논리 시계 이동은 명시적이며 실제60초 경과나 운영 DB 리스 강제 수정을 하지 않는다. 기존 SDK·리스크·시계·리스/펜스·기준금·키·Compose·exports는 모두 그대로다.
++
++검증 수치: 전체1282개 통과(314.23초), 집중4개 통과(2.02초), 실패·건너뛰기 없음. Ruff 검사/포맷 검사 및 mypy115개 소스 통과.
++
++재현은 별도의 격리 PostgreSQL에서 TEST_DATABASE_URL을 설정하고 위 시험 파일을 pytest로 실행한다. 실제 앱 DB/계좌를 대상으로 장애 시험을 실행하지 않는다. 이 자료는 사용자 Windows에서 실행할 새 명령이나 컨테이너 중지 절차를 요구하지 않는다. 클라우드 검증에 실제 키/거래소 인증 요청은 사용하지 않았다. main/LIVE/Phase5 및 Phase4 전체 완료 판정은 변경하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_TP_TRIGGER_UNFILLED_20261101_KO.md
+@@ -0,0 +1,11 @@
++# TP 관찰15d30a13의 실제 미체결·안전 종료
++
++근거는 사용자가 공유한 Windows CMD 결과 캡처다. 배포 windows-demo-tp-trigger-check-20261101 / 512e169, ZIP SHA256 3da7206f161a6f877ed61067ed3ab4dfc12c6273a2d3101b3d34bc911d1fa30c를 사용했다. 원본 캡처 파일 자체가 이 문서에 포함된 것은 아니다.
++
++작업15d30a13-4f65-407d-ae41-f58dd61d429f는 DEMO/LONG/PASSIVE, 수량/cap0.0007 BTC, 지정가77695.40, SL77306.90, TP78478.40으로 예약됐다. 최종 일반 검증은 FINISHED_FLAT, entry_filled false, filled_quantity0.0000, entry_state CANCELED, position_state CLOSED, entry_outcome UNFILLED였다. stop_verified/target_verified/filled_protection_and_flat_verified는 false였다. 체결0이므로 보호 검증 성공으로 취급하지 않는다.
++
++최종 TP 전용 결과는 NOT_ACCEPTED, failure TP_FILL_NOT_OBSERVED, flat_confirmation VERIFIED_FLAT, risk_state NORMAL, final_paused true, history_and_baselines_preserved true였다. entry_post_attempts/new_entry_post_count는1, operator_exit_post_attempts와 sl_delete_attempts는0이었다. TP 체결 및 SL 취소 증거 플래그는 false였다. observation_seconds300은 설정값이며 실제 monotonic 경과 시간은 이 출력에 별도로 없다. 원래 진입 만료 조건도 연장하지 않았다.
++
++세션 오류false, session_failure NONE, completion_stage FLAT_CONFIRMATION, completion_failure/completion_database_failure NONE이었다. private 진단 PING/NONE/event NONE, callback17619ms, received2/coalesced0, offset-83ms/RTT149ms/wait0/localage6843ms였다. 이전 진단 필드 목록과 reconciliation_settle_reason VERIFIED_INITIAL_FILL이 남아 있었지만 현재 작업의 initial_fill_settled false 및 체결0과 구분한다. 과거 진단을 이번 체결 증거로 재사용하지 않는다.
++
++판정은 미체결 주문 취소·flat·NORMAL/paused의 안전 종료 범위 통과이며 TP 실제 체결/잔여 SL 정리는 미수락으로 유지한다. 추가 주문 반복이나 수량/가격 변경, 비상 복구 적용은 하지 않았다. Docker가 표시한 일반 오류 도움말을 Docker 장애 증거로 해석하지 않는다. LIVE/Phase5·Phase4 전체 완료를 의미하지 않는다.
+--- /dev/null
++++ b/tests/integration/test_demo_database_disconnect.py
+@@ -0,0 +1,284 @@
++"""Real PostgreSQL backend termination, synthetic exchange and local WSS only.
++
++Only the backend PID of this test's schema-scoped engine is terminated. Never
++stops a server/container or touches the user's DEMO account, keys or exports.
++"""
++
++import asyncio
++from contextlib import asynccontextmanager, contextmanager
++from datetime import timedelta
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import create_engine, event, func, select, text
++from sqlalchemy.exc import DBAPIError
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from packages.domain.contracts import OrderState
++from packages.persistence.demo import events, outbox
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_stream import session
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import enter, posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++from tests.integration.test_paper import signal, snapshot
++
++
++@pytest.fixture
++def case(demo_system):  # noqa: F811
++    configured, _ = configure(demo_system)
++    return configured
++
++
++def counts(store):
++    with store.engine.connect() as conn:
++        return tuple(conn.scalar(select(func.count()).select_from(t)) for t in (events, outbox))
++
++
++def kinds(store, kind):
++    with store.engine.connect() as conn:
++        return conn.scalar(select(func.count()).select_from(events).where(events.c.kind == kind))
++
++
++@contextmanager
++def terminate_effect_backend(store, kind):
++    """Terminate the connection after state UPDATE, before event/outbox/COMMIT.
++
++    This callback sends no fake DB exception. The real next PostgreSQL operation
++    fails because pg_terminate_backend(pid, 2000) has waited for that backend exit.
++    """
++    admin = create_engine(store.engine.url, pool_size=1, max_overflow=0)
++    cut = {"observed": False, "pid": None}
++
++    def before(conn, cursor, statement, parameters, context, executemany):
++        if (
++            not cut["observed"]
++            and "INSERT INTO demo_events" in statement
++            and isinstance(parameters, dict)
++            and parameters.get("kind") == kind
++        ):
++            pid = conn.connection.driver_connection.info.backend_pid
++            with admin.connect() as control:
++                assert control.scalar(text("SELECT pg_backend_pid()")) != pid
++                assert control.scalar(text("SELECT pg_terminate_backend(:pid, 2000)"), {"pid": pid})
++            cut.update(observed=True, pid=pid)
++
++    event.listen(store.engine, "before_cursor_execute", before)
++    try:
++        yield cut
++    finally:
++        event.remove(store.engine, "before_cursor_execute", before)
++        admin.dispose()
++    assert cut["observed"], "the real connection cut must actually occur"
++
++
++@pytest.mark.parametrize("phase", ["reservation", "intent"])
++def test_db_connection_cut_before_intent_commit_never_sends_entry_and_rolls_back(case, phase):
++    store, c, fake = case
++    sig = signal(environment="DEMO")
++    if phase == "intent":
++        order = c.reserve(sig, snapshot())
++    before, before_counts = store.read("DEMO-test"), counts(store)
++    target = "DEMO_ENTRY_RESERVED" if phase == "reservation" else "DEMO_ENTRY_INTENT"
++    with terminate_effect_backend(store, target):
++        with pytest.raises(DBAPIError) as error:
++            if phase == "reservation":
++                c.reserve(sig, snapshot())
++            else:
++                c.submit(str(sig.signal_id))
++        assert error.value.connection_invalidated
++    assert store.read("DEMO-test") == before
++    assert counts(store) == before_counts
++    assert not posts(fake)
++    if phase == "intent":
++        assert store.read("DEMO-test").orders[str(sig.signal_id)].state == OrderState.RISK_RESERVED
++        assert order.client_id not in store.read("DEMO-test").requests
++    else:
++        assert not store.read("DEMO-test").orders
++
++
++async def one_local_session(c, ready=None):
++    async def handler(socket):
++        await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        await session(c, connector=connector, on_ready=ready, max_messages=0)
++
++
++def test_ack_then_actual_db_disconnect_preserves_submitting_and_recovers_same_id(case):
++    store, c, fake = case
++    sig = signal(environment="DEMO")
++    order = c.reserve(sig, snapshot())
++    before_counts = counts(store)
++    effect_count = kinds(store, "DEMO_ENTRY_EFFECT")
++    with terminate_effect_backend(store, "DEMO_ENTRY_EFFECT"):
++        with pytest.raises(DBAPIError) as error:
++            c.submit(str(sig.signal_id))
++        assert error.value.connection_invalidated
++    durable = store.read("DEMO-test")
++    assert durable.orders[str(sig.signal_id)].state == OrderState.SUBMITTING
++    assert durable.requests[order.client_id] == "SUBMITTING"
++    assert counts(store) == tuple(n + 1 for n in before_counts)  # intent only
++    assert kinds(store, "DEMO_ENTRY_EFFECT") == effect_count
++    assert len(posts(fake)) == 1 and fake.orders[order.client_id]["status"] == "NEW"
++    c.submit(str(sig.signal_id))
++    assert len(posts(fake)) == 1
++    with pytest.raises(RiskRejected, match="already active"):
++        store.acquire("DEMO-test", uuid4())
++
++    # Logical clock advancement is explicit; this is not a natural 60s wait.
++    fake.at += timedelta(seconds=61)
++    lease = store.acquire("DEMO-test", uuid4())
++    assert lease.fence == c.lease.fence + 1
++    blocked = []
++    for action in (
++        lambda: store.renew(c.lease),
++        lambda: c.reconcile(),
++        lambda: store.change(c.lease, "STALE_EFFECT", lambda ledger: blocked.append(True)),
++    ):
++        with pytest.raises(RiskRejected, match="expired or fenced"):
++            action()
++    assert not blocked and len(posts(fake)) == 1
++    client = DemoClient(
++        c.client.settings, c.client.credentials, send=c.client.send, clock_ms=c.client.clock_ms
++    )
++    client.sync_clock()
++    successor = DemoCoordinator(store, lease, client)
++    successor.refresh_metadata()
++    with pytest.raises(RiskRejected, match="gate locked"):
++        successor.reserve(signal(environment="DEMO"), snapshot())
++
++    def recovered():
++        ledger = store.read("DEMO-test")
++        recovered_order = ledger.orders[str(sig.signal_id)]
++        assert ledger.reconciled and ledger.stream_ready
++        assert recovered_order.client_id == order.client_id
++        assert recovered_order.server_order_id == str(fake.orders[order.client_id]["orderId"])
++        assert recovered_order.state == OrderState.ACKNOWLEDGED
++        assert ledger.requests[order.client_id] == "SUBMITTING"  # original evidence retained
++        successor.submit(str(sig.signal_id))
++        assert len(posts(fake)) == 1
++
++    asyncio.run(one_local_session(successor, recovered))
++    after = store.read("DEMO-test")
++    assert after.paused and not after.stream_ready and not after.reconciled
++    assert after.orders[str(sig.signal_id)].state == OrderState.CANCELED
++    assert len(posts(fake)) == 1 and not any(fake.positions.values())
++    assert any(
++        method == "GET"
++        and path == "/fapi/v1/order"
++        and params.get("origClientOrderId") == order.client_id
++        for method, path, params in fake.calls
++    )
++    store.release(lease)
++
++
++def test_real_db_loss_in_protected_session_locks_entries_and_preserves_exchange_stop(case):
++    store, c, fake = case
++    armed = None
++    key = None
++    heartbeat_count = None
++
++    async def exercise():
++        nonlocal armed, key, heartbeat_count
++
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            port = server.sockets[0].getsockname()[1]
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(f"ws://127.0.0.1:{port}") as socket:
++                    yield socket
++
++            def ready():
++                nonlocal armed, key, heartbeat_count
++                sig, order = enter(case)
++                key = str(sig.signal_id)
++                fake.fill(order.client_id, order.quantity)
++                c.reconcile()
++                protected = store.read("DEMO-test").orders[key]
++                assert protected.protected and protected.tp_algo_id
++                heartbeat_count = kinds(store, "HEARTBEAT")
++                armed = terminate_effect_backend(store, "HEARTBEAT")
++                armed.__enter__()
++
++            try:
++                with pytest.raises(DemoFailure, match="entries blocked"):
++                    await asyncio.wait_for(
++                        session(c, connector=connector, on_ready=ready), timeout=10
++                    )
++            finally:
++                if armed is not None:
++                    armed.__exit__(None, None, None)
++
++    asyncio.run(exercise())
++    assert armed is not None and key is not None
++    after = store.read("DEMO-test")
++    order = after.orders[key]
++    assert c.session_failed and after.paused and not after.reconciled and not after.stream_ready
++    assert after.last_private_session_failure is not None
++    assert after.last_private_session_failure.code == "OTHER_DATABASE"  # pg termination is 57P01
++    assert kinds(store, "HEARTBEAT") == heartbeat_count
++    assert order.protected and order.open_quantity > 0
++    assert fake.algos[order.algo_id]["algoStatus"] == "NEW"
++    assert fake.algos[order.tp_algo_id]["algoStatus"] == "NEW"
++    assert len(posts(fake)) == 1 and len(posts(fake, "/fapi/v1/algoOrder")) == 2
++    start = len(fake.calls)
++    with pytest.raises(RiskRejected, match="gate locked"):
++        c.reserve(signal(environment="DEMO"), snapshot())
++    assert len(fake.calls) == start
++    with pytest.raises(RiskRejected, match="already active"):
++        store.acquire("DEMO-test", uuid4())
++
++    fake.at += timedelta(seconds=61)
++    lease = store.acquire("DEMO-test", uuid4())
++    assert lease.fence == c.lease.fence + 1
++    start = len(fake.calls)
++    with pytest.raises(RiskRejected):
++        store.change(
++            c.lease,
++            "STALE_STOP_DELETE",
++            lambda ledger: c.client.request(
++                "DELETE", "/fapi/v1/algoOrder", {"clientAlgoId": order.algo_id}
++            ),
++        )
++    with pytest.raises(RiskRejected):
++        store.renew(c.lease)
++    assert len(fake.calls) == start and fake.algos[order.algo_id]["algoStatus"] == "NEW"
++    client = DemoClient(
++        c.client.settings, c.client.credentials, send=c.client.send, clock_ms=c.client.clock_ms
++    )
++    client.sync_clock()
++    successor = DemoCoordinator(store, lease, client)
++    successor.refresh_metadata()
++    with pytest.raises(RiskRejected, match="gate locked"):
++        successor.reserve(signal(environment="DEMO"), snapshot())
++
++    def recovered():
++        ledger = store.read("DEMO-test")
++        assert ledger.reconciled and ledger.stream_ready and ledger.paused
++        assert ledger.orders[key].protected
++        assert ledger.orders[key].algo_id == order.algo_id
++        assert ledger.orders[key].tp_algo_id == order.tp_algo_id
++        assert len(posts(fake)) == 1 and len(posts(fake, "/fapi/v1/algoOrder")) == 2
++
++    asyncio.run(one_local_session(successor, recovered))
++    assert fake.algos[order.algo_id]["algoStatus"] == "NEW"
++    # Synthetic cleanup after proof; no authenticated exchange is used anywhere.
++    successor.command(uuid4(), "EMERGENCY_FLATTEN")
++    assert successor.confirm_flat() == "VERIFIED_FLAT"
++    assert not any(fake.positions.values())
++    store.release(lease)
