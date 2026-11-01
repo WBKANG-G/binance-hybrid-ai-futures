@@ -1,0 +1,624 @@
+--- /dev/null
++++ b/ONE_KEY_START_HERE_KO.md
+@@ -0,0 +1,45 @@
++# API 키 한 번 입력 후 재사용
++
++이 문서가 이전 ZIP의 키 입력 안내보다 우선합니다. 처음 입력한 DEMO API Key와 Secret은 보호된 RAM 세션에 등록되고, 이후 검토·적용·점검 명령에서 다시 입력하지 않습니다. 유효기간은 최초 등록부터 12시간이며 재사용해도 연장되지 않습니다. API 컨테이너를 재생성하는 동안 key-session 컨테이너가 계속 실행되면 키가 유지됩니다. Docker/컴퓨터 재시작, 모든 해당 RAM 마운트 해제 또는 만료 후에는 다시 입력해야 합니다. 영구 저장 기능은 아닙니다.
++
++## 1. 새 ZIP 빌드
++
++새 windows-demo-one-key-session 폴더에 압축을 풉니다. 그 폴더의 탐색기 주소창에서 cmd를 실행합니다. 아래 프로젝트 이름을 그대로 사용해 기존 DB와 export 볼륨을 유지합니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++api, db, web, key-session이 모두 Healthy인지 확인합니다. 이번 변경은 API에 붙어 있던 기존 임시 메모리를 새 공유 RAM 마운트로 바꾸므로 최초 한 번은 키 입력이 필요할 수 있습니다.
++
++## 2. 한 번 입력
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_key_session --ensure
++```
++
++DEMO API Key와 Secret을 각각 한 번 숨김 입력합니다. 유효한 키가 이미 등록되어 있으면 입력을 요구하지 않습니다. 정상 출력은 demo_key_session: AVAILABLE이며, 키 값은 출력하지 않습니다. 이 명령은 거래소 요청을 보내지 않습니다.
++
++기존 --register는 등록된 키를 덮어쓰지 않는 명령입니다. 반복 실행에는 --ensure를 사용합니다. BLOCKED라면 error_code를 포함한 결과만 공유하고 키를 보내지 않습니다. 만료·잘못된 파일·부분 환경변수는 자동 교체하거나 우회하지 않습니다.
++
++## 3. 다음 단계: 주문 없는 준비 상태 점검
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_session_ready
++```
++
++여기서는 키를 다시 묻지 않습니다. 정상 결과는 session_ready: READ_ONLY_READY_ENTRIES_STILL_PAUSED입니다. 현재 일간/주간 기준일 일치, 로컬 NORMAL/paused·포지션 없음, 거래소의 두 번 연속 운영 스냅샷과 비어 있는 상태를 확인합니다. DB를 수정하거나 주문·취소·청산·신규 진입을 실행하지 않습니다. 전체 JSON 결과를 공유합니다.
++
++날짜가 또 바뀌었거나 거래소/장부 상태가 달라지면 BLOCKED가 됩니다. 이때 기준금 재설정이나 거래 재개를 자동 수행하지 않습니다. 최신 적용 결과는 2026-11-01 일간 기준금 4999.03492670 USDT, NORMAL/paused입니다. 주간 기준금과 고점은 보존된 상태입니다.
++
++## 키 수명과 보호 범위
++
++RAM 마운트는 64KiB tmpfs이며 디렉터리 0700/사용자10001, 파일0600, noexec/nosuid/nodev 검사를 유지합니다. key-session은 네트워크와 포트가 없고 RAM을 읽기 전용으로 붙여 API 재생성 동안 마운트를 유지합니다. 키를 .env, DB, 이미지, 호스트의 일반 파일에 저장하지 않습니다. tmpfs 안의 값은 암호화된 금고가 아니며 같은 사용자/root와 호스트의 메모리·스왑·스냅샷 보호에 의존합니다. 12시간 경과 후에는 사용을 거부하지만 만료만으로 파일이 자동 삭제되지는 않습니다.
++
++세션을 수동 종료할 때만 아래 명령으로 RAM 파일을 지울 수 있습니다. 이번 다음 단계 점검에는 실행할 필요가 없습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.demo_key_session --clear
++```
++
++DB/export 볼륨 삭제나 docker compose down -v를 사용하지 않습니다. 실제 Windows에서 API 재생성 후 재사용은 이번 준비 상태 결과를 확인한 뒤 별도로 검증합니다. 로컬 Docker에서 합성 키로 검증한 결과와 구분합니다.
+--- /dev/null
++++ b/ONE_KEY_VALIDATION_KO.md
+@@ -0,0 +1,22 @@
++# 한 번 입력하는 RAM 키 세션 검증
++
++## 변경
++
++기존 숨김 입력은 명령 종료 후 폐기되어 미리보기와 적용에서 반복 입력이 필요했습니다. 최초 숨김 입력을 보호된 RAM 세션에 등록하도록 바꾸고, --ensure로 유효 세션을 재사용하게 했습니다. 기존 --register의 덮어쓰기 거부와 --clear의 명시적 삭제를 유지합니다. 등록/삭제의 동시 실행은 검증된 디렉터리 inode의 flock으로 차단합니다. 오류는 허용된 고정 코드만 출력합니다.
++
++Compose는 API 전용 tmpfs를 tmpfs 방식의 Docker 명명 볼륨으로 옮깁니다. 별도 네트워크 없는 key-session 컨테이너가 읽기 전용 마운트를 유지하므로 API 재생성 중 RAM 세션을 보존합니다. 디스크 영구 볼륨을 비밀 저장소로 쓰지 않습니다. 마지막 마운트가 해제되면 메모리 내용이 사라집니다. 만료는 최초 등록 후 12시간이며 연장되지 않습니다. 만료 시 사용을 거부하고 파일 자체는 명시적 삭제나 마운트 해제까지 남을 수 있습니다.
++
++다음 단계 도구 check_demo_session_ready는 입력 없이 캐시를 사용합니다. NORMAL/paused·로컬 노출 없음·기준일 일치를 확인하고 기존의 엄격한 운영 스냅샷 두 번 비교를 재사용합니다. DB/거래소 쓰기와 리스 획득 없이 상태만 확인합니다. 기간이 불일치하면 거래소 조회 전 차단합니다.
++
++## 검증 결과
++
++전체 1260개 시험 통과(289.81초). 실패와 건너뛴 시험 없음.
++
++- 키 관련 집중 시험 46개 통과(2.32초).
++- Ruff 검사/포맷 검사 통과, mypy 113개 소스 통과, Compose 구성 검사 통과.
++- 실제 Docker: 보호된 tmpfs/파일0600 확인, 첫 소비 컨테이너 종료 후 새 소비 컨테이너가 재입력 없이 동일 키 사용, 최초 만료 시각 유지, 마지막 keeper 마운트 제거 후 캐시 없음 확인. 네트워크 none, 합성 키만 사용.
++- 기존 배포 파일 424개 중 421개 바이트 동일. 기존 파일 변경은 키 도우미, Compose, 키 테스트 한 파일뿐.
++
++금융 계산, 기존 기준금 검토/적용, SDK, 리스크 상태 전이, 시계/리스/펜스/읽기 예산과 과거 증거는 변경하지 않았습니다. 기존 키 테스트 하나의 ‘숨김 입력 후 저장하지 않음’ 기대를 사용자가 요청한 자동 RAM 등록 동작으로 바꾸고, 나머지 기존 테스트를 보존했습니다. 유효기간 불변, 재입력 없음, 동시 등록 차단, 오류 비밀값 차단, Compose 보호 설정 및 실제 PostgreSQL에서 최초 미리보기→적용→읽기 전용 준비 확인을 검증합니다.
++
++실제 키·인증된 거래소 호출은 클라우드 검증에 사용하지 않았습니다. Windows의 최초 등록·준비 상태 및 실제 API 재생성 후 재사용 결과는 아직 미확인입니다. 실제 일간 기준금 적용 완료 증거는 별도 보존합니다. Phase4 전체 완료나 LIVE/다음 단계 개발 단계 승인으로 취급하지 않습니다.
+--- /dev/null
++++ b/WINDOWS_DEMO_PAUSED_DAY_APPLIED_20261101_KO.md
+@@ -0,0 +1,26 @@
++# NORMAL/paused 일간 기준금 적용 완료
++
++근거: 사용자 CMD 결과 캡처. 배포 windows-demo-paused-day-review-20261101 / 41215a8.
++작업 ID ec1d50d8-a44e-46e9-8bc1-580b32b3a95e.
++검토 토큰 618dd1c40bb15424aa5bb624fdbd03d7ac6efb55b97741a12fd513455723febd.
++
++## 실제 출력
++
++- day_baseline OPERATOR_ATTESTED_DAY_BASELINE_ADOPTED_ENTRIES_STILL_PAUSED
++- source OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE
++- account_wide_exchange_export_verified false
++- risk_state NORMAL / paused true
++- unresolved_requests_acknowledged false
++- daily_baseline_changed true
++- weekly_base_preserved true / high_water_preserved true
++- recovery_eligible false
++- orders_enabled false / live_trading_enabled false
++- leader_released true
++
++## 적용 범위
++
++검토 토큰에 연결된 후보는 일간 기준일2026-11-01 및 일간 기준금4999.03492670 USDT였다. 이전 기준일2026-10-31과 기준금4999.35095801에서 이 후보로 변경됐다. 적용 직전 서명 이력 및 토큰 일치를 다시 확인한 기존 적용 경로의 성공 결과다. 현재 잔고 수치는 이 적용 출력에 없으므로 새 잔고로 추정하지 않는다.
++
++사용자의 다른 활동 없음 확인과 서명된 USDT 증거를 근거로 한 수동 출처 재구성이다. 자정 직접 관측이나 계좌 전체 거래소 export 검증으로 확대하지 않는다. 주간 기준금·고점·기존 요청/주문/회계·과거 평가 시각 및 UNKNOWN/NOT_SENT 증거는 보존됐다. 미해결 요청을 새로 승인하거나 삭제하지 않았다. 원격 요청은 읽기 전용이며 신규 진입·청산·보호 주문을 보내지 않았다.
++
++현재 NORMAL/paused로 유지되고 리더 반환이 완료됐다. 같은 적용 명령 반복이나 추가 비상 복구 승인은 필요하지 않다. 신규 진입 재개, 실제 부분체결 보호 등 미완료 항목, Phase4 전체 완료/LIVE/Phase5 전환으로 확대하지 않는다.
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -25,16 +25,42 @@
+       APP_CONFIG_FILE: configs/paper.example.yaml
+       DATABASE_URL: postgresql+psycopg://dev:dev@db:5432/hybrid
+     ports: ["127.0.0.1:8000:8000"]
+-    volumes: ["demo_export_data:/app/demo-export-state"]
+-    tmpfs:
+-      - /run/demo-keys:rw,noexec,nosuid,nodev,size=64k,mode=0700,uid=10001,gid=10001
++    volumes:
++      - demo_export_data:/app/demo-export-state
++      - type: volume
++        source: demo_key_session_ram
++        target: /run/demo-keys
++        volume: {nocopy: true}
+     depends_on:
+       db: {condition: service_healthy}
++      key-session: {condition: service_healthy}
+     healthcheck:
+       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/ready', timeout=4)"]
+       interval: 5s
+       timeout: 5s
+       retries: 20
++    restart: "no"
++  key-session:
++    image: python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1
++    command: ["python", "-c", "import signal; signal.pause()"]
++    user: "10001:10001"
++    init: true
++    network_mode: none
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: ["no-new-privileges:true"]
++    pids_limit: 16
++    healthcheck:
++      test: ["CMD", "python", "-c", "import os,stat; s=os.stat('/run/demo-keys'); assert stat.S_ISDIR(s.st_mode) and stat.S_IMODE(s.st_mode)==0o700 and s.st_uid==10001"]
++      interval: 3s
++      timeout: 3s
++      retries: 10
++    volumes:
++      - type: volume
++        source: demo_key_session_ram
++        target: /run/demo-keys
++        read_only: true
++        volume: {nocopy: true}
+     restart: "no"
+   web:
+     build:
+@@ -54,3 +80,9 @@
+ volumes:
+   postgres_data:
+   demo_export_data:
++  demo_key_session_ram:
++    driver: local
++    driver_opts:
++      type: tmpfs
++      device: tmpfs
++      o: "size=65536,mode=0700,uid=10001,gid=10001,noexec,nosuid,nodev"
+--- /dev/null
++++ b/scripts/check_demo_session_ready.py
+@@ -0,0 +1,85 @@
++"""Read-only post-rollover session readiness; never resumes entries or modifies the ledger."""
++
++import json
++import os
++from pathlib import Path
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoClient, DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo_empty_db_restart import DBRestartBlocked, empty, exchange_digest
++from services.execution.demo_recovery import local_period_status
++from services.execution.demo_validation import safe_failure
++
++
++def main() -> None:
++    engine = None
++    report: dict[str, object]
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
++        ):
++            raise DBRestartBlocked("LIVE_CONTEXT_FORBIDDEN")
++        key = credentials(prompt=False)
++        cfg = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": False})
++        engine = create_engine(
++            database_url().get_secret_value(),
++            connect_args={"connect_timeout": 2},
++            pool_pre_ping=True,
++        )
++        store = DemoStore(engine)
++        before = store.read(ACCOUNT)
++        empty(before)
++        periods = local_period_status(store, before)
++        if not periods["period_keys_match"]:
++            report = {"session_ready": "BLOCKED", "failure": "PERIOD_BASELINE_MISSING", **periods}
++        else:
++            client = DemoClient(cfg, key)
++            client.sync_clock()
++            _, metrics = exchange_digest(store, client, before)
++            if store.read(ACCOUNT) != before:
++                raise DBRestartBlocked("HISTORY_CHANGED")
++            report = {
++                "session_ready": "READ_ONLY_READY_ENTRIES_STILL_PAUSED",
++                "period_keys_match": True,
++                "periods": periods["periods"],
++                "risk_state": before.risk_state.value,
++                "paused": before.paused,
++                "credential_source": "RUNTIME_ENV"
++                if (os.getenv("BINANCE_DEMO_API_KEY") or os.getenv("BINANCE_DEMO_API_SECRET"))
++                else "PRIVATE_TMPFS_SESSION",
++                "exchange_empty_verified": True,
++                "database_changed": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++                "read_diagnostic": metrics,
++            }
++            success = True
++    except Exception as error:
++        report = {
++            "session_ready": "BLOCKED",
++            "failure": error.code if isinstance(error, DBRestartBlocked) else safe_failure(error),
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- a/scripts/demo_key_session.py
++++ b/scripts/demo_key_session.py
+@@ -6,12 +6,15 @@
+ """
+ 
+ import argparse
++import fcntl
+ import getpass
+ import json
+ import os
+ import stat
+ import time
+ import warnings
++from collections.abc import Iterator
++from contextlib import contextmanager
+ from pathlib import Path
+ 
+ from pydantic import SecretStr
+@@ -133,13 +136,10 @@
+         return loaded[0]
+     if not prompt:
+         return DemoCredentials.from_environment()
+-    warnings.simplefilter("error", getpass.GetPassWarning)
+-    return _values(
+-        getpass.getpass("DEMO API Key (hidden): "), getpass.getpass("DEMO Secret (hidden): ")
+-    )
+-
+-
+-def register() -> None:
++    return ensure()
++
++
++def _register_locked() -> None:
+     _context()
+     directory = _directory()
+     try:
+@@ -182,7 +182,7 @@
+         os.close(directory)
+ 
+ 
+-def clear() -> None:
++def _clear_locked() -> None:
+     _context()
+     if not DIRECTORY.exists():
+         return
+@@ -198,16 +198,98 @@
+         os.close(directory)
+ 
+ 
++@contextmanager
++def _registration_lock() -> Iterator[None]:
++    # Lock the checked tmpfs directory inode; no lock file or secret is written.
++    directory = _directory()
++    try:
++        try:
++            fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
++        except BlockingIOError:
++            raise SessionKeyError("KEY_SESSION_REGISTRATION_IN_PROGRESS") from None
++        except OSError:
++            raise SessionKeyError("KEY_SESSION_LOCK_FAILED") from None
++        try:
++            yield
++        finally:
++            fcntl.flock(directory, fcntl.LOCK_UN)
++    finally:
++        os.close(directory)
++
++
++def register() -> None:
++    _context()
++    with _registration_lock():
++        _register_locked()
++
++
++def clear() -> None:
++    _context()
++    if not DIRECTORY.exists():
++        return
++    with _registration_lock():
++        _clear_locked()
++
++
++def ensure() -> DemoCredentials:
++    """Reuse a valid binding; first hidden input is cached without extending expiry."""
++    _context()
++    if os.getenv("BINANCE_DEMO_API_KEY") or os.getenv("BINANCE_DEMO_API_SECRET"):
++        try:
++            return DemoCredentials.from_environment()
++        except ValueError:
++            raise SessionKeyError("RUNTIME_DEMO_CREDENTIALS_INVALID") from None
++    loaded = _load()
++    if loaded is not None:
++        return loaded[0]
++    with _registration_lock():
++        loaded = _load()
++        if loaded is None:
++            _register_locked()
++            loaded = _load()
++        if loaded is None:
++            raise SessionKeyError("KEY_SESSION_NOT_REGISTERED_AFTER_ENSURE")
++        return loaded[0]
++
++
++ERROR_CODES = frozenset(
++    {
++        "DEMO_ONLY_CONTEXT_REQUIRED",
++        "PRIVATE_TMPFS_REQUIRED",
++        "PRIVATE_TMPFS_PERMISSIONS_REQUIRED",
++        "PRIVATE_TMPFS_UNAVAILABLE",
++        "DEMO_CREDENTIAL_INPUT_INVALID",
++        "KEY_SESSION_FILE_INVALID",
++        "KEY_SESSION_EXPIRED_CLEAR_AND_REGISTER",
++        "KEY_SESSION_EXISTS_CLEAR_FIRST",
++        "KEY_SESSION_REGISTRATION_FAILED",
++        "KEY_SESSION_CLEAR_FAILED",
++        "KEY_SESSION_REGISTRATION_IN_PROGRESS",
++        "KEY_SESSION_LOCK_FAILED",
++        "KEY_SESSION_NOT_REGISTERED_AFTER_ENSURE",
++        "RUNTIME_DEMO_CREDENTIALS_INVALID",
++    }
++)
++
++
+ def main() -> None:
+     parser = argparse.ArgumentParser(description=__doc__)
+     actions = parser.add_mutually_exclusive_group(required=True)
+     actions.add_argument("--register", action="store_true")
++    actions.add_argument("--ensure", action="store_true")
+     actions.add_argument("--status", action="store_true")
+     actions.add_argument("--clear", action="store_true")
+     args = parser.parse_args()
+     try:
+         _context()
+-        if args.register:
++        if args.ensure:
++            ensure()
++            state = (
++                "RUNTIME_CREDENTIALS_AVAILABLE"
++                if (os.getenv("BINANCE_DEMO_API_KEY") or os.getenv("BINANCE_DEMO_API_SECRET"))
++                else "AVAILABLE"
++            )
++        elif args.register:
+             register()
+             state = "REGISTERED_IN_PRIVATE_TMPFS"
+         elif args.clear:
+@@ -226,11 +308,14 @@
+                 }
+             )
+         )
+-    except (ValueError, OSError, EOFError, getpass.GetPassWarning):
++    except (ValueError, OSError, EOFError, getpass.GetPassWarning) as error:
+         print(
+             json.dumps(
+                 {
+                     "demo_key_session": "BLOCKED_CHECK_SESSION_OR_REGISTER",
++                    "error_code": str(error)
++                    if isinstance(error, SessionKeyError) and str(error) in ERROR_CODES
++                    else "KEY_SESSION_OPERATION_FAILED",
+                     "orders_enabled": False,
+                     "live_trading_enabled": False,
+                 }
+--- /dev/null
++++ b/tests/integration/conftest.py
+@@ -0,0 +1,17 @@
++"""Synthetic CLI tests model the container's private RAM credential mount.
++
++Filesystem/mount rejection is tested without this fixture in unit tests and with
++real tmpfs in the isolated Docker lifecycle probe. No real credentials are used.
++"""
++
++import pytest
++
++from scripts import demo_key_session as keys
++
++
++@pytest.fixture(autouse=True)
++def private_credential_mount(tmp_path, monkeypatch):
++    root = tmp_path / "synthetic-private-ram"
++    root.mkdir(mode=0o700)
++    monkeypatch.setattr(keys, "DIRECTORY", root)
++    monkeypatch.setattr(keys, "_tmpfs", lambda: True)
+--- /dev/null
++++ b/tests/integration/test_demo_one_key_flow.py
+@@ -0,0 +1,86 @@
++"""One hidden pair drives preview, apply, and later readonly readiness in real PG."""
++
++import json
++import sys
++from uuid import uuid4
++
++import pytest
++
++from scripts import check_demo_session_ready as ready
++from scripts import demo_key_session as keys
++from scripts import review_demo_paused_day as day
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_cancelled_correction import correction  # noqa: F401
++from tests.integration.test_demo_day_reconstruction import day_case  # noqa: F401
++from tests.integration.test_demo_paused_day import case  # noqa: F401
++
++
++@pytest.fixture
++def binding(case, tmp_path, monkeypatch):  # noqa: F811
++    store, c, *_ = case
++    store.release(c.lease)
++    root = tmp_path / "ram"
++    root.mkdir(mode=0o700)
++    monkeypatch.setattr(keys, "DIRECTORY", root)
++    monkeypatch.setattr(keys, "_tmpfs", lambda: True)
++    answers = iter(["SYNTHETIC_ONE_KEY", "SYNTHETIC_ONE_SECRET"])
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: next(answers))
++    for cli in [day, ready]:
++        monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: store.engine)
++        monkeypatch.setattr(cli, "DemoStore", lambda *a, **kw: store)
++
++        def client(config, credential):
++            assert credential.api_key.get_secret_value() == "SYNTHETIC_ONE_KEY"
++            assert credential.secret.get_secret_value() == "SYNTHETIC_ONE_SECRET"
++            return c.client
++
++        monkeypatch.setattr(cli, "DemoClient", client)
++    monkeypatch.setattr(day, "ACCOUNT_ID", "DEMO-test")
++    monkeypatch.setattr(ready, "ACCOUNT", "DEMO-test")
++    return store, c, root
++
++
++def test_first_preview_registers_then_apply_and_readiness_never_prompt(
++    binding, monkeypatch, capsys
++):
++    store, c, root = binding
++    monkeypatch.setattr(sys, "argv", ["review", "--attest-no-other-trades-since-exit"])
++    day.main()
++    report = json.loads(capsys.readouterr().out)
++    original = (root / keys.FILENAME).read_bytes()
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not re-enter keys"))
++    monkeypatch.setattr(
++        sys,
++        "argv",
++        [
++            "review",
++            "--attest-no-other-trades-since-exit",
++            "--accept-operator-evidence",
++            "--apply-review",
++            report["review_token"],
++            "--operation-id",
++            str(uuid4()),
++        ],
++    )
++    day.main()
++    result = json.loads(capsys.readouterr().out)
++    assert result["day_baseline"] == "OPERATOR_ATTESTED_DAY_BASELINE_ADOPTED_ENTRIES_STILL_PAUSED"
++    before = store.read("DEMO-test")
++    ready.main()
++    after = json.loads(capsys.readouterr().out)
++    assert after["session_ready"] == "READ_ONLY_READY_ENTRIES_STILL_PAUSED"
++    assert after["credential_source"] == "PRIVATE_TMPFS_SESSION" and after["period_keys_match"]
++    assert store.read("DEMO-test") == before and (root / keys.FILENAME).read_bytes() == original
++    assert "SYNTHETIC_ONE" not in json.dumps(after)
++
++
++def test_readiness_date_mismatch_is_readonly_and_does_not_prompt(binding, monkeypatch, capsys):
++    store, c, root = binding
++    keys.ensure()
++    before = store.read("DEMO-test")
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt"))
++    with pytest.raises(SystemExit):
++        ready.main()
++    result = json.loads(capsys.readouterr().out)
++    assert result["failure"] == "PERIOD_BASELINE_MISSING"
++    assert store.read("DEMO-test") == before
+--- a/tests/unit/test_demo_key_session.py
++++ b/tests/unit/test_demo_key_session.py
+@@ -57,9 +57,13 @@
+     assert keys.credentials(prompt=True).secret.get_secret_value() == SECRET
+ 
+ 
+-def test_default_review_without_registration_can_still_prompt_without_saving(session_dir):
++def test_first_hidden_prompt_registers_once_and_later_call_reuses(session_dir, monkeypatch):
+     assert keys.credentials(prompt=True).api_key.get_secret_value() == KEY
+-    assert not list(session_dir.iterdir())
++    original = (session_dir / keys.FILENAME).read_bytes()
++    assert (session_dir / keys.FILENAME).stat().st_mode & 0o777 == 0o600
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt twice"))
++    assert keys.credentials(prompt=True).secret.get_secret_value() == SECRET
++    assert (session_dir / keys.FILENAME).read_bytes() == original
+ 
+ 
+ def test_missing_session_has_no_implicit_prompt(session_dir, monkeypatch):
+--- /dev/null
++++ b/tests/unit/test_demo_key_session_reuse.py
+@@ -0,0 +1,85 @@
++"""One pair of hidden inputs per fixed-lifetime shared RAM session."""
++
++# ruff: noqa: F811
++
++import json
++from pathlib import Path
++
++import pytest
++import yaml
++
++from scripts import demo_key_session as keys
++from tests.unit.test_demo_key_session import KEY, SECRET, session_dir  # noqa: F401
++
++
++def test_ensure_twice_preserves_original_expiry_and_never_prompts_again(
++    session_dir, monkeypatch, capsys
++):
++    monkeypatch.setattr("sys.argv", ["keys", "--ensure"])
++    keys.main()
++    original = (session_dir / keys.FILENAME).read_bytes()
++    payload = json.loads(original)
++    monkeypatch.setattr(keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt again"))
++    monkeypatch.setattr(keys.time, "time", lambda: 100300)
++    keys.main()
++    assert (session_dir / keys.FILENAME).read_bytes() == original
++    assert payload["expires"] == 100000 + 12 * 3600
++    out = capsys.readouterr().out
++    assert out.count('"AVAILABLE"') == 2 and KEY not in out and SECRET not in out
++
++
++def test_registration_lock_denies_second_prompt_and_clear(session_dir, monkeypatch):  # noqa: F811
++    monkeypatch.setattr(
++        keys.getpass, "getpass", lambda *a: pytest.fail("must not prompt in competing registration")
++    )
++    with keys._registration_lock():
++        with pytest.raises(keys.SessionKeyError, match="REGISTRATION_IN_PROGRESS"):
++            keys.ensure()
++        with pytest.raises(keys.SessionKeyError, match="REGISTRATION_IN_PROGRESS"):
++            keys.clear()
++    assert not list(session_dir.iterdir())
++
++
++def test_unknown_session_error_cannot_disclose_secrets(session_dir, monkeypatch, capsys):  # noqa: F811
++    monkeypatch.setattr("sys.argv", ["keys", "--ensure"])
++
++    def blocked():
++        raise keys.SessionKeyError(SECRET)
++
++    monkeypatch.setattr(keys, "ensure", blocked)
++    with pytest.raises(SystemExit):
++        keys.main()
++    out = capsys.readouterr().out
++    assert SECRET not in out and "KEY_SESSION_OPERATION_FAILED" in out
++
++
++def test_existing_register_refusal_now_reports_fixed_code(session_dir, monkeypatch, capsys):  # noqa: F811
++    keys.ensure()
++    monkeypatch.setattr("sys.argv", ["keys", "--register"])
++    with pytest.raises(SystemExit):
++        keys.main()
++    out = capsys.readouterr().out
++    assert "KEY_SESSION_EXISTS_CLEAR_FIRST" in out and KEY not in out and SECRET not in out
++
++
++def test_compose_keeps_ram_mount_alive_without_network_or_disk_secret_store():
++    cfg = yaml.safe_load(Path("infra/docker-compose.yml").read_text())
++    keeper = cfg["services"]["key-session"]
++    assert keeper["network_mode"] == "none" and keeper["read_only"]
++    assert keeper["user"] == "10001:10001" and keeper["cap_drop"] == ["ALL"]
++    assert not keeper.get("ports") and not keeper.get("environment")
++    assert keeper["volumes"][0]["read_only"]
++    opts = cfg["volumes"]["demo_key_session_ram"]["driver_opts"]
++    assert opts["type"] == opts["device"] == "tmpfs"
++    assert {"noexec", "nosuid", "nodev", "mode=0700", "uid=10001", "gid=10001"} <= set(
++        opts["o"].split(",")
++    )
++    api = cfg["services"]["api"]
++    assert api["depends_on"]["key-session"]["condition"] == "service_healthy"
++    assert any(
++        isinstance(v, dict)
++        and v.get("source") == "demo_key_session_ram"
++        and v.get("target") == "/run/demo-keys"
++        for v in api["volumes"]
++    )
++    assert not api.get("tmpfs")
