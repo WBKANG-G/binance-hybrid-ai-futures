@@ -1,0 +1,689 @@
+--- /dev/null
++++ b/PROTECTED_WORKER_REPORT_KO.md
+@@ -0,0 +1,38 @@
++# 보호 중 worker 실제 종료 및 자연 리스 인계
++
++실제 PostgreSQL과 별도 합성 거래소 서버, 로컬 WebSocket을 사용하는 격리 환경에서 실행 worker 프로세스를 실제 SIGKILL했다. 부모의 실행 코드·위험 정책은 변경하지 않았다. Windows DB와 실제 DEMO 계좌에는 추가 주문이나 장애를 가하지 않았다.
++
++## 핵심 결과
++
++집중 시험에서 child 종료 코드는 -9였고 finally 표식은 남지 않았다. 정상 종료·리스 반환으로 꾸민 시험이 아니다. worker는 실제로 합성 진입 한 건을 제출하고 SL·TP의 원래 서명 조회 검증을 마친 뒤 신규 진입을 정지하고 보호 준비 완료를 기록했다. 그 상태에서 종료했다.
++
++종료 이후 기존 리스의 남은 시간은59.962초였다. 실제 monotonic59.969초를 기다렸고 lease_until은 변경되지 않았다. 보호 상태를31회 점검하는 동안 공유 거래소 fixture의 SL·TP는 NEW, 포지션 수량은0.0007 BTC로 유지됐다. 시험 시계 전진·리스 시간 단축·SQL 강제 만료를 하지 않았다.
++
++| 확인 항목 | 집중 시험 결과 |
++|---|---|
++| 실행 프로세스 실제 강제 종료 | SIGKILL, 종료 코드-9, finally 표식 없음 |
++| 원래 리스 만료 전 경쟁 리더 | 획득 거부 |
++| 자연 만료 후 펜스 | 격리 시험 장부1→2 |
++| 이전 소유자 부작용·갱신 | callback 실행 전에 거부 |
++| 새 리더 신뢰 상태 | acquire 직후 stream/reconciled false, 새 진입 거부 |
++| 새 세션 재검증 | 두 번째 실제 로컬 WebSocket 연결 및 원래 REST 대조 |
++| 진입·SL·TP 식별자 | 기존 client/server 진입 ID와 보호 ID 그대로 회복 |
++| 인계 전 전송 수 | 신규 진입 POST1, 보호 POST2; 중복 없음 |
++| 후속 합성 포지션 정리 | 원래 비상 종료/VERIFIED_FLAT 후 리스 반환 |
++| 실제 인증 거래소 호출 | 0 |
++
++이 펜스1→2는 별도 시험 schema의 값이며 사용자 Windows 장부의 펜스 값이 아니다. 부모 HTTP 서버의 합성 거래소는 worker와 메모리를 공유하는 같은 프로세스가 아니므로 worker 종료로 주문 상태가 함께 사라지거나 새 fixture로 초기화되지 않았다. 다만 이 거래소 자체의 서버 종료/재시작을 검증한 것은 아니다.
++
++## 검증 범위
++
++가격80000, 수량0.0007, SL79600/TP80800의 합성 최소 수량 사례다. 원래 코디네이터의 예약·전송·보호·리스/펜스·WSS 진입 차단을 호출했고 원래60초 리스를 사용했다. 자연 만료 후 새 리더는 기존 주문을 조회·채택했으며 submit을 다시 호출해도 추가 진입 POST가 없었다. 일간·주간 기준금/정책/순이체를 보존하고 고점은 낮추지 않았다.
++
++로컬 WebSocket은 ws:// 연결이며 TLS나 실제 Binance의 listen-key 동작을 수락한 시험은 아니다. 공유 거래소의 가격은 고정됐고 대기 중 TP/SL 트리거 체결은 발생시키지 않았다. 보호 주문이 검증된 뒤 신규 진입이 일시정지된 시점의 worker 종료이며, 진입 전송 중·미보호/부분체결 상태·모든 장애 시점을 포괄하지 않는다. 부모 감시·공유 거래소·PostgreSQL은 살아 있었다.
++
++검증 수치: 전체1291개 통과(376.16초), 집중9개 통과(61.96초), 실패·건너뛰기 없음. Ruff 검사/포맷 검사 및 mypy115개 소스 통과.
++
++## 남은 실제 수락 범위
++
++실제 Windows DEMO 보호 포지션을 유지한 실행 worker 종료·인계는 아직 수행하지 않았다. 실제 부분체결 보호와 TP 트리거/SL 정리, 작업 중 실제 DB 서버 정지·전원 손실, 외부 긴급 알림 전달·장기 운영 검증도 별도다. 이번 합성 거래소 통합 결과로 실제 시장 수락이나 Phase4 전체 완료를 선언하지 않는다. LIVE/Phase5 전환은 없다.
++
++이번에는 앱 코드 변경이 없어 사용자 Windows에서 재빌드·키 재입력·추가 주문을 할 필요가 없다. 현재 NORMAL/paused 상태와 이전 실제 미체결 종료 기록을 유지한다.
+--- /dev/null
++++ b/PROTECTED_WORKER_VALIDATION_KO.md
+@@ -0,0 +1,21 @@
++# 보호 worker 종료 검증 상세
++
++부모는 phase4-db-disconnect-review-20261101 / 326ce4c, ZIP SHA256 550b4006e2ca9ca85ab74de6aa5c9caf496eb18b79e8dbe176af112b78929fa9다. 부모443개 파일 모두 바이트 동일하게 보존했다. 새 시험 helper/통합 시험/단위 시험과 한국어 보고서·검증 문서5개만 추가했다. 원래 시험을 변경하지 않았다.
++
++추가 파일:
++
++- tests/fixtures/demo_protected_worker.py: 실제 child가 원래 DemoStore/DemoCoordinator/session을 실행한다. 별도 TEST_ONLY_PROTECTED_WORKER 플래그, 고유 시험 schema 및127.0.0.1 PostgreSQL/HTTP/ws 주소만 허용한다. 고정 합성 키만 사용하고 BINANCE 환경 값이 있으면 DB 접근 전에 차단한다. 실제 키 캐시를 읽지 않는다. 프록시와 redirect를 사용하지 않는다.
++- tests/integration/test_demo_protected_worker_sigkill.py: 고유 PostgreSQL schema, child와 별도 부모의 공유 합성 HTTP 거래소, 실제 로컬 WebSocket 연결을 사용한다. 준비 표식/SL·TP 검증 후 실제 SIGKILL한다. 원래60초 리스가 실제 UTC 시간으로 만료될 때까지 기다리고 monotonic 경과와 비교한다. lease_until이 그대로임도 확인한다.
++- tests/unit/test_demo_protected_worker_scope.py: 원격/모호한 주소5종, 잘못된 키 전송 차단, 명시적 시험 플래그 및 BINANCE 환경 거부를 검사한다.
++
++보호 상태 확인은 원래 stop_verified/target_verified와 추가 서명 조회를 함께 사용한다. 종료 후 shared venue가 유지되며31회 점검과 동일 포지션 확인을 수행했다. 새로운 fixture에 주문을 다시 만들어 복구하는 방식이 아니다. worker PID는 직접 생성한 Popen 객체만 종료하며 다른 프로세스를 찾거나 종료하지 않는다. finally 표식이 없고 exit code-9임을 요구한다.
++
++이전 리스의 부작용 callback과 renew를 새 펜스 이후 거부하는지 확인한다. 새 리더 acquire 뒤 stream/reconciled false를 검사하고, 진입을 시도해 거부되는지 검사한다. 별도의 읽기 전용 장부 복사에서 paused만 false로 하여 신뢰 플래그 자체로도 _fresh가 거부하는지 확인하며 실제 DB 상태를 변경하거나 주문을 전송하지 않는다. 새 WebSocket handshake와 REST 대조 후 원래 client/server 진입 ID 및 SL/TP ID를 회복한다. 명시적 일시정지는 유지한다.
++
++회복 후 기존 submit 재호출도 추가 POST가 없고, 원래 진입1/보호2만 존재하는지 확인한다. 후속 정리는 별도 합성 reduce-only 비상 종료와 VERIFIED_FLAT이며 실제 시장 주문이 아니다. 일간·주간 기준일/기준금·순이체/정책 일치, 고점 비감소를 검사한다. 시험 schema/서버/프로세스는 finally에서 정리한다.
++
++검증 수치: 전체1291개 통과(376.16초), 집중9개 통과(61.96초), 실패·건너뛰기 없음. Ruff 검사/포맷 검사 및 mypy115개 소스 통과.
++
++집중 시험 JSON 기록은 natural_wait_ms59969, remaining_at_wait_start_ms59962, protection_probe_count31, child_exit_code-9, fence1→2, wss_connections2, entry_posts_before_cleanup1, protection_posts2, final_flat VERIFIED_FLAT, real_exchange_calls0이었다. 이 수치는 집중 실행의 결과이며 전체 회귀 실행에서 측정한 다른 시간을 같은 수치라고 주장하지 않는다.
++
++검증 환경은 Linux/POSIX, 실제 격리 PostgreSQL, ws:// 로컬 서버 및 합성 거래소다. 실제 Binance WSS/TLS·listen-key 수명, 보호 중 실제 시장 변동/TP·SL 체결, 제출 중 종료·미보호 상태·호스트 전체 종료·거래소나 DB 동시 장애는 별도다. 실제 사용자 DB/계좌/키/export와 main/LIVE/Phase5는 건드리지 않았다. 이 묶음은 Windows 앱 교체나 새 명령을 요구하지 않는다.
+--- /dev/null
++++ b/tests/fixtures/demo_protected_worker.py
+@@ -0,0 +1,174 @@
++"""Test-only child process; fixed synthetic credentials and loopback transports only."""
++
++import asyncio
++import os
++import re
++import sys
++from contextlib import asynccontextmanager
++from datetime import UTC, datetime, timedelta
++from urllib.error import HTTPError
++from urllib.parse import urlsplit
++from urllib.request import ProxyHandler, Request, build_opener
++from uuid import UUID, uuid5
++
++from pydantic import SecretStr
++from sqlalchemy import create_engine
++from sqlalchemy.engine import make_url
++from websockets.asyncio.client import connect
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoSettings
++from integrations.binance_usdm.rest import NoRedirect, RESTResponse
++from packages.domain.contracts import Signal
++from packages.persistence.demo import DemoStore
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_stream import session
++from services.risk.paper import GateSnapshot
++
++KEY = "SYNTHETIC_PROTECTED_WORKER_KEY"
++SECRET = "SYNTHETIC_PROTECTED_WORKER_SECRET"
++
++
++def loopback_endpoint(value: str, scheme: str) -> str:
++    parsed = urlsplit(value)
++    if (
++        parsed.scheme != scheme
++        or parsed.hostname != "127.0.0.1"
++        or parsed.username
++        or parsed.password
++        or parsed.path not in {"", "/"}
++        or parsed.query
++        or parsed.fragment
++        or parsed.port is None
++    ):
++        raise ValueError("TEST_LOOPBACK_ENDPOINT_REQUIRED")
++    return value.rstrip("/")
++
++
++class LoopbackTransport:
++    def __init__(self, endpoint: str):
++        self.endpoint = loopback_endpoint(endpoint, "http")
++        self.opener = build_opener(ProxyHandler({}), NoRedirect())
++
++    def __call__(self, method, path, query, api_key):
++        if api_key is not None and api_key.get_secret_value() != KEY:
++            raise ValueError("SYNTHETIC_CREDENTIALS_ONLY")
++        if not path.startswith("/fapi/") or "?" in path or "#" in path:
++            raise ValueError("TEST_PATH_INVALID")
++        request = Request(
++            self.endpoint + path,
++            data=query.get_secret_value().encode(),
++            method=method,
++            headers={"Content-Type": "application/x-www-form-urlencoded"},
++        )
++        try:
++            response = self.opener.open(request, timeout=3)
++        except HTTPError as error:
++            response = error
++        with response:
++            body = response.read(4_194_305)
++            if len(body) > 4_194_304:
++                raise ValueError("TEST_RESPONSE_TOO_LARGE")
++            return RESTResponse(response.status, body, {})
++
++
++def test_context() -> tuple[str, str]:
++    if os.getenv("TEST_ONLY_PROTECTED_WORKER") != "1" or any(
++        value for name, value in os.environ.items() if name.startswith("BINANCE_")
++    ):
++        raise ValueError("SYNTHETIC_TEST_CONTEXT_REQUIRED")
++    schema = os.environ["TEST_PROTECTED_SCHEMA"]
++    if not re.fullmatch(r"phase4_protected_[a-f0-9]{32}", schema):
++        raise ValueError("PRIVATE_TEST_SCHEMA_REQUIRED")
++    url = make_url(os.environ["TEST_PROTECTED_DB_URL"])
++    if url.drivername != "postgresql+psycopg" or url.host != "127.0.0.1":
++        raise ValueError("LOOPBACK_TEST_POSTGRES_REQUIRED")
++    return str(schema), url.render_as_string(hide_password=False)
++
++
++def main() -> None:
++    schema, database = test_context()
++    http = loopback_endpoint(os.environ["TEST_PROTECTED_HTTP"], "http")
++    websocket_url = loopback_endpoint(os.environ["TEST_PROTECTED_WS"], "ws")
++    owner, operation = UUID(sys.argv[1]), UUID(sys.argv[2])
++    config = DemoSettings.model_validate_json(os.environ["TEST_PROTECTED_CONFIG"])
++    engine = create_engine(database, connect_args={"options": "-csearch_path=" + schema})
++    store = DemoStore(engine)  # real UTC clock, original 60s lease
++    lease = store.acquire("DEMO-test", owner)
++    client = DemoClient(
++        config, DemoCredentials(SecretStr(KEY), SecretStr(SECRET)), send=LoopbackTransport(http)
++    )
++    client.sync_clock()
++    coordinator = DemoCoordinator(store, lease, client)
++    coordinator.refresh_metadata()
++
++    def ready() -> None:
++        coordinator.resume_entries(uuid5(operation, "resume"))
++        now = datetime.now(UTC)
++        ledger = store.read("DEMO-test")
++        signal = Signal(
++            signal_id=operation,
++            environment="DEMO",
++            symbol="BTCUSDT",
++            strategy=None,
++            purpose="DEMO_VALIDATION",
++            direction="LONG",
++            signal_closed_candle_at=now.replace(second=0, microsecond=0) - timedelta(minutes=1),
++            expires_at=now + timedelta(seconds=10),
++            suggested_limit_price="80000",
++            initial_stop_price="79600",
++            target_price="80800",
++            risk_profile_version=config.policy.risk.version,
++        )
++        gate = GateSnapshot(
++            market_at=now,
++            account_at=ledger.last_reconciled,
++            correlation_at=ledger.last_reconciled,
++            bid="80000",
++            ask="80000.1",
++            mark="80000",
++            correlation_group="SYNTHETIC_SINGLE_BTC",
++            evaluation="RULES_ONLY",
++        )
++        from decimal import Decimal
++
++        coordinator.reserve(signal, gate, quantity_cap=Decimal("0.0007"))
++        coordinator.submit(str(operation))
++        current = store.read("DEMO-test")
++        order = current.orders[str(operation)]
++        if (
++            not order.protected
++            or order.remaining
++            or not order.open_quantity
++            or not current.validation_evidence[str(operation)].get("stop_verified")
++            or not current.validation_evidence[str(operation)].get("target_verified")
++        ):
++            raise ValueError("PROTECTED_READY_NOT_VERIFIED")
++        coordinator.command(uuid5(operation, "pause-new"), "PAUSE_ENTRIES")
++        store.change(
++            lease,
++            "TEST_PROTECTED_WORKER_READY",
++            lambda state: state.operations.__setitem__(str(operation), "PROTECTED_WORKER_READY"),
++        )
++
++    @asynccontextmanager
++    async def connector(url):
++        async with connect(websocket_url) as socket:
++            yield socket
++
++    try:
++        asyncio.run(session(coordinator, connector=connector, on_ready=ready))
++    finally:
++        # SIGKILL must bypass this marker; the parent verifies that it is absent.
++        store.change(
++            lease,
++            "TEST_PROTECTED_WORKER_FINALLY",
++            lambda state: state.operations.__setitem__(
++                str(uuid5(operation, "finally")), "FINALLY_RAN"
++            ),
++        )
++        store.release(lease)
++        engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/tests/integration/test_demo_protected_worker_sigkill.py
+@@ -0,0 +1,400 @@
++"""Actual child SIGKILL and natural 60s lease; shared synthetic venue survives it."""
++
++import asyncio
++import json
++import os
++import signal as process_signal
++import subprocess
++import sys
++import threading
++import time
++from contextlib import asynccontextmanager
++from datetime import UTC, datetime, timedelta
++from decimal import Decimal
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from uuid import uuid4, uuid5
++
++import pytest
++from alembic import command
++from alembic.config import Config
++from pydantic import SecretStr
++from sqlalchemy import create_engine, select, text
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials
++from packages.domain.contracts import Signal
++from packages.persistence.demo import DemoStore, accounts
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_stream import session
++from services.execution.models import Lease
++from services.risk.paper import AccountValue, GateSnapshot, RiskRejected, period_keys
++from tests.fixtures.demo import FakeDemo
++from tests.fixtures.demo_protected_worker import KEY, SECRET, LoopbackTransport
++from tests.integration.test_demo import settings
++
++pytestmark = pytest.mark.skipif(not os.getenv("TEST_DATABASE_URL"), reason="isolated PG required")
++
++
++@pytest.fixture
++def case():
++    url = os.environ["TEST_DATABASE_URL"]
++    schema = "phase4_protected_" + uuid4().hex
++    admin = create_engine(url)
++    with admin.begin() as conn:
++        conn.execute(text(f'CREATE SCHEMA "{schema}"'))
++    engine = create_engine(url, connect_args={"options": "-csearch_path=" + schema})
++    with engine.begin() as conn:
++        cfg = Config("alembic.ini")
++        cfg.attributes["connection"] = conn
++        command.upgrade(cfg, "head")
++    config = settings().model_copy(update={"margin_mode": "ISOLATED", "symbols": ("BTCUSDT",)})
++    store = DemoStore(engine)  # unmodified real UTC clock
++    now = store.now()
++    day, week = period_keys(now, 0)
++    store.create(
++        "DEMO-test",
++        DemoLedger(
++            policy=config.policy,
++            margin_mode="ISOLATED",
++            symbols=("BTCUSDT",),
++            value=AccountValue(as_of=now, initial="1"),
++            daily_base="1",
++            weekly_base="1",
++            high_water="1",
++            daily_key=day,
++            weekly_key=week,
++            paused=True,
++        ),
++    )
++    fake = FakeDemo(now)
++    fake.positions["BTCUSDT"] = Decimal(0)
++    fake.prices["BTCUSDT"] = Decimal(0)
++    lock = threading.RLock()
++    errors = []
++
++    class Handler(BaseHTTPRequestHandler):
++        def log_message(self, *args):
++            pass  # never log signed request bodies or URLs
++
++        def handle_request(self):
++            from urllib.parse import parse_qs
++
++            body = self.rfile.read(int(self.headers.get("Content-Length", "0"))).decode()
++            params = {k: v[0] for k, v in parse_qs(body).items()}
++            with lock:
++                try:
++                    fake.at = datetime.now(UTC)
++                    response = fake(self.command, self.path, SecretStr(body), SecretStr(KEY))
++                    data = json.loads(response.body)
++                    if self.path == "/fapi/v1/exchangeInfo":
++                        for f in data["symbols"][0]["filters"]:
++                            if f["filterType"] == "LOT_SIZE":
++                                f.update(minQty="0.0001", stepSize="0.0001")
++                            if f["filterType"] == "MIN_NOTIONAL":
++                                f["notional"] = "50"
++                    if self.path == "/fapi/v1/ticker/bookTicker":
++                        data.update(
++                            symbol="BTCUSDT",
++                            time=int(fake.at.timestamp() * 1000),
++                            bidPrice="80000",
++                            askPrice="80000.1",
++                        )
++                    if self.path == "/fapi/v1/premiumIndex":
++                        data.update(
++                            symbol="BTCUSDT",
++                            time=int(fake.at.timestamp() * 1000),
++                            markPrice="80000",
++                        )
++                    if self.path == "/fapi/v1/symbolConfig":
++                        for row in data:
++                            row.update(marginType="ISOLATED", isAutoAddMargin="false")
++                    if self.path == "/fapi/v3/positionRisk":
++                        for row in data:
++                            margin = (
++                                abs(Decimal(row["positionAmt"])) * Decimal(row["entryPrice"]) / 2
++                            )
++                            row.update(
++                                marginType="isolated",
++                                isolatedWallet=str(margin),
++                                isolatedMargin=str(margin),
++                                liquidationPrice="40000",
++                            )
++                    if (
++                        self.command == "POST"
++                        and self.path == "/fapi/v1/order"
++                        and params.get("type") == "LIMIT"
++                    ):
++                        fake.fill(
++                            params["newClientOrderId"],
++                            Decimal(params["quantity"]),
++                            Decimal("80000"),
++                        )
++                    payload = json.dumps(data).encode()
++                    self.send_response(response.status)
++                except Exception:
++                    errors.append("SYNTHETIC_HANDLER_FAILED")
++                    payload = b'{"code":-1007}'
++                    self.send_response(500)
++                self.send_header("Content-Type", "application/json")
++                self.send_header("Content-Length", str(len(payload)))
++                self.end_headers()
++                self.wfile.write(payload)
++
++        do_GET = do_POST = do_DELETE = do_PUT = handle_request
++
++    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    endpoint = f"http://127.0.0.1:{server.server_port}"
++    try:
++        yield store, config, fake, endpoint, schema
++        assert not errors
++    finally:
++        server.shutdown()
++        server.server_close()
++        thread.join(timeout=5)
++        engine.dispose()
++        with admin.begin() as conn:
++            conn.execute(text(f'DROP SCHEMA "{schema}" CASCADE'))
++        admin.dispose()
++
++
++def ownership(store):
++    with store.engine.connect() as conn:
++        return (
++            conn.execute(select(accounts).where(accounts.c.account_id == "DEMO-test"))
++            .mappings()
++            .one()
++        )
++
++
++def fresh_signal(config):
++    now = datetime.now(UTC)
++    signal = Signal(
++        signal_id=uuid4(),
++        environment="DEMO",
++        symbol="BTCUSDT",
++        direction="LONG",
++        strategy=None,
++        purpose="DEMO_VALIDATION",
++        signal_closed_candle_at=now.replace(second=0, microsecond=0) - timedelta(minutes=1),
++        expires_at=now + timedelta(seconds=10),
++        suggested_limit_price="80000",
++        initial_stop_price="79600",
++        target_price="80800",
++        risk_profile_version=config.policy.risk.version,
++    )
++    gate = GateSnapshot(
++        market_at=now,
++        account_at=now,
++        correlation_at=now,
++        bid="80000",
++        ask="80000.1",
++        mark="80000",
++        correlation_group="SYNTHETIC_SINGLE_BTC",
++        evaluation="RULES_ONLY",
++    )
++    return signal, gate
++
++
++async def exercise(case):
++    store, config, fake, endpoint, schema = case
++    owner, operation = uuid4(), uuid4()
++    child = None
++    connections = 0
++
++    async def handler(socket):
++        nonlocal connections
++        connections += 1
++        await socket.wait_closed()
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        ws = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
++        environment = {k: v for k, v in os.environ.items() if not k.startswith("BINANCE_")}
++        environment.update(
++            TEST_ONLY_PROTECTED_WORKER="1",
++            TEST_PROTECTED_DB_URL=store.engine.url.render_as_string(hide_password=False),
++            TEST_PROTECTED_SCHEMA=schema,
++            TEST_PROTECTED_CONFIG=config.model_dump_json(),
++            TEST_PROTECTED_HTTP=endpoint,
++            TEST_PROTECTED_WS=ws,
++            PYTHONPATH=os.getcwd(),
++        )
++        try:
++            child = subprocess.Popen(
++                [
++                    sys.executable,
++                    "-m",
++                    "tests.fixtures.demo_protected_worker",
++                    str(owner),
++                    str(operation),
++                ],
++                env=environment,
++                stdout=subprocess.DEVNULL,
++                stderr=subprocess.PIPE,
++            )
++            deadline = time.monotonic() + 15
++            while time.monotonic() < deadline:
++                if child.poll() is not None:
++                    raise AssertionError(
++                        "worker exited before protected readiness: " + child.stderr.read().decode()
++                    )
++                current = store.read("DEMO-test")
++                if current.operations.get(str(operation)) == "PROTECTED_WORKER_READY":
++                    break
++                await asyncio.sleep(0.02)
++            else:
++                raise AssertionError("protected worker did not become ready")
++            order = current.orders[str(operation)]
++            assert order.filled == order.quantity == Decimal("0.0007")
++            assert not order.remaining and order.protected and current.paused
++            assert current.validation_evidence[str(operation)] == {
++                "stop_verified": True,
++                "target_verified": True,
++            }
++            before = ownership(store)
++            old_lease = Lease(account_id="DEMO-test", owner=owner, fence=before["fence"])
++            observer = DemoClient(
++                config.model_copy(update={"demo_trading_enabled": False}),
++                DemoCredentials(SecretStr(KEY), SecretStr(SECRET)),
++                send=LoopbackTransport(endpoint),
++            )
++
++            def protections_present():
++                observer.sync_clock()
++                for cid, kind in [
++                    (order.algo_id, "STOP_MARKET"),
++                    (order.tp_algo_id, "TAKE_PROFIT_MARKET"),
++                ]:
++                    row = observer.request("GET", "/fapi/v1/algoOrder", {"clientAlgoId": cid})
++                    assert row["clientAlgoId"] == cid and row["algoStatus"] == "NEW"
++                    assert row["orderType"] == kind and row["closePosition"] is True
++                positions = observer.request("GET", "/fapi/v3/positionRisk")
++                assert positions[0]["positionAmt"] == str(order.filled)
++
++            protections_present()
++            child.kill()
++            assert await asyncio.to_thread(child.wait, 5) == -process_signal.SIGKILL
++            assert not child.stderr.read(), "worker must not emit private diagnostics"
++            after_kill = ownership(store)
++            assert after_kill["owner"] == str(owner) and after_kill["fence"] == before["fence"]
++            assert str(uuid5(operation, "finally")) not in store.read("DEMO-test").operations
++            with pytest.raises(RiskRejected, match="already active"):
++                store.acquire("DEMO-test", uuid4())
++            protections_present()
++            remaining = (after_kill["lease_until"] - store.now()).total_seconds()
++            assert remaining > 0
++            started = time.monotonic()
++            deadline = started + 75
++            probes = 1
++            while store.now() < after_kill["lease_until"]:
++                assert time.monotonic() < deadline, "natural expiry timeout"
++                await asyncio.sleep(
++                    min(2, max(0.02, (after_kill["lease_until"] - store.now()).total_seconds()))
++                )
++                protections_present()
++                probes += 1
++            elapsed = time.monotonic() - started
++            assert elapsed + 0.25 >= remaining
++            assert ownership(store)["lease_until"] == after_kill["lease_until"]
++            lease = store.acquire("DEMO-test", uuid4())
++            assert lease.fence == old_lease.fence + 1
++            effects = []
++            with pytest.raises(RiskRejected):
++                store.change(old_lease, "STALE_DELETE", lambda ledger: effects.append(True))
++            with pytest.raises(RiskRejected):
++                store.renew(old_lease)
++            assert not effects
++            new_client = DemoClient(
++                config,
++                DemoCredentials(SecretStr(KEY), SecretStr(SECRET)),
++                send=LoopbackTransport(endpoint),
++            )
++            new_client.sync_clock()
++            successor = DemoCoordinator(store, lease, new_client)
++            successor.refresh_metadata()
++            untrusted = store.read("DEMO-test")
++            assert not untrusted.stream_ready and not untrusted.reconciled
++            with pytest.raises(RiskRejected, match="gate locked"):
++                successor._fresh(untrusted.model_copy(update={"paused": False}, deep=True))
++            sig, gate = fresh_signal(config)
++            with pytest.raises(RiskRejected):
++                successor.reserve(sig, gate, quantity_cap=Decimal("0.0007"))
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(ws) as socket:
++                    yield socket
++
++            def recovered():
++                ledger = store.read("DEMO-test")
++                restored = ledger.orders[str(operation)]
++                assert ledger.stream_ready and ledger.reconciled and ledger.paused
++                assert restored.protected and restored.algo_id == order.algo_id
++                assert (
++                    restored.tp_algo_id == order.tp_algo_id
++                    and restored.client_id == order.client_id
++                )
++                assert restored.server_order_id == order.server_order_id
++                assert (
++                    restored.filled == order.filled
++                    and restored.open_quantity == order.open_quantity
++                )
++                successor.submit(str(operation))  # queried existing FILLED intent, never new POST
++
++            await session(successor, connector=connector, on_ready=recovered, max_messages=0)
++            assert connections == 2
++            entry_posts = [
++                p for m, path, p in fake.calls if m == "POST" and path == "/fapi/v1/order"
++            ]
++            protection_posts = [
++                p for m, path, p in fake.calls if m == "POST" and path == "/fapi/v1/algoOrder"
++            ]
++            assert len(entry_posts) == 1 and len(protection_posts) == 2
++            protections_present()
++            stable = store.read("DEMO-test")
++            for field in [
++                "daily_key",
++                "daily_base",
++                "weekly_key",
++                "weekly_base",
++                "net_transfers",
++                "policy",
++            ]:
++                assert getattr(stable, field) == getattr(current, field)
++            assert stable.high_water >= current.high_water
++            successor.command(uuid4(), "EMERGENCY_FLATTEN")
++            assert successor.confirm_flat() == "VERIFIED_FLAT"
++            store.release(lease)
++            assert not any(fake.positions.values())
++            return {
++                "scope": "ACTUAL_PROTECTED_CHILD_SIGKILL_REAL_PG_NATURAL_LEASE_LOCAL_VENUE",
++                "child_exit_code": child.returncode,
++                "finally_marker_absent": True,
++                "natural_wait_ms": int(elapsed * 1000),
++                "remaining_at_wait_start_ms": int(remaining * 1000),
++                "lease_until_unchanged": True,
++                "protection_probe_count": probes,
++                "fence_before": old_lease.fence,
++                "fence_after": lease.fence,
++                "stale_effect_and_renew_blocked": True,
++                "wss_connections": connections,
++                "entry_posts_before_cleanup": len(entry_posts),
++                "protection_posts": len(protection_posts),
++                "same_entry_and_protection_ids_recovered": True,
++                "final_flat": "VERIFIED_FLAT",
++                "real_exchange_calls": 0,
++            }
++        finally:
++            if child is not None:
++                if child.poll() is None:
++                    child.kill()
++                    await asyncio.to_thread(child.wait, 5)
++                child.stderr.close()
++
++
++def test_protected_worker_real_sigkill_natural_lease_and_same_id_takeover(case):
++    result = asyncio.run(exercise(case))
++    print("PROTECTED_WORKER_RESULT_JSON=" + json.dumps(result), flush=True)
+--- /dev/null
++++ b/tests/unit/test_demo_protected_worker_scope.py
+@@ -0,0 +1,41 @@
++"""A test child must be incapable of using production endpoints or credentials."""
++
++import pytest
++from pydantic import SecretStr
++
++from tests.fixtures.demo_protected_worker import LoopbackTransport, loopback_endpoint
++from tests.fixtures.demo_protected_worker import test_context as worker_context
++
++
++@pytest.mark.parametrize(
++    "url",
++    [
++        "https://fapi.binance.com",
++        "http://demo-fapi.binance.com",
++        "http://127.0.0.1:8000/path",
++        "http://user:pass@127.0.0.1:8000",
++        "http://127.0.0.1:8000?redirect=x",
++    ],
++)
++def test_remote_or_ambiguous_endpoints_rejected(url):
++    with pytest.raises(ValueError):
++        loopback_endpoint(url, "http")
++
++
++def test_wrong_key_rejected_before_any_loopback_request():
++    transport = LoopbackTransport("http://127.0.0.1:1")
++    with pytest.raises(ValueError, match="SYNTHETIC_CREDENTIALS_ONLY"):
++        transport("GET", "/fapi/v3/account", SecretStr(""), SecretStr("DO_NOT_SEND"))
++
++
++def test_explicit_test_context_required(monkeypatch):
++    monkeypatch.delenv("TEST_ONLY_PROTECTED_WORKER", raising=False)
++    with pytest.raises(ValueError, match="SYNTHETIC_TEST_CONTEXT_REQUIRED"):
++        worker_context()
++
++
++def test_any_binance_env_rejected_before_database(monkeypatch):
++    monkeypatch.setenv("TEST_ONLY_PROTECTED_WORKER", "1")
++    monkeypatch.setenv("BINANCE_DEMO_API_KEY", "DO_NOT_READ")
++    with pytest.raises(ValueError, match="SYNTHETIC_TEST_CONTEXT_REQUIRED"):
++        worker_context()
