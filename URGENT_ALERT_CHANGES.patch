@@ -1,0 +1,2099 @@
+--- /dev/null
++++ b/URGENT_ALERT_START_HERE_KO.md
+@@ -0,0 +1,63 @@
++# 네이버 본인 이메일 긴급 경고 설정
++
++이 버전은 DEMO 위험 상태 변경과 함께 긴급 경고를 DB 큐에 기록하고, 별도 alerts worker가 이메일로 전달합니다. 알림 전송은 거래 처리 트랜잭션 밖에서 수행합니다. 실제 주문·청산·복구 승인을 추가 실행하지 않습니다. 기존 API 키는 같은 RAM 세션에서 재사용합니다.
++
++## 준비
++
++네이버 메일 환경설정의 POP3/SMTP 또는 IMAP/SMTP 외부 메일 사용 설정을 확인하고, 네이버 계정 보안 설정에서 메일용 애플리케이션 비밀번호를 준비합니다. 일반 로그인 비밀번호 대신 발급한 앱 비밀번호를 사용합니다. 주소·비밀번호를 채팅에 보내지 않습니다. 현재 버전은 본인 @naver.com 주소 하나를 발신·수신에 함께 사용하며 다른 수신자를 지정할 수 없습니다.
++
++SMTP는 smtp.naver.com:465의 인증서를 검증하는 implicit TLS만 사용합니다. TLS 검사 해제나 평문 SMTP로 우회하지 않습니다. 실제 네이버 인증·수신은 사용자 PC에서 아래 명시적 테스트로 확인해야 하며 클라우드에서 실제 키·메일 계정을 사용하지 않았습니다.
++
++## 1. 설치
++
++새 windows-demo-urgent-alert-queue 폴더에 ZIP을 풀고 해당 폴더의 탐색기 주소창에서 cmd를 엽니다. 같은 hybrid-windows 프로젝트와 DB/export/RAM 볼륨을 유지합니다. 이번 빌드는 알림 큐/시도 기록 두 테이블을 추가하는0004 migration을 실행합니다. 기존 장부·감사·outbox를 재작성하거나 과거 경고를 소급 생성하지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++api/db/web/key-session/alerts가 Healthy인지 확인합니다. alerts의 Healthy는 worker 동작 확인이며 이메일 설정이나 실제 수신 성공을 뜻하지 않습니다. 이메일 설정이 없으면 worker는 대기하며 발송하지 않습니다. 유효한 RAM API 키는 재빌드 후 유지됩니다.
++
++이메일 설정은 거래소 키나 신규 거래를 요구하지 않습니다. 기존 진입 정지 상태를 유지하며 메일만 설정합니다.
++
++## 2. 이메일 주소와 앱 비밀번호 한 번 입력
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_alert_email_session --enable-naver-email
++```
++
++본인 네이버 주소를 입력하고 앱 비밀번호는 숨김 입력합니다. 정상 출력은 email_session: CONFIGURED_PRIVATE_RAM입니다. 유효한 이메일 설정이 이미 있으면 다시 묻지 않고 만료 시각도 연장하지 않습니다. 이 명령의 실행은 대기 중인 DEMO 긴급 경고를 본인 메일로 자동 전달하도록 활성화하는 단계입니다. 입력 화면 대신 마지막 JSON만 공유합니다.
++
++주소/앱 비밀번호는 키와 같은 보호된 tmpfs 안의 별도 email.json 파일에만 보관합니다. 디렉터리0700/파일0600/사용자10001, noexec/nosuid/nodev 및 NOFOLLOW/단일 링크 검사를 사용합니다. API 키 session.json은 변경하지 않습니다. .env/DB/이미지/호스트 일반 파일에 앱 비밀번호를 저장하지 않습니다. RAM 안의 값은 평문이며 동일 사용자/root와 호스트 메모리 보호에 의존합니다.
++
++등록부터12시간 유효하고 API 재생성 동안 RAM 마운트가 유지되면 재사용합니다. Docker/컴퓨터 재시작·마지막 마운트 해제·만료 후에는 다시 설정해야 합니다. 만료된 설정으로 새 발송은 시작하지 않으며 대기 알림은 DB에 남습니다. 이미 시작한 SMTP 요청은 제한된 시간 안에 끝날 수 있습니다. 이 구성은24시간 무인 영구 비밀 저장소가 아닙니다.
++
++## 3. 본인에게 테스트 메일 한 번 발송
++
++아래 명령은 실제 네이버 본인 주소로 테스트 메일을 한 통 보냅니다. 메일 제목은 [DEMO] 긴급 알림 수신 테스트이며, 주문을 실행하지 않는 테스트라는 내용입니다. DB에 가짜 거래/긴급 사건을 만들지 않습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.send_demo_alert_email_test --send-self-test --operation-id b330d024-7b53-4d33-9f8e-9cf358e9bb92
++```
++
++SMTP_ACCEPTED_CHECK_YOUR_INBOX는 네이버 SMTP가 수락했다는 뜻입니다. 실제 받은메일함/스팸함에 도착했는지 확인해야 수신 검증을 완료할 수 있습니다. SMTP 수락을 사람이 읽었다는 증거로 취급하지 않습니다. NOT_CONFIRMED_DO_NOT_REPEAT면 즉시 반복 발송하지 않고 고정 실패 코드만 공유합니다. 비밀번호나 SMTP 응답 원문은 보내지 않습니다.
++
++## 4. 알림 큐 상태 확인
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.review_demo_alerts
++```
++
++기본 명령은 읽기 전용입니다. email_session이 CONFIGURED_PRIVATE_RAM이고 external_receiver_configured가 true인지 확인합니다. total/pending/delivered/retry_pending은 새 알림 큐 집계이며 테스트 메일은 포함하지 않습니다. 과거 위험 이력의 소급 발송이 없어 새 사건이 없으면0이 정상입니다.
++
++메일 worker는 유효 설정이 있으면 새 긴급 경고를 자동 처리하고, 전송 실패는5초부터 최대300초까지 간격을 늘려 재시도합니다. 알림 ID와 Message-ID는 유지하지만 SMTP에는 일반적인 중복 제거 보장이 없습니다. 응답 유실 뒤에는 같은 메일이 중복 도착할 수 있으며 정확히 한 번 수신을 보장하지 않습니다. 실패 원문/전체 장부/거래소 응답/키는 메일에 포함하지 않습니다.
++
++이메일 설정만 종료하거나 교체할 때 아래 명령으로 이메일 RAM 파일만 지울 수 있습니다. 거래소 키는 지우지 않습니다. 이번 정상 설정에서는 실행할 필요가 없습니다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.demo_alert_email_session --clear
++```
++
++만료·잘못된 파일을 자동 삭제하거나 다른 계정으로 바꾸지 않습니다. 설정 초기화 뒤에는 명시적으로 다시 등록해야 합니다. 기존 DB/export 볼륨을 삭제하지 않습니다. 이번 배포는 기존 미완료 부분체결/TP 실제 체결이나 Phase4 전체 완료·LIVE/Phase5 전환을 선언하지 않습니다.
++
++SMTP_AUTH_FAILED가 확인되면 worker는 같은 설정으로 로그인을 반복하지 않고 설정 변경을 기다립니다. 대기 알림과 실패 시도는 보존되며, 이메일 설정을 명시적으로 교체한 뒤 재개합니다. worker 재시작 후에는 설정을 다시 확인하므로 같은 잘못된 비밀번호로 서비스를 반복 재시작하지 않습니다.
+--- /dev/null
++++ b/URGENT_ALERT_VALIDATION_KO.md
+@@ -0,0 +1,37 @@
++# DEMO 긴급 경고 큐와 네이버 이메일 전달 검증
++
++부모 ZIP은 windows-demo-protected-worker-review / SHA256 297f64bf8858b8e03f417ce6e07e5d3396c99dbad7b2d1df826f7a79c07b44f1다. 기존 파일 변경은 DemoStore.change의 알림 큐 원자적 기록 연결과 별도 alerts worker의 Compose 등록뿐이다. 원래 coordinator/SDK/리스크·수량·시계60초/거래 리스60초/펜스·기준금/기존 키 도우미와 exports는 변경하지 않는다.
++
++## 생성과 저장
++
++0004 migration은 demo_urgent_alerts와 demo_urgent_alert_attempts만 추가한다. 기존 장부·audit·outbox를 수정하지 않으며 과거 사건을 소급 발송하지 않는다. 실제 기존0003 상태에서 업그레이드 전후 장부/감사/outbox 행 완전 일치 및 Alembic metadata 비교를 검사했다.
++
++알림은 원래 위험 상태/요청 상태의 새 변화로 생성한다. STOP_PROTECTION_FAILURE, EXIT_OUTCOME_UNKNOWN, EMERGENCY_ENTERED, RISK_LOCK_ENTERED, PRIVATE_SESSION_FAILED를 고정 코드로 사용한다. EMERGENCY_ENTERED는 운영자의 명시적 비상 명령도 포함하며 항상 기술적 장애를 뜻하지 않는다. 오래된 UNKNOWN이나 heartbeat를 새 실패로 반복 발송하지 않는다. 같은 source event/code의 알림 ID는 결정적 UUID이고 중복 제약을 둔다.
++
++위험 변경·기존 이벤트/outbox·알림을 한 PostgreSQL 트랜잭션에 기록한다. 알림 INSERT 때 실제 시험 backend를 종료하여 모두 함께 롤백되는지 확인했다. 새로운 네트워크 요청은 거래 트랜잭션에서 수행하지 않는다. DB 장애에서는 기존 durable intent/동일 ID 대조 경로를 유지하며 알림 저장 실패를 조용히 무시하지 않는다.
++
++메일 payload는 DEMO/CRITICAL·고정 코드·사건 UUID·계좌 해시 참조·UTC 시각·위험 상태·정지 여부·신호 UUID만 허용한다. 전체 장부·operations·원래 오류/응답·키·서명·SMTP 주소/비밀번호를 넣지 않는다. 변조/추가 필드가 있는 payload는 발송하지 않고 고정 코드로 실패를 기록한다.
++
++## 전달·재시도
++
++claim은 짧은 독립 트랜잭션과 FOR UPDATE SKIP LOCKED로 획득하고 HTTP/SMTP 전송 전에 COMMIT한다. 전송 시도는 별도 기록으로 남는다. 만료된30초 알림 claim은 새 token으로 재인수하며 이전 소유자의 완료 처리를 거부한다. 이30초는 거래 리스60초와 별개다. 실패는5초부터300초까지 지수 간격으로 재시도하며 대기 건이나 과거 시도를 지우지 않는다.
++
++수신 실패·잘못된 ACK·수신 후 응답 유실·수신 ACK 뒤 DB 저장 실패·경쟁 전달기·만료 claim을 검사했다. 로컬 HTTP 수신기의 중복 제거는 같은 alert_id/Idempotency-Key를 사용하지만 이를 SMTP에도 일반화하지 않는다. SMTP는 같은 Message-ID로 최소 한 번 전달을 재시도하므로 응답 유실 뒤 중복 수신이 가능하다.
++
++네이버 sink는 smtp.naver.com:465, 인증서 검증 implicit TLS, 본인 주소 From=To로 제한한다. 앱 비밀번호는 별도 보호된 RAM 파일에만12시간 보관하며 재사용/만료 불변·잘못된 권한/링크/파일/시간·다른 수신 주소·헤더 삽입·영구 파일시스템 거부를 검사했다. 같은 디렉터리의 원래 API 키 파일이 바뀌지 않는지 확인했다. 캐시 입력 자체는 SMTP 인증이나 메일 수신 성공을 증명하지 않는다.
++
++실제 로컬 TLS SMTP 서버로 AUTH/MAIL/RCPT/DATA와 인증 실패 후 재시도를 검증했다. 기본 SSLContext의 hostname/CERT_REQUIRED를 요구하고 시험 factory만 로컬 인증서로 라우팅했다. 실제 네이버에 클라우드 인증 연결을 하지 않았다. SMTP 코드/예외는 고정 실패 코드만 보존하고 비밀번호/주소/응답 원문을 로그에 내보내지 않는다. 송신 budget은10초이며 이는 DNS 및 연결이 오래 걸릴 때의 외부 OS 지연 자체까지 보장하는 의미는 아니다. 예산이 지난 SMTP 명령은 전송하지 않는다.
++
++## 운영 기본값과 실제 수신
++
++새 alerts 컨테이너는 읽기 전용 root/RAM 마운트·cap drop·no-new-privileges·호스트 포트 없음으로 실행한다. API migration/health 뒤 시작한다. SMTP 설정이 없으면 발송 없이 대기한다. worker Healthy는 생존 신호이며 SMTP 인증/받은메일함 확인을 뜻하지 않는다. 유효한 본인 설정을 명시적으로 등록하면 대기·새 긴급 경고를 자동 발송한다. 만료 시에는 새 발송을 멈추고 DB 대기 기록을 남긴다.
++
++발송 완료 표시는 채널 수락 기준이다. 실제 네이버 SMTP 수락과 본인 받은메일함/스팸함 수신은 사용자 PC의 명시적 테스트 메일 결과로 별도 확인해야 한다. 테스트 메일은 실제 주문이나 가짜 사건/경고를 DB에 만들지 않는다. SMTP 수락은 사람의 열람·최종 수신 보장이 아니다.
++
++검증 수치: 전체1339개 통과(396.68초), 집중48개 통과(10.00초), SMTP 인증 거부 대기 보완 후 worker/CLI16개 재검증 통과(0.32초). 실패·건너뛰기 없음. Ruff 검사/포맷 검사, mypy121개 소스 및 Compose 구성 검사 통과.
++
++격리 PostgreSQL, 로컬 HTTP/TLS SMTP 및 합성 거래소로 검증했으며 실제 Binance/네이버 인증이나 사용자 메일 발송은 클라우드에서 하지 않았다. 실제 이메일 수신·장기 무인 운영과 미완료 부분체결/TP 트리거·실제 계좌 장애 수락은 별도다. main/LIVE/Phase5 및 Phase4 전체 완료 판정은 변경하지 않았다.
++
++SMTP_AUTH_FAILED가 확인되면 worker는 같은 설정으로 로그인을 반복하지 않고 설정 변경을 기다립니다. 대기 알림과 실패 시도는 보존되며, 이메일 설정을 명시적으로 교체한 뒤 재개합니다. worker 재시작 후에는 설정을 다시 확인하므로 같은 잘못된 비밀번호로 서비스를 반복 재시작하지 않습니다.
++
++DB 전체가 사용 불가하면 새 경고의 원자적 기록과 전달 상태 갱신도 불가합니다. 이때의 독립적인 외부 DB 가용성 감시·장애 통보는 이번 큐 기반 경로의 수락 범위에 포함하지 않습니다.
+--- a/infra/docker-compose.yml
++++ b/infra/docker-compose.yml
+@@ -62,6 +62,38 @@
+         read_only: true
+         volume: {nocopy: true}
+     restart: "no"
++  alerts:
++    build:
++      context: ..
++      dockerfile: infra/api.Dockerfile
++    command: ["python", "-m", "scripts.watch_demo_alert_email"]
++    environment:
++      TRADING_MODE: PAPER
++      LIVE_TRADING_ENABLED: "false"
++      DATABASE_URL: postgresql+psycopg://dev:dev@db:5432/hybrid
++    init: true
++    read_only: true
++    cap_drop: [ALL]
++    security_opt: ["no-new-privileges:true"]
++    pids_limit: 64
++    tmpfs:
++      - /tmp:rw,noexec,nosuid,nodev,size=1048576,mode=0700,uid=10001,gid=10001
++    volumes:
++      - type: volume
++        source: demo_key_session_ram
++        target: /run/demo-keys
++        read_only: true
++        volume: {nocopy: true}
++    depends_on:
++      api: {condition: service_healthy}
++      db: {condition: service_healthy}
++      key-session: {condition: service_healthy}
++    healthcheck:
++      test: ["CMD", "python", "-c", "import time; from pathlib import Path; age=time.monotonic()-float(Path('/tmp/demo-alert-watch-health').read_text()); assert 0 <= age < 30"]
++      interval: 5s
++      timeout: 3s
++      retries: 10
++    restart: "no"
+   web:
+     build:
+       context: ..
+--- /dev/null
++++ b/migrations/versions/0004_demo_urgent_alerts.py
+@@ -0,0 +1,63 @@
++"""Additive DEMO urgent alert delivery queue; existing audit/outbox untouched."""
++
++from alembic import op
++from sqlalchemy import (
++    CheckConstraint,
++    Column,
++    DateTime,
++    ForeignKey,
++    Integer,
++    MetaData,
++    String,
++    Table,
++    UniqueConstraint,
++)
++from sqlalchemy.dialects.postgresql import JSONB
++
++revision = "0004_demo_urgent_alerts"
++down_revision = "0003_demo"
++branch_labels = None
++depends_on = None
++metadata = MetaData()
++Table("demo_events", metadata, Column("event_id", String(36), primary_key=True))
++Table("demo_accounts", metadata, Column("account_id", String(80), primary_key=True))
++alerts = Table(
++    "demo_urgent_alerts",
++    metadata,
++    Column("alert_id", String(36), primary_key=True),
++    Column("event_id", ForeignKey("demo_events.event_id"), nullable=False),
++    Column("account_id", ForeignKey("demo_accounts.account_id"), nullable=False),
++    Column("code", String(40), nullable=False),
++    Column("payload", JSONB, nullable=False),
++    Column("created_at", DateTime(timezone=True), nullable=False),
++    Column("delivered_at", DateTime(timezone=True)),
++    Column("attempts", Integer, nullable=False),
++    Column("next_attempt_at", DateTime(timezone=True), nullable=False),
++    Column("claim_token", String(36)),
++    Column("claim_until", DateTime(timezone=True)),
++    Column("last_failure", String(40), nullable=False),
++    UniqueConstraint("event_id", "code", name="uq_demo_urgent_event_code"),
++    CheckConstraint("attempts >= 0", name="ck_demo_urgent_attempts"),
++    CheckConstraint("(claim_token IS NULL) = (claim_until IS NULL)", name="ck_demo_urgent_claim"),
++)
++attempts = Table(
++    "demo_urgent_alert_attempts",
++    metadata,
++    Column("attempt_id", String(36), primary_key=True),
++    Column("alert_id", ForeignKey("demo_urgent_alerts.alert_id"), nullable=False),
++    Column("number", Integer, nullable=False),
++    Column("started_at", DateTime(timezone=True), nullable=False),
++    Column("finished_at", DateTime(timezone=True)),
++    Column("result", String(40), nullable=False),
++    UniqueConstraint("alert_id", "number", name="uq_demo_urgent_attempt_number"),
++)
++
++
++def upgrade() -> None:
++    alerts.create(op.get_bind())
++    attempts.create(op.get_bind())
++
++
++def downgrade() -> None:
++    attempts.drop(op.get_bind())
++    alerts.drop(op.get_bind())
+--- a/packages/persistence/demo.py
++++ b/packages/persistence/demo.py
+@@ -25,6 +25,8 @@
+ from sqlalchemy.dialects.postgresql import JSONB, insert
+ from sqlalchemy.engine import Engine
+ 
++from packages.persistence.demo_alerts import enqueue as enqueue_alerts
++from packages.persistence.demo_alerts import signals as alert_signals
+ from packages.persistence.market import metadata
+ from services.execution.demo_models import DemoLedger
+ from services.execution.models import Lease
+@@ -138,6 +140,7 @@
+                 raise RiskRejected("DEMO lease expired or fenced")
+             ledger = DemoLedger.model_validate(row["state"])
+             policy = ledger.policy.model_dump_json()
++            alert_before = alert_signals(ledger)
+             result = apply(ledger)
+             if ledger.policy.model_dump_json() != policy:
+                 raise RiskRejected("DEMO risk policy cannot be mutated")
+@@ -160,6 +163,7 @@
+                 )
+             )
+             conn.execute(insert(outbox).values(event_id=event_id, topic="DEMO_AUDIT"))
++            enqueue_alerts(conn, event_id, lease.account_id, now, kind, alert_before, ledger)
+             return result
+ 
+     def renew(self, lease: Lease) -> None:
+--- /dev/null
++++ b/packages/persistence/demo_alerts.py
+@@ -0,0 +1,157 @@
++"""Atomic DEMO urgent alert outbox; no network and no raw ledger payloads."""
++
++import hashlib
++from datetime import datetime
++from typing import Literal
++from uuid import UUID, uuid5
++
++from pydantic import BaseModel, ConfigDict, Field
++from sqlalchemy import (
++    CheckConstraint,
++    Column,
++    Connection,
++    DateTime,
++    ForeignKey,
++    Integer,
++    String,
++    Table,
++    UniqueConstraint,
++    insert,
++)
++from sqlalchemy.dialects.postgresql import JSONB
++
++from packages.domain.contracts import RiskState, UTCDateTime
++from packages.persistence.market import metadata
++from services.execution.demo_models import DemoLedger
++
++AlertCode = Literal[
++    "STOP_PROTECTION_FAILURE",
++    "EXIT_OUTCOME_UNKNOWN",
++    "EMERGENCY_ENTERED",
++    "RISK_LOCK_ENTERED",
++    "PRIVATE_SESSION_FAILED",
++]
++Signals = dict[AlertCode, set[str]]
++
++
++class AlertEnvelope(BaseModel):
++    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
++    version: Literal[1] = 1
++    alert_id: UUID
++    event_id: UUID
++    environment: Literal["DEMO"] = "DEMO"
++    severity: Literal["CRITICAL"] = "CRITICAL"
++    code: AlertCode
++    account_ref: str = Field(pattern=r"^[a-f0-9]{24}$")
++    occurred_at: UTCDateTime
++    risk_state: RiskState
++    paused: bool
++    order_ids: tuple[UUID, ...] = ()
++
++
++alerts = Table(
++    "demo_urgent_alerts",
++    metadata,
++    Column("alert_id", String(36), primary_key=True),
++    Column("event_id", ForeignKey("demo_events.event_id"), nullable=False),
++    Column("account_id", ForeignKey("demo_accounts.account_id"), nullable=False),
++    Column("code", String(40), nullable=False),
++    Column("payload", JSONB, nullable=False),
++    Column("created_at", DateTime(timezone=True), nullable=False),
++    Column("delivered_at", DateTime(timezone=True)),
++    Column("attempts", Integer, nullable=False),
++    Column("next_attempt_at", DateTime(timezone=True), nullable=False),
++    Column("claim_token", String(36)),
++    Column("claim_until", DateTime(timezone=True)),
++    Column("last_failure", String(40), nullable=False),
++    UniqueConstraint("event_id", "code", name="uq_demo_urgent_event_code"),
++    CheckConstraint("attempts >= 0", name="ck_demo_urgent_attempts"),
++    CheckConstraint("(claim_token IS NULL) = (claim_until IS NULL)", name="ck_demo_urgent_claim"),
++)
++attempts = Table(
++    "demo_urgent_alert_attempts",
++    metadata,
++    Column("attempt_id", String(36), primary_key=True),
++    Column("alert_id", ForeignKey("demo_urgent_alerts.alert_id"), nullable=False),
++    Column("number", Integer, nullable=False),
++    Column("started_at", DateTime(timezone=True), nullable=False),
++    Column("finished_at", DateTime(timezone=True)),
++    Column("result", String(40), nullable=False),
++    UniqueConstraint("alert_id", "number", name="uq_demo_urgent_attempt_number"),
++)
++
++
++def signals(ledger: DemoLedger) -> Signals:
++    found: Signals = {}
++    if ledger.risk_state == RiskState.EMERGENCY:
++        found["EMERGENCY_ENTERED"] = {"ACCOUNT"}
++    elif ledger.risk_state.value in {"DAILY_LOCK", "WEEKLY_LOCK", "DRAWDOWN_LOCK", "UNHEALTHY"}:
++        found["RISK_LOCK_ENTERED"] = {ledger.risk_state.value}
++    for order in ledger.orders.values():
++        reference = str(order.signal.signal_id)
++        if (
++            order.open_quantity
++            and order.algo_id
++            and ledger.requests.get(order.algo_id) in {"UNKNOWN", "NOT_SENT", "REJECTED"}
++        ):
++            found.setdefault("STOP_PROTECTION_FAILURE", set()).add(reference)
++        if order.exit_id and order.exit_state == "UNKNOWN":
++            found.setdefault("EXIT_OUTCOME_UNKNOWN", set()).add(reference + ":" + order.exit_id)
++    return found
++
++
++def enqueue(
++    conn: Connection,
++    event_id: str,
++    account: str,
++    at: datetime,
++    kind: str,
++    before: Signals,
++    after: DemoLedger,
++) -> None:
++    new: Signals = {
++        code: tokens - before.get(code, set())
++        for code, tokens in signals(after).items()
++        if tokens - before.get(code, set())
++    }
++    if kind == "DEMO_PRIVATE_SESSION_FAILED":
++        new["PRIVATE_SESSION_FAILED"] = set()
++    for code, tokens in new.items():
++        affected = tuple(
++            sorted(
++                {
++                    UUID(token.split(":", 1)[0])
++                    for token in tokens
++                    if token
++                    not in {"ACCOUNT", "DAILY_LOCK", "WEEKLY_LOCK", "DRAWDOWN_LOCK", "UNHEALTHY"}
++                },
++                key=str,
++            )
++        )
++        identifier = uuid5(UUID(event_id), code)
++        envelope = AlertEnvelope(
++            alert_id=identifier,
++            event_id=UUID(event_id),
++            code=code,
++            account_ref=hashlib.sha256(account.encode()).hexdigest()[:24],
++            occurred_at=at,
++            risk_state=after.risk_state,
++            paused=after.paused,
++            order_ids=affected,
++        )
++        conn.execute(
++            insert(alerts).values(
++                alert_id=str(identifier),
++                event_id=event_id,
++                account_id=account,
++                code=code,
++                payload=envelope.model_dump(mode="json"),
++                created_at=at,
++                delivered_at=None,
++                attempts=0,
++                next_attempt_at=at,
++                claim_token=None,
++                claim_until=None,
++                last_failure="NONE",
++            )
++        )
+--- /dev/null
++++ b/scripts/demo_alert_email_session.py
+@@ -0,0 +1,178 @@
++"""Explicit NAVER self-email configuration, private RAM only, absolute 12h lifetime."""
++
++import argparse
++import getpass
++import json
++import os
++import re
++import stat
++import time
++import warnings
++from dataclasses import dataclass
++
++from pydantic import SecretStr
++
++from scripts import demo_key_session as keys
++
++FILENAME = "email.json"
++
++
++@dataclass(frozen=True)
++class EmailSettings:
++    address: str
++    password: SecretStr
++
++    def __post_init__(self) -> None:
++        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}@naver\.com", self.address):
++            raise ValueError("NAVER_SELF_ADDRESS_REQUIRED")
++        value = self.password.get_secret_value()
++        if not 1 <= len(value) <= 512 or not all(33 <= ord(c) <= 126 for c in value):
++            raise ValueError("SMTP_APP_PASSWORD_INVALID")
++
++
++def load() -> EmailSettings | None:
++    keys._context()
++    if not keys.DIRECTORY.exists():
++        return None
++    directory = keys._directory()
++    try:
++        try:
++            fd = os.open(FILENAME, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
++        except FileNotFoundError:
++            return None
++        with os.fdopen(fd, "rb") as file:
++            info = os.fstat(file.fileno())
++            if (
++                not stat.S_ISREG(info.st_mode)
++                or info.st_uid != os.getuid()
++                or stat.S_IMODE(info.st_mode) != 0o600
++                or info.st_nlink != 1
++                or not 1 <= info.st_size <= 4096
++            ):
++                raise ValueError("EMAIL_SESSION_FILE_INVALID")
++            payload = json.loads(file.read(4097))
++        if (
++            not isinstance(payload, dict)
++            or set(payload) != {"version", "created", "expires", "address", "password"}
++            or type(payload["version"]) is not int
++            or payload["version"] != 1
++            or type(payload["created"]) is not int
++            or type(payload["expires"]) is not int
++            or payload["expires"] != payload["created"] + keys.LIFETIME_SECONDS
++        ):
++            raise ValueError("EMAIL_SESSION_FILE_INVALID")
++        if not payload["created"] <= int(time.time()) < payload["expires"]:
++            raise ValueError("EMAIL_SESSION_EXPIRED")
++        if not isinstance(payload["address"], str) or not isinstance(payload["password"], str):
++            raise ValueError("EMAIL_SESSION_FILE_INVALID")
++        return EmailSettings(payload["address"], SecretStr(payload["password"]))
++    finally:
++        os.close(directory)
++
++
++def configure() -> None:
++    keys._context()
++    if load() is not None:
++        return
++    with keys._registration_lock():
++        if load() is not None:
++            return
++        warnings.simplefilter("error", getpass.GetPassWarning)
++        value = EmailSettings(
++            input("NAVER self email address: ").strip(),
++            SecretStr(getpass.getpass("NAVER app password (hidden): ")),
++        )
++        now = int(time.time())
++        data = json.dumps(
++            {
++                "version": 1,
++                "created": now,
++                "expires": now + keys.LIFETIME_SECONDS,
++                "address": value.address,
++                "password": value.password.get_secret_value(),
++            }
++        ).encode()
++        directory = keys._directory()
++        try:
++            fd = os.open(
++                FILENAME,
++                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
++                0o600,
++                dir_fd=directory,
++            )
++            try:
++                with os.fdopen(fd, "wb") as file:
++                    os.fchmod(file.fileno(), 0o600)
++                    file.write(data)
++                    file.flush()
++            except BaseException:
++                os.unlink(FILENAME, dir_fd=directory)
++                raise
++        finally:
++            os.close(directory)
++
++
++def clear() -> None:
++    keys._context()
++    if not keys.DIRECTORY.exists():
++        return
++    with keys._registration_lock():
++        directory = keys._directory()
++        try:
++            try:
++                os.unlink(FILENAME, dir_fd=directory)
++            except FileNotFoundError:
++                pass
++        finally:
++            os.close(directory)
++
++
++def status() -> str:
++    try:
++        return "CONFIGURED_PRIVATE_RAM" if load() is not None else "NOT_CONFIGURED"
++    except Exception:
++        return "BLOCKED_EXPIRED_OR_INVALID"
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    actions = parser.add_mutually_exclusive_group(required=True)
++    actions.add_argument("--enable-naver-email", action="store_true")
++    actions.add_argument("--status", action="store_true")
++    actions.add_argument("--clear", action="store_true")
++    args = parser.parse_args()
++    try:
++        if args.enable_naver_email:
++            configure()
++        elif args.clear:
++            clear()
++        print(
++            json.dumps(
++                {
++                    "email_session": status(),
++                    "maximum_lifetime_hours": 12,
++                    "persistent_password_storage": False,
++                    "recipient_scope": "NAVER_AUTHENTICATED_SELF_ONLY",
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++    except Exception:
++        print(
++            json.dumps(
++                {
++                    "email_session": "BLOCKED",
++                    "failure": "EMAIL_CONFIGURATION_FAILED_NO_SECRET_OUTPUT",
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++        raise SystemExit(2) from None
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/scripts/review_demo_alerts.py
+@@ -0,0 +1,83 @@
++"""Default readonly DEMO alert counts; opt-in local receiver delivery only."""
++
++import argparse
++import json
++import os
++import time
++
++from sqlalchemy import create_engine
++
++from packages.domain.config import database_url
++from scripts.demo_alert_email_session import status as email_status
++from scripts.observe_demo_private import ACCOUNT
++from services.operations.demo_alert_delivery import Dispatcher, LocalWebhook, summary
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--account", default=ACCOUNT)
++    parser.add_argument("--deliver-local", action="store_true")
++    parser.add_argument("--endpoint")
++    parser.add_argument("--watch-seconds", type=int, default=0)
++    args = parser.parse_args()
++    if (
++        bool(args.endpoint) != args.deliver_local
++        or not 0 <= args.watch_seconds <= 300
++        or (args.watch_seconds and not args.deliver_local)
++        or not args.account.startswith("DEMO-")
++    ):
++        parser.error("Local delivery requires explicit endpoint; watch range 0..300s; DEMO only")
++    engine = None
++    success = False
++    report: dict[str, object] = {
++        "demo_alerts": "BLOCKED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER").upper() == "LIVE"
++        ):
++            raise ValueError("DEMO context required")
++        sink = LocalWebhook(args.endpoint) if args.deliver_local else None
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        deliveries: list[dict[str, str | bool | int]] = []
++        if sink is not None:
++            dispatcher = Dispatcher(engine)
++            deadline = time.monotonic() + args.watch_seconds
++            while True:
++                deliveries.append(dispatcher.deliver_one(args.account, sink))
++                if time.monotonic() >= deadline:
++                    break
++                time.sleep(min(1, max(0, deadline - time.monotonic())))
++        report = {
++            "demo_alerts": "LOCAL_DELIVERY_RUN" if sink else "READ_ONLY_QUEUE_SUMMARY",
++            **summary(engine, args.account),
++            "delivery_results": deliveries,
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++        email_state = email_status()
++        report.update(
++            {
++                "email_session": email_state,
++                "external_receiver_configured": email_state == "CONFIGURED_PRIVATE_RAM",
++                "email_ack_scope": "SMTP_ACCEPTANCE_NOT_INBOX_CONFIRMATION",
++            }
++        )
++        success = True
++    except Exception:
++        report["failure"] = "ALERT_QUEUE_OR_LOCAL_DELIVERY_FAILED"
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/scripts/send_demo_alert_email_test.py
+@@ -0,0 +1,63 @@
++"""Explicit single self-email test; no DB, no exchange and no credential output."""
++
++import argparse
++import json
++from uuid import UUID
++
++from scripts.demo_alert_email_session import load
++from services.operations.demo_alert_delivery import DeliveryFailure
++from services.operations.demo_alert_email import NaverEmail
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--send-self-test", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    args = parser.parse_args()
++    try:
++        settings = load()
++        if settings is None:
++            raise DeliveryFailure("EMAIL_NOT_CONFIGURED")
++        NaverEmail(settings).send_test(args.operation_id)
++        print(
++            json.dumps(
++                {
++                    "email_test": "SMTP_ACCEPTED_CHECK_YOUR_INBOX",
++                    "operation_id": str(args.operation_id),
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++    except Exception as error:
++        safe = (
++            str(error)
++            if isinstance(error, DeliveryFailure)
++            and str(error)
++            in {
++                "SMTP_AUTH_FAILED",
++                "SMTP_RECIPIENT_REJECTED",
++                "SMTP_TLS_FAILED",
++                "SMTP_OUTCOME_UNKNOWN",
++                "SMTP_REJECTED",
++                "EMAIL_NOT_CONFIGURED",
++            }
++            else "EMAIL_TEST_FAILED"
++        )
++        print(
++            json.dumps(
++                {
++                    "email_test": "NOT_CONFIRMED_DO_NOT_REPEAT",
++                    "failure": safe,
++                    "orders_enabled": False,
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++        raise SystemExit(2) from None
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/scripts/watch_demo_alert_email.py
+@@ -0,0 +1,61 @@
++"""Separate optional email worker: idle until a valid RAM self-email config exists."""
++
++import json
++import os
++import time
++from pathlib import Path
++
++from sqlalchemy import create_engine
++
++from packages.domain.config import database_url
++from scripts.demo_alert_email_session import load
++from scripts.observe_demo_private import ACCOUNT
++from services.operations.demo_alert_delivery import Dispatcher
++from services.operations.demo_alert_email import NaverEmail
++
++
++def main() -> None:
++    if (
++        os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++        or os.getenv("TRADING_MODE", "PAPER").upper() == "LIVE"
++    ):
++        raise SystemExit("DEMO_ONLY_EMAIL_WORKER")
++    engine = create_engine(
++        database_url().get_secret_value(), connect_args={"connect_timeout": 2}, pool_pre_ping=True
++    )
++    dispatcher = Dispatcher(engine)
++    last = ""
++    auth_rejected_settings = None
++    try:
++        while True:
++            Path("/tmp/demo-alert-watch-health").write_text(str(time.monotonic()))
++            try:
++                settings = load()
++                report: dict[str, object] = {"email_worker": "WAITING_FOR_PRIVATE_RAM_CONFIG"}
++                if settings is None:
++                    auth_rejected_settings = None
++                elif settings == auth_rejected_settings:
++                    report = {
++                        "email_worker": "WAITING_FOR_EMAIL_CONFIG_CHANGE",
++                        "failure": "SMTP_AUTH_FAILED",
++                    }
++                else:
++                    report = {**dispatcher.deliver_one(ACCOUNT, NaverEmail(settings))}
++                    if report.get("result") == "SMTP_AUTH_FAILED":
++                        auth_rejected_settings = settings
++            except Exception:
++                report = {
++                    "email_worker": "BLOCKED_CONFIG_OR_DATABASE",
++                    "external_details_logged": False,
++                }
++            encoded = json.dumps(report)
++            if encoded != last:
++                print(encoded, flush=True)
++                last = encoded
++            time.sleep(1)
++    finally:
++        engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/services/operations/__init__.py
+@@ -0,0 +1 @@
++"""Operational DEMO services; no trading transports or automatic remote delivery."""
+--- /dev/null
++++ b/services/operations/demo_alert_delivery.py
+@@ -0,0 +1,282 @@
++"""Durable claimed alert delivery, outside trading transactions. Local sink only."""
++
++import hashlib
++import json
++from collections.abc import Callable
++from dataclasses import dataclass
++from datetime import UTC, datetime, timedelta
++from typing import Any, Protocol
++from urllib.error import HTTPError, URLError
++from urllib.parse import urlsplit
++from urllib.request import ProxyHandler, Request, build_opener
++from uuid import uuid4
++
++from pydantic import ValidationError
++from sqlalchemy import Engine, and_, insert, or_, select, text, update
++
++from integrations.binance_usdm.rest import NoRedirect
++from packages.persistence.demo_alerts import AlertEnvelope, alerts, attempts
++
++CLAIM_SECONDS = 30
++FAILURES = frozenset(
++    {
++        "HTTP_REJECTED",
++        "TIMEOUT",
++        "TRANSPORT_FAILED",
++        "ACK_INVALID",
++        "PAYLOAD_INVALID",
++        "SINK_FAILED",
++        "SMTP_AUTH_FAILED",
++        "SMTP_RECIPIENT_REJECTED",
++        "SMTP_TLS_FAILED",
++        "SMTP_OUTCOME_UNKNOWN",
++        "SMTP_REJECTED",
++    }
++)
++
++
++class DeliveryFailure(ValueError):
++    pass
++
++
++class Sink(Protocol):
++    def send(self, envelope: AlertEnvelope) -> None: ...
++
++
++class LocalWebhook:
++    """No production receiver is configured; refuses remote destinations and proxies."""
++
++    def __init__(self, endpoint: str):
++        url = urlsplit(endpoint)
++        if (
++            url.scheme != "http"
++            or url.hostname != "127.0.0.1"
++            or url.port is None
++            or url.username
++            or url.password
++            or url.path != "/alerts"
++            or url.query
++            or url.fragment
++        ):
++            raise DeliveryFailure("LOCAL_RECEIVER_REQUIRED")
++        self.endpoint = endpoint
++        self.opener = build_opener(ProxyHandler({}), NoRedirect())
++
++    def send(self, envelope: AlertEnvelope) -> None:
++        request = Request(
++            self.endpoint,
++            method="POST",
++            data=envelope.model_dump_json().encode(),
++            headers={"Content-Type": "application/json", "Idempotency-Key": str(envelope.alert_id)},
++        )
++        try:
++            with self.opener.open(request, timeout=2) as response:
++                if response.status not in {200, 202}:
++                    raise DeliveryFailure("HTTP_REJECTED")
++                body = response.read(4097)
++        except HTTPError as error:
++            error.close()
++            raise DeliveryFailure("HTTP_REJECTED") from None
++        except TimeoutError:
++            raise DeliveryFailure("TIMEOUT") from None
++        except URLError as error:
++            raise DeliveryFailure(
++                "TIMEOUT" if isinstance(error.reason, TimeoutError) else "TRANSPORT_FAILED"
++            ) from None
++        if len(body) > 4096:
++            raise DeliveryFailure("ACK_INVALID")
++        try:
++            ack = json.loads(body)
++        except (ValueError, UnicodeError):
++            raise DeliveryFailure("ACK_INVALID") from None
++        if (
++            ack != {"accepted": True, "alert_id": str(envelope.alert_id)}
++            or type(ack.get("accepted")) is not bool
++        ):
++            raise DeliveryFailure("ACK_INVALID")
++
++
++@dataclass(frozen=True)
++class Claim:
++    alert_id: str
++    event_id: str
++    account: str
++    code: str
++    token: str
++    number: int
++    payload: dict[str, Any]
++
++
++class Dispatcher:
++    def __init__(self, engine: Engine, clock: Callable[[], datetime] | None = None):
++        self.engine = engine
++        self.now = clock or (lambda: datetime.now(UTC))
++
++    def claim(self, account: str) -> Claim | None:
++        now = self.now()
++        with self.engine.begin() as conn:
++            conn.execute(text("SET LOCAL statement_timeout='2s'"))
++            row = (
++                conn.execute(
++                    select(alerts)
++                    .where(
++                        alerts.c.account_id == account,
++                        alerts.c.delivered_at.is_(None),
++                        alerts.c.next_attempt_at <= now,
++                        or_(alerts.c.claim_token.is_(None), alerts.c.claim_until <= now),
++                    )
++                    .order_by(alerts.c.created_at, alerts.c.alert_id)
++                    .with_for_update(skip_locked=True)
++                    .limit(1)
++                )
++                .mappings()
++                .first()
++            )
++            if row is None:
++                return None
++            if row["claim_token"] is not None:
++                conn.execute(
++                    update(attempts)
++                    .where(
++                        attempts.c.alert_id == row["alert_id"],
++                        attempts.c.number == row["attempts"],
++                        attempts.c.result == "SENDING",
++                    )
++                    .values(finished_at=now, result="CLAIM_EXPIRED")
++                )
++            token, number = str(uuid4()), int(row["attempts"]) + 1
++            conn.execute(
++                update(alerts)
++                .where(alerts.c.alert_id == row["alert_id"])
++                .values(
++                    attempts=number,
++                    claim_token=token,
++                    claim_until=now + timedelta(seconds=CLAIM_SECONDS),
++                )
++            )
++            conn.execute(
++                insert(attempts).values(
++                    attempt_id=str(uuid4()),
++                    alert_id=row["alert_id"],
++                    number=number,
++                    started_at=now,
++                    finished_at=None,
++                    result="SENDING",
++                )
++            )
++            return Claim(
++                str(row["alert_id"]),
++                str(row["event_id"]),
++                str(row["account_id"]),
++                str(row["code"]),
++                token,
++                number,
++                row["payload"],
++            )
++
++    def finish(self, claim: Claim, result: str) -> bool:
++        if result not in FAILURES | {"ACKNOWLEDGED"}:
++            result = "SINK_FAILED"
++        now = self.now()
++        delay = min(300, 5 * 2 ** min(6, claim.number - 1))
++        with self.engine.begin() as conn:
++            conn.execute(text("SET LOCAL statement_timeout='2s'"))
++            row = conn.execute(
++                select(alerts.c.alert_id)
++                .where(
++                    alerts.c.alert_id == claim.alert_id,
++                    alerts.c.claim_token == claim.token,
++                    alerts.c.claim_until > now,
++                    alerts.c.delivered_at.is_(None),
++                )
++                .with_for_update()
++            ).first()
++            if row is None:
++                return False
++            conn.execute(
++                update(alerts)
++                .where(alerts.c.alert_id == claim.alert_id)
++                .values(
++                    delivered_at=now if result == "ACKNOWLEDGED" else None,
++                    next_attempt_at=now + timedelta(seconds=delay),
++                    claim_token=None,
++                    claim_until=None,
++                    last_failure="NONE" if result == "ACKNOWLEDGED" else result,
++                )
++            )
++            conn.execute(
++                update(attempts)
++                .where(
++                    attempts.c.alert_id == claim.alert_id,
++                    attempts.c.number == claim.number,
++                    attempts.c.result == "SENDING",
++                )
++                .values(finished_at=now, result=result)
++            )
++            return True
++
++    def deliver_one(self, account: str, sink: Sink) -> dict[str, str | bool | int]:
++        claim = self.claim(account)
++        if claim is None:
++            return {"alert_delivery": "IDLE", "network_attempted": False}
++        result = "ACKNOWLEDGED"
++        sent = False
++        try:
++            envelope = AlertEnvelope.model_validate_json(json.dumps(claim.payload))
++            if (
++                str(envelope.alert_id) != claim.alert_id
++                or str(envelope.event_id) != claim.event_id
++                or envelope.code != claim.code
++                or envelope.account_ref != hashlib.sha256(claim.account.encode()).hexdigest()[:24]
++            ):
++                raise ValueError("payload identity mismatch")
++        except (ValidationError, ValueError, TypeError):
++            result = "PAYLOAD_INVALID"
++        else:
++            try:
++                sent = True
++                sink.send(envelope)
++            except DeliveryFailure as error:
++                result = str(error) if str(error) in FAILURES else "SINK_FAILED"
++            except Exception:
++                result = "SINK_FAILED"
++        committed = self.finish(claim, result)
++        return {
++            "alert_delivery": "DELIVERED"
++            if committed and result == "ACKNOWLEDGED"
++            else "RETRY_PENDING"
++            if committed
++            else "CLAIM_LOST",
++            "result": result if committed else "CLAIM_LOST",
++            "attempt": claim.number,
++            "network_attempted": sent,
++        }
++
++
++def summary(engine: Engine, account: str) -> dict[str, int | bool]:
++    from sqlalchemy import func
++
++    with engine.connect() as conn:
++        conn.execute(text("SET TRANSACTION READ ONLY"))
++        conn.execute(text("SET LOCAL statement_timeout='2s'"))
++        row = (
++            conn.execute(
++                select(
++                    func.count().label("total"),
++                    func.count().filter(alerts.c.delivered_at.is_(None)).label("pending"),
++                    func.count().filter(alerts.c.delivered_at.is_not(None)).label("delivered"),
++                    func.count()
++                    .filter(and_(alerts.c.delivered_at.is_(None), alerts.c.attempts > 0))
++                    .label("retry_pending"),
++                ).where(alerts.c.account_id == account)
++            )
++            .mappings()
++            .one()
++        )
++    return {
++        "total": int(row["total"]),
++        "pending": int(row["pending"]),
++        "delivered": int(row["delivered"]),
++        "retry_pending": int(row["retry_pending"]),
++        "external_receiver_configured": False,
++    }
+--- /dev/null
++++ b/services/operations/demo_alert_email.py
+@@ -0,0 +1,106 @@
++"""NAVER SMTP over verified implicit TLS; self-recipient, fixed safe templates."""
++
++import smtplib
++import ssl
++import time
++from collections.abc import Buffer, Callable
++from datetime import UTC, datetime
++from email.message import EmailMessage
++from email.policy import SMTP
++from email.utils import format_datetime
++from typing import Any
++from uuid import UUID
++
++from packages.persistence.demo_alerts import AlertEnvelope
++from scripts.demo_alert_email_session import EmailSettings
++from services.operations.demo_alert_delivery import DeliveryFailure
++
++TITLES = {
++    "STOP_PROTECTION_FAILURE": "손절 보호 확인 실패",
++    "EXIT_OUTCOME_UNKNOWN": "청산 결과 확인 필요",
++    "EMERGENCY_ENTERED": "비상 상태 전환",
++    "RISK_LOCK_ENTERED": "위험 제한 상태 전환",
++    "PRIVATE_SESSION_FAILED": "계좌 감시 세션 실패",
++}
++
++
++class DeadlineSMTP(smtplib.SMTP_SSL):
++    def __init__(self, *args: Any, **kwargs: Any):
++        self.deadline = time.monotonic() + 10
++        super().__init__(*args, **kwargs)
++
++    def _budget(self) -> None:
++        remaining = self.deadline - time.monotonic()
++        if remaining <= 0:
++            raise TimeoutError("SMTP_TIME_BUDGET_EXCEEDED")
++        if self.sock is not None:
++            self.sock.settimeout(min(5, remaining))
++
++    def send(self, s: str | Buffer) -> None:
++        self._budget()
++        super().send(s)
++
++    def getreply(self) -> tuple[int, bytes]:
++        self._budget()
++        return super().getreply()
++
++
++class NaverEmail:
++    def __init__(self, settings: EmailSettings, factory: Callable[..., Any] = DeadlineSMTP):
++        self.settings, self.factory = settings, factory
++
++    def _message(self, identifier: UUID, title: str, body: str) -> EmailMessage:
++        message = EmailMessage(policy=SMTP)
++        message["From"] = self.settings.address
++        message["To"] = self.settings.address
++        message["Subject"] = "[DEMO] " + title
++        message["Date"] = format_datetime(datetime.now(UTC))
++        message["Message-ID"] = f"<demo-alert-{identifier}@naver.com>"
++        message.set_content(body)
++        return message
++
++    def _send(self, message: EmailMessage) -> None:
++        try:
++            with self.factory(
++                "smtp.naver.com", 465, timeout=5, context=ssl.create_default_context()
++            ) as client:
++                client.login(
++                    self.settings.address.split("@", 1)[0],
++                    self.settings.password.get_secret_value(),
++                )
++                refused = client.send_message(
++                    message, from_addr=self.settings.address, to_addrs=[self.settings.address]
++                )
++                if refused:
++                    raise DeliveryFailure("SMTP_RECIPIENT_REJECTED")
++        except smtplib.SMTPAuthenticationError:
++            raise DeliveryFailure("SMTP_AUTH_FAILED") from None
++        except smtplib.SMTPRecipientsRefused:
++            raise DeliveryFailure("SMTP_RECIPIENT_REJECTED") from None
++        except ssl.SSLCertVerificationError:
++            raise DeliveryFailure("SMTP_TLS_FAILED") from None
++        except (smtplib.SMTPServerDisconnected, TimeoutError, OSError):
++            raise DeliveryFailure("SMTP_OUTCOME_UNKNOWN") from None
++        except smtplib.SMTPException:
++            raise DeliveryFailure("SMTP_REJECTED") from None
++
++    def send(self, envelope: AlertEnvelope) -> None:
++        body = (
++            "DEMO 계좌의 긴급 경고입니다. 실제 거래소 상태와 장부를 확인하세요.\n"
++            "이 메일은 주문 재제출이나 신규 진입을 지시하지 않습니다.\n\n"
++            f"코드: {envelope.code}\n계좌 참조: {envelope.account_ref}\n"
++            f"발생 시각(UTC): {envelope.occurred_at.isoformat()}\n"
++            f"위험 상태: {envelope.risk_state.value}\n진입 일시정지: {envelope.paused}\n"
++            f"알림 ID: {envelope.alert_id}\n"
++        )
++        self._send(self._message(envelope.alert_id, TITLES[envelope.code], body))
++
++    def send_test(self, identifier: UUID) -> None:
++        self._send(
++            self._message(
++                identifier,
++                "긴급 알림 수신 테스트",
++                "네이버 본인 주소로 보내는 DEMO 알림 수신 테스트입니다.\n이 테스트는 실제 주문·취소·청산을 실행하지 않습니다.\n알림 ID: "
++                + str(identifier),
++            )
++        )
+--- /dev/null
++++ b/tests/integration/test_demo_urgent_alerts.py
+@@ -0,0 +1,415 @@
++"""Real PG and loopback HTTP ACKs; never sends to a person or actual exchange."""
++
++import json
++import threading
++import time
++from concurrent.futures import ThreadPoolExecutor
++from contextlib import contextmanager
++from datetime import timedelta
++from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
++from uuid import uuid4
++
++import pytest
++from alembic import command
++from alembic.autogenerate import compare_metadata
++from alembic.config import Config
++from alembic.migration import MigrationContext
++from sqlalchemy import create_engine, event, select, text, update
++from sqlalchemy.exc import DBAPIError
++
++from packages.persistence.demo import accounts, events, outbox
++from packages.persistence.demo_alerts import AlertEnvelope, alerts, attempts
++from packages.persistence.market import metadata
++from services.operations.demo_alert_delivery import Dispatcher, LocalWebhook, summary
++from tests.integration.test_demo import enter, posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_isolated import configure
++from tests.unit.test_demo_alert_email_wire import smtp_server  # noqa: F401
++
++
++@pytest.fixture
++def case(demo_system):  # noqa: F811
++    configured, _ = configure(demo_system)
++    return configured
++
++
++def pending(case):
++    store, c, _ = case
++    c.command(uuid4(), "EMERGENCY_FLATTEN")
++    with store.engine.connect() as conn:
++        rows = conn.execute(select(alerts)).mappings().all()
++    assert len(rows) == 1
++    return rows[0]
++
++
++def rows(store, table):
++    with store.engine.connect() as conn:
++        return (
++            conn.execute(select(table).order_by(table.c[list(table.primary_key.columns)[0].name]))
++            .mappings()
++            .all()
++        )
++
++
++@contextmanager
++def receiver(mode="ack", on_receive=None):
++    state = {"messages": [], "keys": [], "unique": set()}
++
++    class Handler(BaseHTTPRequestHandler):
++        def log_message(self, *args):
++            pass
++
++        def do_POST(self):
++            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
++            state["messages"].append(body)
++            state["keys"].append(self.headers.get("Idempotency-Key"))
++            state["unique"].add(body["alert_id"])
++            if on_receive:
++                on_receive()
++            status = 503 if mode == "fail_first" and len(state["messages"]) == 1 else 200
++            if mode == "timeout_first" and len(state["messages"]) == 1:
++                time.sleep(2.2)  # receiver accepted; transport ACK is lost
++            payload = {"accepted": True, "alert_id": body["alert_id"]}
++            if mode == "wrong_ack":
++                payload["alert_id"] = str(uuid4())
++            raw = json.dumps(payload).encode()
++            try:
++                self.send_response(status)
++                self.send_header("Content-Length", str(len(raw)))
++                self.end_headers()
++                self.wfile.write(raw)
++            except (BrokenPipeError, ConnectionResetError):
++                pass
++
++    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++    try:
++        yield LocalWebhook(f"http://127.0.0.1:{server.server_port}/alerts"), state
++    finally:
++        server.shutdown()
++        server.server_close()
++        thread.join(timeout=5)
++
++
++def test_real_core_stop_failure_and_unknown_exit_enqueue_once_without_leaking_ledger(case):
++    store, c, fake = case
++    store.change(
++        c.lease,
++        "TEST_SECRET_AUDIT",
++        lambda ledger: ledger.operations.__setitem__("SYNTHETIC_SECRET", "DO_NOT_SEND_THIS_LEDGER"),
++    )
++    sig, order = enter(case)
++    fake.fill(order.client_id, order.quantity)
++    fake.reject_stop = True
++    fake.defer_exit = True
++    fake.lost_submit = True
++    c.reconcile()
++    queued = rows(store, alerts)
++    assert {r["code"] for r in queued} >= {
++        "STOP_PROTECTION_FAILURE",
++        "EMERGENCY_ENTERED",
++        "EXIT_OUTCOME_UNKNOWN",
++    }
++    with store.engine.connect() as conn:
++        assert all(
++            conn.execute(
++                select(events.c.event_id).where(events.c.event_id == r["event_id"])
++            ).first()
++            for r in queued
++        )
++    encoded = json.dumps([r["payload"] for r in queued])
++    assert "SYNTHETIC_SECRET" not in encoded and "DO_NOT_SEND" not in encoded
++    assert "operations" not in encoded and "policy" not in encoded and "wallet" not in encoded
++    assert all(
++        AlertEnvelope.model_validate_json(json.dumps(r["payload"])).environment == "DEMO"
++        for r in queued
++    )
++    c.reconcile()
++    store.renew(c.lease)
++    assert len(rows(store, alerts)) == len(queued)  # no repeat of old UNKNOWN or heartbeat
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) == 1
++
++
++def test_alert_insert_db_failure_rolls_back_account_audit_outbox_together(case):
++    store, c, _ = case
++    before = store.read("DEMO-test")
++    snapshots = {t.name: rows(store, t) for t in [events, outbox, alerts]}
++    admin = create_engine(store.engine.url)
++    killed = []
++
++    def cut(conn, cursor, statement, parameters, context, executemany):
++        if not killed and "INSERT INTO demo_urgent_alerts" in statement:
++            pid = conn.connection.driver_connection.info.backend_pid
++            with admin.connect() as control:
++                assert control.scalar(text("SELECT pg_terminate_backend(:pid, 2000)"), {"pid": pid})
++            killed.append(pid)
++
++    event.listen(store.engine, "before_cursor_execute", cut)
++    try:
++        with pytest.raises(DBAPIError):
++            c.command(uuid4(), "EMERGENCY_FLATTEN")
++    finally:
++        event.remove(store.engine, "before_cursor_execute", cut)
++        admin.dispose()
++    assert killed and store.read("DEMO-test") == before
++    for t in [events, outbox, alerts]:
++        assert rows(store, t) == snapshots[t.name]
++
++
++def test_local_receiver_ack_and_no_trading_row_lock_during_network(case):
++    store, c, fake = case
++    alert = pending(case)
++    before = len(fake.calls)
++    operation = str(uuid4())
++    with receiver(
++        on_receive=lambda: store.change(
++            c.lease,
++            "TEST_DURING_DELIVERY",
++            lambda ledger: ledger.operations.__setitem__(operation, "NETWORK_OUTSIDE_ACCOUNT_LOCK"),
++        )
++    ) as (sink, received):
++        result = Dispatcher(store.engine, store.now).deliver_one("DEMO-test", sink)
++    assert result["alert_delivery"] == "DELIVERED"
++    assert received["keys"] == [alert["alert_id"]]
++    assert received["messages"][0]["alert_id"] == alert["alert_id"]
++    assert store.read("DEMO-test").operations[operation] == "NETWORK_OUTSIDE_ACCOUNT_LOCK"
++    assert len(fake.calls) == before
++    assert summary(store.engine, "DEMO-test") == {
++        "total": 1,
++        "pending": 0,
++        "delivered": 1,
++        "retry_pending": 0,
++        "external_receiver_configured": False,
++    }
++
++
++@pytest.mark.parametrize(
++    "mode,expected", [("fail_first", "HTTP_REJECTED"), ("timeout_first", "TIMEOUT")]
++)
++def test_failed_or_lost_ack_retry_uses_same_id_and_preserves_attempt_records(case, mode, expected):
++    store, _, fake = case
++    alert = pending(case)
++    before = store.read("DEMO-test")
++    calls = len(fake.calls)
++    clock = [store.now()]
++    dispatcher = Dispatcher(store.engine, lambda: clock[0])
++    with receiver(mode) as (sink, received):
++        first = dispatcher.deliver_one("DEMO-test", sink)
++        assert first["alert_delivery"] == "RETRY_PENDING" and first["result"] == expected
++        assert rows(store, alerts)[0]["delivered_at"] is None
++        assert dispatcher.deliver_one("DEMO-test", sink)["alert_delivery"] == "IDLE"
++        clock[0] += timedelta(seconds=5)
++        assert dispatcher.deliver_one("DEMO-test", sink)["alert_delivery"] == "DELIVERED"
++        assert dispatcher.deliver_one("DEMO-test", sink)["alert_delivery"] == "IDLE"
++    assert received["keys"] == [alert["alert_id"], alert["alert_id"]]
++    assert len(received["messages"]) == 2 and len(received["unique"]) == 1
++    assert [r["result"] for r in sorted(rows(store, attempts), key=lambda r: r["number"])] == [
++        expected,
++        "ACKNOWLEDGED",
++    ]
++    assert store.read("DEMO-test") == before and len(fake.calls) == calls
++
++
++def test_wrong_ack_does_not_mark_delivery_complete(case):
++    store, _, _ = case
++    pending(case)
++    with receiver("wrong_ack") as (sink, _):
++        report = Dispatcher(store.engine, store.now).deliver_one("DEMO-test", sink)
++    assert report["result"] == "ACK_INVALID" and report["alert_delivery"] == "RETRY_PENDING"
++    assert rows(store, alerts)[0]["delivered_at"] is None
++
++
++def test_expired_claim_is_recovered_and_old_worker_cannot_commit_ack(case):
++    store, _, _ = case
++    pending(case)
++    clock = [store.now()]
++    dispatcher = Dispatcher(store.engine, lambda: clock[0])
++    first = dispatcher.claim("DEMO-test")
++    assert (
++        first is not None and Dispatcher(store.engine, lambda: clock[0]).claim("DEMO-test") is None
++    )
++    clock[0] += timedelta(seconds=31)  # alert claim only; trading lease is untouched
++    replacement = Dispatcher(store.engine, lambda: clock[0])
++    second = replacement.claim("DEMO-test")
++    assert second is not None and second.token != first.token and second.alert_id == first.alert_id
++    assert not dispatcher.finish(first, "ACKNOWLEDGED")
++    assert rows(store, alerts)[0]["delivered_at"] is None
++    assert replacement.finish(second, "ACKNOWLEDGED")
++    assert [r["result"] for r in sorted(rows(store, attempts), key=lambda r: r["number"])] == [
++        "CLAIM_EXPIRED",
++        "ACKNOWLEDGED",
++    ]
++
++
++def test_competing_dispatchers_cannot_send_same_active_claim(case):
++    store, _, _ = case
++    pending(case)
++    entered, release = threading.Event(), threading.Event()
++    seen = []
++
++    class WaitingSink:
++        def send(self, envelope):
++            seen.append(str(envelope.alert_id))
++            entered.set()
++            assert release.wait(2)
++
++    dispatcher = Dispatcher(store.engine, store.now)
++    with ThreadPoolExecutor(2) as pool:
++        future = pool.submit(dispatcher.deliver_one, "DEMO-test", WaitingSink())
++        assert entered.wait(1)
++        assert (
++            Dispatcher(store.engine, store.now).deliver_one("DEMO-test", WaitingSink())[
++                "alert_delivery"
++            ]
++            == "IDLE"
++        )
++        release.set()
++        assert future.result()["alert_delivery"] == "DELIVERED"
++    assert len(seen) == 1 and len(rows(store, attempts)) == 1
++
++
++def test_invalid_payload_never_reaches_sink_or_error_output(case):
++    store, _, _ = case
++    alert = pending(case)
++    with store.engine.begin() as conn:
++        conn.execute(
++            update(alerts)
++            .where(alerts.c.alert_id == alert["alert_id"])
++            .values(payload={**alert["payload"], "secret": "SYNTHETIC_NEVER_SEND"})
++        )
++
++    class NeverSend:
++        def send(self, envelope):
++            pytest.fail("invalid payload must never be transmitted")
++
++    result = Dispatcher(store.engine, store.now).deliver_one("DEMO-test", NeverSend())
++    assert result["result"] == "PAYLOAD_INVALID" and not result["network_attempted"]
++    assert "SYNTHETIC" not in json.dumps(result)
++
++
++def test_additive_migration_preserves_legacy_state_audit_and_outbox(case):
++    store, _, _ = case
++    cfg = Config("alembic.ini")
++    before = {t.name: rows(store, t) for t in [accounts, events, outbox]}
++    with store.engine.begin() as conn:
++        cfg.attributes["connection"] = conn
++        command.downgrade(cfg, "0003_demo")
++    with store.engine.begin() as conn:
++        cfg.attributes["connection"] = conn
++        command.upgrade(cfg, "head")
++    for t in [accounts, events, outbox]:
++        assert rows(store, t) == before[t.name]
++    with store.engine.connect() as conn:
++        assert compare_metadata(MigrationContext.configure(conn), metadata) == []
++    assert not rows(store, alerts) and not rows(store, attempts)
++
++
++def test_receiver_ack_then_actual_db_failure_keeps_claim_and_retries_same_id(case):
++    store, _, _ = case
++    alert = pending(case)
++    clock = [store.now()]
++    dispatcher = Dispatcher(store.engine, lambda: clock[0])
++    admin = create_engine(store.engine.url)
++    killed = []
++
++    def cut(conn, cursor, statement, parameters, context, executemany):
++        if (
++            not killed
++            and statement.startswith("UPDATE demo_urgent_alerts")
++            and parameters.get("delivered_at") is not None
++        ):
++            with admin.connect() as control:
++                assert control.scalar(
++                    text("SELECT pg_terminate_backend(:pid, 2000)"),
++                    {"pid": conn.connection.driver_connection.info.backend_pid},
++                )
++            killed.append(True)
++
++    with receiver() as (sink, received):
++        event.listen(store.engine, "before_cursor_execute", cut)
++        try:
++            with pytest.raises(DBAPIError):
++                dispatcher.deliver_one("DEMO-test", sink)
++        finally:
++            event.remove(store.engine, "before_cursor_execute", cut)
++            admin.dispose()
++        row = rows(store, alerts)[0]
++        assert killed and row["delivered_at"] is None and row["claim_token"] is not None
++        assert rows(store, attempts)[0]["result"] == "SENDING"
++        clock[0] += timedelta(seconds=31)
++        assert (
++            Dispatcher(store.engine, lambda: clock[0]).deliver_one("DEMO-test", sink)[
++                "alert_delivery"
++            ]
++            == "DELIVERED"
++        )
++    assert received["keys"] == [alert["alert_id"], alert["alert_id"]]
++    assert len(received["unique"]) == 1
++    assert [r["result"] for r in sorted(rows(store, attempts), key=lambda r: r["number"])] == [
++        "CLAIM_EXPIRED",
++        "ACKNOWLEDGED",
++    ]
++
++
++def test_unexpected_sink_error_never_escapes_or_drops_alert(case):
++    store, _, _ = case
++    pending(case)
++
++    class Broken:
++        def send(self, envelope):
++            raise RuntimeError("SYNTHETIC_SECRET_ERROR_DO_NOT_FORWARD")
++
++    report = Dispatcher(store.engine, store.now).deliver_one("DEMO-test", Broken())
++    assert report["result"] == "SINK_FAILED" and "SECRET" not in json.dumps(report)
++    assert rows(store, alerts)[0]["delivered_at"] is None
++    assert rows(store, attempts)[0]["result"] == "SINK_FAILED"
++
++
++def test_retries_back_off_to_cap_without_deleting_pending_alert(case):
++    from services.operations.demo_alert_delivery import DeliveryFailure
++
++    store, _, _ = case
++    pending(case)
++    clock = [store.now()]
++    dispatcher = Dispatcher(store.engine, lambda: clock[0])
++
++    class Down:
++        def send(self, envelope):
++            raise DeliveryFailure("HTTP_REJECTED")
++
++    for number in range(1, 10):
++        assert dispatcher.deliver_one("DEMO-test", Down())["alert_delivery"] == "RETRY_PENDING"
++        row = rows(store, alerts)[0]
++        assert (row["next_attempt_at"] - clock[0]).total_seconds() == min(
++            300, 5 * 2 ** (number - 1)
++        )
++        assert row["attempts"] == number and row["delivered_at"] is None
++        clock[0] = row["next_attempt_at"]
++    assert len(rows(store, attempts)) == 9 and len(rows(store, alerts)) == 1
++
++
++def test_durable_queue_to_real_local_tls_smtp_and_auth_retry(case, smtp_server):  # noqa: F811
++    from scripts.demo_alert_email_session import EmailSettings
++    from services.operations.demo_alert_email import NaverEmail
++
++    store, _, _ = case
++    alert = pending(case)
++    clock = [store.now()]
++    dispatcher = Dispatcher(store.engine, lambda: clock[0])
++    state = smtp_server
++    sink = NaverEmail(EmailSettings(state.address, state.password), factory=state.factory)
++    state.accept_auth = False
++    first = dispatcher.deliver_one("DEMO-test", sink)
++    assert first["result"] == "SMTP_AUTH_FAILED" and rows(store, alerts)[0]["delivered_at"] is None
++    assert not state.messages
++    clock[0] += timedelta(seconds=5)
++    state.accept_auth = True
++    assert dispatcher.deliver_one("DEMO-test", sink)["alert_delivery"] == "DELIVERED"
++    assert len(state.messages) == 1
++    assert state.messages[0]["Message-ID"] == "<demo-alert-" + alert["alert_id"] + "@naver.com>"
++    assert state.messages[0]["From"] == state.messages[0]["To"] == state.address
++    assert [r["result"] for r in sorted(rows(store, attempts), key=lambda r: r["number"])] == [
++        "SMTP_AUTH_FAILED",
++        "ACKNOWLEDGED",
++    ]
+--- /dev/null
++++ b/tests/unit/test_demo_alert_delivery.py
+@@ -0,0 +1,201 @@
++"""Destination opt-in and secret-free CLI failures."""
++
++import json
++import sys
++
++import pytest
++
++from scripts import review_demo_alerts as cli
++from services.operations.demo_alert_delivery import DeliveryFailure, LocalWebhook
++
++
++@pytest.mark.parametrize(
++    "url",
++    [
++        "https://example.com/alerts",
++        "http://localhost:8000/alerts",
++        "http://127.0.0.1:8000/other",
++        "http://u:p@127.0.0.1:8000/alerts",
++        "http://127.0.0.1:8000/alerts?token=hidden",
++        "http://127.0.0.1:8000/alerts#hidden",
++    ],
++)
++def test_remote_or_ambiguous_receivers_rejected(url):
++    with pytest.raises(DeliveryFailure):
++        LocalWebhook(url)
++
++
++@pytest.mark.parametrize(
++    "args",
++    [["--endpoint", "http://127.0.0.1:1/alerts"], ["--deliver-local"], ["--watch-seconds", "1"]],
++)
++def test_explicit_local_delivery_arguments_required(monkeypatch, args):
++    monkeypatch.setattr(sys, "argv", ["review", *args])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: pytest.fail("must not access DB"))
++    with pytest.raises(SystemExit):
++        cli.main()
++
++
++def test_live_context_rejected_before_db_or_network(monkeypatch, capsys):
++    monkeypatch.setenv("TRADING_MODE", "LIVE")
++    monkeypatch.setattr(sys, "argv", ["review"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: pytest.fail("must not access DB"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["demo_alerts"] == "BLOCKED"
++
++
++def test_default_summary_does_not_construct_receiver(monkeypatch, capsys):
++    class Engine:
++        def dispose(self):
++            pass
++
++    monkeypatch.setattr(sys, "argv", ["review"])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: Engine())
++    monkeypatch.setattr(cli, "LocalWebhook", lambda *a: pytest.fail("default must not send"))
++    monkeypatch.setattr(
++        cli, "summary", lambda *a: {"pending": 0, "external_receiver_configured": False}
++    )
++    cli.main()
++    report = json.loads(capsys.readouterr().out)
++    assert report["demo_alerts"] == "READ_ONLY_QUEUE_SUMMARY" and report["delivery_results"] == []
++
++
++def test_email_worker_is_idle_without_config_and_disposes_on_shutdown(
++    monkeypatch, tmp_path, capsys
++):
++    from scripts import watch_demo_alert_email as worker
++
++    disposed = []
++
++    class Engine:
++        def dispose(self):
++            disposed.append(True)
++
++    monkeypatch.setattr(worker, "create_engine", lambda *a, **kw: Engine())
++    monkeypatch.setattr(worker, "load", lambda: None)
++    monkeypatch.setattr(
++        worker, "NaverEmail", lambda *a: pytest.fail("unconfigured worker must not send")
++    )
++    monkeypatch.setattr(worker, "Path", lambda *a: tmp_path / "health")
++
++    def stop(*a):
++        raise KeyboardInterrupt
++
++    monkeypatch.setattr(worker.time, "sleep", stop)
++    with pytest.raises(KeyboardInterrupt):
++        worker.main()
++    assert disposed and (tmp_path / "health").exists()
++    assert "WAITING_FOR_PRIVATE_RAM_CONFIG" in capsys.readouterr().out
++
++
++def test_configured_email_worker_uses_queue_dispatcher_without_secret_output(
++    monkeypatch, tmp_path, capsys
++):
++    from pydantic import SecretStr
++
++    from scripts import watch_demo_alert_email as worker
++    from scripts.demo_alert_email_session import EmailSettings
++
++    settings = EmailSettings("fixture-user@naver.com", SecretStr("SYNTHETIC_PRIVATE_PASSWORD"))
++    seen = []
++    outcome = ["ACKNOWLEDGED"]
++
++    class Engine:
++        def dispose(self):
++            pass
++
++    class Dispatcher:
++        def __init__(self, engine):
++            pass
++
++        def deliver_one(self, account, sink):
++            seen.append(account)
++            return {
++                "alert_delivery": "DELIVERED" if outcome[0] == "ACKNOWLEDGED" else "RETRY_PENDING",
++                "result": outcome[0],
++                "attempt": 1,
++            }
++
++    monkeypatch.setattr(worker, "create_engine", lambda *a, **kw: Engine())
++    monkeypatch.setattr(worker, "Dispatcher", Dispatcher)
++    monkeypatch.setattr(worker, "load", lambda: settings)
++    monkeypatch.setattr(worker, "Path", lambda *a: tmp_path / "health")
++
++    def stop(*a):
++        raise KeyboardInterrupt
++
++    monkeypatch.setattr(worker.time, "sleep", stop)
++    with pytest.raises(KeyboardInterrupt):
++        worker.main()
++    output = capsys.readouterr().out
++    assert (
++        seen
++        and "DELIVERED" in output
++        and "fixture-user" not in output
++        and "SYNTHETIC_PRIVATE" not in output
++    )
++
++    seen.clear()
++    outcome[0] = "SMTP_AUTH_FAILED"
++    loops = [0]
++
++    def stop_after_three(*a):
++        loops[0] += 1
++        if loops[0] == 3:
++            raise KeyboardInterrupt
++
++    monkeypatch.setattr(worker.time, "sleep", stop_after_three)
++    with pytest.raises(KeyboardInterrupt):
++        worker.main()
++    assert len(seen) == 1
++    output = capsys.readouterr().out
++    assert "WAITING_FOR_EMAIL_CONFIG_CHANGE" in output and "SYNTHETIC_PRIVATE" not in output
++
++
++def test_alert_worker_compose_has_readonly_key_mount_and_no_secret_env():
++    from pathlib import Path
++
++    import yaml
++
++    cfg = yaml.safe_load(Path("infra/docker-compose.yml").read_text())
++    service = cfg["services"]["alerts"]
++    assert service["command"] == ["python", "-m", "scripts.watch_demo_alert_email"]
++    assert service["read_only"] and not service.get("ports")
++    assert service["cap_drop"] == ["ALL"]
++    assert service["depends_on"]["api"]["condition"] == "service_healthy"
++    assert (
++        service["volumes"][0]["read_only"]
++        and service["volumes"][0]["source"] == "demo_key_session_ram"
++    )
++    assert not any(
++        "KEY" in name or "PASSWORD" in name or "SMTP" in name for name in service["environment"]
++    )
++
++
++def test_self_email_test_requires_explicit_flag_before_configuration(monkeypatch):
++    from scripts import send_demo_alert_email_test as test_cli
++
++    monkeypatch.setattr(sys, "argv", ["test-email"])
++    monkeypatch.setattr(test_cli, "load", lambda: pytest.fail("must not read config"))
++    with pytest.raises(SystemExit):
++        test_cli.main()
++
++
++def test_self_email_test_failure_cannot_log_provider_secrets(monkeypatch, capsys):
++    from uuid import uuid4
++
++    from scripts import send_demo_alert_email_test as test_cli
++
++    monkeypatch.setattr(
++        sys, "argv", ["test-email", "--send-self-test", "--operation-id", str(uuid4())]
++    )
++
++    def fail():
++        raise RuntimeError("SYNTHETIC_PASSWORD_FROM_PROVIDER")
++
++    monkeypatch.setattr(test_cli, "load", fail)
++    with pytest.raises(SystemExit):
++        test_cli.main()
++    output = capsys.readouterr().out
++    assert "NOT_CONFIRMED_DO_NOT_REPEAT" in output and "SYNTHETIC" not in output
+--- /dev/null
++++ b/tests/unit/test_demo_alert_email_session.py
+@@ -0,0 +1,127 @@
++"""Email app password is reusable private RAM, separate from the trading key."""
++
++import json
++import os
++
++import pytest
++
++from scripts import demo_alert_email_session as mail
++from scripts import demo_key_session as keys
++
++ADDRESS = "fixture-user@naver.com"
++PASSWORD = "SYNTHETIC_APP_PASSWORD_NEVER_USE"
++
++
++@pytest.fixture
++def ram(tmp_path, monkeypatch):
++    root = tmp_path / "ram"
++    root.mkdir(mode=0o700)
++    monkeypatch.setattr(keys, "DIRECTORY", root)
++    monkeypatch.setattr(keys, "_tmpfs", lambda: True)
++    monkeypatch.setattr(mail.time, "time", lambda: 100000)
++    monkeypatch.setattr("builtins.input", lambda *a: ADDRESS)
++    monkeypatch.setattr(mail.getpass, "getpass", lambda *a: PASSWORD)
++    return root
++
++
++def test_first_config_is_hidden_ram_and_repeated_config_never_prompts_or_extends(ram, monkeypatch):
++    (ram / keys.FILENAME).write_bytes(b"EXISTING_API_SESSION_UNCHANGED")
++    mail.configure()
++    path = ram / mail.FILENAME
++    original = path.read_bytes()
++    assert path.stat().st_mode & 0o777 == 0o600
++    assert json.loads(original)["expires"] == 100000 + 12 * 3600
++    monkeypatch.setattr("builtins.input", lambda *a: pytest.fail("do not ask again"))
++    monkeypatch.setattr(
++        mail.getpass, "getpass", lambda *a: pytest.fail("do not ask password again")
++    )
++    monkeypatch.setattr(mail.time, "time", lambda: 100300)
++    mail.configure()
++    assert mail.load().password.get_secret_value() == PASSWORD
++    assert PASSWORD not in repr(mail.load())
++    assert path.read_bytes() == original
++    assert (ram / keys.FILENAME).read_bytes() == b"EXISTING_API_SESSION_UNCHANGED"
++    mail.clear()
++    mail.clear()
++    assert not path.exists() and (ram / keys.FILENAME).exists()
++
++
++@pytest.mark.parametrize(
++    "fault",
++    [
++        "expired",
++        "backwards",
++        "mode",
++        "symlink",
++        "hardlink",
++        "fifo",
++        "oversize",
++        "ttl",
++        "json",
++        "bool_created",
++    ],
++)
++def test_unsafe_email_cache_is_rejected_without_prompt(ram, monkeypatch, fault):
++    mail.configure()
++    path = ram / mail.FILENAME
++    data = json.loads(path.read_bytes())
++    if fault == "expired":
++        monkeypatch.setattr(mail.time, "time", lambda: data["expires"])
++    elif fault == "backwards":
++        monkeypatch.setattr(mail.time, "time", lambda: data["created"] - 1)
++    elif fault == "mode":
++        path.chmod(0o644)
++    elif fault in {"symlink", "hardlink", "fifo"}:
++        outside = ram.parent / "do-not-read"
++        outside.write_text(PASSWORD)
++        path.unlink()
++        if fault == "symlink":
++            path.symlink_to(outside)
++        elif fault == "hardlink":
++            os.link(outside, path)
++        else:
++            os.mkfifo(path, 0o600)
++    elif fault == "oversize":
++        path.write_text("x" * 5000)
++    elif fault == "json":
++        path.write_text(PASSWORD)
++    else:
++        data["expires"] += 1 if fault == "ttl" else 0
++        if fault == "bool_created":
++            data["created"] = True
++        path.write_text(json.dumps(data))
++    monkeypatch.setattr(mail.getpass, "getpass", lambda *a: pytest.fail("must not prompt"))
++    with pytest.raises((ValueError, OSError)):
++        mail.load()
++    assert mail.status() == "BLOCKED_EXPIRED_OR_INVALID"
++
++
++@pytest.mark.parametrize(
++    "address",
++    [
++        "fixture@example.com",
++        "fixture@naver.com\r\nBcc: someone@example.com",
++        "fixture@naver.com,other@naver.com",
++    ],
++)
++def test_self_address_validation_rejects_other_domains_or_header_injection(
++    ram, monkeypatch, address
++):
++    monkeypatch.setattr("builtins.input", lambda *a: address)
++    with pytest.raises(ValueError):
++        mail.configure()
++    assert not (ram / mail.FILENAME).exists()
++
++
++def test_no_email_secret_storage_on_non_tmpfs(ram, monkeypatch):
++    monkeypatch.setattr(keys, "_tmpfs", lambda: False)
++    monkeypatch.setattr("builtins.input", lambda *a: pytest.fail("must reject before input"))
++    with pytest.raises(ValueError, match="TMPFS"):
++        mail.configure()
++
++
++def test_cli_status_never_prints_address_or_password(ram, monkeypatch, capsys):
++    monkeypatch.setattr("sys.argv", ["email", "--enable-naver-email"])
++    mail.main()
++    output = capsys.readouterr().out
++    assert "CONFIGURED_PRIVATE_RAM" in output and ADDRESS not in output and PASSWORD not in output
+--- /dev/null
++++ b/tests/unit/test_demo_alert_email_wire.py
+@@ -0,0 +1,149 @@
++"""Real loopback verified TLS/SMTP AUTH/DATA; no actual NAVER connection."""
++
++import base64
++import email
++import socketserver
++import ssl
++import subprocess
++import threading
++from types import SimpleNamespace
++from uuid import uuid4
++
++import pytest
++from pydantic import SecretStr
++
++from scripts.demo_alert_email_session import EmailSettings
++from services.operations.demo_alert_delivery import DeliveryFailure
++from services.operations.demo_alert_email import DeadlineSMTP, NaverEmail
++
++
++@pytest.fixture
++def smtp_server(tmp_path):
++    cert, key = tmp_path / "smtp-cert.pem", tmp_path / "smtp-key.pem"
++    subprocess.run(
++        [
++            "openssl",
++            "req",
++            "-x509",
++            "-nodes",
++            "-newkey",
++            "rsa:2048",
++            "-days",
++            "1",
++            "-keyout",
++            str(key),
++            "-out",
++            str(cert),
++            "-subj",
++            "/CN=127.0.0.1",
++            "-addext",
++            "subjectAltName=IP:127.0.0.1",
++        ],
++        check=True,
++        stdout=subprocess.DEVNULL,
++        stderr=subprocess.DEVNULL,
++    )
++    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
++    context.load_cert_chain(cert, key)
++    trusted = ssl.create_default_context(cafile=str(cert))
++    state = SimpleNamespace(
++        messages=[],
++        senders=[],
++        recipients=[],
++        accept_auth=True,
++        authenticated=0,
++        connection_arguments=[],
++    )
++
++    class Handler(socketserver.StreamRequestHandler):
++        def reply(self, value):
++            self.wfile.write(value.encode() + b"\r\n")
++            self.wfile.flush()
++
++        def handle(self):
++            self.reply("220 local-test ESMTP")
++            while line := self.rfile.readline(8192):
++                text = line.decode().strip()
++                command = text.split(" ", 1)[0].upper()
++                if command in {"EHLO", "HELO"}:
++                    self.reply("250-local-test\r\n250-AUTH PLAIN\r\n250 8BITMIME")
++                elif command == "AUTH":
++                    value = base64.b64decode(text.split(" ", 2)[2]).decode().split("\0")
++                    assert value[-2] == "fixture-user" and value[-1] == "SYNTHETIC_APP_PASSWORD"
++                    if state.accept_auth:
++                        state.authenticated += 1
++                        self.reply("235 Authentication successful")
++                    else:
++                        self.reply("535 SYNTHETIC_SECRET_ERROR_DO_NOT_LOG")
++                elif command == "MAIL":
++                    state.senders.append(text)
++                    self.reply("250 OK")
++                elif command == "RCPT":
++                    state.recipients.append(text)
++                    self.reply("250 OK")
++                elif command == "DATA":
++                    self.reply("354 Send message")
++                    content = []
++                    while (part := self.rfile.readline()) != b".\r\n":
++                        if not part:
++                            return
++                        content.append(part)
++                    state.messages.append(email.message_from_bytes(b"".join(content)))
++                    self.reply("250 Accepted")
++                elif command == "QUIT":
++                    self.reply("221 Bye")
++                    return
++                elif command == "RSET":
++                    self.reply("250 Reset")
++                else:
++                    self.reply("500 Unsupported")
++
++    class Server(socketserver.ThreadingTCPServer):
++        daemon_threads = True
++
++        def handle_error(self, *args):
++            pass
++
++    server = Server(("127.0.0.1", 0), Handler)
++    server.socket = context.wrap_socket(server.socket, server_side=True)
++    thread = threading.Thread(target=server.serve_forever, daemon=True)
++    thread.start()
++
++    def factory(host, port, *, timeout, context):
++        assert host == "smtp.naver.com" and port == 465
++        assert context.check_hostname and context.verify_mode == ssl.CERT_REQUIRED
++        state.connection_arguments.append((host, port))
++        return DeadlineSMTP("127.0.0.1", server.server_address[1], timeout=timeout, context=trusted)
++
++    state.factory = factory
++    state.address = "fixture-user@naver.com"
++    state.password = SecretStr("SYNTHETIC_APP_PASSWORD")
++    try:
++        yield state
++    finally:
++        server.shutdown()
++        server.server_close()
++        thread.join(timeout=5)
++
++
++def test_naver_self_test_auth_tls_and_single_recipient(smtp_server):
++    state = smtp_server
++    identifier = uuid4()
++    settings = EmailSettings(state.address, state.password)
++    NaverEmail(settings, factory=state.factory).send_test(identifier)
++    assert state.authenticated == 1 and len(state.messages) == 1
++    message = state.messages[0]
++    assert message["From"] == message["To"] == state.address
++    assert message["Message-ID"] == f"<demo-alert-{identifier}@naver.com>"
++    assert "SYNTHETIC_APP_PASSWORD" not in message.as_string()
++    assert len(state.recipients) == 1
++
++
++def test_smtp_auth_failure_has_fixed_code_and_no_data(smtp_server):
++    state = smtp_server
++    state.accept_auth = False
++    with pytest.raises(DeliveryFailure, match="SMTP_AUTH_FAILED") as error:
++        NaverEmail(EmailSettings(state.address, state.password), factory=state.factory).send_test(
++            uuid4()
++        )
++    assert "SECRET" not in str(error.value) and not state.messages and not state.recipients
