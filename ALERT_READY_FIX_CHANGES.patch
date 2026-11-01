@@ -1,0 +1,154 @@
+--- /dev/null
++++ b/ALERT_READY_FIX_START_HERE_KO.md
+@@ -0,0 +1,37 @@
++# 이메일 버전 API unhealthy 수정
++
++부모 이메일 ZIP은 DB migration을0004_demo_urgent_alerts로 올렸지만 API의 준비 검사는0003_demo만 허용했다. 이 불일치 때문에 DB migration이 정상이어도 준비 API가503을 반환하고 alerts의 depends_on이 시작을 막는 문제가 있었다. 이미지 빌드나 메일 앱 비밀번호 문제가 아니다.
++
++수정 버전은 준비 검사에서0004_demo_urgent_alerts를 정확히 허용한다. 알 수 없는/누락/여러 revision과 DB 장애는 그대로503으로 차단한다. 새 migration이 추가될 때 readiness와 현재 Alembic head의 일치를 검사하는 회귀 시험을 추가했다.
++
++## 적용
++
++새 windows-demo-alert-ready-fix 폴더에 ZIP을 풀고 해당 폴더 탐색기 주소창에서 cmd를 실행한다. 기존 hybrid-windows 프로젝트 이름을 그대로 사용한다. 기존 DB/export/RAM 키와 이메일 설정 파일을 유지한다. 별도 DB migration 변경이나 데이터 초기화가 없다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++api/db/web/key-session/alerts가 모두 Healthy인지 확인하고 결과를 공유한다. 비밀번호 설정은 이 빌드가 정상 완료된 뒤 진행한다. 여전히 unhealthy면 아래 API 로그로 새 원인을 확인하며 반복 빌드나 볼륨 삭제를 하지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml logs --tail 80 api
++```
++
++## 빌드 이후 이메일 설정
++
++아직 이메일 설정을 하지 않았다면 네이버 SMTP 사용 설정과 앱 비밀번호를 준비한 뒤 아래 명령으로 본인 주소와 앱 비밀번호를 한 번 입력한다. 거래소 키는 다시 입력하지 않는다. 유효한 메일 RAM 설정이 있으면 재입력을 요구하지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.demo_alert_email_session --enable-naver-email
++```
++
++설정 활성화 후 대기/새 긴급 경고를 본인 메일로 자동 전송할 수 있다. 일반 네이버 로그인 비밀번호 대신 앱 비밀번호를 숨김 입력하며 주소/앱 비밀번호는 채팅에 보내지 않는다.
++
++아래 이전에 안내한 테스트는 아직 실행하지 않았을 때만 한 번 진행한다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.send_demo_alert_email_test --send-self-test --operation-id b330d024-7b53-4d33-9f8e-9cf358e9bb92
++```
++
++SMTP_ACCEPTED_CHECK_YOUR_INBOX와 받은메일함/스팸함의 실제 도착을 함께 확인한다. 이번 API 수정은 실제 메일 수신 성공을 대신하지 않는다. 오류가 불명확하면 반복 발송하지 않고 고정 JSON 결과만 공유한다. 이번 적용은 주문·청산·복구 승인이나 Phase4 전체 완료/LIVE/Phase5 전환을 요구하지 않는다.
+--- /dev/null
++++ b/ALERT_READY_FIX_VALIDATION_KO.md
+@@ -0,0 +1,13 @@
++# 준비 상태 revision 불일치 수정 검증
++
++부모는 windows-demo-urgent-alert-queue-20261101 / dfe9fe4, ZIP SHA256 24ef56abeadc9e78d7af007c9ad3c7befff869c2b75ca9f1845ccc150c6febb8이다. 사용자 캡처는 이미지 빌드 성공, db/key-session Healthy, api unhealthy와 alerts 의존 시작 실패를 보였다. 코드에서 준비 상태 판정이0003_demo에 고정된 반면 현재 head는0004_demo_urgent_alerts인 결함을 확인했다. 실제 Windows DB 로그를 별도 수집한 것은 아니다.
++
++부모463개 파일 중 health.py 하나만 수정하고 나머지462개를 바이트 동일하게 보존한다. 새 테스트2개 파일과 한국어 안내/검증2개 파일을 추가한다. 데이터 migration/Compose/키·이메일 설정/SMTP worker/위험 정책/SDK/리스/펜스/exports는 이번 수정에서 변경하지 않는다.
++
++변경은 EXPECTED_SCHEMA_REVISION=0004_demo_urgent_alerts이며 DB probe가 이 값만 허용하게 한다. 새 단위 시험은 이 값과 현재 Alembic script head가 일치하는지 확인한다. 미래 head가 바뀌고 준비 검사가 누락되면 시험이 실패한다.
++
++실제 격리 PostgreSQL과 FastAPI TestClient로 현재0004에서 /api/v1/system/ready HTTP200/database ready/주문·LIVE false를 확인했다. 장부가 있는0003에서는503, 원래 head로 업그레이드한 뒤200 및 장부 완전 일치를 확인했다. 알 수 없는/누락/복수 revision은 모두503을 유지한다. 기존 API 실패 비밀값 차단과 이메일 큐·TLS SMTP·RAM 암호·worker 검증도 다시 실행했다.
++
++이번 수정 검증은63개 통과(11.44초), Ruff 검사/포맷 검사 및 mypy121개 소스 통과다. 부모 버전의 전체1339개 통과는 부모 당시 결과이며 이번 소규모 health 수정 후 전체 suite를 다시 실행했다고 주장하지 않는다. 이번 변경과 직접 관련된 API/DB migration/이메일 경로63개를 검증했다. 기존 테스트는 약화하거나 삭제하지 않았다.
++
++실제 Windows에서 수정 빌드 및 Healthy, 실제 네이버 SMTP 인증/수신은 아직 확인 전이다. 클라우드에서는 실제 사용자 키·메일 인증·외부 전송을 사용하지 않았다. API unhealthy 문제를 메일 비밀번호 문제로 단정하지 않으며 앱 비밀번호를 채팅에 요구하지 않는다. main과 기존 금융 이력·기준금을 유지한다.
+--- a/packages/persistence/health.py
++++ b/packages/persistence/health.py
+@@ -4,6 +4,8 @@
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+ from packages.domain.config import database_url
++
++EXPECTED_SCHEMA_REVISION = "0004_demo_urgent_alerts"
+ 
+ 
+ def probe_database() -> bool:
+@@ -16,7 +18,7 @@
+             return bool(
+                 connection.execute(text("SELECT 1")).scalar_one() == 1
+                 and connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
+-                == "0003_demo"
++                == EXPECTED_SCHEMA_REVISION
+             )
+     except (SQLAlchemyError, ValueError):
+         # Deliberately do not log driver errors, which can include connection data.
+--- /dev/null
++++ b/tests/integration/test_api_migrated_ready.py
+@@ -0,0 +1,59 @@
++"""Readiness against real migrated PG; mocks only engine routing to a private schema."""
++
++import pytest
++from alembic import command
++from alembic.config import Config
++from fastapi.testclient import TestClient
++from sqlalchemy import text
++
++from apps.api.main import create_app
++from packages.persistence import health
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++
++
++@pytest.fixture
++def ready_db(demo_system, monkeypatch):  # noqa: F811
++    store, _, _ = demo_system
++    monkeypatch.setattr(health, "create_engine", lambda *a, **kw: store.engine)
++    return store
++
++
++def test_current_migrated_database_is_http_200_with_trading_disabled(ready_db):
++    with TestClient(create_app()) as client:
++        result = client.get("/api/v1/system/ready")
++    assert result.status_code == 200
++    assert result.json()["database"] == "ready"
++    assert result.json()["orders_enabled"] is False
++    assert result.json()["live_trading_enabled"] is False
++
++
++def test_populated_0003_upgrade_turns_503_into_200_without_ledger_changes(ready_db):
++    cfg = Config("alembic.ini")
++    before = ready_db.read("DEMO-test")
++    with ready_db.engine.begin() as conn:
++        cfg.attributes["connection"] = conn
++        command.downgrade(cfg, "0003_demo")
++    with TestClient(create_app()) as client:
++        assert client.get("/api/v1/system/ready").status_code == 503
++        with ready_db.engine.begin() as conn:
++            cfg.attributes["connection"] = conn
++            command.upgrade(cfg, "head")
++        assert client.get("/api/v1/system/ready").status_code == 200
++    assert ready_db.read("DEMO-test") == before
++
++
++@pytest.mark.parametrize("kind", ["unknown", "missing", "multiple"])
++def test_wrong_missing_or_ambiguous_revision_remains_503(ready_db, kind):
++    with ready_db.engine.begin() as conn:
++        conn.execute(text("DELETE FROM alembic_version"))
++        if kind != "missing":
++            conn.execute(text("INSERT INTO alembic_version(version_num) VALUES ('unknown_schema')"))
++        if kind == "multiple":
++            conn.execute(
++                text("INSERT INTO alembic_version(version_num) VALUES (:head)"),
++                {"head": health.EXPECTED_SCHEMA_REVISION},
++            )
++    with TestClient(create_app()) as client:
++        result = client.get("/api/v1/system/ready")
++    assert result.status_code == 503 and result.json()["database"] == "unavailable"
++    assert not result.json()["orders_enabled"]
+--- /dev/null
++++ b/tests/unit/test_health_migration_head.py
+@@ -0,0 +1,13 @@
++"""A new migration must update the exact API readiness revision too."""
++
++from alembic.config import Config
++from alembic.script import ScriptDirectory
++
++from packages.persistence.health import EXPECTED_SCHEMA_REVISION
++
++
++def test_api_readiness_revision_equals_current_alembic_head():
++    assert (
++        EXPECTED_SCHEMA_REVISION
++        == ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
++    )
