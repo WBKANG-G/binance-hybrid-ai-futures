@@ -24,7 +24,7 @@ docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wai
 ## 2. 검토 토큰과 새 작업으로 적용
 
 ```bat
-docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_paused_periods --attest-no-activity-since-anchor --accept-operator-evidence --apply-review bfcf38c1998320344e9c03411b83a9369b152bfca76f50fb23438fc89cdf7a1c --operation-id 7230ec92-b17e-4fa9-bfef-336801a2182e
+docker compose -p hybrid-windows -f infra/docker-compose.yml exec -it api python -m scripts.review_demo_paused_periods --attest-no-activity-since-anchor --accept-operator-evidence --apply-review bff38c1998320344e9c03411b83a9369b152bfcaa76f50fb23438fc89cdf7a1c --operation-id 7230ec92-b17e-4fa9-bfef-336801a2182e
 ```
 
 정상 결과는 period_baselines OPERATOR_ATTESTED_PERIOD_BASELINES_ADOPTED_ENTRIES_STILL_PAUSED다. adopted/current day/week, baseline, source, risk_state NORMAL/paused true, high_water_preserved, old_valuation_timestamp_preserved, unresolved_requests_acknowledged false, orders_enabled/live_trading_enabled false, leader_released true를 포함한 전체 JSON을 공유한다. 적용 후에도 신규 진입을 자동 재개하지 않는다.
