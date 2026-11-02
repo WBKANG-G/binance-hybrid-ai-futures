@@ -15,3 +15,9 @@ docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python 
 진단은 현재 서명 증거를 새로 한 번 조회한다. 기존40초/600 GET/6 probe 예산과 GET 전용 검토를 사용한다. 모든 DB 트랜잭션에 READ ONLY를 적용하고 SQL도 SELECT만 허용한다. 정상 조회 전후 계좌 state/owner/fence/lease의 동일성을 확인한다. 실제 리더 획득/감사 저장/기준금 적용/주문·취소·청산/잠금 해제/메일 발송은 없다.
 
 모의 플래그/JSON 비교가 일치하더라도 실제 적용 트랜잭션에서의 원격 관측 차이까지 입증하지는 않는다. 이 진단 결과만으로 임의의 새 토큰을 승인하거나 기존 비교를 우회하지 않는다. 새 애플리케이션 버전이나 전체 Phase4 완료가 아니다.
+
+## 사용자 실제 진단 결과
+
+initial_command_token_matches와 corrected_command_token_matches가 모두 false로 확인됐습니다. 수식 재현/획득 플래그 모의/JSON roundtrip은 모두 true였고 장부 해시가 같으며 변경 필드 목록은 비어 있었습니다. 즉 실제 생성된 값과 두 안내 문자열이 달랐습니다. 계좌 owner/fence/lease/state는 그대로였고 기준금 적용은 없었습니다.
+
+실제8자리 묶음은 bff38c19 / 98320344 / e9c03411 / b83a9369 / b152bfca / a76f50fb / 23438fc8 / 9cdf7a1c이며 프로그램으로 결합한 실제 토큰은 bff38c1998320344e9c03411b83a9369b152bfcaa76f50fb23438fc89cdf7a1c입니다. 후보 두 기준일2026-11-02와 두 기준금4998.99761493 USDT 및 기존 증거 해시/fingerprint도 같았습니다. 안내 토큰의 오독을 정정했으며 적용 도구 자체나 수락 조건은 변경하지 않습니다. 실제 적용 성공은 아직 후속 출력 전입니다.
