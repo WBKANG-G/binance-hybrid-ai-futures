@@ -1,5 +1,7 @@
 # 다음 단계: Windows Docker의 독립 장애 복구 검사
 
+후속 사용자 Windows 실행에서13개 통과(64.13초), failed/skipped0 및 종료0을 확인했고, 이후 테스트 컨테이너2개와 네트워크1개가 정상 제거됐습니다. 실제 자연 대기59974ms/원래 리스 잔여59963ms, 보호31회 확인, 펜스1→2와 동일 ID 회복/중복 없음/최종flat을 확인했습니다. 아래 배포 당시 Windows 미확인 문장은 이 후속 관측으로 갱신되며, [수락 기록과 다음 독립 WSS 검사](https://github.com/WBKANG-G/binance-hybrid-ai-futures/tree/windows-demo-isolated-wss-check-20261102)에 별도로 남겼습니다.
+
 사용자 실제 일간·주간 기준금 적용이 성공했습니다. 두 기준일2026-11-02, 두 기준금4998.99761493 USDT, NORMAL/paused 및 고점·이전 평가 시각 보존·리더 반환 완료입니다. 미해결 기록 승인이나 신규 진입/LIVE 활성화는 없었습니다. 두 잘못된 토큰으로 차단된 이전 시도와 이후 성공을 별도로 기록했습니다.
 
 이번에는 실제 DEMO 계좌를 그대로 두고 기존 보호 worker 강제 종료와 DB 연결 단절 검사를 Windows Docker에서 별도 재현합니다. ZIP을 새 windows-demo-isolated-fault-check 폴더에 풀고 ISOLATED_FAULT_START_HERE_KO.md의 전용 hybrid-phase4-fault-check 명령을 사용하세요. 운영 프로젝트를 다시 빌드할 단계가 아닙니다. 키/비밀번호 입력은 없습니다.
