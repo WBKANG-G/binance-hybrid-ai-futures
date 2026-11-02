@@ -1,5 +1,7 @@
 # 검토된 NORMAL/일시정지 두 기준금 적용
 
+**현재 적용 중지:** 정정 토큰으로도 PERIOD_PREVIEW_CHANGED가 다시 발생했습니다. 아래 과거 기록의 전사 오류 원인 단정은 철회하며, 실제 원인은 미확정입니다. 적용 명령을 추가 실행하지 마세요. 다음은 별도 [읽기 전용 진단](https://github.com/WBKANG-G/binance-hybrid-ai-futures/tree/windows-demo-period-token-diagnostic-20261102)이며 기존 앱이나 수락 검사를 변경하지 않습니다.
+
 적용 명령의 토큰 전사 오류를 정정했습니다. 실제 화면의 올바른 토큰은 bfcf38c1998320344e9c03411b83a9369b152bfca76f50fb23438fc89cdf7a1c입니다. 잘못 옮긴 이전 토큰은 PERIOD_PREVIEW_CHANGED로 차단됐고 적용되지 않았습니다. 문서2개와 manifest만 정정했으며 앱 코드/수락 조건은 그대로입니다. 기존 설치에서 올바른 토큰과 같은 작업 ID를 사용하면 되므로 재설치/빌드는 필요 없습니다. 기존 검사 결과는 코드가 같은 이전 검증 결과이며 이 문서 정정에서 회귀 검사를 다시 실행하지 않았습니다.
 
 사용자 Windows의 실제 미리보기는11월2일 일간·주간 기준금 후보를 각각4998.99761493 USDT로 제시했습니다. 이전 일간은11월1일/4999.03492670, 주간은10월26일/4999.64804199입니다. 운영자 새 활동 없음과 서명된 USDT/flat·체결·소득 검사를 통과했고 아직 미리보기라 DB 변경은 없었습니다. source는 OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE이며 자정 직접 관측이나 계좌 전체 export 검증이 아닙니다.
