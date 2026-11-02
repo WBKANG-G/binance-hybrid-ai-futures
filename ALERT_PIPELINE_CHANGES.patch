@@ -1,0 +1,735 @@
+--- /dev/null
++++ b/ALERT_PIPELINE_START_HERE_KO.md
+@@ -0,0 +1,49 @@
++# 알림 큐 자동 worker 전달 확인
++
++네이버 직접 self-test는 실제 수신까지 확인됐다. 이번 단계는 등록 명령이 메일을 보내지 않고, DB 큐에 TEST 한 건만 넣어 기존 alerts worker가 자동 전송하는 경로를 확인한다. 실제 주문/취소/청산/위험 상태 변경은 없다. 거래소 API 키가 필요하지 않으며 유효한 이메일 RAM 설정은 재사용한다.
++
++## 1. 설치
++
++새 windows-demo-alert-pipeline-check 폴더에 ZIP을 풀고 해당 폴더 탐색기 주소창에서 cmd를 실행한다. 같은 hybrid-windows 프로젝트를 유지한다. DB revision/금융 계좌/기준금/기존 감사·outbox·RAM 키와 메일 설정을 유지한다. 이번 버전은 새 migration이 없고 readiness는0004_demo_urgent_alerts 그대로다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --wait
++```
++
++모든 컨테이너 Healthy 확인 후 아래 단일 등록을 실행한다. 이메일 캐시가 만료되거나 Docker 재시작으로 없어졌다면 자동 등록/삭제/재입력하지 않고 BLOCKED 결과를 공유한다.
++
++## 2. 테스트 알림 한 건 등록하고 최대30초 관찰
++
++아래는 새 전용 작업 ID다. 이전 직접 self-test ID를 재사용하지 않는다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_alert_pipeline --enqueue-self-test --operation-id 4e5d7b91-23a7-4612-b8dc-23542cc63ff0 --wait-seconds 30
++```
++
++이 명령은 DB의 알림 테이블만 쓰고 발송/claim을 직접 하지 않는다. 같은 ID의 재호출은 기존 행을 조회하며 delivered_at/시도 기록을 초기화하거나 알림을 다시 추가하지 않는다. 현재 연결 참조 감사 기록당 TEST는 한 건으로 제한해 다른 ID를 만들어 반복 발송하지 못하게 한다.
++
++정상 DB 결과는 QUEUE_DELIVERY_ACKNOWLEDGED, severity TEST, code DELIVERY_PIPELINE_TEST, attempt_results에 ACKNOWLEDGED다. 이는 소비자가 채널 수락을 기록했다는 뜻이며, SMTP 채널/실제 수신은 아래 worker 로그와 메일을 함께 확인해야 한다. 과거 또는 가짜 완료 시각만으로 성공 판정하지 않는다.
++
++## 3. 자동 worker 로그와 실제 메일 대조
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml logs --tail 20 alerts
++```
++
++component DEMO_EMAIL_WORKER, channel NAVER_SMTP, alert_delivery DELIVERED와 같은 알림 ID4e5d7b91-23a7-4612-b8dc-23542cc63ff0가 로그에 있는지 확인한다.
++
++받은메일함/스팸함의 새 제목은 [DEMO] 알림 큐 자동 전달 테스트다. 본문의 유형 TEST 및 알림 ID가 같은지 확인한다. 이 새 메일과 등록 명령의 JSON, worker 로그를 함께 공유한다. 주소·비밀번호 입력 화면은 보내지 않는다.
++
++## 완료되지 않은 경우
++
++QUEUED_WAITING_FOR_WORKER, WORKER_PROCESSING, RETRY_PENDING 또는 BLOCKED는 성공으로 표시하지 않는다. 명령의 비정상 종료에 따른 Docker 일반 도움말을 Docker 고장으로 단정하지 않는다. 새 ID를 만들거나 테스트 메일을 직접 추가 발송하지 않는다. 아래 읽기 전용 조회로 같은 ID의 상태만 확인할 수 있다.
++
++```bat
++docker compose -p hybrid-windows -f infra/docker-compose.yml exec -T api python -m scripts.check_demo_alert_pipeline --review --operation-id 4e5d7b91-23a7-4612-b8dc-23542cc63ff0
++```
++
++SMTP 응답 유실 후 worker 재시도에서는 같은 Message-ID로 여러 메일이 도착할 수 있다. 등록 중복 방지는 SMTP의 정확히 한 번 수신 보장이 아니다. 큐 집계에는 이 TEST도 한 건 포함되며 실제 긴급 사건으로 취급하지 않는다.
++
++테스트는 기존 실제 감사 event_id를 연결 참조로만 사용한다. 새 금융 감사 사건·위험 상태·가짜 체결/평가/기준금을 만들지 않으며 기존 demo_accounts/demo_events/demo_outbox 행을 수정·추가하지 않는다. 기존 UNIQUE(event_id,code) 제약을 유지한다. TEST가 연결된 감사 기록에 실제 장애가 있었다는 뜻이 아니다.
++
++이 검증은 TEST 큐 자동 전달 경로의 수락이다. 실제 손절 장애·부분체결·TP 체결을 강제로 발생시키거나 실제 미완료 항목을 통과로 바꾸지 않는다. 거래를 다시 진행하기 전 바뀐 일간/주간 기준일은 원래 별도 검토 절차가 필요하며 이번 이메일 테스트에서 변경하지 않는다. Phase4 전체 완료/LIVE/Phase5 전환은 없다.
+--- /dev/null
++++ b/ALERT_PIPELINE_VALIDATION_KO.md
+@@ -0,0 +1,26 @@
++# TEST 큐→자동 worker→이메일 검증
++
++부모 ZIP은 windows-demo-alert-ready-fix / SHA256 a5d1637dec31fdea19cd0208bb5afaa8a2d310d6ca1d63ed30633178c9b32138이다. 거래 실행/리스크/금융 저장소/DB migration/readiness/Compose/키·SMTP 인증·12시간 설정 보관·claim/재시도 알고리즘은 변경하지 않았다. 변경은 TEST 모델/메일 제목·내용 추가, 전달 로그 ID와 채널 표시 및 별도 등록·조회 도구다.
++
++AlertEnvelope는 DELIVERY_PIPELINE_TEST와 severity TEST의 조합만 허용한다. 실제 긴급 코드를 TEST로 낮추거나 테스트 코드를 CRITICAL로 표시하거나 TEST에 주문 UUID를 넣으면 검증을 거부한다. 원래 위험 전이 selector는 TEST를 자동 생성하지 않는다. 기존 CRITICAL 경고의 기본값과 내용은 유지한다.
++
++등록 도구는 명시적 --enqueue-self-test와 UUID4, 유효한 이메일 RAM 설정을 요구하고 LIVE/활성 로컬 계좌를 거부한다. 거래소 키나 signed query를 사용하지 않는다. 짧은 DB 트랜잭션에서 해당 계좌 행 잠금으로 동일 등록을 직렬화하며 금융 계좌 행 자체를 UPDATE하지 않는다. 기존 감사 event_id는 FK 연결 참조로만 사용한다. 새 금융 사건/감사/outbox를 만들지 않기 때문에 기간/평가 앵커를 오염시키지 않는다.
++
++알림 ID는 새 작업 UUID4와 같고 반복 호출은 원래 행을 유지한다. 현재 source event/code 한 건 제약도 유지한다. 등록 command는 Dispatcher나 SMTP send를 호출하지 않고 DB 상태만 최대60초까지 조회할 수 있다. 완료 조회는 해당 행의 계좌/코드/유형/소스 ID 및 계좌 해시, delivered_at과 마지막 ACK 시도/번호/시각·claim 부재의 일관성을 확인한다. 단순 delivered_at 삽입만으로 성공하지 않는다.
++
++DB의 ACK만으로 Naver SMTP 수락 또는 사람의 수신을 단정하지 않는다. 결과 이름은 QUEUE_DELIVERY_ACKNOWLEDGED로 제한하고 inbox_confirmation은 REQUIRES_USER_CONFIRMATION이다. 자동 worker 로그의 component/channel/alert_id와 실제 메일 ID까지 함께 대조한다.
++
++실제 격리 PG, 원래 worker.main 루프를 실행하는 별도 thread 및 로컬 검증 TLS SMTP로 전체 흐름을 시험했다. fixture는 연결 factory와 수신 설정을 로컬 합성 값으로만 주입했고 Dispatcher/큐/SMTP AUTH·DATA/ACK 저장은 실제 코드를 사용했다. 등록 전후 및 자동 전송 뒤 demo_accounts/demo_events/demo_outbox 행 전체가 동일함을 확인했다. 같은 ID 중복·동시 등록·다른 ID를 통한 같은 source 반복·다른 계좌 재사용·잘못된 맥락·위조 완료/소스·유형 혼합·CLI opt-in 및 메일 미설정을 검사했다.
++
++검증 결과:
++
++- 집중 검증67개 통과(14.72초). 새 큐/CLI19개와 기존 큐/이메일 회귀 검사를 포함한다.
++- Ruff 검사 통과, 포맷427개 유지, mypy122개 소스 통과.
++- 첫 단일 전체 실행은1362개 통과/2개 실패(416.02초)였다. 기존 host handoff 및 SL fallback 관찰 검사가 실패했다. 조건 변경 없는 개별 재실행에서2개 통과(1.22초), 이전 버전의 같은 두 검사도2개 통과(1.39초)했다.
++- 두 번째 단일 전체 실행은1361개 통과/3개 실패(442.68초)였다. 위 두 검사와 private stability 결과 감사 실패 주입 검사가 실패했다. 따라서 단일 전체 실행 통과로 기록하지 않는다.
++- 별도 새 PG18 컨테이너의 새 DB를 묶음마다 생성해, 원래 수집 순서의 전체1364개를100개씩(마지막64개)14개 묶음으로 나눠 각1회 실행했다. 누락/중복 없이1364개 모두 통과(459.25초)했다. 기존 실패3개도 포함한다. 테스트 파일·assertion·관찰 timeout·수락 조건을 변경하거나 제외하지 않았다.
++- 반복 사용 DB의 시스템 카탈로그에 삭제 잔여 행이 많이 관측됐으나, 앞선 실패의 원인을 확정하지는 못했다. 분리 실행 통과가 단일 전체 실행의 실패를 없애거나 운영 타이밍의 신뢰성을 입증하는 것은 아니다. 단일 프로세스 전체 회귀의 간헐 실패는 후속 조사 대상으로 남긴다.
++
++실제 네이버 직접 self-test c493b5c2는 한국시간2026-11-02 15:25 수신 화면과 SMTP 수락 JSON으로 별도 보존했다. 새 TEST 큐→실제 Windows 자동 worker→네이버 실제 도착은 아직 확인 전이다. 클라우드에서는 실제 사용자 키/메일 인증 정보/외부 수신자 전송을 사용하지 않았다.
++
++테스트 알림은 실제 긴급 사건이 아니며 실제 부분체결 보호/TP 트리거/시장 장애를 수락하지 않는다. SMTP는 재시도 시 중복 수신될 수 있으며 정확히 한 번 전달을 보장하지 않는다. main/LIVE/Phase5 및 Phase4 전체 완료 판정은 변경하지 않는다.
+--- /dev/null
++++ b/WINDOWS_DEMO_NAVER_INBOX_ACCEPTANCE_20261102_KO.md
+@@ -0,0 +1,11 @@
++# 실제 네이버 메일 도착 확인
++
++근거는 사용자 CMD 결과와 네이버 메일 수신 화면이다. 배포는 windows-demo-alert-ready-fix-20261101 / 2e770ee, ZIP SHA256 a5d1637dec31fdea19cd0208bb5afaa8a2d310d6ca1d63ed30633178c9b32138이다. 이메일 주소나 비밀번호를 이 문서에 전사하지 않고 원본 캡처 파일 자체도 포함하지 않는다.
++
++하루 뒤 Docker 엔진 미기동을 확인한 뒤 사용자가 Docker Desktop을 실행하고 같은 hybrid-windows 프로젝트를 up -d --wait로 기동했다. api/db/web/key-session/alerts 모두 Healthy였다. 알림 집계는 total/pending/delivered/retry_pending0, email_session NOT_CONFIGURED 및 external_receiver_configured false였다. 이는 Docker 재시작 이후 RAM 메일 설정이 없던 상태의 관측이다.
++
++운영자는 기존 네이버 앱 비밀번호로 명시적 설정을 다시 등록했고 CONFIGURED_PRIVATE_RAM, maximum_lifetime_hours12, persistent_password_storage false, recipient_scope NAVER_AUTHENTICATED_SELF_ONLY를 확인했다. 거래소 API 키는 이 메일 단계에 사용하지 않았다.
++
++새 self-test 작업c493b5c2-c996-4ef6-99a4-2b252b7c0c31은 SMTP_ACCEPTED_CHECK_YOUR_INBOX, orders_enabled false, live_trading_enabled false를 반환했다. 사용자가 공유한 실제 메일 화면의 제목은 [DEMO] 긴급 알림 수신 테스트였고 본문의 알림 ID가 같은c493b5c2-c996-4ef6-99a4-2b252b7c0c31이었다. 표시 시각은 한국시간2026-11-02 월요일15:25였다. 실제 주문·취소·청산을 실행하지 않는 본인 수신 테스트라는 본문도 일치했다.
++
++이로써 명시적 직접 self-test의 실제 네이버 SMTP 인증/수락 및 메일 도착 범위가 통과했다. 이 명령은 DB 큐를 거치지 않으므로 자동 긴급 경고의 전체 경로를 같은 결과로 수락하지 않는다. 과거b330d024 테스트의 수신을 이 화면으로 소급 확정하지 않는다. 다음은 별도 TEST 유형 큐 등록→자동 worker→실제 수신의 독립 검증이다. 실제 손절 실패나 거래 위험을 새로 만들지 않는다.
+--- a/packages/persistence/demo_alerts.py
++++ b/packages/persistence/demo_alerts.py
+@@ -2,10 +2,10 @@
+ 
+ import hashlib
+ from datetime import datetime
+-from typing import Literal
++from typing import Literal, Self
+ from uuid import UUID, uuid5
+ 
+-from pydantic import BaseModel, ConfigDict, Field
++from pydantic import BaseModel, ConfigDict, Field, model_validator
+ from sqlalchemy import (
+     CheckConstraint,
+     Column,
+@@ -30,6 +30,7 @@
+     "EMERGENCY_ENTERED",
+     "RISK_LOCK_ENTERED",
+     "PRIVATE_SESSION_FAILED",
++    "DELIVERY_PIPELINE_TEST",
+ ]
+ Signals = dict[AlertCode, set[str]]
+ 
+@@ -40,13 +41,20 @@
+     alert_id: UUID
+     event_id: UUID
+     environment: Literal["DEMO"] = "DEMO"
+-    severity: Literal["CRITICAL"] = "CRITICAL"
++    severity: Literal["CRITICAL", "TEST"] = "CRITICAL"
+     code: AlertCode
+     account_ref: str = Field(pattern=r"^[a-f0-9]{24}$")
+     occurred_at: UTCDateTime
+     risk_state: RiskState
+     paused: bool
+     order_ids: tuple[UUID, ...] = ()
++
++    @model_validator(mode="after")
++    def check_test_scope(self) -> Self:
++        is_test = self.code == "DELIVERY_PIPELINE_TEST"
++        if is_test != (self.severity == "TEST") or (is_test and self.order_ids):
++            raise ValueError("ALERT_TEST_SEVERITY_OR_ORDER_SCOPE_INVALID")
++        return self
+ 
+ 
+ alerts = Table(
+--- /dev/null
++++ b/scripts/check_demo_alert_pipeline.py
+@@ -0,0 +1,78 @@
++"""Queue exactly one TEST alert for the existing background worker; never sends directly."""
++
++import argparse
++import json
++import os
++import time
++from uuid import UUID
++
++from sqlalchemy import create_engine
++
++from packages.domain.config import database_url
++from scripts.demo_alert_email_session import status as email_status
++from scripts.observe_demo_private import ACCOUNT
++from services.operations.demo_alert_pipeline import enqueue_test, review_test
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    action = parser.add_mutually_exclusive_group(required=True)
++    action.add_argument("--enqueue-self-test", action="store_true")
++    action.add_argument("--review", action="store_true")
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    parser.add_argument("--wait-seconds", type=int, default=30)
++    args = parser.parse_args()
++    if args.operation_id.version != 4 or not 0 <= args.wait_seconds <= 60:
++        parser.error("UUID4 and bounded wait 0..60s required")
++    engine = None
++    report: dict[str, object] = {
++        "pipeline_check": "BLOCKED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    success = False
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER").upper() == "LIVE"
++        ):
++            raise ValueError("DEMO_ONLY_CONTEXT_REQUIRED")
++        if args.enqueue_self_test and email_status() != "CONFIGURED_PRIVATE_RAM":
++            raise ValueError("VALID_EMAIL_RAM_SESSION_REQUIRED")
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        created = (
++            enqueue_test(engine, ACCOUNT, args.operation_id) if args.enqueue_self_test else False
++        )
++        deadline = time.monotonic() + (args.wait_seconds if args.enqueue_self_test else 0)
++        while True:
++            report = {
++                **review_test(engine, ACCOUNT, args.operation_id),
++                "newly_registered": created,
++            }
++            if (
++                report["pipeline_check"] not in {"QUEUED_WAITING_FOR_WORKER", "WORKER_PROCESSING"}
++                or time.monotonic() >= deadline
++            ):
++                break
++            time.sleep(min(0.5, max(0, deadline - time.monotonic())))
++        success = report["pipeline_check"] == "QUEUE_DELIVERY_ACKNOWLEDGED"
++    except Exception:
++        report = {
++            "pipeline_check": "BLOCKED",
++            "failure": "QUEUE_TEST_CONTEXT_OR_DATABASE_FAILED",
++            "operation_id": str(args.operation_id),
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(json.dumps(report), flush=True)
++    if not success:
++        raise SystemExit(2)
++
++
++if __name__ == "__main__":
++    main()
+--- a/scripts/watch_demo_alert_email.py
++++ b/scripts/watch_demo_alert_email.py
+@@ -40,7 +40,11 @@
+                         "failure": "SMTP_AUTH_FAILED",
+                     }
+                 else:
+-                    report = {**dispatcher.deliver_one(ACCOUNT, NaverEmail(settings))}
++                    report = {
++                        **dispatcher.deliver_one(ACCOUNT, NaverEmail(settings)),
++                        "channel": "NAVER_SMTP",
++                        "component": "DEMO_EMAIL_WORKER",
++                    }
+                     if report.get("result") == "SMTP_AUTH_FAILED":
+                         auth_rejected_settings = settings
+             except Exception:
+--- a/services/operations/demo_alert_delivery.py
++++ b/services/operations/demo_alert_delivery.py
+@@ -249,6 +249,7 @@
+             else "CLAIM_LOST",
+             "result": result if committed else "CLAIM_LOST",
+             "attempt": claim.number,
++            "alert_id": claim.alert_id,
+             "network_attempted": sent,
+         }
+ 
+--- a/services/operations/demo_alert_email.py
++++ b/services/operations/demo_alert_email.py
+@@ -21,6 +21,7 @@
+     "EMERGENCY_ENTERED": "비상 상태 전환",
+     "RISK_LOCK_ENTERED": "위험 제한 상태 전환",
+     "PRIVATE_SESSION_FAILED": "계좌 감시 세션 실패",
++    "DELIVERY_PIPELINE_TEST": "알림 큐 자동 전달 테스트",
+ }
+ 
+ 
+@@ -85,6 +86,15 @@
+             raise DeliveryFailure("SMTP_REJECTED") from None
+ 
+     def send(self, envelope: AlertEnvelope) -> None:
++        if envelope.code == "DELIVERY_PIPELINE_TEST":
++            body = (
++                "DB 알림 큐와 자동 이메일 worker를 거친 전달 테스트입니다.\n"
++                "실제 긴급 사건을 만들거나 주문·취소·청산을 실행하지 않았습니다.\n"
++                f"유형: TEST\n계좌 참조: {envelope.account_ref}\n"
++                f"알림 ID: {envelope.alert_id}\n"
++            )
++            self._send(self._message(envelope.alert_id, TITLES[envelope.code], body))
++            return
+         body = (
+             "DEMO 계좌의 긴급 경고입니다. 실제 거래소 상태와 장부를 확인하세요.\n"
+             "이 메일은 주문 재제출이나 신규 진입을 지시하지 않습니다.\n\n"
+--- /dev/null
++++ b/services/operations/demo_alert_pipeline.py
+@@ -0,0 +1,172 @@
++"""One explicitly queued TEST alert; never changes financial state or audit rows."""
++
++import hashlib
++import json
++from datetime import UTC, datetime
++from typing import Any, Literal
++from uuid import UUID
++
++from sqlalchemy import Engine, insert, select, text
++
++from packages.persistence.demo import accounts, events
++from packages.persistence.demo_alerts import AlertEnvelope, alerts, attempts
++from services.execution.demo_models import DemoLedger
++
++CODE: Literal["DELIVERY_PIPELINE_TEST"] = "DELIVERY_PIPELINE_TEST"
++
++
++def _validate_existing(row: Any, account: str, operation: UUID) -> None:
++    if row["account_id"] != account or row["alert_id"] != str(operation) or row["code"] != CODE:
++        raise ValueError("ALERT_TEST_OPERATION_SCOPE_CONFLICT")
++    envelope = AlertEnvelope.model_validate_json(json.dumps(row["payload"]))
++    if (
++        envelope.severity != "TEST"
++        or envelope.code != CODE
++        or str(envelope.alert_id) != str(operation)
++    ):
++        raise ValueError("ALERT_TEST_PAYLOAD_INVALID")
++    if (
++        str(envelope.event_id) != row["event_id"]
++        or envelope.account_ref != hashlib.sha256(account.encode()).hexdigest()[:24]
++    ):
++        raise ValueError("ALERT_TEST_SOURCE_IDENTITY_INVALID")
++
++
++def enqueue_test(engine: Engine, account: str, operation: UUID) -> bool:
++    if not account.startswith("DEMO-") or operation.version != 4:
++        raise ValueError("EXPLICIT_DEMO_TEST_UUID4_REQUIRED")
++    with engine.begin() as conn:
++        conn.execute(text("SET LOCAL statement_timeout='2s'"))
++        conn.execute(text("SET LOCAL lock_timeout='2s'"))
++        # Short serialization only; no network/worker wait while holding this lock.
++        account_row = (
++            conn.execute(select(accounts).where(accounts.c.account_id == account).with_for_update())
++            .mappings()
++            .one()
++        )
++        existing = (
++            conn.execute(select(alerts).where(alerts.c.alert_id == str(operation)))
++            .mappings()
++            .first()
++        )
++        if existing is not None:
++            _validate_existing(existing, account, operation)
++            return False
++        ledger = DemoLedger.model_validate(account_row["state"])
++        if (
++            not ledger.paused
++            or any(ledger.positions.values())
++            or any(order.remaining or order.open_quantity for order in ledger.orders.values())
++        ):
++            raise ValueError("ALERT_TEST_REQUIRES_PAUSED_LOCAL_EMPTY_ACCOUNT")
++        source = conn.execute(
++            select(events.c.event_id)
++            .where(events.c.account_id == account)
++            .order_by(events.c.as_of.desc(), events.c.event_id.desc())
++            .limit(1)
++        ).scalar_one_or_none()
++        if source is None:
++            raise ValueError("ALERT_TEST_SOURCE_AUDIT_MISSING")
++        if conn.execute(
++            select(alerts.c.alert_id).where(alerts.c.event_id == source, alerts.c.code == CODE)
++        ).first():
++            raise ValueError("SOURCE_ALREADY_HAS_PIPELINE_TEST_DO_NOT_REQUEUE")
++        now = datetime.now(UTC)
++        envelope = AlertEnvelope(
++            alert_id=operation,
++            event_id=UUID(source),
++            code=CODE,
++            severity="TEST",
++            account_ref=hashlib.sha256(account.encode()).hexdigest()[:24],
++            occurred_at=now,
++            risk_state=ledger.risk_state,
++            paused=ledger.paused,
++        )
++        conn.execute(
++            insert(alerts).values(
++                alert_id=str(operation),
++                event_id=source,
++                account_id=account,
++                code=CODE,
++                payload=envelope.model_dump(mode="json"),
++                created_at=now,
++                delivered_at=None,
++                attempts=0,
++                next_attempt_at=now,
++                claim_token=None,
++                claim_until=None,
++                last_failure="NONE",
++            )
++        )
++    return True
++
++
++def review_test(engine: Engine, account: str, operation: UUID) -> dict[str, object]:
++    with engine.connect() as conn:
++        conn.execute(text("SET TRANSACTION READ ONLY"))
++        conn.execute(text("SET LOCAL statement_timeout='2s'"))
++        row = (
++            conn.execute(select(alerts).where(alerts.c.alert_id == str(operation)))
++            .mappings()
++            .first()
++        )
++        if row is None:
++            return {"pipeline_check": "NOT_REGISTERED", "operation_id": str(operation)}
++        _validate_existing(row, account, operation)
++        if (
++            conn.execute(
++                select(events.c.event_id).where(
++                    events.c.event_id == row["event_id"], events.c.account_id == account
++                )
++            ).first()
++            is None
++        ):
++            raise ValueError("ALERT_TEST_SOURCE_SCOPE_INVALID")
++        history = (
++            conn.execute(
++                select(attempts)
++                .where(attempts.c.alert_id == str(operation))
++                .order_by(attempts.c.number)
++            )
++            .mappings()
++            .all()
++        )
++    latest = history[-1] if history else None
++    accepted = bool(
++        row["delivered_at"] is not None
++        and row["claim_token"] is None
++        and row["last_failure"] == "NONE"
++        and latest is not None
++        and latest["number"] == row["attempts"]
++        and latest["result"] == "ACKNOWLEDGED"
++        and latest["finished_at"] == row["delivered_at"]
++        and len(history) == row["attempts"]
++        and [r["number"] for r in history] == list(range(1, row["attempts"] + 1))
++    )
++    state = (
++        "QUEUE_DELIVERY_ACKNOWLEDGED"
++        if accepted
++        else "INCONSISTENT_DELIVERY_RECORD"
++        if row["delivered_at"] is not None
++        else "RETRY_PENDING"
++        if row["last_failure"] != "NONE"
++        else "WORKER_PROCESSING"
++        if row["claim_token"] is not None
++        else "QUEUED_WAITING_FOR_WORKER"
++    )
++    return {
++        "pipeline_check": state,
++        "operation_id": str(operation),
++        "alert_id": row["alert_id"],
++        "severity": "TEST",
++        "code": CODE,
++        "attempt_count": row["attempts"],
++        "attempt_results": [r["result"] for r in history],
++        "last_failure": row["last_failure"],
++        "delivered_at": row["delivered_at"].isoformat() if row["delivered_at"] else None,
++        "inbox_confirmation": "REQUIRES_USER_CONFIRMATION",
++        "trading_state_modified": False,
++        "financial_audit_modified": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/tests/integration/test_demo_alert_pipeline.py
+@@ -0,0 +1,214 @@
++# ruff: noqa: F811
++"""Real PG -> actual worker loop -> local verified TLS SMTP; financial rows unchanged."""
++
++import json
++import time
++from concurrent.futures import ThreadPoolExecutor
++from types import SimpleNamespace
++from uuid import uuid4
++
++import pytest
++from sqlalchemy import update
++
++from packages.persistence.demo import accounts, events, outbox
++from packages.persistence.demo_alerts import alerts, attempts
++from scripts import check_demo_alert_pipeline as cli
++from scripts import watch_demo_alert_email as worker
++from scripts.demo_alert_email_session import EmailSettings
++from services.operations.demo_alert_email import NaverEmail
++from services.operations.demo_alert_pipeline import enqueue_test, review_test
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_urgent_alerts import case as alert_case  # noqa: F401
++from tests.integration.test_demo_urgent_alerts import rows
++from tests.unit.test_demo_alert_email_wire import smtp_server  # noqa: F401
++
++
++@pytest.fixture
++def case(alert_case):  # noqa: F811
++    store, c, fake = alert_case
++    store.change(c.lease, "TEST_PREPARE_PAUSED", lambda ledger: setattr(ledger, "paused", True))
++    return store, c, fake
++
++
++def finance(store):
++    return {table.name: rows(store, table) for table in [accounts, events, outbox]}
++
++
++def test_queue_test_actual_worker_tls_smtp_preserves_all_financial_rows(
++    case, smtp_server, monkeypatch, tmp_path, capsys
++):  # noqa: F811
++    store, c, fake = case
++    before = finance(store)
++    calls = len(fake.calls)
++    operation = uuid4()
++    assert enqueue_test(store.engine, "DEMO-test", operation)
++    queued = rows(store, alerts)[0]
++    assert queued["payload"]["severity"] == "TEST" and queued["code"] == "DELIVERY_PIPELINE_TEST"
++    assert queued["payload"]["order_ids"] == []
++    assert finance(store) == before and len(fake.calls) == calls
++    assert (
++        review_test(store.engine, "DEMO-test", operation)["pipeline_check"]
++        == "QUEUED_WAITING_FOR_WORKER"
++    )
++
++    class StopLoop(Exception):
++        pass
++
++    def stop(*a):
++        raise StopLoop
++
++    settings = EmailSettings(smtp_server.address, smtp_server.password)
++    monkeypatch.setattr(worker, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(worker, "create_engine", lambda *a, **kw: store.engine)
++    monkeypatch.setattr(worker, "load", lambda: settings)
++    monkeypatch.setattr(
++        worker, "NaverEmail", lambda value: NaverEmail(value, factory=smtp_server.factory)
++    )
++    monkeypatch.setattr(worker, "Path", lambda *a: tmp_path / "health")
++    monkeypatch.setattr(worker, "time", SimpleNamespace(monotonic=time.monotonic, sleep=stop))
++    with ThreadPoolExecutor(1) as pool:
++        future = pool.submit(worker.main)
++        with pytest.raises(StopLoop):
++            future.result(timeout=10)
++    report = review_test(store.engine, "DEMO-test", operation)
++    assert report["pipeline_check"] == "QUEUE_DELIVERY_ACKNOWLEDGED"
++    assert report["attempt_count"] == 1 and report["attempt_results"] == ["ACKNOWLEDGED"]
++    assert report["inbox_confirmation"] == "REQUIRES_USER_CONFIRMATION"
++    assert finance(store) == before and len(fake.calls) == calls
++    assert len(smtp_server.messages) == 1
++    message = smtp_server.messages[0]
++    assert message["Message-ID"] == f"<demo-alert-{operation}@naver.com>"
++    assert message["From"] == message["To"] == smtp_server.address
++    assert "TEST" in message.get_payload(decode=True).decode()
++    log = [
++        json.loads(line) for line in capsys.readouterr().out.splitlines() if line.startswith("{")
++    ][-1]
++    assert log["component"] == "DEMO_EMAIL_WORKER" and log["channel"] == "NAVER_SMTP"
++    assert log["alert_id"] == str(operation) and log["alert_delivery"] == "DELIVERED"
++    saved = rows(store, alerts), rows(store, attempts)
++    assert not enqueue_test(store.engine, "DEMO-test", operation)
++    assert (rows(store, alerts), rows(store, attempts)) == saved
++    assert finance(store) == before
++
++
++def test_concurrent_duplicate_enqueue_creates_only_one_test_without_audit_rows(case):
++    store, _, _ = case
++    before = finance(store)
++    operation = uuid4()
++    with ThreadPoolExecutor(2) as pool:
++        result = list(
++            pool.map(lambda _: enqueue_test(store.engine, "DEMO-test", operation), range(2))
++        )
++    assert sorted(result) == [False, True]
++    assert len(rows(store, alerts)) == 1 and not rows(store, attempts)
++    assert finance(store) == before
++
++
++def test_new_operation_cannot_spam_same_source_event(case):
++    store, _, _ = case
++    assert enqueue_test(store.engine, "DEMO-test", uuid4())
++    with pytest.raises(ValueError, match="SOURCE_ALREADY_HAS"):
++        enqueue_test(store.engine, "DEMO-test", uuid4())
++    assert len(rows(store, alerts)) == 1
++
++
++def test_review_never_claims_or_sends_and_does_not_require_email_config(case, monkeypatch, capsys):
++    store, _, _ = case
++    operation = uuid4()
++    enqueue_test(store.engine, "DEMO-test", operation)
++    before = finance(store), rows(store, alerts), rows(store, attempts)
++    monkeypatch.setattr(cli, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: store.engine)
++    monkeypatch.setattr(
++        cli, "email_status", lambda: pytest.fail("review must not require email config")
++    )
++    monkeypatch.setattr("sys.argv", ["review", "--review", "--operation-id", str(operation)])
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["pipeline_check"] == "QUEUED_WAITING_FOR_WORKER"
++    assert (finance(store), rows(store, alerts), rows(store, attempts)) == before
++
++
++def test_cli_enqueue_only_writes_test_queue_and_wait_timeout_never_sends(case, monkeypatch, capsys):
++    store, _, fake = case
++    before, calls = finance(store), len(fake.calls)
++    operation = uuid4()
++    monkeypatch.setattr(cli, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: store.engine)
++    monkeypatch.setattr(cli, "email_status", lambda: "CONFIGURED_PRIVATE_RAM")
++    monkeypatch.setattr(
++        "sys.argv",
++        ["enqueue", "--enqueue-self-test", "--operation-id", str(operation), "--wait-seconds", "0"],
++    )
++    with pytest.raises(SystemExit):
++        cli.main()
++    report = json.loads(capsys.readouterr().out)
++    assert report["newly_registered"] and report["pipeline_check"] == "QUEUED_WAITING_FOR_WORKER"
++    assert len(rows(store, alerts)) == 1 and not rows(store, attempts)
++    assert finance(store) == before and len(fake.calls) == calls
++
++
++@pytest.mark.parametrize("fault", ["unpaused", "position", "source_missing"])
++def test_bad_context_does_not_create_test_or_change_finance(case, fault):
++    from sqlalchemy import delete
++
++    store, c, _ = case
++    if fault == "unpaused":
++        store.change(c.lease, "TEST_UNPAUSED", lambda ledger: setattr(ledger, "paused", False))
++    elif fault == "position":
++        from decimal import Decimal
++
++        store.change(
++            c.lease,
++            "TEST_POSITION",
++            lambda ledger: ledger.positions.__setitem__("BTCUSDT", Decimal("0.0007")),
++        )
++    else:
++        with store.engine.begin() as conn:
++            conn.execute(delete(outbox))
++            conn.execute(delete(events))
++    before = finance(store)
++    with pytest.raises(ValueError):
++        enqueue_test(store.engine, "DEMO-test", uuid4())
++    assert not rows(store, alerts) and finance(store) == before
++
++
++def test_operation_reuse_across_accounts_is_rejected(case):
++    store, _, _ = case
++    operation = uuid4()
++    enqueue_test(store.engine, "DEMO-test", operation)
++    store.create("DEMO-other", store.read("DEMO-test"))
++    with pytest.raises(ValueError, match="OPERATION_SCOPE_CONFLICT"):
++        enqueue_test(store.engine, "DEMO-other", operation)
++    assert len(rows(store, alerts)) == 1
++
++
++def test_forged_delivered_timestamp_without_attempt_ack_is_not_success(case):
++    store, _, _ = case
++    operation = uuid4()
++    enqueue_test(store.engine, "DEMO-test", operation)
++    with store.engine.begin() as conn:
++        conn.execute(
++            update(alerts)
++            .where(alerts.c.alert_id == str(operation))
++            .values(delivered_at=store.now())
++        )
++    assert (
++        review_test(store.engine, "DEMO-test", operation)["pipeline_check"]
++        == "INCONSISTENT_DELIVERY_RECORD"
++    )
++
++
++def test_wrong_source_payload_is_not_accepted(case):
++    store, _, _ = case
++    operation = uuid4()
++    enqueue_test(store.engine, "DEMO-test", operation)
++    row = rows(store, alerts)[0]
++    with store.engine.begin() as conn:
++        conn.execute(
++            update(alerts)
++            .where(alerts.c.alert_id == str(operation))
++            .values(payload={**row["payload"], "event_id": str(uuid4())})
++        )
++    with pytest.raises(ValueError, match="SOURCE_IDENTITY_INVALID"):
++        review_test(store.engine, "DEMO-test", operation)
+--- /dev/null
++++ b/tests/unit/test_demo_alert_pipeline_cli.py
+@@ -0,0 +1,68 @@
++"""TEST mail cannot be confused with a real critical incident or trigger a trade."""
++
++import json
++from datetime import UTC, datetime
++from uuid import uuid4
++
++import pytest
++from pydantic import ValidationError
++
++from packages.persistence.demo_alerts import AlertEnvelope
++from scripts import check_demo_alert_pipeline as cli
++
++
++def envelope(**changes):
++    values = dict(
++        alert_id=uuid4(),
++        event_id=uuid4(),
++        code="DELIVERY_PIPELINE_TEST",
++        severity="TEST",
++        account_ref="a" * 24,
++        occurred_at=datetime.now(UTC),
++        risk_state="NORMAL",
++        paused=True,
++    )
++    # JSON validation matches the worker's transport decoder and strict enum parsing.
++    values.update(changes)
++    return AlertEnvelope.model_validate_json(json.dumps(values, default=str))
++
++
++def test_pipeline_test_is_explicit_test_with_no_order_references():
++    assert envelope().severity == "TEST"
++
++
++@pytest.mark.parametrize(
++    "changes",
++    [{"severity": "CRITICAL"}, {"code": "EMERGENCY_ENTERED"}, {"order_ids": [str(uuid4())]}],
++)
++def test_test_or_critical_mislabeling_and_fake_order_refs_are_rejected(changes):
++    with pytest.raises(ValidationError):
++        envelope(**changes)
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        ["--operation-id", str(uuid4())],
++        ["--enqueue-self-test", "--operation-id", str(uuid4()), "--wait-seconds", "61"],
++    ],
++)
++def test_explicit_action_and_bounded_wait_required_before_db(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["pipeline", *args])
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: pytest.fail("must not access DB"))
++    with pytest.raises(SystemExit):
++        cli.main()
++
++
++@pytest.mark.parametrize("mode", ["live", "missing_email"])
++def test_context_blocks_before_queue_write(monkeypatch, mode, capsys):
++    monkeypatch.setattr(
++        "sys.argv", ["pipeline", "--enqueue-self-test", "--operation-id", str(uuid4())]
++    )
++    if mode == "live":
++        monkeypatch.setenv("TRADING_MODE", "LIVE")
++    monkeypatch.setattr(cli, "email_status", lambda: "NOT_CONFIGURED")
++    monkeypatch.setattr(cli, "create_engine", lambda *a, **kw: pytest.fail("must not access DB"))
++    with pytest.raises(SystemExit):
++        cli.main()
++    assert json.loads(capsys.readouterr().out)["pipeline_check"] == "BLOCKED"
