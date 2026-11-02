@@ -1,0 +1,18 @@
+{
+  "application_branch": "windows-demo-alert-pipeline-check-20261102",
+  "application_commit": "be7862b161f1e4e41a8666a383bcbe998df5e786",
+  "application_zip_sha256": "6e48b22ba23bead2cc90834f7bc25d32c640a0c58090a5ce9e9ef911201a6231",
+  "operation_id": "4e5d7b91-23a7-4612-b8dc-23542cc63ff0",
+  "test_queue_worker_actual_inbox": "ACCEPTED",
+  "worker_channel": "NAVER_SMTP",
+  "attempts_observed": 1,
+  "db_delivered_at_transcribed": "2026-11-01T07:20:18.351856+00:00",
+  "mail_display_kst": "2026-11-02 16:20",
+  "timestamp_discrepancy": "UNRESOLVED_REQUIRES_READ_ONLY_CHECK",
+  "current_windows_api_db_times": "NOT_YET_OBSERVED",
+  "current_period_baselines": "NOT_YET_REVIEWED",
+  "next_step": "READ_ONLY_TIME_AND_PERIOD_CHECK",
+  "application_changed": false,
+  "phase4_overall_accepted": false,
+  "live_enabled": false
+}
