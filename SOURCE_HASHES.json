@@ -1,0 +1,7 @@
+{
+  "services/execution/demo_stream.py": "32eb57dab93b5adf9df2544300faa12b8e1d6ed36eb2b97fc23e188afc5deb93",
+  "services/execution/demo_event_inbox.py": "6d9be8c64e144592a5c2343c1db6e4dfc1dee65aa65eeebc08bd52b5aa633281",
+  "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
+  "services/execution/demo_validation.py": "8163fd58984d9893bbf80d1be9184c126119e49b079fa85a0acfb0d85db2d38f",
+  "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a"
+}
