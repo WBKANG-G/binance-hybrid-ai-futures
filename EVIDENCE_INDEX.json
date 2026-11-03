@@ -29,9 +29,26 @@
     "risk_state": "NORMAL",
     "paused": true
   },
-  "current_operating_container_and_periods": "PENDING_NEW_READ_ONLY_CHECK",
-  "next_action": "LOCAL_PERIOD_CHECK_NO_KEYS_NO_EXCHANGE_NO_DB_WRITE",
+  "current_operating_container_and_periods": {
+    "containers_healthy": 5,
+    "recovery": "LOCAL_PERIOD_CHECK_NO_DATABASE_CHANGE",
+    "period_keys_match": false,
+    "stored_day_kst": "2026-11-02",
+    "current_day_kst": "2026-11-03",
+    "stored_week_kst": "2026-11-02",
+    "current_week_kst": "2026-11-02",
+    "risk_state": "NORMAL",
+    "paused": true,
+    "exchange_checked": false
+  },
+  "next_action": "NORMAL_PAUSED_DAILY_SIGNED_PREVIEW_ONLY_WEEK_HIGH_WATER_PRESERVED",
   "application_changed": false,
   "phase4_overall_accepted": false,
-  "live_enabled": false
+  "live_enabled": false,
+  "fresh_operator_attestation": {
+    "scope": "since November2 baseline adoption, except instructed commands, no manual/bot/other-symbol trades, deposits, transfers, bonuses",
+    "answer": "NONE",
+    "new_exchange_wide_proof": false
+  },
+  "new_daily_candidate": "PENDING_SIGNED_PREVIEW"
 }
