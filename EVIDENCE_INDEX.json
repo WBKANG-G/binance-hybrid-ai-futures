@@ -41,7 +41,7 @@
     "paused": true,
     "exchange_checked": false
   },
-  "next_action": "USER_EXECUTED_SINGLE_CAPPED_DEMO_TP_OBSERVATION",
+  "next_action": "READ_ONLY_HISTORICAL_TP_ORDER_TIMING",
   "application_changed": false,
   "phase4_overall_accepted": false,
   "live_enabled": false,
@@ -110,8 +110,24 @@
       "signed_get_count": 22,
       "clock_probe_count": 0
     },
-    "actual_order_attempt": "PENDING_USER_EXECUTION",
+    "actual_order_attempt": "USER_EXECUTED_UNFILLED_CANCELED",
     "auto_retry_allowed": false,
-    "live_enabled": false
-  }
+    "live_enabled": false,
+    "tp_trigger_check": "NOT_ACCEPTED",
+    "failure": "TP_FILL_NOT_OBSERVED",
+    "entry_filled": false,
+    "filled_quantity": "0.0000",
+    "entry_state": "CANCELED",
+    "position_state": "CLOSED",
+    "flat_confirmation": "VERIFIED_FLAT",
+    "history_and_baselines_preserved": true,
+    "risk_state": "NORMAL",
+    "final_paused": true,
+    "orders_enabled": false,
+    "live_trading_enabled": false,
+    "entry_post_attempts": 1,
+    "operator_exit_post_attempts": 0,
+    "sl_delete_attempts": 0
+  },
+  "tp_timing_diagnostic_branch": "windows-demo-tp-timing-diagnostic-20261103"
 }
