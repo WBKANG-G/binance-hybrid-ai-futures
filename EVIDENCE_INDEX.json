@@ -1,0 +1,37 @@
+{
+  "evidence_received_date_kst": "2026-11-03",
+  "application_source_branch": "windows-demo-isolated-fault-check-20261102",
+  "runner_branch": "windows-demo-isolated-wss-check-20261102",
+  "runner_commit": "0275364879e2179b823db42b84aa16a793bd8c83",
+  "windows_synthetic_wss": {
+    "accepted": true,
+    "passed": 45,
+    "collected": 45,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 6.67,
+    "checked_source_files": 9,
+    "captured_real_wss_frames_replayed": false,
+    "real_exchange_calls": 0,
+    "real_demo_account_verified": false
+  },
+  "test_resources_cleanup": {
+    "fault_db": "REMOVED",
+    "fault_only_network": "REMOVED",
+    "one_off_checks": "AUTO_REMOVED",
+    "down_count": 2
+  },
+  "last_real_period_adoption": {
+    "day_kst": "2026-11-02",
+    "week_kst": "2026-11-02",
+    "daily_base_usdt": "4998.99761493",
+    "weekly_base_usdt": "4998.99761493",
+    "risk_state": "NORMAL",
+    "paused": true
+  },
+  "current_operating_container_and_periods": "PENDING_NEW_READ_ONLY_CHECK",
+  "next_action": "LOCAL_PERIOD_CHECK_NO_KEYS_NO_EXCHANGE_NO_DB_WRITE",
+  "application_changed": false,
+  "phase4_overall_accepted": false,
+  "live_enabled": false
+}
