@@ -1,0 +1,41 @@
+name: hybrid-phase4-expiry-check
+services:
+  fault-db:
+    platform: linux/amd64
+    image: postgres:18-alpine@sha256:77f585114c32fbca283dc835b0596f4e52b51b4c6662d7810b2f4084f60a1873
+    environment:
+      POSTGRES_USER: fault
+      POSTGRES_PASSWORD: synthetic-local-only
+      POSTGRES_DB: hybrid_fault_review
+    networks: [fault_only]
+    tmpfs:
+      - /var/lib/postgresql:rw,nosuid,nodev,size=268435456
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fault -d hybrid_fault_review"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: "no"
+  checks:
+    platform: linux/amd64
+    image: hybrid-phase4-fault-check:local
+    network_mode: service:fault-db
+    depends_on:
+      fault-db: {condition: service_healthy}
+    environment:
+      ISOLATED_PHASE4_FAULT_CHECK: "1"
+      TEST_DATABASE_URL: postgresql+psycopg://fault:synthetic-local-only@127.0.0.1:5432/hybrid_fault_review
+      LIVE_TRADING_ENABLED: "false"
+      TRADING_MODE: PAPER
+      PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=67108864,mode=0700,uid=10001,gid=10001
+    restart: "no"
+networks:
+  fault_only:
+    internal: true
