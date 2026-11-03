@@ -41,7 +41,7 @@
     "paused": true,
     "exchange_checked": false
   },
-  "next_action": "READ_ONLY_SIGNED_SESSION_READINESS_BEFORE_ANY_NEW_TP_TRIAL",
+  "next_action": "USER_EXECUTED_SINGLE_CAPPED_DEMO_TP_OBSERVATION",
   "application_changed": false,
   "phase4_overall_accepted": false,
   "live_enabled": false,
@@ -63,5 +63,55 @@
     "leader_released": true,
     "unresolved_requests_acknowledged": false
   },
-  "current_signed_readiness": "PENDING"
+  "current_signed_readiness": {
+    "session_ready": "READ_ONLY_READY_ENTRIES_STILL_PAUSED",
+    "period_keys_match": true,
+    "day_kst": "2026-11-03",
+    "week_kst": "2026-11-02",
+    "risk_state": "NORMAL",
+    "paused": true,
+    "exchange_empty_verified": true,
+    "database_changed": false,
+    "credential_source": "PRIVATE_TMPFS_SESSION",
+    "http_attempts": 22,
+    "connections": 1,
+    "reused": 21,
+    "elapsed_ms": 1407,
+    "signed_get_count": 22,
+    "clock_probe_count": 0
+  },
+  "new_tp_observation": {
+    "operation_id": "6703f8c0-0c8a-4a2b-84d5-37e39693dbba",
+    "scope": "SINGLE_CAPPED_DEMO_TP_OBSERVATION",
+    "symbol": "BTCUSDT",
+    "direction": "LONG",
+    "entry_style": "PASSIVE_LIMIT",
+    "margin_mode": "ISOLATED",
+    "leverage": 2,
+    "maximum_quantity_btc": "0.0007",
+    "maximum_notional_usdt": "100",
+    "sl_distance_pct": "0.5",
+    "tp_distance_pct": "1",
+    "observation_seconds": 300,
+    "ready_observed": {
+      "session_ready": "READ_ONLY_READY_ENTRIES_STILL_PAUSED",
+      "period_keys_match": true,
+      "day_kst": "2026-11-03",
+      "week_kst": "2026-11-02",
+      "risk_state": "NORMAL",
+      "paused": true,
+      "exchange_empty_verified": true,
+      "database_changed": false,
+      "credential_source": "PRIVATE_TMPFS_SESSION",
+      "http_attempts": 22,
+      "connections": 1,
+      "reused": 21,
+      "elapsed_ms": 1407,
+      "signed_get_count": 22,
+      "clock_probe_count": 0
+    },
+    "actual_order_attempt": "PENDING_USER_EXECUTION",
+    "auto_retry_allowed": false,
+    "live_enabled": false
+  }
 }
