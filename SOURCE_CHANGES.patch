@@ -1,0 +1,270 @@
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -43,6 +43,22 @@
+         raise
+ 
+ 
++def entry_wait_seconds(coordinator: DemoCoordinator) -> float:
++    """Bound idle receipt wait by the nearest outstanding entry expiry.
++
++    This is scheduling only: expire/cancel still establishes durable intent and
++    reconciles fills under the existing lease and fencing rules.
++    """
++    ledger = coordinator.store.read(coordinator.lease.account_id)
++    now = coordinator.store.now()
++    remaining = [
++        (order.signal.expires_at - now).total_seconds()
++        for order in ledger.orders.values()
++        if order.remaining
++    ]
++    return max(0.001, min(5.0, min(remaining, default=5.0)))
++
++
+ class Connection(Protocol):
+     async def recv(self) -> str | bytes: ...
+     async def ping(self) -> Any: ...
+@@ -167,6 +183,9 @@
+                             3600000, max(0, int((time.monotonic() - callback_start) * 1000))
+                         )
+                     inbox.raise_if_failed()
++                coordinator.session_diagnostic.stage = "EXPIRY"
++                await settled_call(coordinator.expire)
++                inbox.raise_if_failed()
+                 count = 0
+                 while max_messages is None or count < max_messages:
+                     coordinator.session_diagnostic.stage = "HEARTBEAT"
+@@ -183,13 +202,18 @@
+                         )
+                         renewed = store.now()
+                         inbox.raise_if_failed()
++                    coordinator.session_diagnostic.stage = "EXPIRY"
++                    await settled_call(coordinator.expire)
++                    inbox.raise_if_failed()
++                    wait_seconds = await settled_call(entry_wait_seconds, coordinator)
++                    inbox.raise_if_failed()
+                     try:
+                         coordinator.session_diagnostic.stage = "RECEIVE"
+                         coordinator.session_diagnostic.event_kind = "NONE"
+                         coordinator.session_diagnostic.event_age_ms = None
+                         coordinator.session_diagnostic.event_receive_age_ms = None
+                         coordinator.session_diagnostic.event_clock_wait_ms = 0
+-                        hint = await inbox.take()
++                        hint = await inbox.take(timeout=wait_seconds)
+                         coordinator.session_diagnostic.stage = "EVENT"
+                         (
+                             coordinator.session_diagnostic.event_kind,
+@@ -204,6 +228,9 @@
+                         count += 1
+                         inbox.raise_if_failed()
+                     except TimeoutError:
++                        inbox.raise_if_failed()
++                        coordinator.session_diagnostic.stage = "EXPIRY"
++                        await settled_call(coordinator.expire)
+                         inbox.raise_if_failed()
+                         coordinator.session_diagnostic.stage = "PING"
+                         pong = await websocket.ping()
+--- /dev/null
++++ b/tests/unit/test_demo_expiry_wait.py
+@@ -0,0 +1,149 @@
++"""Actual session control flow with synthetic clock, stores and socket only."""
++
++import asyncio
++from contextlib import asynccontextmanager
++from datetime import UTC, datetime, timedelta
++from types import SimpleNamespace
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure
++from services.execution import demo_stream as module
++
++
++@pytest.mark.parametrize("path", ["idle", "event", "slow_callback"])
++def test_expiry_runs_after_callback_wait_and_reconciliation(monkeypatch, path):
++    async def run():
++        base = datetime(2026, 11, 3, tzinfo=UTC)
++        clock = [0]
++        order = SimpleNamespace(
++            remaining=1, signal=SimpleNamespace(expires_at=base + timedelta(seconds=10))
++        )
++        account = SimpleNamespace(orders={"target": order})
++        trace = []
++        ledger = SimpleNamespace()
++
++        def record(name, advance=0):
++            clock[0] += advance
++            trace.append((name, clock[0]))
++
++        class Store:
++            def now(self):
++                return base + timedelta(seconds=clock[0])
++
++            def read(self, account_id):
++                return account
++
++            def renew(self, lease):
++                record("renew")
++
++            def change(self, lease, kind, apply):
++                record(kind)
++                return apply(ledger)
++
++        class Inbox:
++            received = coalesced = 0
++            failure = None
++
++            def __init__(self, *args, **kwargs):
++                pass
++
++            async def run(self, websocket):
++                record("reader_started")
++                await asyncio.Future()
++
++            def raise_if_failed(self):
++                pass
++
++            async def take(self, timeout=5):
++                assert timeout == (5 if path == "slow_callback" else 2)
++                if path != "event":
++                    record("deadline_wait", timeout)
++                    raise TimeoutError
++                record("event_received", 1)
++                return SimpleNamespace(
++                    event=lambda: {"e": "ACCOUNT_UPDATE", "E": int(base.timestamp() * 1000)},
++                    receive_age_ms=0,
++                    clock_wait_ms=0,
++                )
++
++        class Socket:
++            async def ping(self):
++                record("ping")
++                assert not order.remaining
++                raise ValueError("STOP_AFTER_VERIFYING_CANCEL_PRECEDES_PING")
++
++        @asynccontextmanager
++        async def connector(url):
++            yield Socket()
++
++        def connected():
++            # Initial reconciliation has no delay; idle pong reconciliation does.
++            record("connected", 2 if "deadline_wait" in [x[0] for x in trace] else 0)
++
++        def event(raw):
++            record("event_reconcile", 4)
++
++        def expire():
++            record("expire")
++            if clock[0] >= 10 and order.remaining:
++                order.remaining = 0
++                record("cancel")
++                if path == "event":
++                    raise ValueError("STOP_AFTER_EVENT_EXPIRY")
++
++        def callback():
++            assert any(name == "reader_started" for name, _ in trace)
++            record("callback_finished", 14 if path == "slow_callback" else 8)
++
++        coordinator = SimpleNamespace(
++            store=Store(),
++            lease=SimpleNamespace(account_id="DEMO-test"),
++            connected=connected,
++            event=event,
++            expire=expire,
++            command=lambda *args: record("cleanup_pause"),
++            disconnect=lambda: record("disconnect"),
++            client=SimpleNamespace(
++                listen_key=lambda method: SecretStr("synthetic"),
++                private_url=lambda key: SecretStr("synthetic"),
++                sync_clock=lambda: record("clock_sync"),
++            ),
++        )
++        monkeypatch.setattr(module, "EventInbox", Inbox)
++        with pytest.raises(DemoFailure):
++            await module.session(coordinator, connector=connector, on_ready=callback)
++        canceled = [stamp for name, stamp in trace if name == "cancel"]
++        assert canceled == [14 if path == "slow_callback" else 13 if path == "event" else 10]
++        names = [name for name, _ in trace]
++        assert names.index("expire") < names.index("clock_sync", names.index("callback_finished"))
++        if path != "event":
++            assert names.index("cancel") < names.index("ping")
++        assert names.index("cleanup_pause") > names.index("cancel")
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize(
++    "seconds,expected", [(None, 5), (-1, 0.001), (0, 0.001), (0.2, 0.2), (12, 5)]
++)
++def test_wait_uses_nearest_remaining_entry_only(seconds, expected):
++    now = datetime(2026, 11, 3, tzinfo=UTC)
++    orders = {
++        "filled": SimpleNamespace(
++            remaining=0, signal=SimpleNamespace(expires_at=now - timedelta(seconds=50))
++        )
++    }
++    if seconds is not None:
++        orders["entry"] = SimpleNamespace(
++            remaining=1, signal=SimpleNamespace(expires_at=now + timedelta(seconds=seconds))
++        )
++        orders["later"] = SimpleNamespace(
++            remaining=1, signal=SimpleNamespace(expires_at=now + timedelta(seconds=20))
++        )
++    c = SimpleNamespace(
++        store=SimpleNamespace(read=lambda _: SimpleNamespace(orders=orders), now=lambda: now),
++        lease=SimpleNamespace(account_id="DEMO-test"),
++    )
++    assert module.entry_wait_seconds(c) == expected
+--- /dev/null
++++ b/tests/integration/test_demo_expiry_fill_race.py
+@@ -0,0 +1,50 @@
++"""Expiry cancellation still reconciles a fill racing with an unfilled ledger."""
++
++from datetime import timedelta
++from decimal import Decimal
++
++import pytest
++
++from tests.integration.test_demo import (
++    enter,
++    posts,
++    system,  # noqa: F401
++)
++
++
++@pytest.mark.parametrize("partial", [False, True])
++def test_expiry_reconciles_racing_partial_fill_and_preserves_protection(system, partial):  # noqa: F811
++    store, c, fake = system
++    sig, order = enter(system)
++    filled = order.quantity / 2 if partial else Decimal(0)
++    if partial:
++        # No prior event/reconcile: the cancellation races an unseen venue fill.
++        fake.fill(order.client_id, filled)
++    fake.at = sig.expires_at + timedelta(milliseconds=1)
++    store.renew(c.lease)
++    c.client.sync_clock()
++    c.expire()
++    current = store.read("DEMO-test").orders[str(sig.signal_id)]
++    assert current.remaining == 0 and current.filled == filled
++    assert len(posts(fake)) == 1  # Never creates a replacement entry.
++    if partial:
++        assert current.protected and current.algo_id and current.tp_algo_id
++        assert c._stop_ok(
++            current,
++            {
++                k: str(v).lower() if isinstance(v, bool) else v
++                for k, v in fake.algos[current.algo_id].items()
++            },
++        )
++        assert fake.algos[current.tp_algo_id]["algoStatus"] == "NEW"
++        assert fake.algos[current.tp_algo_id]["orderType"] == "TAKE_PROFIT_MARKET"
++        assert fake.algos[current.tp_algo_id]["closePosition"] is True
++        assert current.open_quantity == filled
++        assert len(posts(fake, "/fapi/v1/algoOrder")) == 2
++        assert not any(m == "DELETE" and p == "/fapi/v1/algoOrder" for m, p, _ in fake.calls)
++    else:
++        assert not current.open_quantity
++        assert not posts(fake, "/fapi/v1/algoOrder")
++    before = len(fake.calls)
++    c.expire()
++    assert len(fake.calls) == before
