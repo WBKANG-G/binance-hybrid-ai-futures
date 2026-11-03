@@ -41,7 +41,7 @@
     "paused": true,
     "exchange_checked": false
   },
-  "next_action": "NORMAL_PAUSED_DAILY_SIGNED_PREVIEW_ONLY_WEEK_HIGH_WATER_PRESERVED",
+  "next_action": "READ_ONLY_SIGNED_SESSION_READINESS_BEFORE_ANY_NEW_TP_TRIAL",
   "application_changed": false,
   "phase4_overall_accepted": false,
   "live_enabled": false,
@@ -50,5 +50,18 @@
     "answer": "NONE",
     "new_exchange_wide_proof": false
   },
-  "new_daily_candidate": "PENDING_SIGNED_PREVIEW"
+  "new_daily_candidate": "PENDING_SIGNED_PREVIEW",
+  "latest_real_day_adoption": {
+    "operation_id": "abd1db6a-0474-429c-a3d8-86d97a978f95",
+    "result": "OPERATOR_ATTESTED_DAY_BASELINE_ADOPTED_ENTRIES_STILL_PAUSED",
+    "day_kst": "2026-11-03",
+    "daily_base_usdt": "4998.99761493",
+    "weekly_base_preserved": true,
+    "high_water_preserved": true,
+    "risk_state": "NORMAL",
+    "paused": true,
+    "leader_released": true,
+    "unresolved_requests_acknowledged": false
+  },
+  "current_signed_readiness": "PENDING"
 }
