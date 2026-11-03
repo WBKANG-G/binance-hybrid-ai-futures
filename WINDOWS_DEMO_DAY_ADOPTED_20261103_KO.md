@@ -31,7 +31,7 @@
 
 현재 남은 실제 TP 체결·잔여 SL 정리 항목을 준비한다. 이전15d30a13의 미체결 종료는 그대로 미수락이며 체결을 강제하려고 수량·레버리지·가격 정책·보호 거리·관찰 시간을 바꾸거나 반복하지 않는다.
 
-먼저 기존 check_demo_session_ready로 키 RAM·현재 기간·로컬 NORMAL/paused/empty와 서명된 원격 flat·원래 요청 이력을 읽기 전용 확인한다. 키를 묻거나 리더를 얻거나 장부/기준금을 변경하지 않는다.
+먼저 기존 check_demo_session_ready로 키 RAM·현재 기간·로컬 NORMAL/paused/empty와 서명된 현재 원격 노출·활성 주문 및 장부 불변을 읽기 전용 확인한다. 과거 닫힌 주문 전체의 재감사로 확대하지 않는다. 키를 묻거나 리더를 얻거나 장부/기준금을 변경하지 않는다.
 
 ```bat
 docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
