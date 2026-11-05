@@ -1,0 +1,871 @@
+--- a/apps/api/main.py
++++ b/apps/api/main.py
+@@ -1,4 +1,4 @@
+-"""Read-only development health API. No exchange credentials or order transport."""
++"""Read-only development status API. No credential fields or order routes."""
+ 
+ from collections.abc import AsyncIterator
+ from contextlib import asynccontextmanager
+@@ -17,8 +17,10 @@
+ from packages.persistence.health import probe_database
+ from packages.persistence.market import MarketRepository
+ from packages.persistence.paper import PaperStore
++from scripts.demo_alert_email_session import public_status as public_email_status
+ from services.execution.demo_status import demo_status
+ from services.execution.status import paper_status
++from services.operations.demo_alert_status import ACCOUNT, AlertStatus, EmailMetadata, read_queue
+ 
+ 
+ class HealthResponse(BaseModel):
+@@ -44,6 +46,22 @@
+     engine = create_engine(database_url().get_secret_value(), connect_args={"connect_timeout": 2})
+     try:
+         return MarketRepository(engine).status(symbol, interval, now=now)
++    finally:
++        engine.dispose()
++
++
++def read_alert_status() -> AlertStatus:
++    engine = create_engine(database_url().get_secret_value(), connect_args={"connect_timeout": 2})
++    try:
++        observed, queue, latest = read_queue(engine, ACCOUNT)
++        return AlertStatus(
++            status="READ_ONLY_ALERT_STATUS",
++            as_of=observed,
++            is_stale=False,
++            email=EmailMetadata.model_validate(public_email_status()),
++            queue=queue,
++            latest_critical=latest,
++        )
+     finally:
+         engine.dispose()
+ 
+@@ -133,6 +151,20 @@
+             if engine is not None:
+                 engine.dispose()
+ 
++    @application.get("/api/v1/demo/alerts/status", response_model=AlertStatus)
++    def alert_snapshot(response: Response) -> AlertStatus:
++        response.headers["Cache-Control"] = "no-store"
++        try:
++            return read_alert_status()
++        except (SQLAlchemyError, ValueError, OSError):
++            response.status_code = 503
++            return AlertStatus(
++                status="UNAVAILABLE",
++                as_of=datetime.now(UTC),
++                is_stale=True,
++                email=EmailMetadata(state="UNKNOWN"),
++            )
++
+     @application.get("/api/v1/demo/status")
+     def demo_snapshot(
+         response: Response,
+--- a/apps/web/src/App.tsx
++++ b/apps/web/src/App.tsx
+@@ -1,5 +1,6 @@
+ import { useEffect, useState } from 'react';
+ import './style.css';
++import { AlertStatusPanel } from './AlertStatusPanel';
+ 
+ interface Health {
+   phase: 4;
+@@ -58,9 +59,10 @@
+         <p>확인 시각 · {new Date(health.as_of).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} KST</p></article>
+       <article><h2>실거래</h2><strong>비활성</strong><p>설정 토글로 활성화할 수 없습니다.</p></article>
+     </section>}
++    {health?.database === 'ready' && <AlertStatusPanel />}
+     <section className="scope"><h2>이번 단계의 범위</h2>
+       <p>DEMO 키 분리 · Algo SL/TP · 계좌 대조 · 장애 복구</p>
+-      <p>실제 DEMO 연결·체결 검증은 대기 중입니다. 다음 단계는 사용자 승인 후 진행합니다.</p>
++      <p>이 화면은 조회 전용입니다. 실제 DEMO 검증 결과는 작업별 기록에서 확인합니다.</p>
+     </section>
+     <footer>불변 이벤트 · Decimal 금액 · 미확정 위험값 유지</footer>
+   </main>;
+--- a/apps/web/src/style.css
++++ b/apps/web/src/style.css
+@@ -1 +1,3 @@
+ :root{font-family:Inter,"Noto Sans KR",system-ui,sans-serif;color:#e4eaf0;background:#10181d;font-synthesis:none;font-weight:400;line-height:1.6}*{box-sizing:border-box}body{margin:0}main{max-width:1120px;margin:auto;padding:32px 40px}header{display:flex;justify-content:space-between;align-items:center;padding-bottom:28px;border-bottom:1px solid #304047}.brand{font-size:14px;letter-spacing:.18em;font-weight:700}.phase{font-size:12px;border:1px solid #44605e;border-radius:24px;padding:5px 14px;color:#9be1c2}.intro{padding:64px 0 36px}.eyebrow{color:#9be1c2;font-size:13px;letter-spacing:.1em}h1{font-size:clamp(30px,5vw,52px);letter-spacing:-.04em;line-height:1.25;margin:20px 0}p{color:#a4b3bb}.notice{display:inline-block;background:#233c32;color:#b2ebcf;border:1px solid #3d6651;border-radius:6px;padding:8px 16px;margin-top:16px}.status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}article{border:1px solid #304047;padding:24px;border-radius:10px;background:#162127}h2{font-size:14px;font-weight:500;color:#b4c1c8;margin-top:0}strong{font-size:24px;font-weight:600}article p{font-size:12px;margin-bottom:0}.scope{margin-top:32px;border-top:1px solid #304047;padding-top:24px}.scope p{font-size:14px}footer{font-size:12px;color:#71858f;margin-top:60px}p[role=alert]{padding:20px;border:1px solid #a76a52;background:#35261f;color:#ffd2b9;border-radius:8px}@media(max-width:700px){main{padding:24px}.status-grid{grid-template-columns:1fr}.intro{padding-top:40px}}
++
++.alert-section{margin-top:32px;border-top:1px solid #304047;padding-top:24px}.alert-section>h2{font-size:20px;color:#e4eaf0}.alert-grid{margin-top:16px}.alert-grid strong{font-size:20px}.alert-section h3{font-size:14px;font-weight:500;color:#b4c1c8;margin-top:0}.alert-warning{border-color:#a78442;background:#30291d;color:#f4dba6}.alert-section>p.alert-warning{padding:16px;border:1px solid #a78442;border-radius:8px}.recent-alert{margin-top:16px}.recent-alert p{margin:8px 0}.alert-asof{font-size:12px}
+--- a/scripts/demo_alert_email_session.py
++++ b/scripts/demo_alert_email_session.py
+@@ -30,7 +30,7 @@
+             raise ValueError("SMTP_APP_PASSWORD_INVALID")
+ 
+ 
+-def load() -> EmailSettings | None:
++def _load_checked() -> tuple[EmailSettings, int] | None:
+     keys._context()
+     if not keys.DIRECTORY.exists():
+         return None
+@@ -65,9 +65,36 @@
+             raise ValueError("EMAIL_SESSION_EXPIRED")
+         if not isinstance(payload["address"], str) or not isinstance(payload["password"], str):
+             raise ValueError("EMAIL_SESSION_FILE_INVALID")
+-        return EmailSettings(payload["address"], SecretStr(payload["password"]))
++        return EmailSettings(payload["address"], SecretStr(payload["password"])), payload["expires"]
+     finally:
+         os.close(directory)
++
++
++def load() -> EmailSettings | None:
++    loaded = _load_checked()
++    return loaded[0] if loaded is not None else None
++
++
++def public_status() -> dict[str, str | int | None]:
++    """Return only validity/expiry metadata; never expose address/password/settings."""
++    try:
++        loaded = _load_checked()
++        if loaded is None:
++            return {"state": "NOT_CONFIGURED", "expires_unix": None, "remaining_seconds": None}
++        remaining = loaded[1] - int(time.time())
++        if remaining <= 0:
++            raise ValueError("EMAIL_SESSION_EXPIRED")
++        return {
++            "state": "CONFIGURED_PRIVATE_RAM",
++            "expires_unix": loaded[1],
++            "remaining_seconds": remaining,
++        }
++    except Exception:  # noqa: BLE001 -- no private settings or raw failure in public metadata
++        return {
++            "state": "BLOCKED_EXPIRED_OR_INVALID",
++            "expires_unix": None,
++            "remaining_seconds": None,
++        }
+ 
+ 
+ def configure() -> None:
+--- /dev/null
++++ b/services/operations/demo_alert_status.py
+@@ -0,0 +1,166 @@
++"""Read-only alert visibility: receiver ACK is distinct from inbox/worker liveness."""
++
++from datetime import UTC, datetime
++from typing import Literal, Self
++
++from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
++from sqlalchemy import Engine, and_, func, select
++
++from packages.persistence.demo_alerts import AlertCode, alerts
++from services.operations.demo_alert_delivery import FAILURES
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++
++
++class PublicModel(BaseModel):
++    model_config = ConfigDict(extra="forbid", strict=True)
++
++
++class EmailMetadata(PublicModel):
++    state: Literal[
++        "CONFIGURED_PRIVATE_RAM", "NOT_CONFIGURED", "BLOCKED_EXPIRED_OR_INVALID", "UNKNOWN"
++    ]
++    expires_unix: int | None = None
++    remaining_seconds: int | None = Field(default=None, ge=0, le=43200)
++
++    @model_validator(mode="after")
++    def validity_metadata(self) -> Self:
++        if self.state == "CONFIGURED_PRIVATE_RAM":
++            if self.expires_unix is None or self.expires_unix <= 0 or not self.remaining_seconds:
++                raise ValueError("Configured metadata requires a positive expiry")
++        elif self.expires_unix is not None or self.remaining_seconds is not None:
++            raise ValueError("Unavailable metadata must not invent an expiry")
++        return self
++
++
++class QueueStatus(PublicModel):
++    total: int = Field(ge=0)
++    pending: int = Field(ge=0)
++    accepted: int = Field(ge=0)
++    critical_total: int = Field(ge=0)
++    critical_pending: int = Field(ge=0)
++    critical_accepted: int = Field(ge=0)
++    test_total: int = Field(ge=0)
++    test_pending: int = Field(ge=0)
++    test_accepted: int = Field(ge=0)
++    oldest_pending_at: datetime | None
++    oldest_pending_age_seconds: int | None
++    timing_consistent: bool
++
++
++class RecentAlert(PublicModel):
++    code: AlertCode
++    created_at: datetime
++    accepted_at: datetime | None
++    attempts: int = Field(ge=0)
++    last_failure: str
++    delivery_delay_seconds: int | None
++    timing_consistent: bool
++
++    @field_validator("last_failure")
++    @classmethod
++    def safe_failure(cls, value: str) -> str:
++        return value if value in FAILURES or value == "NONE" else "UNKNOWN"
++
++
++class AlertStatus(PublicModel):
++    status: Literal["READ_ONLY_ALERT_STATUS", "UNAVAILABLE"]
++    as_of: datetime
++    is_stale: bool
++    email: EmailMetadata
++    queue: QueueStatus | None = None
++    latest_critical: RecentAlert | None = None
++    worker_liveness_checked: Literal[False] = False
++    inbox_confirmation_available: Literal[False] = False
++    confirmation_scope: Literal["RECEIVER_ACK_ONLY"] = "RECEIVER_ACK_ONLY"
++    orders_enabled: Literal[False] = False
++    live_trading_enabled: Literal[False] = False
++
++
++def elapsed(start: datetime, end: datetime) -> int | None:
++    if start.tzinfo is None or end.tzinfo is None or end < start:
++        return None
++    return int((end - start).total_seconds())
++
++
++def read_queue(
++    engine: Engine, account: str, *, now: datetime | None = None
++) -> tuple[datetime, QueueStatus, RecentAlert | None]:
++    pending = alerts.c.delivered_at.is_(None)
++    critical = alerts.c.code != "DELIVERY_PIPELINE_TEST"
++    test = alerts.c.code == "DELIVERY_PIPELINE_TEST"
++    with engine.connect() as conn:
++        conn.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
++        conn.exec_driver_sql("SET LOCAL statement_timeout='2s'")
++        row = (
++            conn.execute(
++                select(
++                    func.count().label("total"),
++                    func.count().filter(pending).label("pending"),
++                    func.count().filter(~pending).label("accepted"),
++                    func.count().filter(critical).label("critical_total"),
++                    func.count().filter(and_(critical, pending)).label("critical_pending"),
++                    func.count().filter(and_(critical, ~pending)).label("critical_accepted"),
++                    func.count().filter(test).label("test_total"),
++                    func.count().filter(and_(test, pending)).label("test_pending"),
++                    func.count().filter(and_(test, ~pending)).label("test_accepted"),
++                    func.min(alerts.c.created_at).filter(pending).label("oldest"),
++                ).where(alerts.c.account_id == account)
++            )
++            .mappings()
++            .one()
++        )
++        latest = (
++            conn.execute(
++                select(
++                    alerts.c.code,
++                    alerts.c.created_at,
++                    alerts.c.delivered_at,
++                    alerts.c.attempts,
++                    alerts.c.last_failure,
++                )
++                .where(alerts.c.account_id == account, critical)
++                .order_by(alerts.c.created_at.desc(), alerts.c.alert_id)
++                .limit(1)
++            )
++            .mappings()
++            .first()
++        )
++    observed = now or datetime.now(UTC)
++    age = elapsed(row["oldest"], observed) if row["oldest"] is not None else None
++    queue = QueueStatus(
++        **{
++            k: int(row[k])
++            for k in (
++                "total",
++                "pending",
++                "accepted",
++                "critical_total",
++                "critical_pending",
++                "critical_accepted",
++                "test_total",
++                "test_pending",
++                "test_accepted",
++            )
++        },
++        oldest_pending_at=row["oldest"],
++        oldest_pending_age_seconds=age,
++        timing_consistent=row["oldest"] is None or age is not None,
++    )
++    recent = None
++    if latest is not None:
++        created, accepted = latest["created_at"], latest["delivered_at"]
++        delay = elapsed(created, accepted) if accepted is not None else None
++        valid = elapsed(created, observed) is not None and (
++            accepted is None or (delay is not None and elapsed(accepted, observed) is not None)
++        )
++        recent = RecentAlert(
++            code=latest["code"],
++            created_at=created,
++            accepted_at=accepted,
++            attempts=latest["attempts"],
++            last_failure=latest["last_failure"],
++            delivery_delay_seconds=delay if valid else None,
++            timing_consistent=valid,
++        )
++    return observed, queue, recent
+--- /dev/null
++++ b/scripts/verify_demo_alert_visibility.py
+@@ -0,0 +1,43 @@
++"""Deployment-only verification: source hashes and local GET, no sends or orders."""
++
++import hashlib
++import json
++from pathlib import Path
++from urllib.request import urlopen
++
++from services.operations.demo_alert_status import AlertStatus
++
++EXPECTED: dict[str, str] = {
++    "apps/api/main.py": "aa71326357a0b724ea2bf7c24d4bec36376d1d0cfb061e98f93d73990bd3cd14",
++    "scripts/demo_alert_email_session.py": "53e2de539f173a2ebdf2acd1143a2e14224d38f2f1050297a25223f1fbff4911",
++    "services/operations/demo_alert_status.py": "a34a1b00daa0d6ad8bbd36a25cd09843fea68a641a7987bded3e5400b52da747",
++}
++
++
++def main() -> None:
++    if not EXPECTED or not all(
++        hashlib.sha256(Path(name).read_bytes()).hexdigest() == expected
++        for name, expected in EXPECTED.items()
++    ):
++        raise ValueError("ALERT_VISIBILITY_SOURCE_MISMATCH")
++    with urlopen("http://127.0.0.1:8000/api/v1/demo/alerts/status", timeout=8) as response:
++        status = AlertStatus.model_validate_json(response.read(65536))
++    if status.status != "READ_ONLY_ALERT_STATUS" or status.is_stale or status.queue is None:
++        raise ValueError("ALERT_VISIBILITY_UNAVAILABLE")
++    print(
++        json.dumps(
++            {
++                "alert_visibility": "SOURCE_AND_READ_ONLY_ENDPOINT_VERIFIED",
++                "email_state": status.email.state,
++                "critical_pending": status.queue.critical_pending,
++                "test_pending": status.queue.test_pending,
++                "worker_liveness_checked": False,
++                "orders_enabled": False,
++                "live_trading_enabled": False,
++            }
++        )
++    )
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/apps/web/src/AlertStatusPanel.tsx
+@@ -0,0 +1,149 @@
++import { useEffect, useState } from 'react';
++
++type EmailState = 'CONFIGURED_PRIVATE_RAM' | 'NOT_CONFIGURED' | 'BLOCKED_EXPIRED_OR_INVALID' | 'UNKNOWN';
++interface Queue {
++  total: number; pending: number; accepted: number;
++  critical_total: number; critical_pending: number; critical_accepted: number;
++  test_total: number; test_pending: number; test_accepted: number;
++  oldest_pending_at: string | null; oldest_pending_age_seconds: number | null;
++  timing_consistent: boolean;
++}
++interface Recent {
++  code: string; created_at: string; accepted_at: string | null;
++  attempts: number; last_failure: string; delivery_delay_seconds: number | null;
++  timing_consistent: boolean;
++}
++interface AlertReport {
++  status: 'READ_ONLY_ALERT_STATUS' | 'UNAVAILABLE'; as_of: string; is_stale: boolean;
++  email: { state: EmailState; expires_unix: number | null; remaining_seconds: number | null };
++  queue: Queue | null; latest_critical: Recent | null;
++  orders_enabled: false; live_trading_enabled: false;
++  worker_liveness_checked: false; inbox_confirmation_available: false;
++  confirmation_scope: 'RECEIVER_ACK_ONLY';
++}
++const emailStates = ['CONFIGURED_PRIVATE_RAM', 'NOT_CONFIGURED', 'BLOCKED_EXPIRED_OR_INVALID', 'UNKNOWN'];
++const criticalCodes: Record<string, string> = {
++  EMERGENCY_ENTERED: '비상 상태 전환', STOP_PROTECTION_FAILURE: '손절 보호 확인 실패',
++  EXIT_OUTCOME_UNKNOWN: '종료 결과 확인 필요', RISK_LOCK_ENTERED: '위험 잠금 전환',
++  PRIVATE_SESSION_FAILED: '비공개 연결 확인 실패',
++};
++function object(value: unknown): Record<string, unknown> {
++  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid status');
++  return value as Record<string, unknown>;
++}
++function count(value: unknown): boolean { return Number.isSafeInteger(value) && Number(value) >= 0; }
++function date(value: unknown): boolean { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
++function nullableDate(value: unknown): boolean { return value === null || date(value); }
++function nullableCount(value: unknown): boolean { return value === null || count(value); }
++function parse(value: unknown): AlertReport {
++  const r = object(value); const email = object(r.email);
++  if (!['READ_ONLY_ALERT_STATUS', 'UNAVAILABLE'].includes(String(r.status)) || !date(r.as_of) ||
++      typeof r.is_stale !== 'boolean' || r.orders_enabled !== false || r.live_trading_enabled !== false ||
++      r.worker_liveness_checked !== false || r.inbox_confirmation_available !== false ||
++      r.confirmation_scope !== 'RECEIVER_ACK_ONLY' || !emailStates.includes(String(email.state))) throw new Error('unsafe status');
++  if (email.state === 'CONFIGURED_PRIVATE_RAM') {
++    if (!count(email.expires_unix) || Number(email.expires_unix) <= 0 ||
++        !count(email.remaining_seconds) || Number(email.remaining_seconds) <= 0 || Number(email.remaining_seconds) > 43200) throw new Error('invalid expiry');
++  } else if (email.expires_unix !== null || email.remaining_seconds !== null) throw new Error('invented expiry');
++  if (r.status === 'UNAVAILABLE') {
++    if (r.is_stale !== true || r.queue !== null || r.latest_critical !== null) throw new Error('invented availability');
++    return r as unknown as AlertReport;
++  }
++  const q = object(r.queue);
++  if (r.is_stale !== false || !['total','pending','accepted','critical_total','critical_pending','critical_accepted','test_total','test_pending','test_accepted'].every(k => count(q[k])) ||
++      q.total !== Number(q.pending) + Number(q.accepted) || q.total !== Number(q.critical_total) + Number(q.test_total) ||
++      q.critical_total !== Number(q.critical_pending) + Number(q.critical_accepted) ||
++      q.test_total !== Number(q.test_pending) + Number(q.test_accepted) ||
++      q.pending !== Number(q.critical_pending) + Number(q.test_pending) ||
++      q.accepted !== Number(q.critical_accepted) + Number(q.test_accepted) ||
++      !nullableDate(q.oldest_pending_at) || !nullableCount(q.oldest_pending_age_seconds) || typeof q.timing_consistent !== 'boolean') throw new Error('invalid queue');
++  if (r.latest_critical !== null) {
++    const recent = object(r.latest_critical);
++    if (!Object.hasOwn(criticalCodes, String(recent.code)) || !date(recent.created_at) || !nullableDate(recent.accepted_at) ||
++        !count(recent.attempts) || typeof recent.last_failure !== 'string' ||
++        !nullableCount(recent.delivery_delay_seconds) || typeof recent.timing_consistent !== 'boolean') throw new Error('invalid critical alert');
++  }
++  return r as unknown as AlertReport;
++}
++function duration(seconds: number | null): string {
++  if (seconds === null) return '확인 필요';
++  if (seconds >= 86400) return `${Math.floor(seconds / 86400)}일 ${Math.floor(seconds / 3600) % 24}시간`;
++  if (seconds >= 3600) return `${Math.floor(seconds / 3600)}시간 ${Math.floor(seconds / 60) % 60}분`;
++  if (seconds >= 60) return `${Math.floor(seconds / 60)}분 ${seconds % 60}초`;
++  return `${seconds}초`;
++}
++function kst(value: string | number): string {
++  return `${new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} KST`;
++}
++
++export function AlertStatusPanel() {
++  const [report, setReport] = useState<AlertReport | null>(null);
++  const [failed, setFailed] = useState(false);
++  const [clock, setClock] = useState(() => Date.now());
++  useEffect(() => {
++    const timer = setInterval(() => setClock(Date.now()), 1000);
++    return () => clearInterval(timer);
++  }, []);
++  useEffect(() => {
++    let stopped = false; let current: AbortController | null = null;
++    const refresh = async () => {
++      current?.abort(); const request = new AbortController(); current = request;
++      const timeout = setTimeout(() => {
++        request.abort();
++        if (!stopped && current === request) { setFailed(true); setReport(null); }
++      }, 8000);
++      try {
++        const response = await fetch('/api/v1/demo/alerts/status', { signal: request.signal, cache: 'no-store' });
++        if (!response.ok && response.status !== 503) throw new Error('unavailable');
++        const result = parse(await response.json());
++        if (!response.ok && result.status !== 'UNAVAILABLE') throw new Error('invalid status code');
++        if (!stopped && current === request && !request.signal.aborted) { setReport(result); setFailed(false); }
++      } catch {
++        if (!stopped && current === request) { setFailed(true); setReport(null); }
++      } finally { clearTimeout(timeout); }
++    };
++    void refresh();
++    const timer = setInterval(() => { void refresh(); }, 30000);
++    return () => { stopped = true; clearInterval(timer); current?.abort(); };
++  }, []);
++
++  const q = report?.queue; const recent = report?.latest_critical;
++  const configured = report?.email.state === 'CONFIGURED_PRIVATE_RAM';
++  const expired = configured && Number(report?.email.expires_unix) * 1000 <= clock;
++  const emailLabel = configured ? (expired ? '유효기한 지남 · 재확인 필요' : '등록됨 · 작업자 상태 미확인') :
++    report?.email.state === 'NOT_CONFIGURED' ? '설정 없음' :
++    report?.email.state === 'BLOCKED_EXPIRED_OR_INVALID' ? '만료 또는 설정 확인 필요' : '확인 불가';
++  return <section className="alert-section" aria-label="위험 알림 상태">
++    <h2>위험 알림 전달 상태</h2>
++    {!report && !failed && <p role="status">알림 상태를 확인하고 있습니다…</p>}
++    {(failed || report?.status === 'UNAVAILABLE') && <p role="status" className="alert-warning">알림 상태를 확인할 수 없습니다. 전달 가능 상태로 간주하지 마세요.</p>}
++    {report?.status === 'READ_ONLY_ALERT_STATUS' && q && <>
++      <div className="status-grid alert-grid">
++        <article className={!configured || expired ? 'alert-warning' : ''}>
++          <h3>네이버 메일 설정</h3><strong>{emailLabel}</strong>
++          {configured && report.email.expires_unix !== null && <p>유효기한 · {kst(report.email.expires_unix * 1000)}</p>}
++          <p>설정 등록은 현재 발송 작업자의 정상 실행이나 메일 도착 확인과 다릅니다.</p>
++        </article>
++        <article className={q.pending ? 'alert-warning' : ''}>
++          <h3>전송 대기</h3><strong>위험 알림 {q.critical_pending}건</strong>
++          <p>시험 알림 {q.test_pending}건 · 전체 대기 {q.pending}건</p>
++          {q.pending > 0 && <p>가장 오래 대기 · {duration(q.oldest_pending_age_seconds)}</p>}
++          {!q.timing_consistent && <p>시간 기록 확인 필요</p>}
++        </article>
++        <article><h3>전송 수락 기록</h3><strong>위험 알림 {q.critical_accepted}건</strong>
++          <p>시험 알림 {q.test_accepted}건 · 전체 수락 {q.accepted}건</p>
++          <p>수신처의 수락 기록이며 받은편지함 도착을 보장하지 않습니다.</p></article>
++      </div>
++      {recent ? <article className="recent-alert">
++        <h3>최근 위험 알림 · {criticalCodes[recent.code]}</h3>
++        <p>발생 · {kst(recent.created_at)}</p>
++        <p>{recent.accepted_at ? `전송 수락 · ${kst(recent.accepted_at)}` : '전송 수락 기록 없음'}</p>
++        {recent.accepted_at && <p>발생부터 전송 수락까지 · {duration(recent.delivery_delay_seconds)}</p>}
++        {!recent.timing_consistent && <p>시간 기록 확인 필요</p>}
++        {recent.last_failure !== 'NONE' && <p>전송 실패 또는 결과 확인이 필요한 기록이 있습니다.</p>}
++        <p>과거 알림 기록이며 현재 계정의 위험 상태를 나타내지 않습니다.</p>
++      </article> : <p>위험 알림 이력이 없습니다. 시험 알림은 별도로 집계합니다.</p>}
++      <p className="alert-asof">확인 시각 · {kst(report.as_of)} · 30초마다 갱신</p>
++    </>}
++  </section>;
++}
+--- /dev/null
++++ b/apps/web/src/AlertStatusPanel.test.tsx
+@@ -0,0 +1,89 @@
++import { act, cleanup, render, screen } from '@testing-library/react';
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { AlertStatusPanel } from './AlertStatusPanel';
++const now = '2026-11-05T12:00:00Z';
++function report() {
++  return { status: 'READ_ONLY_ALERT_STATUS', as_of: now, is_stale: false,
++    email: { state: 'NOT_CONFIGURED', expires_unix: null as number | null, remaining_seconds: null as number | null },
++    queue: { total: 2, pending: 1, accepted: 1, critical_total: 1, critical_pending: 1, critical_accepted: 0,
++      test_total: 1, test_pending: 0, test_accepted: 1, oldest_pending_at: '2026-11-05T10:35:00Z', oldest_pending_age_seconds: 5100, timing_consistent: true },
++    latest_critical: { code: 'EMERGENCY_ENTERED', created_at: '2026-11-05T10:35:00Z', accepted_at: null as string | null,
++      attempts: 0, last_failure: 'NONE', delivery_delay_seconds: null as number | null, timing_consistent: true },
++    orders_enabled: false, live_trading_enabled: false, worker_liveness_checked: false,
++    inbox_confirmation_available: false, confirmation_scope: 'RECEIVER_ACK_ONLY' };
++}
++function respond(body: unknown) { return { ok: true, status: 200, json: async () => body }; }
++function mock(body: unknown) { vi.stubGlobal('fetch', vi.fn().mockResolvedValue(respond(body))); }
++afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
++describe('read-only urgent alert visibility', () => {
++  it('separates pending risk from accepted TEST and warns on missing config', async () => {
++    mock(report()); render(<AlertStatusPanel />);
++    expect(await screen.findByText('설정 없음')).toBeTruthy();
++    expect(screen.getByText('위험 알림 1건')).toBeTruthy();
++    expect(screen.getByText('위험 알림 0건')).toBeTruthy();
++    expect(screen.getByText('가장 오래 대기 · 1시간 25분')).toBeTruthy();
++    expect(screen.getByText('시험 알림 1건 · 전체 수락 1건')).toBeTruthy();
++    expect(screen.queryByRole('button')).toBeNull();
++    expect(fetch).toHaveBeenCalledWith('/api/v1/demo/alerts/status', expect.objectContaining({ cache: 'no-store' }));
++  });
++  it('shows expiry without asserting worker health and updates when time passes', async () => {
++    vi.useFakeTimers(); vi.setSystemTime(new Date(now));
++    const body = report(); body.email = { state: 'CONFIGURED_PRIVATE_RAM', expires_unix: Date.now()/1000 + 2, remaining_seconds: 2 };
++    mock(body); render(<AlertStatusPanel />); await act(async () => {});
++    expect(screen.getByText('등록됨 · 작업자 상태 미확인')).toBeTruthy();
++    expect(screen.getByText(/받은편지함 도착을 보장하지 않습니다/)).toBeTruthy();
++    await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
++    expect(screen.getByText('유효기한 지남 · 재확인 필요')).toBeTruthy();
++  });
++  it('shows historical delay, excludes raw failure and does not label it current risk', async () => {
++    const body = report(); body.latest_critical.accepted_at = now;
++    body.latest_critical.delivery_delay_seconds = 5100; body.latest_critical.last_failure = 'fixture-secret';
++    mock(body); render(<AlertStatusPanel />);
++    expect(await screen.findByText('발생부터 전송 수락까지 · 1시간 25분')).toBeTruthy();
++    expect(screen.getByText(/현재 계정의 위험 상태를 나타내지 않습니다/)).toBeTruthy();
++    expect(screen.queryByText('fixture-secret')).toBeNull();
++  });
++  it.each(['orders_enabled', 'live_trading_enabled', 'worker_liveness_checked', 'inbox_confirmation_available'])(
++    'rejects unsafe or unsupported assertion %s', async key => {
++      mock({ ...report(), [key]: true }); render(<AlertStatusPanel />);
++      expect(await screen.findByText(/알림 상태를 확인할 수 없습니다/)).toBeTruthy();
++      expect(screen.queryByText('설정 없음')).toBeNull();
++    });
++  it('rejects prototype names and inconsistent totals', async () => {
++    const body = report(); body.latest_critical.code = 'toString'; body.queue.total = 50;
++    mock(body); render(<AlertStatusPanel />);
++    expect(await screen.findByText(/알림 상태를 확인할 수 없습니다/)).toBeTruthy();
++  });
++  it('clears the previous report on failed refresh instead of showing zero or stale success', async () => {
++    vi.useFakeTimers(); vi.setSystemTime(new Date(now));
++    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(respond(report())).mockRejectedValue(new Error('offline')));
++    render(<AlertStatusPanel />); await act(async () => {});
++    expect(screen.getByText('설정 없음')).toBeTruthy();
++    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
++    expect(screen.getByText(/알림 상태를 확인할 수 없습니다/)).toBeTruthy();
++    expect(screen.queryByText('설정 없음')).toBeNull();
++    expect(screen.queryByText('위험 알림 0건')).toBeNull();
++  });
++  it('refreshes config status and stops polling on unmount', async () => {
++    vi.useFakeTimers(); vi.setSystemTime(new Date(now));
++    const next = report(); next.email.state = 'BLOCKED_EXPIRED_OR_INVALID';
++    const fetcher = vi.fn().mockResolvedValueOnce(respond(report())).mockResolvedValue(respond(next));
++    vi.stubGlobal('fetch', fetcher); const view = render(<AlertStatusPanel />); await act(async () => {});
++    await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
++    expect(screen.getByText('만료 또는 설정 확인 필요')).toBeTruthy();
++    view.unmount(); await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
++    expect(fetcher).toHaveBeenCalledTimes(2);
++  });
++  it('times out even if transport ignores cancellation', async () => {
++    vi.useFakeTimers(); vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})));
++    render(<AlertStatusPanel />);
++    await act(async () => { await vi.advanceTimersByTimeAsync(8000); });
++    expect(screen.getByText(/알림 상태를 확인할 수 없습니다/)).toBeTruthy();
++  });
++  it('does not turn unavailable queue data into zero pending', async () => {
++    mock({ ...report(), status: 'UNAVAILABLE', is_stale: true, queue: null, latest_critical: null });
++    render(<AlertStatusPanel />);
++    expect(await screen.findByText(/알림 상태를 확인할 수 없습니다/)).toBeTruthy();
++    expect(screen.queryByText('위험 알림 0건')).toBeNull();
++  });
++});
+--- /dev/null
++++ b/tests/unit/test_demo_alert_public_metadata.py
+@@ -0,0 +1,66 @@
++"""Public expiry metadata must never expose or extend private SMTP settings."""
++
++import json
++
++import pytest
++from pydantic import ValidationError
++
++from scripts import demo_alert_email_session as mail
++from services.operations.demo_alert_status import EmailMetadata
++from tests.unit.test_demo_alert_email_session import ADDRESS, PASSWORD, ram  # noqa: F401
++
++
++def test_public_expiry_only_no_write_or_ttl_extension(ram, monkeypatch):  # noqa: F811
++    mail.configure()
++    path = ram / mail.FILENAME
++    original = path.read_bytes()
++    monkeypatch.setattr(mail.time, "time", lambda: 100123)
++    result = mail.public_status()
++    assert result == {
++        "state": "CONFIGURED_PRIVATE_RAM",
++        "expires_unix": 143200,
++        "remaining_seconds": 43077,
++    }
++    assert ADDRESS not in json.dumps(result) and PASSWORD not in json.dumps(result)
++    assert path.read_bytes() == original
++    assert mail.load().address == ADDRESS
++    assert mail.load().password.get_secret_value() == PASSWORD
++
++
++@pytest.mark.parametrize("fault", ["missing", "expired", "invalid", "permissions"])
++def test_public_missing_or_invalid_has_no_private_failure_or_invented_expiry(
++    ram,  # noqa: F811
++    monkeypatch,
++    fault,  # noqa: F811
++):  # noqa: F811
++    if fault != "missing":
++        mail.configure()
++        path = ram / mail.FILENAME
++        if fault == "expired":
++            monkeypatch.setattr(mail.time, "time", lambda: 143200)
++        elif fault == "invalid":
++            path.write_text(PASSWORD)
++        else:
++            path.chmod(0o644)
++    result = mail.public_status()
++    assert result == {
++        "state": "NOT_CONFIGURED" if fault == "missing" else "BLOCKED_EXPIRED_OR_INVALID",
++        "expires_unix": None,
++        "remaining_seconds": None,
++    }
++    assert ADDRESS not in json.dumps(result) and PASSWORD not in json.dumps(result)
++
++
++@pytest.mark.parametrize(
++    "payload",
++    [
++        {"state": "CONFIGURED_PRIVATE_RAM"},
++        {"state": "NOT_CONFIGURED", "expires_unix": 143200},
++        {"state": "CONFIGURED_PRIVATE_RAM", "expires_unix": 143200, "remaining_seconds": 43201},
++        {"state": "NOT_CONFIGURED", "address": ADDRESS},
++        {"state": "NOT_CONFIGURED", "password": PASSWORD},
++    ],
++)
++def test_public_model_rejects_private_fields_or_invented_validity(payload):
++    with pytest.raises(ValidationError):
++        EmailMetadata.model_validate(payload)
+--- /dev/null
++++ b/tests/integration/test_demo_alert_status.py
+@@ -0,0 +1,141 @@
++"""Real PostgreSQL read-only status; no actual exchange, SMTP or dispatcher."""
++
++import json
++from datetime import UTC, datetime, timedelta
++from uuid import uuid4
++
++import pytest
++from fastapi.testclient import TestClient
++from sqlalchemy import event, insert, select, update
++from sqlalchemy.exc import SQLAlchemyError
++
++import apps.api.main as api
++from packages.persistence.demo import accounts, events, outbox
++from packages.persistence.demo_alerts import alerts, attempts
++from services.operations.demo_alert_status import read_queue
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++
++NOW = datetime(2026, 11, 5, 12, tzinfo=UTC)
++
++
++def seed(system):
++    store, coordinator, fake = system
++    coordinator.command(uuid4(), "EMERGENCY_FLATTEN")
++    with store.engine.begin() as conn:
++        row = dict(conn.execute(select(alerts)).mappings().one())
++        conn.execute(
++            update(alerts).values(
++                created_at=NOW - timedelta(minutes=85), delivered_at=NOW, attempts=1
++            )
++        )
++        row.update(
++            alert_id=str(uuid4()),
++            code="DELIVERY_PIPELINE_TEST",
++            created_at=NOW - timedelta(minutes=10),
++            delivered_at=None,
++        )
++        conn.execute(insert(alerts).values(row))
++    return store, fake
++
++
++def snapshot(store):
++    with store.engine.connect() as conn:
++        return [
++            conn.execute(select(t).order_by(*t.primary_key.columns)).mappings().all()
++            for t in (accounts, events, outbox, alerts, attempts)
++        ]
++
++
++def test_counts_delay_readonly_snapshot_and_no_writes(demo_system):  # noqa: F811
++    store, fake = seed(demo_system)
++    before, calls = snapshot(store), list(fake.calls)
++    statements = []
++
++    def capture(conn, cursor, statement, parameters, context, many):
++        statements.append(statement)
++
++    event.listen(store.engine, "before_cursor_execute", capture)
++    try:
++        at, queue, recent = read_queue(store.engine, "DEMO-test", now=NOW)
++    finally:
++        event.remove(store.engine, "before_cursor_execute", capture)
++    assert at == NOW
++    assert queue.total == 2 and queue.pending == 1 and queue.accepted == 1
++    assert queue.critical_accepted == 1 and queue.critical_pending == 0
++    assert queue.test_pending == 1 and queue.test_accepted == 0
++    assert queue.oldest_pending_age_seconds == 600 and queue.timing_consistent
++    assert recent.code == "EMERGENCY_ENTERED" and recent.delivery_delay_seconds == 5100
++    assert recent.timing_consistent and recent.attempts == 1
++    assert statements[0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
++    assert len(statements) == 4 and all(s.startswith(("SET ", "SELECT ")) for s in statements)
++    assert snapshot(store) == before and fake.calls == calls
++    serialized = json.dumps(queue.model_dump(mode="json")) + recent.model_dump_json()
++    assert "payload" not in serialized and "account_id" not in serialized
++
++
++def test_future_or_backwards_times_are_unknown_not_zero(demo_system):  # noqa: F811
++    store, _ = seed(demo_system)
++    with store.engine.begin() as conn:
++        conn.execute(
++            update(alerts).values(
++                created_at=NOW + timedelta(hours=1), last_failure="fixture-secret"
++            )
++        )
++    _, queue, recent = read_queue(store.engine, "DEMO-test", now=NOW)
++    assert queue.oldest_pending_age_seconds is None and not queue.timing_consistent
++    assert recent.delivery_delay_seconds is None and not recent.timing_consistent
++    assert recent.last_failure == "UNKNOWN"
++
++
++def test_api_fixed_account_no_secret_or_control_route_and_no_cache(demo_system, monkeypatch):  # noqa: F811
++    store, _ = seed(demo_system)
++    monkeypatch.setattr(api, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(api, "create_engine", lambda *a, **k: store.engine)
++    monkeypatch.setattr(
++        api,
++        "public_email_status",
++        lambda: {"state": "NOT_CONFIGURED", "expires_unix": None, "remaining_seconds": None},
++    )
++    before = snapshot(store)
++    with TestClient(api.create_app()) as client:
++        response = client.get("/api/v1/demo/alerts/status?account_id=DEMO-other")
++        assert response.status_code == 200
++        assert response.headers["cache-control"] == "no-store"
++        body = response.json()
++        assert body["queue"]["total"] == 2
++        assert body["orders_enabled"] is False and body["live_trading_enabled"] is False
++        assert (
++            body["worker_liveness_checked"] is False
++            and body["inbox_confirmation_available"] is False
++        )
++        assert body["confirmation_scope"] == "RECEIVER_ACK_ONLY"
++        assert client.post("/api/v1/demo/alerts/status").status_code == 405
++        for key in ("password", "address", "account_id", "payload", "event_id", "alert_id"):
++            assert key not in response.text
++    assert snapshot(store) == before
++
++
++@pytest.mark.parametrize(
++    "failure",
++    [SQLAlchemyError("fixture-secret"), ValueError("fixture-secret"), OSError("fixture-secret")],
++)
++def test_api_failure_is_unknown_not_empty_and_never_raw_failure(monkeypatch, failure):
++    def fail():
++        raise failure
++
++    monkeypatch.setattr(api, "read_alert_status", fail)
++    with TestClient(api.create_app()) as client:
++        response = client.get("/api/v1/demo/alerts/status")
++        assert response.status_code == 503
++        body = response.json()
++        assert body["is_stale"] and body["queue"] is None
++        assert body["email"]["state"] == "UNKNOWN" and body["latest_critical"] is None
++        assert "fixture-secret" not in response.text
++
++
++def test_empty_existing_queue_is_zero_without_inventing_last_delivery(demo_system):  # noqa: F811
++    store, _, _ = demo_system
++    _, queue, recent = read_queue(store.engine, "DEMO-test", now=NOW)
++    assert queue.total == queue.pending == queue.accepted == 0
++    assert queue.oldest_pending_at is None and queue.oldest_pending_age_seconds is None
++    assert queue.timing_consistent and recent is None
+--- /dev/null
++++ b/UPDATE-ALERT-VISIBILITY.cmd
+@@ -0,0 +1,19 @@
++@echo off
++setlocal
++cd /d "%~dp0"
++echo Updating read-only alert visibility. No new mail or order submission.
++powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $m=Get-Content -Raw 'TRANSFER_MANIFEST.json' | ConvertFrom-Json; foreach($p in $m.files.PSObject.Properties){if((Get-FileHash -Algorithm SHA256 -LiteralPath $p.Name).Hash.ToLower() -ne $p.Value){throw 'SOURCE_HASH_MISMATCH'}}; Write-Output 'TRANSFER_FILES_VERIFIED'"
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
++if errorlevel 1 exit /b 2
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --no-deps --wait api web
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -m scripts.verify_demo_alert_visibility
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-web-1 node -e "const fs=require('node:fs'),c=require('node:crypto'),e={'src/App.tsx': 'b2d8d32a18b0d7d207dcdc96e5197eebcfeece33a45a8931a4a4f68d279e24c0', 'src/AlertStatusPanel.tsx': '843ef99c61ff8a061d10a1525d13c04ee62f577b4393a3ef033a368d7914141c', 'src/style.css': 'd9ef3031a076494211d8735760f20a91daed9c9d425e2c4e5100314ad04eca62'};if(!Object.entries(e).every(([n,h])=>c.createHash('sha256').update(fs.readFileSync(n)).digest('hex')===h))process.exit(2);fetch('http://127.0.0.1:5173/api/v1/demo/alerts/status').then(async r=>{if(!r.ok)throw Error();const s=await r.json();if(s.status!=='READ_ONLY_ALERT_STATUS'||s.orders_enabled!==false||s.live_trading_enabled!==false)throw Error();console.log('WEB_SOURCE_AND_ALERT_PROXY_VERIFIED')}).catch(()=>process.exit(2))"
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
++if errorlevel 1 exit /b 2
++echo ALERT_VISIBILITY_UPDATED_ENTRIES_STILL_PAUSED
++echo Open http://127.0.0.1:5173 and refresh with Ctrl+F5.
++exit /b 0
+--- /dev/null
++++ b/ALERT_VISIBILITY_KO.md
+@@ -0,0 +1,21 @@
++# 위험 알림 전달 상태 표시
++
++메일 설정이 없는 동안 실제 비상 알림이 약85분 대기했던 문제를 운영 화면에서 확인할 수 있도록 하는 조회 기능이다. 현재 계정의 위험 상태를 변경하거나 메일 발송을 실행하지 않는다.
++
++새 ZIP을 풀고 UPDATE-ALERT-VISIBILITY.cmd가 보이는 위치에서 CMD를 열어 실행한다.
++
++```bat
++UPDATE-ALERT-VISIBILITY.cmd
++```
++
++전체 전송 파일 SHA256을 확인하고 기존 읽기 전용 준비 검사를 수행한다. 이후 기존 hybrid-windows 프로젝트의 api와 web만 빌드/갱신한다. db, key-session, alerts 서비스는 갱신하지 않는다. 기존 RAM 키·메일 설정을 지우거나 연장하지 않는다. 설정·의존성·DB 마이그레이션 파일은 기존 버전 그대로다. API의 기존 시작 명령은 변경하지 않았다.
++
++성공 시 SOURCE_AND_READ_ONLY_ENDPOINT_VERIFIED, WEB_SOURCE_AND_ALERT_PROXY_VERIFIED, ALERT_VISIBILITY_UPDATED_ENTRIES_STILL_PAUSED가 표시된다. http://127.0.0.1:5173 을 열고 Ctrl+F5로 새로고침한다. 준비 검사에서 막히면 출력 결과를 공유한다. 설치 명령은 거래 잠금을 해제하거나 과거 요청을 지우지 않는다.
++
++화면의 위험 알림 전달 상태에는 메일 설정 유무·만료 시각(KST), 실제 위험 알림/시험 알림별 대기와 수락 건수, 가장 오래 대기한 시간, 최근 위험 알림의 발생부터 전송 수락까지 걸린 시간이 나온다. 30초마다 갱신하고 조회 실패 시 이전 정상 표시를 제거한다. 메일 설정 등록은 작업자 정상 실행의 증거가 아니며, 수신처 ACK는 받은편지함 도착 증거가 아니다. 이미 수신한 과거 비상 알림은 현재 NORMAL 계정 상태와 다를 수 있다.
++
++메일 설정은 기존과 같이 별도 private RAM에서 최대12시간만 유효하다. 이 화면은 메일 주소·앱 비밀번호·키·주문/계정 식별자를 받거나 표시하지 않는다. 만료/미설정일 경우 기존 수동 등록 절차가 필요하다. 이번 설치는 새 메일/시험 알림/주문을 만들지 않으며 거래·위험 정책을 변경하지 않는다. 기존 알림 작업자가 독립적으로 처리하는 큐는 계속 동작할 수 있다.
++
++API GET /api/v1/demo/alerts/status는 고정 DEMO 계정의 알림을 읽는다. PostgreSQL REPEATABLE READ, READ ONLY 스냅샷의 두 SELECT로 집계와 최근 위험 알림을 조회한다. 이메일 private RAM에서는 허용된 상태/유효기한 숫자만 반환한다. DB 조회 실패는 503/UNKNOWN으로 처리하며 대기0건으로 표시하지 않는다. 실패 원문, recipient, payload, 토큰은 응답에 포함하지 않는다. 확인 시각과 대기 시간은 조회 시점 기준이며 실시간 전달 SLA가 아니다.
++
++이 패키지는 이전 opposite-tp-review 소스의 후속이다. 새 DEMO 실행, 실제 TP/부분체결 수락, Phase4 전체 수락, Phase5, LIVE 또는 main 병합은 포함하지 않는다. ZIP에 보존된 이전 RUN-ONE-OPPOSITE-TP.cmd는 이번 설치 명령이 아니다.
+--- /dev/null
++++ b/ALERT_VISIBILITY_VALIDATION.md
+@@ -0,0 +1,11 @@
++# Validation — 2026-11-05
++
++Parent: windows-demo-opposite-tp-review-20261105, artifact commit79eb040; source staged separately from clean main64e9e7b.
++
++- Backend: 98 tests passed, including real PostgreSQL isolated-schema alert snapshot/no-write/account scoping, API503/secret redaction, public private-RAM expiry metadata, original email-session/SMTP wire/outbox/delivery/API readiness regressions. No actual exchange or recipient: synthetic fixtures and loopback SMTP/HTTP only.
++- Frontend: 18 tests passed (12 new panel tests +6 unchanged App tests). Missing/expired config, separate TEST counts, historical85min fixture delay, unsafe flags, invalid data, refresh failure removing stale values, timeout and unmount cleanup verified in jsdom.
++- Ruff and strict mypy passed for four changed/new runtime Python files; Ruff passed new tests. Frontend TypeScript, ESLint and production build passed. Dependencies and lockfiles unchanged.
++- DB reads executed SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY; SET LOCAL timeout; exactly two SELECT. Full accounts/events/order outbox/urgent alerts/delivery attempts snapshots and synthetic exchange calls unchanged by status queries.
++- Actual Windows API/web build, source verification and page inspection remain pending user execution. No browser screenshot or visual-layout check was performed in cloud. The endpoint does not measure mail worker liveness, SMTP connectivity or inbox arrival.
++
++User evidence preceding this patch: real historical EMERGENCY_ENTERED alert34c33ac4-c293-5fca-ba25-2d96ee8694de reached the mailbox after the missing SMTP RAM configuration was registered. Event10:21:45UTC; mailbox20:47KST, about85min later. This proves that historical message arrived, not real-time delivery performance. No new alert/mail/trade was generated for this patch.
