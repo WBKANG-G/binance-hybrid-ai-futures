@@ -1,0 +1,96 @@
+{
+  "status": "DESIGN_REVIEW_ONLY_NOT_EXECUTABLE",
+  "phase": 4,
+  "environment": "DEMO",
+  "operation_id": "5bb5814c-55e0-4b7f-882c-a7a449ec2182",
+  "purpose": "PROTECTED_EXECUTION_CHILD_SIGKILL_AND_NATURAL_LEASE_TAKEOVER",
+  "entry": {
+    "symbol": "BTCUSDT",
+    "margin_mode": "ISOLATED",
+    "leverage": 2,
+    "direction": "LONG",
+    "type": "LIMIT",
+    "style": "OPPOSITE_QUOTE",
+    "maximum_entry_post_attempts": 1,
+    "maximum_quantity_btc": "0.0007",
+    "maximum_notional_usdt": "100",
+    "stop_distance_pct": "0.5",
+    "target_distance_pct": "1",
+    "price_source": "FRESH_RUNTIME_QUOTE_ONLY",
+    "unfilled_action": "CANCEL_CONFIRM_FLAT_SKIP_FAULT_NO_RETRY"
+  },
+  "injection": {
+    "target": "ONLY_NEWLY_SPAWNED_EXECUTION_CHILD",
+    "signal": "SIGKILL",
+    "maximum_count": 1,
+    "preconditions": [
+      "Exact owned order full fill",
+      "No remaining entry quantity",
+      "Signed current position matches owned fill",
+      "Signed original SL and TP correct/NEW/closePosition",
+      "Persisted protection evidence and paused entries",
+      "Same worker owner/fence still valid",
+      "Independent parent supervisor already running"
+    ],
+    "excluded_targets": [
+      "DB",
+      "API",
+      "web",
+      "key-session",
+      "alerts",
+      "Docker daemon",
+      "host"
+    ],
+    "natural_lease_seconds": 60,
+    "lease_sql_changes_allowed": false,
+    "clock_changes_allowed": false
+  },
+  "recovery": {
+    "wait": "Original lease_until natural expiry; no shortening or forced release",
+    "pre_expiry_takeover": "Must be rejected",
+    "after_expiry_fence": "Must advance",
+    "stale_owner": "Renew/effect rejected before network side effect",
+    "new_leader": "Starts unreconciled/stream not ready; new entry blocked",
+    "identity": "Reconcile/adopt same entry and original protection IDs",
+    "resubmission": "No duplicate entry POST",
+    "trigger_during_wait": "Record actual trigger/position changes; do not claim unchanged protected handoff",
+    "cleanup": "Original fenced policy; at most one new reduce-only exit intent if needed; repeated GET confirmation only",
+    "final": "Signed VERIFIED_FLAT and entries paused",
+    "emergency": "Preserve if entered; never automatically acknowledge/unlock"
+  },
+  "implementation_gates": [
+    "Separate DEMO-scoped client/CLI; do not repurpose test fixture or relax loopback guard",
+    "External-venue-like synthetic contract tests including trigger during lease wait, child early death, parent cleanup failure and stale fencing",
+    "Independent supervisor survives injected child death and retains bounded recovery-only path",
+    "Normal and all injected-failure paths prove no second entry submission",
+    "Explicit execution enable flags and operation UUID; no automatic execution from this plan"
+  ],
+  "current_implementation": "No actual-account protected-child harness is present. It must be built and tested before a runnable package is offered.",
+  "prior_scope": "The previous approved opposite-quote TP operation was one entry only and is closed. This proposes a new entry plus an intentionally terminated execution child.",
+  "latest_deployed_parent": "3853dde672521a411e5c3377b62bdd21e2d27630",
+  "current_worker_evidence": {
+    "source": "USER_WINDOWS_SCREENSHOT",
+    "worker_container": "running/healthy",
+    "observation_seconds": 3,
+    "heartbeat_advancing": true,
+    "first_heartbeat_age_ms": 200,
+    "last_heartbeat_age_ms": 193,
+    "worker_email_state": "CONFIGURED_PRIVATE_RAM",
+    "worker_api_config_consistent": true,
+    "critical_pending": 0,
+    "test_pending": 0,
+    "delivery_readiness_verified": false,
+    "smtp_authentication_checked": false,
+    "inbox_checked": false,
+    "new_mail_created": false
+  },
+  "latest_regression_sources": {
+    "tests/integration/test_demo_protected_worker_sigkill.py": "83d76a50390b4195a3f34e3e77d355b8c930575edfac7328fbd9ef9a0ef9e2ee",
+    "tests/fixtures/demo_protected_worker.py": "829d634b1242a6d7bad354ff56c00c906e9d53b07f60fe9b6824fc94f9459e88",
+    "tests/unit/test_demo_protected_worker_scope.py": "53c682d8fbe1ea52b00450c51b21a0a164c8ce009d1736f8dce5130fefd7b89e"
+  },
+  "orders_executed_during_preparation": 0,
+  "live_trading_enabled": false,
+  "main_merge": false,
+  "phase4_overall_accepted": false
+}
