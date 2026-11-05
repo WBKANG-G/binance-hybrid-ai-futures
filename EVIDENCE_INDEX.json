@@ -1,0 +1,130 @@
+{
+  "review_date_kst": "2026-11-05",
+  "source": "USER_WINDOWS_SCREENSHOTS_ALLOWLIST_TRANSCRIPTION",
+  "phase4_overall_accepted": false,
+  "new_orders_during_this_review": 0,
+  "new_alerts_or_mail_created_by_this_review": 0,
+  "application_changed_by_this_review": false,
+  "previous_evidence_snapshot": {
+    "branch": "phase4-evidence-review-20261105",
+    "commit": "11d2797",
+    "scope": "Historical snapshot before opposite-quote trial, recovery and real critical email delivery"
+  },
+  "latest_windows_deployment": {
+    "artifact_branch": "windows-demo-alert-visibility-20261105",
+    "artifact_commit": "3853dde672521a411e5c3377b62bdd21e2d27630",
+    "api": "Healthy",
+    "web": "Healthy",
+    "api_source_and_read_only_endpoint_verified": true,
+    "web_source_and_alert_proxy_verified": true,
+    "email_state": "CONFIGURED_PRIVATE_RAM",
+    "critical_pending": 0,
+    "test_pending": 0,
+    "worker_liveness_checked": false,
+    "completion": "ALERT_VISIBILITY_UPDATED_ENTRIES_STILL_PAUSED",
+    "page_visual_inspection_received": false
+  },
+  "latest_windows_readiness": {
+    "session_ready": "READ_ONLY_READY_ENTRIES_STILL_PAUSED",
+    "period_keys_match": true,
+    "stored_day_kst": "2026-11-05",
+    "current_day_kst": "2026-11-05",
+    "stored_week_kst": "2026-11-02",
+    "current_week_kst": "2026-11-02",
+    "risk_state": "NORMAL",
+    "paused": true,
+    "credential_source": "PRIVATE_TMPFS_SESSION",
+    "exchange_empty_verified": true,
+    "database_changed": false,
+    "orders_enabled": false,
+    "live_trading_enabled": false,
+    "signed_get_count": 22,
+    "audit_http_attempts": 22,
+    "audit_connection_attempts": 1,
+    "audit_reused_requests": 21,
+    "audit_transport_elapsed_ms": 1349
+  },
+  "latest_actual_opposite_quote_trial": {
+    "operation_id": "243598bb-900a-45d5-8af3-a776d543a504",
+    "environment": "DEMO",
+    "entry_style": "OPPOSITE_QUOTE",
+    "filled_quantity": "0.0007",
+    "stop_verified": true,
+    "target_verified": true,
+    "filled_protection_and_flat_verified": true,
+    "tp_trigger_check": "NOT_ACCEPTED",
+    "failure": "TP_FILL_NOT_OBSERVED",
+    "operator_exit_post_attempts": 1,
+    "flat_confirmation": "VERIFIED_FLAT",
+    "final_risk_state_at_trial": "EMERGENCY",
+    "final_paused": true,
+    "new_entry_post_count": 1,
+    "sl_delete_attempts": 0,
+    "captured_hint_count": 6,
+    "hint_admission_replay": "CAPTURED_HINT_ADMISSION_REPLAY_PASSED",
+    "coalesced": 5,
+    "timestamps_rewritten": false,
+    "full_private_frames_replayed": false
+  },
+  "latest_signed_exit_review": {
+    "operation_id": "243598bb-900a-45d5-8af3-a776d543a504",
+    "entry_status": "FILLED",
+    "exit_status": "FILLED",
+    "exit_reduce_only_verified": true,
+    "stop_status": "EXPIRED",
+    "target_status": "EXPIRED",
+    "current_remote_empty_verified": true,
+    "database_changed": false,
+    "scope": "Signed entry/exit and current empty account, not TP fill acceptance"
+  },
+  "acknowledged_history": {
+    "operation_id": "e0e27c9a-8616-48bb-aab7-5f061bff908b",
+    "result": "EMERGENCY_ACKNOWLEDGED_READY_ENTRIES_STILL_PAUSED",
+    "risk_state": "NORMAL",
+    "paused": true,
+    "unresolved_count_at_acknowledgement": 4,
+    "unresolved_history_acknowledged": true,
+    "unresolved_requests_preserved": true,
+    "unresolved_statuses_cleared": false,
+    "financial_and_prior_history_preserved": true
+  },
+  "actual_critical_mail": {
+    "alert_id": "34c33ac4-c293-5fca-ba25-2d96ee8694de",
+    "code": "EMERGENCY_ENTERED",
+    "event_utc": "2026-11-05T10:21:45.753803+00:00",
+    "mailbox_received_kst_minute": "2026-11-05T20:47+09:00",
+    "smtp_worker_result": "ACKNOWLEDGED",
+    "attempt": 1,
+    "matching_inbox_message_shown": true,
+    "delay_approximately_minutes": 85,
+    "limitation": "Historical delivery after RAM mail configuration; not real-time SLA or current worker liveness"
+  },
+  "public_liquidity_observation": {
+    "sample_count": 12,
+    "within_cap_thin_top_samples": 0,
+    "maximum_quantity_cap": "0.0007",
+    "maximum_notional_cap_usdt": "100",
+    "real_partial_fill_proven": false,
+    "scope": "Short public observation only; no order signal"
+  },
+  "remaining_real_evidence": [
+    "Successful partial-fill protection after fix",
+    "Actual TP fill followed by original SL cleanup verification",
+    "Protected-position worker/DB fault and recovery scenario",
+    "Full raw private-frame replay if retained as an additional evidence objective"
+  ],
+  "limits": [
+    "Actual six hints replay is admission replay, not raw frame replay",
+    "Thirty-minute prior observation is not a24h run;24h is not invented as a Phase4 acceptance requirement",
+    "Market conditions do not establish unsupported DEMO functionality",
+    "No main merge, Phase5, LIVE or trade-policy change",
+    "Mailbox arrival does not establish current SMTP authentication or future deliverability"
+  ],
+  "worker_observation_in_this_package": {
+    "execution_pending_on_windows": true,
+    "scope": "Two heartbeat samples3s apart, private-RAM status visibility and local GET counts only",
+    "smtp_authentication_checked": false,
+    "delivery_readiness_verified": false,
+    "inbox_checked": false
+  }
+}
