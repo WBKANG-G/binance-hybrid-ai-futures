@@ -1,0 +1,1778 @@
+--- /dev/null
++++ b/services/execution/demo_protected_worker_check.py
+@@ -0,0 +1,646 @@
++"""One capped protected execution-child kill; independent natural-lease supervisor."""
++
++import asyncio
++import hashlib
++import json
++import os
++import select
++import signal
++import time
++from collections.abc import Callable, Mapping
++from decimal import Decimal
++from typing import Any, Literal, Protocol
++from uuid import UUID, uuid4, uuid5
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure
++from integrations.binance_usdm.demo_snapshot import signed_number
++from packages.domain.contracts import Signal
++from packages.persistence.demo import DemoStore
++from scripts.check_demo_disconnect import gate_blocked
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo import DemoCoordinator
++from services.execution.demo_empty_worker_recovery import ownership
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_open_disconnect_check import drain_session
++from services.execution.demo_stream import private_connect, session, settled_call
++from services.execution.demo_tp_trigger_check import history_preserved
++from services.execution.demo_validation import confirm_exit, prepare, safe_failure
++from services.execution.models import Lease, PaperOrder
++from services.risk.paper import GateSnapshot, RiskRejected
++
++CAP = Decimal("0.0007")
++
++
++class CheckBlocked(DemoFailure):
++    pass
++
++
++def require(value: bool, code: str) -> None:
++    if not value:
++        raise CheckBlocked(code)
++
++
++def marker(operation: UUID, name: str) -> str:
++    return str(uuid5(operation, "protected-worker-" + name))
++
++
++class ScopedClient(DemoClient):
++    """Original DEMO transport, with one own entry and first-generation exit only."""
++
++    def __init__(
++        self, *args: Any, account: str, operation: UUID, entry_enabled: bool, **kwargs: Any
++    ):
++        super().__init__(*args, **kwargs)
++        self.entry_enabled = entry_enabled
++        self.entry_id = "DE-" + hashlib.sha256((account + str(operation)).encode()).hexdigest()[:30]
++        self.entry_attempts = self.exit_attempts = 0
++        self.protection_attempts: dict[str, int] = {}
++
++    def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
++        p = params or {}
++        base = self.entry_id[3:]
++        if "trade/asyn" in path:
++            raise CheckBlocked("EXPORT_CREATION_FORBIDDEN")
++        if method != "GET":
++            quantity = Decimal(p.get("quantity", "0"))
++            if path == "/fapi/v1/order" and method == "POST":
++                require(
++                    p.get("symbol") == "BTCUSDT" and quantity.is_finite() and 0 < quantity <= CAP,
++                    "ORDER_SCOPE_INVALID",
++                )
++                if p.get("reduceOnly") == "true":
++                    self.exit_attempts += 1
++                    require(
++                        self.exit_attempts == 1
++                        and p.get("side") == "SELL"
++                        and p.get("type") == "MARKET"
++                        and p.get("newClientOrderId") == "DX-" + base,
++                        "EXIT_SCOPE_OR_REPEAT_BLOCKED",
++                    )
++                else:
++                    self.entry_attempts += 1
++                    price = Decimal(p.get("price", "0"))
++                    require(
++                        self.entry_enabled
++                        and self.entry_attempts == 1
++                        and p.get("side") == "BUY"
++                        and p.get("type") == "LIMIT"
++                        and p.get("newClientOrderId") == self.entry_id
++                        and price.is_finite()
++                        and 0 < price * quantity <= 100,
++                        "ENTRY_SCOPE_OR_REPEAT_BLOCKED",
++                    )
++            elif path == "/fapi/v1/algoOrder" and method == "POST":
++                cid = p.get("clientAlgoId", "")
++                expected = {"DS-" + base: "STOP_MARKET", "DT-" + base: "TAKE_PROFIT_MARKET"}
++                self.protection_attempts[cid] = self.protection_attempts.get(cid, 0) + 1
++                require(
++                    self.entry_enabled
++                    and cid in expected
++                    and self.protection_attempts[cid] == 1
++                    and p.get("type") == expected[cid]
++                    and p.get("side") == "SELL"
++                    and p.get("symbol") == "BTCUSDT"
++                    and p.get("closePosition") == "true",
++                    "PROTECTION_SCOPE_OR_REPEAT_BLOCKED",
++                )
++            elif path == "/fapi/v1/order" and method == "DELETE":
++                require(
++                    p.get("symbol") == "BTCUSDT" and p.get("origClientOrderId") == self.entry_id,
++                    "CANCEL_SCOPE_INVALID",
++                )
++            elif path == "/fapi/v1/algoOrder" and method == "DELETE":
++                require(
++                    p.get("clientAlgoId") in {"DS-" + base, "DT-" + base}, "CLEANUP_SCOPE_INVALID"
++                )
++            else:
++                raise CheckBlocked("MUTATION_FORBIDDEN")
++        return super().request(method, path, params)
++
++
++class CappedCoordinator(DemoCoordinator):
++    def reserve(
++        self,
++        signal: Signal,
++        gate: GateSnapshot,
++        *,
++        quantity_cap: Decimal | None = None,
++        entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "OPPOSITE_QUOTE",
++    ) -> PaperOrder:
++        require(
++            isinstance(self.client, ScopedClient)
++            and self.client.entry_enabled
++            and signal.symbol == "BTCUSDT"
++            and signal.direction == "LONG"
++            and signal.purpose == "DEMO_VALIDATION"
++            and entry_style == "OPPOSITE_QUOTE"
++            and quantity_cap is not None
++            and 0 < quantity_cap <= CAP
++            and quantity_cap * signal.suggested_limit_price <= 100,
++            "ENTRY_SCOPE_INVALID",
++        )
++        return super().reserve(signal, gate, quantity_cap=quantity_cap, entry_style=entry_style)
++
++
++def fresh_start(ledger: DemoLedger, operation: UUID) -> None:
++    require(
++        str(operation) not in ledger.orders and marker(operation, "start") not in ledger.operations,
++        "OPERATION_ALREADY_USED_DO_NOT_REPEAT",
++    )
++    require(
++        ledger.risk_state.value == "NORMAL"
++        and ledger.paused
++        and ledger.margin_mode == "ISOLATED"
++        and ledger.symbols == ("BTCUSDT",)
++        and ledger.verified_leverage.get("BTCUSDT") == 2
++        and not any(ledger.positions.values())
++        and all(
++            not o.remaining and not o.open_quantity and o.position_state.value == "CLOSED"
++            for o in ledger.orders.values()
++        ),
++        "EMPTY_NORMAL_PAUSED_REQUIRED",
++    )
++
++
++def protected(
++    store: DemoStore, client: DemoClient, account: str, operation: UUID, *, stream: bool = False
++) -> tuple[str, str, str, str]:
++    state = store.read(account)
++    order = state.orders.get(str(operation))
++    require(order is not None, "OWN_ORDER_MISSING")
++    assert order is not None
++    require(
++        state.paused
++        and state.risk_state.value == "NORMAL"
++        and (not stream or state.stream_ready and state.reconciled)
++        and order.signal.symbol == "BTCUSDT"
++        and order.signal.direction == "LONG"
++        and order.signal.purpose == "DEMO_VALIDATION"
++        and 0 < order.quantity <= CAP
++        and order.filled == order.quantity == order.open_quantity
++        and not order.remaining
++        and order.protected
++        and order.algo_id is not None
++        and order.tp_algo_id is not None
++        and not order.exit_id
++        and all(
++            k == str(operation) or not (o.remaining or o.open_quantity)
++            for k, o in state.orders.items()
++        )
++        and state.validation_evidence.get(str(operation), {}).get("stop_verified", False)
++        and state.validation_evidence.get(str(operation), {}).get("target_verified", False),
++        "FULL_PROTECTED_PAUSED_REQUIRED",
++    )
++    client.sync_clock()
++    entry = client.request(
++        "GET", "/fapi/v1/order", {"symbol": "BTCUSDT", "origClientOrderId": order.client_id}
++    )
++    require(
++        isinstance(entry, dict)
++        and entry.get("clientOrderId") == order.client_id
++        and str(entry.get("orderId")) == str(order.server_order_id)
++        and entry.get("status") == "FILLED"
++        and entry.get("side") == "BUY"
++        and entry.get("type") == "LIMIT"
++        and signed_number(entry.get("executedQty")) == order.filled
++        and signed_number(entry.get("origQty")) == order.quantity,
++        "SIGNED_ENTRY_MISMATCH",
++    )
++    for cid, kind, price in [
++        (order.algo_id, "STOP_MARKET", order.signal.initial_stop_price),
++        (order.tp_algo_id, "TAKE_PROFIT_MARKET", order.signal.target_price),
++    ]:
++        row = client.request("GET", "/fapi/v1/algoOrder", {"clientAlgoId": cid or ""})
++        require(
++            isinstance(row, dict)
++            and row.get("clientAlgoId") == cid
++            and row.get("symbol") == "BTCUSDT"
++            and row.get("side") == "SELL"
++            and row.get("positionSide") == "BOTH"
++            and row.get("algoType") == "CONDITIONAL"
++            and row.get("orderType") == kind
++            and row.get("algoStatus") == "NEW"
++            and str(row.get("closePosition")).lower() == "true"
++            and row.get("workingType") == "MARK_PRICE"
++            and str(row.get("priceProtect")).lower() == "false"
++            and signed_number(row.get("triggerPrice")) == price,
++            "SIGNED_PROTECTION_CHANGED",
++        )
++    rows = client.request("GET", "/fapi/v3/positionRisk")
++    require(isinstance(rows, list), "SIGNED_POSITION_INVALID")
++    match = [
++        r
++        for r in rows
++        if isinstance(r, dict) and r.get("symbol") == "BTCUSDT" and r.get("positionSide") == "BOTH"
++    ]
++    require(
++        len(match) == 1
++        and signed_number(match[0].get("positionAmt")) == order.filled
++        and all(
++            isinstance(r, dict) and (r in match or signed_number(r.get("positionAmt")) == 0)
++            for r in rows
++        ),
++        "SIGNED_POSITION_CHANGED",
++    )
++    return order.client_id, str(order.server_order_id), order.algo_id or "", order.tp_algo_id or ""
++
++
++async def finish(coordinator: DemoCoordinator, operation: UUID) -> str:
++    await settled_call(coordinator.store.renew, coordinator.lease)
++    await settled_call(coordinator.client.sync_clock)
++    await settled_call(
++        coordinator.command, UUID(marker(operation, "finish-pause")), "PAUSE_ENTRIES"
++    )
++    state = await settled_call(coordinator.store.read, coordinator.lease.account_id)
++    if any(state.positions.values()) or any(o.open_quantity for o in state.orders.values()):
++        await settled_call(coordinator.store.renew, coordinator.lease)
++        await settled_call(
++            coordinator.command, UUID(marker(operation, "finish-exit")), "EMERGENCY_FLATTEN"
++        )
++    return await confirm_exit(coordinator)
++
++
++async def child_run(
++    coordinator: CappedCoordinator,
++    operation: UUID,
++    *,
++    stop: Callable[[], bool],
++    connector: Any = private_connect,
++    ready_timeout: float = 65,
++    lifetime: float = 180,
++) -> None:
++    store, lease = coordinator.store, coordinator.lease
++    client = coordinator.client
++    require(
++        isinstance(client, ScopedClient) and client.entry_enabled, "ENTRY_CHILD_CLIENT_REQUIRED"
++    )
++    assert isinstance(client, ScopedClient)
++    fresh_start(store.read(lease.account_id), operation)
++    store.change(
++        lease,
++        "DEMO_PROTECTED_WORKER_START",
++        lambda s: s.operations.__setitem__(marker(operation, "start"), "STARTED"),
++    )
++    callback_done = asyncio.Event()
++    loop = asyncio.get_running_loop()
++
++    def ready() -> None:
++        try:
++            coordinator.resume_entries(UUID(marker(operation, "resume")))
++            sig, gate, cap = prepare(coordinator, operation, "LONG", entry_style="OPPOSITE_QUOTE")
++            coordinator.reserve(sig, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE")
++            coordinator.submit(str(operation))
++        finally:
++            loop.call_soon_threadsafe(callback_done.set)
++
++    task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
++    started = time.monotonic()
++    announced = False
++    try:
++        while time.monotonic() - started < lifetime and not stop():
++            if task.done():
++                await task
++                raise CheckBlocked("CHILD_SESSION_ENDED")
++            if callback_done.is_set() and not announced:
++                state = await settled_call(store.read, lease.account_id)
++                order = state.orders.get(str(operation))
++                if (
++                    order
++                    and order.filled == order.quantity
++                    and not order.remaining
++                    and order.protected
++                ):
++                    await settled_call(
++                        coordinator.command, UUID(marker(operation, "pause-new")), "PAUSE_ENTRIES"
++                    )
++                    await settled_call(protected, store, client, lease.account_id, operation)
++
++                    def mark(s: DemoLedger) -> None:
++                        s.operations[marker(operation, "counts")] = json.dumps(
++                            {"entry": client.entry_attempts, "exit": client.exit_attempts}
++                        )
++                        s.operations[marker(operation, "ready")] = "FULL_PROTECTED_READY"
++
++                    await settled_call(store.change, lease, "DEMO_PROTECTED_WORKER_READY", mark)
++                    announced = True
++                elif time.monotonic() - started >= ready_timeout:
++                    break
++            elif not callback_done.is_set() and time.monotonic() - started >= ready_timeout:
++                break
++            await asyncio.sleep(0.2)
++    finally:
++        await drain_session(task, cancel=True)
++        try:
++            await settled_call(
++                store.change,
++                lease,
++                "DEMO_PROTECTED_WORKER_FINALLY",
++                lambda s: s.operations.__setitem__(marker(operation, "finally"), "FINALLY_RAN"),
++            )
++            await finish(coordinator, operation)
++        finally:
++            await settled_call(store.release, lease)
++
++
++class Child(Protocol):
++    pid: int
++
++    def poll(self) -> int | None: ...
++    def kill(self) -> None: ...
++    def wait(self, timeout: float | None = None) -> int: ...
++    def stop(self) -> None: ...
++
++
++def control_stop(parent: int) -> bool:
++    if os.getppid() != parent:
++        return True
++    ready, _, _ = select.select([0], [], [], 0)
++    return bool(ready and os.read(0, 1) in {b"", b"S"})
++
++
++async def restore(
++    coordinator: DemoCoordinator,
++    operation: UUID,
++    identities: tuple[str, str, str, str] | None,
++    *,
++    connector: Any = private_connect,
++) -> bool:
++    """Drain a real private session; only callback evidence counts as restored."""
++    ready = asyncio.Event()
++    loop = asyncio.get_running_loop()
++    valid = False
++
++    def on_ready() -> None:
++        nonlocal valid
++        if identities is not None:
++            require(
++                protected(
++                    coordinator.store,
++                    coordinator.client,
++                    coordinator.lease.account_id,
++                    operation,
++                    stream=True,
++                )
++                == identities,
++                "RECOVERED_IDENTITIES_CHANGED",
++            )
++            valid = True
++        loop.call_soon_threadsafe(ready.set)
++
++    task = asyncio.create_task(session(coordinator, connector=connector, on_ready=on_ready))
++    waiter = asyncio.create_task(ready.wait())
++    try:
++        done, _ = await asyncio.wait(
++            {task, waiter}, timeout=45, return_when=asyncio.FIRST_COMPLETED
++        )
++        if task in done:
++            await task
++            raise CheckBlocked("RECOVERY_SESSION_ENDED")
++        require(waiter in done, "RECOVERY_SESSION_TIMEOUT")
++        return valid
++    finally:
++        waiter.cancel()
++        error = await drain_session(task, cancel=True)
++        await asyncio.gather(waiter, return_exceptions=True)
++        if error is not None or coordinator.session_failed:
++            raise CheckBlocked("RECOVERY_SESSION_FAILED")
++
++
++async def run(
++    store: DemoStore,
++    client: ScopedClient,
++    operation: UUID,
++    spawn: Callable[[UUID], Child],
++    *,
++    account: str = ACCOUNT,
++    connector: Any = private_connect,
++    startup_timeout: float = 80,
++    lease_timeout: float = 75,
++) -> dict[str, Any]:
++    require(not client.entry_enabled, "RECOVERY_CLIENT_MUST_FORBID_ENTRY")
++    original = store.read(account)
++    fresh_start(original, operation)
++    row = ownership(store, account)
++    require(
++        row["lease_until"] is None or row["lease_until"] <= store.now(), "LEADER_ALREADY_ACTIVE"
++    )
++    owner = uuid4()
++    child: Child | None = None
++    old: Lease | None = None
++    lease: Lease | None = None
++    coordinator: DemoCoordinator | None = None
++    identity: tuple[str, str, str, str] | None = None
++    killed = early = stale = stale_renew = restored = recovery_gate = False
++    continuity = True
++    probes = wait_ms = kill_attempts = 0
++    failure = cleanup_failure = "NONE"
++    flat = "UNKNOWN"
++    fixed_until = None
++    remaining_ms = 0
++
++    def log(stage: str) -> None:
++        print(
++            json.dumps(
++                {
++                    "protected_worker_stage": stage,
++                    "operation_id": str(operation),
++                    "live_trading_enabled": False,
++                }
++            ),
++            flush=True,
++        )
++
++    try:
++        child = spawn(owner)
++        log("CHILD_STARTED")
++        deadline = time.monotonic() + startup_timeout
++        while True:
++            row = await settled_call(ownership, store, account)
++            if row["owner"] == str(owner):
++                old = Lease(account_id=account, owner=owner, fence=row["fence"])
++                state = DemoLedger.model_validate(row["state"])
++                if state.operations.get(marker(operation, "ready")) == "FULL_PROTECTED_READY":
++                    counts = json.loads(state.operations[marker(operation, "counts")])
++                    require(counts == {"entry": 1, "exit": 0}, "CHILD_MUTATION_COUNTS_INVALID")
++                    identity = await asyncio.to_thread(
++                        protected, store, client, account, operation, stream=True
++                    )
++                    break
++            require(child.poll() is None, "CHILD_EXITED_BEFORE_PROTECTED_READY")
++            require(time.monotonic() < deadline, "PROTECTED_READY_NOT_OBSERVED")
++            await asyncio.sleep(0.25)
++        try:
++            competitor = await settled_call(store.acquire, account, uuid4())
++        except RiskRejected:
++            early = True
++        else:
++            await settled_call(store.release, competitor)
++            raise CheckBlocked("EARLY_TAKEOVER_SUCCEEDED")
++        require(child.poll() is None, "CHILD_ALREADY_EXITED")
++        kill_attempts += 1
++        child.kill()
++        require(await settled_call(child.wait, 5) == -signal.SIGKILL, "SIGKILL_NOT_VERIFIED")
++        killed = True
++        log("SIGKILL_VERIFIED_WAITING_NATURAL_LEASE")
++    except Exception as error:
++        failure = str(error) if isinstance(error, CheckBlocked) else safe_failure(error)
++    finally:
++        try:
++            if child is not None and child.poll() is None:
++                child.stop()  # Cooperative cleanup only; never an unprotected kill.
++                await settled_call(child.wait, 120)
++            row = await settled_call(ownership, store, account)
++            if row["owner"] == str(owner):
++                old = Lease(account_id=account, owner=owner, fence=row["fence"])
++                fixed_until = row["lease_until"]
++                remaining_ms = max(0, int((fixed_until - store.now()).total_seconds() * 1000))
++                started = time.monotonic()
++                last_probe = 0.0
++                while store.now() < fixed_until:
++                    current = await settled_call(ownership, store, account)
++                    require(
++                        current["owner"] == str(owner)
++                        and current["fence"] == old.fence
++                        and current["lease_until"] == fixed_until,
++                        "LEASE_CHANGED_DURING_NATURAL_WAIT",
++                    )
++                    require(
++                        time.monotonic() - started < lease_timeout, "NATURAL_LEASE_WAIT_TIMEOUT"
++                    )
++                    if killed and time.monotonic() - last_probe >= 2:
++                        try:
++                            require(
++                                await settled_call(protected, store, client, account, operation)
++                                == identity,
++                                "PROTECTION_IDENTITIES_CHANGED",
++                            )
++                        except Exception:
++                            continuity = (
++                                False  # Trigger/query failure never prevents takeover cleanup.
++                            )
++                        probes += 1
++                        last_probe = time.monotonic()
++                    await asyncio.sleep(
++                        min(0.5, max(0, (fixed_until - store.now()).total_seconds()))
++                    )
++                wait_ms = int((time.monotonic() - started) * 1000)
++                require(wait_ms + 250 >= remaining_ms, "NATURAL_WAIT_SHORTENED")
++            else:
++                require(row["owner"] is None, "UNEXPECTED_LEADER_DO_NOT_INTERFERE")
++            lease = await settled_call(store.acquire, account, uuid4())
++            coordinator = DemoCoordinator(store, lease, client)
++            if killed:
++                require(old is not None and lease.fence == old.fence + 1, "FENCE_NOT_ADVANCED")
++                require(
++                    marker(operation, "finally") not in store.read(account).operations,
++                    "CHILD_FINALLY_RAN",
++                )
++                state = await settled_call(store.read, account)
++                recovery_gate = (
++                    not state.reconciled
++                    and not state.stream_ready
++                    and gate_blocked(coordinator, state)
++                )
++                require(recovery_gate, "RECOVERY_GATE_NOT_LOCKED")
++
++                def forbidden(_: DemoLedger) -> None:
++                    raise CheckBlocked("STALE_EFFECT_EXECUTED")
++
++                try:
++                    await settled_call(store.change, old, "DEMO_PROTECTED_STALE_PROBE", forbidden)
++                except RiskRejected:
++                    stale = True
++                try:
++                    await settled_call(store.renew, old)
++                except RiskRejected:
++                    stale_renew = True
++                require(stale and stale_renew, "STALE_OWNER_NOT_BLOCKED")
++            await settled_call(client.sync_clock)
++            await settled_call(coordinator.refresh_metadata)
++            try:
++                restored = await restore(
++                    coordinator, operation, identity if continuity else None, connector=connector
++                )
++            except Exception as error:
++                failure = (
++                    failure
++                    if failure != "NONE"
++                    else str(error)
++                    if isinstance(error, CheckBlocked)
++                    else safe_failure(error)
++                )
++        except Exception as error:
++            cleanup_failure = str(error) if isinstance(error, CheckBlocked) else safe_failure(error)
++        finally:
++            if coordinator is not None and lease is not None:
++                try:
++                    flat = await finish(coordinator, operation)
++                except Exception as error:
++                    cleanup_failure = (
++                        str(error) if isinstance(error, CheckBlocked) else safe_failure(error)
++                    )
++                finally:
++                    try:
++                        await settled_call(coordinator.disconnect)
++                        await settled_call(store.release, lease)
++                    except Exception:
++                        cleanup_failure = "LEASE_RELEASE_FAILED"
++    final = store.read(account)
++    preserved = history_preserved(original, final, str(operation))
++    released = ownership(store, account)["owner"] is None
++    accepted = (
++        killed
++        and early
++        and stale
++        and stale_renew
++        and restored
++        and recovery_gate
++        and continuity
++        and preserved
++        and released
++        and flat == "VERIFIED_FLAT"
++        and final.paused
++        and client.entry_attempts == 0
++        and client.exit_attempts <= 1
++        and not client.protection_attempts
++        and failure == cleanup_failure == "NONE"
++    )
++    if not accepted and failure == "NONE":
++        failure = (
++            "PROTECTION_CHANGED_OR_QUERY_FAILED_DURING_WAIT"
++            if not continuity
++            else "PROTECTED_RECOVERY_NOT_VERIFIED"
++        )
++    return {
++        "protected_worker_check": "PROTECTED_CHILD_SIGKILL_FENCED_RECOVERY_FLAT_VERIFIED"
++        if accepted
++        else "NOT_ACCEPTED_KEEP_PAUSED",
++        "operation_id": str(operation),
++        "worker_exit_code": child.poll() if child else None,
++        "kill_count": kill_attempts,
++        "forced_kill_verified": killed,
++        "finally_marker_absent": marker(operation, "finally") not in final.operations,
++        "competing_leader_blocked": early,
++        "lease_fence_before": old.fence if old else None,
++        "lease_fence_after": lease.fence if lease else None,
++        "natural_lease_wait_ms": wait_ms,
++        "remaining_at_wait_start_ms": remaining_ms,
++        "protection_probe_count": probes,
++        "protected_continuity_observed": continuity and killed,
++        "stale_effect_blocked": stale,
++        "stale_renew_blocked": stale_renew,
++        "entry_gate_blocked_before_reconciliation": recovery_gate,
++        "same_ids_reconciled_in_new_session": restored,
++        "history_and_baselines_preserved": preserved,
++        "parent_entry_post_attempts": client.entry_attempts,
++        "parent_exit_post_attempts": client.exit_attempts,
++        "parent_protection_post_attempts": sum(client.protection_attempts.values()),
++        "flat_confirmation": flat,
++        "leader_released": released,
++        "failure": failure,
++        "cleanup_failure": cleanup_failure,
++        "risk_state": final.risk_state.value,
++        "final_paused": final.paused,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
+--- /dev/null
++++ b/scripts/check_demo_protected_worker.py
+@@ -0,0 +1,159 @@
++"""Explicit one-entry protected-child kill; DB/API/alert services remain running."""
++
++import argparse
++import asyncio
++import json
++import os
++import stat
++import subprocess
++import sys
++from pathlib import Path
++from uuid import UUID
++
++import yaml
++from sqlalchemy import create_engine
++
++from integrations.binance_usdm.demo import DemoSettings
++from packages.domain.config import UniqueKeyLoader, database_url
++from packages.persistence.demo import DemoStore
++from scripts.demo_key_session import credentials
++from scripts.observe_demo_private import ACCOUNT
++from services.execution.demo_protected_worker_check import (
++    CappedCoordinator,
++    CheckBlocked,
++    ScopedClient,
++    child_run,
++    control_stop,
++    fresh_start,
++    require,
++    run,
++)
++
++
++class Worker:
++    def __init__(self, operation: UUID, owner: UUID):
++        self.process = subprocess.Popen(
++            [
++                sys.executable,
++                "-m",
++                "scripts.check_demo_protected_worker",
++                "--enable-demo",
++                "--enable-protected-worker-kill",
++                "--operation-id",
++                str(operation),
++                "--worker",
++                "--owner-id",
++                str(owner),
++                "--parent-pid",
++                str(os.getpid()),
++            ],
++            stdin=subprocess.PIPE,
++            stdout=subprocess.DEVNULL,
++            stderr=subprocess.DEVNULL,
++        )
++        self.pid = self.process.pid
++
++    def poll(self) -> int | None:
++        return self.process.poll()
++
++    def kill(self) -> None:
++        self.process.kill()
++
++    def wait(self, timeout: float | None = None) -> int:
++        return self.process.wait(timeout=timeout)
++
++    def stop(self) -> None:
++        if self.process.stdin is not None:
++            try:
++                self.process.stdin.write(b"S")
++                self.process.stdin.flush()
++            except BrokenPipeError:
++                pass
++            finally:
++                self.process.stdin.close()
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--enable-demo", action="store_true", required=True)
++    parser.add_argument("--enable-protected-worker-kill", action="store_true", required=True)
++    parser.add_argument("--operation-id", type=UUID, required=True)
++    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
++    parser.add_argument("--owner-id", type=UUID, help=argparse.SUPPRESS)
++    parser.add_argument("--parent-pid", type=int, help=argparse.SUPPRESS)
++    args = parser.parse_args()
++    if args.worker != bool(args.owner_id and args.parent_pid) or (
++        not args.worker and (args.owner_id or args.parent_pid)
++    ):
++        parser.error("Internal owner/parent scope invalid")
++    engine = store = lease = None
++    code = 2
++    report: dict[str, object] = {
++        "protected_worker_check": "BLOCKED_KEEP_PAUSED",
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++    try:
++        require(
++            os.name == "posix"
++            and os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "false"
++            and os.getenv("TRADING_MODE", "PAPER").upper() != "LIVE",
++            "DEMO_CONTEXT_REQUIRED",
++        )
++        if args.worker:
++            require(
++                args.parent_pid == os.getppid() and stat.S_ISFIFO(os.fstat(0).st_mode),
++                "SUPERVISOR_PIPE_REQUIRED",
++            )
++        key = credentials(prompt=False)
++        config = DemoSettings.model_validate(
++            yaml.load(
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++            )
++        ).model_copy(update={"demo_trading_enabled": True})
++        client = ScopedClient(
++            config, key, account=ACCOUNT, operation=args.operation_id, entry_enabled=args.worker
++        )
++        client.sync_clock()
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        store = DemoStore(engine)
++        fresh_start(store.read(ACCOUNT), args.operation_id)
++        if args.worker:
++            lease = store.acquire(ACCOUNT, args.owner_id)
++            coordinator = CappedCoordinator(store, lease, client)
++            coordinator.refresh_metadata()
++            asyncio.run(
++                child_run(
++                    coordinator, args.operation_id, stop=lambda: control_stop(args.parent_pid)
++                )
++            )
++            code = 0
++        else:
++            result = asyncio.run(
++                run(
++                    store, client, args.operation_id, lambda owner: Worker(args.operation_id, owner)
++                )
++            )
++            report = result
++            code = (
++                0
++                if result["protected_worker_check"]
++                == "PROTECTED_CHILD_SIGKILL_FENCED_RECOVERY_FLAT_VERIFIED"
++                else 2
++            )
++    except Exception as error:
++        report["failure"] = (
++            str(error) if isinstance(error, CheckBlocked) else "CHECK_FAILED_DETAILS_REDACTED"
++        )
++    finally:
++        if engine is not None:
++            engine.dispose()
++    if not args.worker:
++        print(json.dumps(report), flush=True)
++    raise SystemExit(code)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/tests/fixtures/demo_protected_execution_child.py
+@@ -0,0 +1,82 @@
++"""Test-only process adapter; actual new child code, fixed loopback transports."""
++
++import asyncio
++import os
++import sys
++from contextlib import asynccontextmanager
++from datetime import UTC, datetime
++from uuid import UUID
++
++from pydantic import SecretStr
++from sqlalchemy import create_engine
++from websockets.asyncio.client import connect
++
++from integrations.binance_usdm.demo import DemoCredentials, DemoSettings
++from integrations.binance_usdm.rest import RESTResponse
++from packages.persistence.demo import DemoStore
++from services.execution.demo_protected_worker_check import (
++    CappedCoordinator,
++    ScopedClient,
++    child_run,
++    control_stop,
++)
++from tests.fixtures.demo_protected_worker import (
++    KEY,
++    SECRET,
++    LoopbackTransport,
++    loopback_endpoint,
++    test_context,
++)
++
++
++class Transport(LoopbackTransport):
++    def __call__(self, method, path, query, api_key):
++        if method == "GET" and path == "/fapi/v1/klines":
++            import json
++
++            start = int(datetime.now(UTC).timestamp()) // 60 * 60000 - 60000
++            return RESTResponse(
++                200,
++                json.dumps(
++                    [[start, "80000", "80100", "79900", "80000", "1", start + 59999]]
++                ).encode(),
++                {},
++            )
++        return super().__call__(method, path, query, api_key)
++
++
++def main():
++    schema, database = test_context()
++    endpoint = loopback_endpoint(os.environ["TEST_PROTECTED_HTTP"], "http")
++    ws = loopback_endpoint(os.environ["TEST_PROTECTED_WS"], "ws")
++    owner, operation = UUID(sys.argv[1]), UUID(sys.argv[2])
++    parent = os.getppid()
++    engine = create_engine(database, connect_args={"options": "-csearch_path=" + schema})
++    store = DemoStore(engine)
++    cfg = DemoSettings.model_validate_json(os.environ["TEST_PROTECTED_CONFIG"])
++    client = ScopedClient(
++        cfg,
++        DemoCredentials(SecretStr(KEY), SecretStr(SECRET)),
++        send=Transport(endpoint),
++        account="DEMO-test",
++        operation=operation,
++        entry_enabled=True,
++    )
++    client.sync_clock()
++    lease = store.acquire("DEMO-test", owner)
++    c = CappedCoordinator(store, lease, client)
++    c.refresh_metadata()
++
++    @asynccontextmanager
++    async def connector(url):
++        async with connect(ws) as socket:
++            yield socket
++
++    try:
++        asyncio.run(child_run(c, operation, stop=lambda: control_stop(parent), connector=connector))
++    finally:
++        engine.dispose()
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/tests/integration/test_demo_protected_execution.py
+@@ -0,0 +1,165 @@
++"""New production supervisor/child: real PG, OS SIGKILL and original natural lease."""
++
++import asyncio
++import json
++import os
++import signal
++import subprocess
++import sys
++from contextlib import asynccontextmanager
++from uuid import uuid4
++
++import pytest
++from pydantic import SecretStr
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo import DemoCredentials
++from services.execution import demo_protected_worker_check as module
++from tests.fixtures.demo_protected_execution_child import Transport
++from tests.fixtures.demo_protected_worker import KEY, SECRET
++from tests.integration.test_demo_protected_worker_sigkill import case  # noqa: F401
++
++
++@pytest.mark.parametrize(
++    "trigger_during_wait,restore_failure", [(False, False), (True, False), (False, True)]
++)
++def test_new_supervisor_real_sigkill_natural_lease_cleanup(
++    case,  # noqa: F811
++    trigger_during_wait,
++    restore_failure,
++    monkeypatch,
++):  # noqa: F811
++    store, config, fake, endpoint, schema = case
++    if restore_failure:
++
++        async def fail_restore(*args, **kwargs):
++            raise module.CheckBlocked("RECOVERY_SESSION_FAILED")
++
++        monkeypatch.setattr(module, "restore", fail_restore)
++    operation = uuid4()
++    transport = Transport(endpoint)
++    key = DemoCredentials(SecretStr(KEY), SecretStr(SECRET))
++    parent = module.ScopedClient(
++        config, key, send=transport, account="DEMO-test", operation=operation, entry_enabled=False
++    )
++    parent.sync_clock()
++    initial_lease = store.acquire("DEMO-test", uuid4())
++    c = module.DemoCoordinator(store, initial_lease, parent)
++    c.refresh_metadata()
++    c.connected()
++    store.release(initial_lease)
++    original = store.read("DEMO-test")
++    children = []
++    connections = []
++
++    async def exercise():
++        async def handler(socket):
++            connections.append(True)
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            ws = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
++            env = {k: v for k, v in os.environ.items() if not k.startswith("BINANCE_")}
++            env.update(
++                TEST_ONLY_PROTECTED_WORKER="1",
++                TEST_PROTECTED_DB_URL=store.engine.url.render_as_string(hide_password=False),
++                TEST_PROTECTED_SCHEMA=schema,
++                TEST_PROTECTED_CONFIG=config.model_dump_json(),
++                TEST_PROTECTED_HTTP=endpoint,
++                TEST_PROTECTED_WS=ws,
++                PYTHONPATH=os.getcwd(),
++            )
++
++            class Worker:
++                def __init__(self, owner):
++                    self.p = subprocess.Popen(
++                        [
++                            sys.executable,
++                            "-m",
++                            "tests.fixtures.demo_protected_execution_child",
++                            str(owner),
++                            str(operation),
++                        ],
++                        env=env,
++                        stdin=subprocess.PIPE,
++                        stdout=subprocess.DEVNULL,
++                        stderr=subprocess.PIPE,
++                    )
++                    self.pid = self.p.pid
++                    children.append(self)
++
++                def poll(self):
++                    return self.p.poll()
++
++                def wait(self, timeout=None):
++                    return self.p.wait(timeout=timeout)
++
++                def kill(self):
++                    self.p.kill()
++                    if trigger_during_wait:
++                        order = store.read("DEMO-test").orders[str(operation)]
++                        fake.trigger(order.tp_algo_id)
++
++                def stop(self):
++                    if self.p.stdin:
++                        try:
++                            self.p.stdin.write(b"S")
++                            self.p.stdin.flush()
++                        except BrokenPipeError:
++                            pass
++                        self.p.stdin.close()
++
++            @asynccontextmanager
++            async def connector(url):
++                async with connect(ws) as socket:
++                    yield socket
++
++            try:
++                return await module.run(
++                    store, parent, operation, Worker, account="DEMO-test", connector=connector
++                )
++            finally:
++                for child in children:
++                    if child.poll() is None:
++                        child.stop()
++                        await asyncio.to_thread(child.wait, 120)
++                    error = child.p.stderr.read()
++                    assert not error, error.decode()
++
++    result = asyncio.run(exercise())
++    assert result["kill_count"] == 1 and result["worker_exit_code"] == -signal.SIGKILL, result
++    assert result["natural_lease_wait_ms"] + 250 >= result["remaining_at_wait_start_ms"] > 0
++    assert result["lease_fence_after"] == result["lease_fence_before"] + 1
++    assert result["flat_confirmation"] == "VERIFIED_FLAT", result
++    assert result["leader_released"] and result["history_and_baselines_preserved"]
++    assert result["parent_entry_post_attempts"] == result["parent_protection_post_attempts"] == 0
++    assert len(connections) == (1 if restore_failure else 2)
++    assert module.history_preserved(original, store.read("DEMO-test"), str(operation))
++    entries = [
++        p
++        for m, path, p in fake.calls
++        if m == "POST" and path == "/fapi/v1/order" and p.get("type") == "LIMIT"
++    ]
++    exits = [
++        p
++        for m, path, p in fake.calls
++        if m == "POST" and path == "/fapi/v1/order" and p.get("reduceOnly") == "true"
++    ]
++    protects = [p for m, path, p in fake.calls if m == "POST" and path == "/fapi/v1/algoOrder"]
++    assert len(entries) == 1 and len(protects) == 2
++    assert len(exits) == (0 if trigger_during_wait else 1)
++    if trigger_during_wait:
++        assert result["protected_worker_check"] == "NOT_ACCEPTED_KEEP_PAUSED"
++        assert not result["protected_continuity_observed"]
++    elif restore_failure:
++        assert result["protected_worker_check"] == "NOT_ACCEPTED_KEEP_PAUSED"
++        assert result["failure"] == "RECOVERY_SESSION_FAILED"
++    else:
++        assert (
++            result["protected_worker_check"]
++            == "PROTECTED_CHILD_SIGKILL_FENCED_RECOVERY_FLAT_VERIFIED"
++        ), result
++        assert result["stale_effect_blocked"] and result["stale_renew_blocked"]
++        assert result["same_ids_reconciled_in_new_session"]
++    print("NEW_PROTECTED_WORKER_RESULT_JSON=" + json.dumps(result), flush=True)
+--- /dev/null
++++ b/tests/integration/test_demo_protected_execution_failures.py
+@@ -0,0 +1,228 @@
++"""Real PG/core execution paths: unfilled/partial/protection failure never armed."""
++
++import asyncio
++import threading
++from contextlib import asynccontextmanager
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from services.execution import demo_protected_worker_check as module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++
++
++@pytest.mark.parametrize(
++    "mode",
++    [
++        "unfilled",
++        "partial",
++        "stop_failure",
++        "parent_lost",
++        "unresolved_exit",
++        "parent_lost_after_partial",
++    ],
++)
++def test_unarmed_child_graceful_cleanup_without_kill_or_second_entry(case, mode):  # noqa: F811
++    store, old, fake, options = case
++    options["fill"] = mode == "stop_failure"
++    options["trigger"] = False
++    if mode == "unresolved_exit":
++        fake.defer_exit = True
++    if mode == "stop_failure":
++        fake.reject_stop = True
++    send = old.client.send
++
++    def transport(method, path, query, key):
++        from urllib.parse import parse_qs
++
++        response = send(method, path, query, key)
++        if (
++            mode in {"partial", "unresolved_exit", "parent_lost_after_partial"}
++            and method == "POST"
++            and path == "/fapi/v1/order"
++        ):
++            p = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++            if p.get("type") == "LIMIT":
++                fake.fill(p["newClientOrderId"], Decimal("0.0003"), Decimal("80000"))
++        return response
++
++    operation = uuid4()
++    store.release(old.lease)
++
++    def make(entry):
++        return module.ScopedClient(
++            old.client.settings,
++            old.client.credentials,
++            send=transport,
++            clock_ms=old.client.clock_ms,
++            account="DEMO-test",
++            operation=operation,
++            entry_enabled=entry,
++        )
++
++    parent = make(False)
++    parent.sync_clock()
++    children = []
++
++    async def exercise():
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            url = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
++
++            @asynccontextmanager
++            async def connector(key):
++                async with connect(url) as socket:
++                    yield socket
++
++            class TaskChild:
++                pid = 0
++
++                def __init__(self, owner):
++                    self.stopped = mode == "parent_lost"
++                    self.exit_code = None
++                    self.done = threading.Event()
++                    self.kill_calls = 0
++                    self.c = None
++
++                    async def start():
++                        lease = store.acquire("DEMO-test", owner)
++                        c = module.CappedCoordinator(store, lease, make(True))
++                        self.c = c
++                        c.client.sync_clock()
++                        c.refresh_metadata()
++                        try:
++                            await module.child_run(
++                                c,
++                                operation,
++                                stop=lambda: (
++                                    self.stopped
++                                    or (
++                                        mode == "parent_lost_after_partial"
++                                        and bool(
++                                            store.read("DEMO-test").orders.get(str(operation))
++                                            and store.read("DEMO-test")
++                                            .orders[str(operation)]
++                                            .filled
++                                        )
++                                    )
++                                ),
++                                connector=connector,
++                                ready_timeout=0.4,
++                                lifetime=2,
++                            )
++                            self.exit_code = 0
++                        except Exception:
++                            self.exit_code = 2
++                        finally:
++                            self.done.set()
++
++                    self.task = asyncio.create_task(start())
++                    children.append(self)
++
++                def poll(self):
++                    return self.exit_code
++
++                def stop(self):
++                    self.stopped = True
++
++                def kill(self):
++                    self.kill_calls += 1
++                    raise AssertionError("Unprotected child must not be killed")
++
++                def wait(self, timeout=None):
++                    assert self.done.wait(timeout)
++                    return self.exit_code
++
++            return await module.run(
++                store,
++                parent,
++                operation,
++                TaskChild,
++                account="DEMO-test",
++                connector=connector,
++                startup_timeout=3,
++            )
++
++    result = asyncio.run(exercise())
++    assert result["protected_worker_check"] == "NOT_ACCEPTED_KEEP_PAUSED", result
++    assert result["kill_count"] == 0 and all(c.kill_calls == 0 for c in children)
++    assert result["leader_released"], result
++    assert store.read("DEMO-test").paused
++    if mode == "unresolved_exit":
++        assert result["flat_confirmation"] == "UNKNOWN" and any(fake.positions.values()), result
++    else:
++        assert result["flat_confirmation"] == "VERIFIED_FLAT" and not any(
++            fake.positions.values()
++        ), result
++    assert len([p for p in posts(fake) if p["type"] == "LIMIT"]) == (
++        0 if mode == "parent_lost" else 1
++    )
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) <= 1
++    assert parent.entry_attempts == 0
++    with pytest.raises(module.CheckBlocked, match="OPERATION_ALREADY_USED"):
++        module.fresh_start(store.read("DEMO-test"), operation)
++
++
++def test_child_exits_before_acquire_no_kill_or_order_and_parent_checks_flat(case):  # noqa: F811
++    store, old, fake, _ = case
++    store.release(old.lease)
++    operation = uuid4()
++    client = module.ScopedClient(
++        old.client.settings,
++        old.client.credentials,
++        send=old.client.send,
++        clock_ms=old.client.clock_ms,
++        account="DEMO-test",
++        operation=operation,
++        entry_enabled=False,
++    )
++    client.sync_clock()
++
++    class ExitedChild:
++        pid = 0
++
++        def poll(self):
++            return 12
++
++        def wait(self, timeout=None):
++            return 12
++
++        def stop(self):
++            pytest.fail("already exited")
++
++        def kill(self):
++            pytest.fail("must not kill")
++
++    async def exercise():
++        async def handler(socket):
++            await socket.wait_closed()
++
++        async with serve(handler, "127.0.0.1", 0) as server:
++            url = f"ws://127.0.0.1:{server.sockets[0].getsockname()[1]}"
++
++            @asynccontextmanager
++            async def connector(key):
++                async with connect(url) as socket:
++                    yield socket
++
++            return await module.run(
++                store,
++                client,
++                operation,
++                lambda owner: ExitedChild(),
++                account="DEMO-test",
++                connector=connector,
++            )
++
++    result = asyncio.run(exercise())
++    assert result["failure"] == "CHILD_EXITED_BEFORE_PROTECTED_READY"
++    assert result["kill_count"] == 0 and result["flat_confirmation"] == "VERIFIED_FLAT"
++    assert not posts(fake) and not store.read("DEMO-test").orders
+--- /dev/null
++++ b/tests/unit/test_demo_protected_execution_scope.py
+@@ -0,0 +1,296 @@
++"""The new harness cannot submit a second entry or mutate unrelated orders."""
++
++from decimal import Decimal
++from uuid import uuid4
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoClient, DemoCredentials
++from scripts import check_demo_protected_worker as cli
++from services.execution import demo_protected_worker_check as module
++from tests.integration.test_demo import settings
++
++
++@pytest.fixture
++def client(monkeypatch):
++    calls = []
++    monkeypatch.setattr(DemoClient, "request", lambda self, m, p, v=None: calls.append((m, p, v)))
++    c = module.ScopedClient(
++        settings(),
++        DemoCredentials(SecretStr("synthetic"), SecretStr("synthetic")),
++        account="DEMO-test",
++        operation=uuid4(),
++        entry_enabled=True,
++    )
++    return c, calls
++
++
++def entry(c):
++    return dict(
++        symbol="BTCUSDT",
++        side="BUY",
++        type="LIMIT",
++        quantity="0.0007",
++        price="80000",
++        newClientOrderId=c.entry_id,
++    )
++
++
++def test_one_entry_is_scoped_and_second_attempt_never_reaches_transport(client):
++    c, calls = client
++    c.request("POST", "/fapi/v1/order", entry(c))
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/order", entry(c))
++    assert len(calls) == 1 and c.entry_attempts == 2
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        dict(symbol="ETHUSDT"),
++        dict(side="SELL"),
++        dict(type="MARKET"),
++        dict(quantity="0.0008"),
++        dict(quantity="0"),
++        dict(quantity="NaN"),
++        dict(price="200000"),
++        dict(price="NaN"),
++        dict(newClientOrderId="foreign"),
++    ],
++)
++def test_bad_entry_stops_before_transport(client, change):
++    c, calls = client
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/order", entry(c) | change)
++    assert not calls
++
++
++def test_parent_client_cannot_submit_entry(client):
++    c, calls = client
++    c.entry_enabled = False
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/order", entry(c))
++    assert not calls
++
++
++def test_first_generation_own_exit_once(client):
++    c, calls = client
++    p = dict(
++        symbol="BTCUSDT",
++        side="SELL",
++        type="MARKET",
++        reduceOnly="true",
++        quantity="0.0007",
++        newClientOrderId="DX-" + c.entry_id[3:],
++    )
++    c.request("POST", "/fapi/v1/order", p)
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/order", p)
++    assert len(calls) == 1
++
++
++@pytest.mark.parametrize("suffix", ["-2", "-3", "foreign"])
++def test_later_or_foreign_exit_id_forbidden(client, suffix):
++    c, calls = client
++    p = dict(
++        symbol="BTCUSDT",
++        side="SELL",
++        type="MARKET",
++        reduceOnly="true",
++        quantity="0.0007",
++        newClientOrderId="DX-" + c.entry_id[3:] + suffix,
++    )
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/order", p)
++    assert not calls
++
++
++@pytest.mark.parametrize(
++    "method,path,params",
++    [
++        ("GET", "/fapi/v1/trade/asyn", {}),
++        ("POST", "/fapi/v1/leverage", {"symbol": "BTCUSDT"}),
++        ("DELETE", "/fapi/v1/order", {"symbol": "BTCUSDT", "origClientOrderId": "foreign"}),
++        ("DELETE", "/fapi/v1/algoOrder", {"clientAlgoId": "foreign"}),
++        (
++            "POST",
++            "/fapi/v1/algoOrder",
++            {
++                "symbol": "BTCUSDT",
++                "side": "SELL",
++                "type": "STOP_MARKET",
++                "closePosition": "true",
++                "clientAlgoId": "foreign",
++            },
++        ),
++    ],
++)
++def test_other_scope_and_export_requests_never_reach_transport(client, method, path, params):
++    c, calls = client
++    with pytest.raises(module.CheckBlocked):
++        c.request(method, path, params)
++    assert not calls
++
++
++def test_parent_cannot_repost_original_protection(client):
++    c, calls = client
++    c.entry_enabled = False
++    p = dict(
++        symbol="BTCUSDT",
++        side="SELL",
++        type="STOP_MARKET",
++        closePosition="true",
++        clientAlgoId="DS-" + c.entry_id[3:],
++    )
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/algoOrder", p)
++    assert not calls
++
++
++@pytest.mark.parametrize("mode", ["parent_lost", "eof", "stop", "idle"])
++def test_control_pipe_parent_loss_is_cooperative_stop(monkeypatch, mode):
++    monkeypatch.setattr(module.os, "getppid", lambda: 1 if mode == "parent_lost" else 123)
++    monkeypatch.setattr(
++        module.select, "select", lambda *args: ([] if mode == "idle" else [0], [], [])
++    )
++    monkeypatch.setattr(module.os, "read", lambda *args: b"" if mode == "eof" else b"S")
++    assert module.control_stop(123) == (mode != "idle")
++
++
++@pytest.mark.parametrize(
++    "args",
++    [
++        [],
++        ["--enable-demo"],
++        ["--enable-demo", "--enable-protected-worker-kill"],
++        [
++            "--enable-demo",
++            "--enable-protected-worker-kill",
++            "--operation-id",
++            str(uuid4()),
++            "--worker",
++        ],
++    ],
++)
++def test_execution_flags_and_internal_scope_required_before_credentials(monkeypatch, args):
++    monkeypatch.setattr("sys.argv", ["check"] + args)
++    monkeypatch.setattr(
++        cli, "credentials", lambda **k: pytest.fail("must reject before credentials")
++    )
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++
++
++def test_live_context_never_reads_key_or_spawns(monkeypatch, capsys):
++    monkeypatch.setattr(
++        "sys.argv",
++        [
++            "check",
++            "--enable-demo",
++            "--enable-protected-worker-kill",
++            "--operation-id",
++            str(uuid4()),
++        ],
++    )
++    monkeypatch.setenv("LIVE_TRADING_ENABLED", "true")
++    monkeypatch.setattr(cli, "credentials", lambda **k: pytest.fail("must not read"))
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2 and "DEMO_CONTEXT_REQUIRED" in capsys.readouterr().out
++
++
++def test_cli_private_failure_is_redacted_and_no_db_started(monkeypatch, capsys):
++    monkeypatch.setattr(
++        "sys.argv",
++        [
++            "check",
++            "--enable-demo",
++            "--enable-protected-worker-kill",
++            "--operation-id",
++            str(uuid4()),
++        ],
++    )
++
++    def fail(**kwargs):
++        assert kwargs == {"prompt": False}
++        raise ValueError("synthetic-secret-do-not-print")
++
++    monkeypatch.setattr(cli, "credentials", fail)
++    monkeypatch.setattr(
++        cli, "create_engine", lambda *a, **k: pytest.fail("no DB before credentials")
++    )
++    with pytest.raises(SystemExit) as error:
++        cli.main()
++    assert error.value.code == 2
++    text = capsys.readouterr().out
++    assert "synthetic-secret" not in text and "DETAILS_REDACTED" in text
++
++
++def test_spawn_passes_only_scope_ids_and_control_pipe_no_new_key_arguments(monkeypatch):
++    captured = []
++
++    class Process:
++        pid = 999
++        stdin = None
++
++        def poll(self):
++            return None
++
++    def spawn(args, **kwargs):
++        captured.append((args, kwargs))
++        return Process()
++
++    monkeypatch.setattr(cli.subprocess, "Popen", spawn)
++    operation, owner = uuid4(), uuid4()
++    worker = cli.Worker(operation, owner)
++    assert worker.pid == 999
++    args, kwargs = captured[0]
++    assert str(operation) in args and str(owner) in args
++    assert "--enable-protected-worker-kill" in args and "--worker" in args
++    assert kwargs == {
++        "stdin": cli.subprocess.PIPE,
++        "stdout": cli.subprocess.DEVNULL,
++        "stderr": cli.subprocess.DEVNULL,
++    }
++    assert not any("SECRET" in str(a) or "API_KEY" in str(a) for a in args)
++
++
++def test_child_protection_cannot_be_reposted(client):
++    c, calls = client
++    p = dict(
++        symbol="BTCUSDT",
++        side="SELL",
++        type="STOP_MARKET",
++        closePosition="true",
++        clientAlgoId="DS-" + c.entry_id[3:],
++    )
++    c.request("POST", "/fapi/v1/algoOrder", p)
++    with pytest.raises(module.CheckBlocked):
++        c.request("POST", "/fapi/v1/algoOrder", p)
++    assert len(calls) == 1
++
++
++@pytest.mark.parametrize(
++    "changes,cap,style",
++    [
++        ({}, None, "OPPOSITE_QUOTE"),
++        ({}, Decimal("0.0008"), "OPPOSITE_QUOTE"),
++        ({}, Decimal("0.0007"), "PASSIVE"),
++        ({"symbol": "ETHUSDT"}, Decimal("0.0007"), "OPPOSITE_QUOTE"),
++        ({"direction": "SHORT"}, Decimal("0.0007"), "OPPOSITE_QUOTE"),
++    ],
++)
++def test_coordinator_invalid_reservation_stops_before_store_or_request(client, changes, cap, style):
++    from tests.integration.test_paper import signal, snapshot
++
++    c, calls = client
++    coordinator = object.__new__(module.CappedCoordinator)
++    coordinator.client = c
++    sig = signal(environment="DEMO", purpose="DEMO_VALIDATION", strategy=None).model_copy(
++        update=changes
++    )
++    with pytest.raises(module.CheckBlocked):
++        coordinator.reserve(sig, snapshot(), quantity_cap=cap, entry_style=style)
++    assert not calls
+--- /dev/null
++++ b/RUN-ONE-PROTECTED-WORKER.cmd
+@@ -0,0 +1,21 @@
++@echo off
++setlocal
++cd /d "%~dp0"
++if exist protected-worker-result.log (
++  echo BLOCKED: prior execution log exists. Do not repeat this operation.
++  exit /b 2
++)
++echo This command runs the approved ONE capped DEMO LIMIT entry and ONE protected child kill.
++echo Quantity cap 0.0007 BTC; notional cap 100 USDT. Keep this window and Docker running.
++powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $m=Get-Content -Raw 'TRANSFER_MANIFEST.json' | ConvertFrom-Json; foreach($p in $m.files.PSObject.Properties){if((Get-FileHash -Algorithm SHA256 -LiteralPath $p.Name).Hash.ToLower() -ne $p.Value){throw 'SOURCE_HASH_MISMATCH'}}; Write-Output 'TRANSFER_FILES_VERIFIED'"
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
++if errorlevel 1 exit /b 2
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --no-deps --wait api
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -c "import hashlib; from pathlib import Path; expected={'scripts/check_demo_protected_worker.py': 'b06813e8ffe64e4ad5a89700d5610e612a9cc1eb44b3b3396f397c5e7abf58ee', 'services/execution/demo_protected_worker_check.py': '0e7027450669a7b4ef5467a5b6e6eb21ddfca0a2430d68ac25025076e31c0b79', 'services/execution/demo.py': 'deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab', 'services/execution/demo_stream.py': '409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456', 'services/execution/demo_validation.py': 'd703860caf01135b3f5e82a444adc5afde1795e1f4d48bbd515cc4b9de5666a0', 'services/execution/demo_flat_transport.py': '93f878c9869ad397a52546f0aa976bbe8071366eff36c7d0be6b1329df757401', 'packages/persistence/demo.py': '40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a'}; assert all(hashlib.sha256(Path(n).read_bytes()).hexdigest()==h for n,h in expected.items()), 'SOURCE_HASH_MISMATCH'; print('PROTECTED_WORKER_RUNTIME_SOURCE_VERIFIED')"
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
++if errorlevel 1 exit /b 2
++powershell -NoProfile -Command "& docker exec hybrid-windows-api-1 python -m scripts.check_demo_protected_worker --enable-demo --enable-protected-worker-kill --operation-id 5bb5814c-55e0-4b7f-882c-a7a449ec2182 | Tee-Object -FilePath 'protected-worker-result.log'; exit $LASTEXITCODE"
++exit /b %errorlevel%
+--- /dev/null
++++ b/PROTECTED_WORKER_PLAN.json
+@@ -0,0 +1,107 @@
++{
++  "status": "IMPLEMENTED_WINDOWS_EXECUTION_PENDING",
++  "phase": 4,
++  "environment": "DEMO",
++  "operation_id": "5bb5814c-55e0-4b7f-882c-a7a449ec2182",
++  "purpose": "PROTECTED_EXECUTION_CHILD_SIGKILL_AND_NATURAL_LEASE_TAKEOVER",
++  "entry": {
++    "symbol": "BTCUSDT",
++    "margin_mode": "ISOLATED",
++    "leverage": 2,
++    "direction": "LONG",
++    "type": "LIMIT",
++    "style": "OPPOSITE_QUOTE",
++    "maximum_entry_post_attempts": 1,
++    "maximum_quantity_btc": "0.0007",
++    "maximum_notional_usdt": "100",
++    "stop_distance_pct": "0.5",
++    "target_distance_pct": "1",
++    "price_source": "FRESH_RUNTIME_QUOTE_ONLY",
++    "unfilled_action": "CANCEL_CONFIRM_FLAT_SKIP_FAULT_NO_RETRY"
++  },
++  "injection": {
++    "target": "ONLY_NEWLY_SPAWNED_EXECUTION_CHILD",
++    "signal": "SIGKILL",
++    "maximum_count": 1,
++    "preconditions": [
++      "Exact owned order full fill",
++      "No remaining entry quantity",
++      "Signed current position matches owned fill",
++      "Signed original SL and TP correct/NEW/closePosition",
++      "Persisted protection evidence and paused entries",
++      "Same worker owner/fence still valid",
++      "Independent parent supervisor already running"
++    ],
++    "excluded_targets": [
++      "DB",
++      "API",
++      "web",
++      "key-session",
++      "alerts",
++      "Docker daemon",
++      "host"
++    ],
++    "natural_lease_seconds": 60,
++    "lease_sql_changes_allowed": false,
++    "clock_changes_allowed": false
++  },
++  "recovery": {
++    "wait": "Original lease_until natural expiry; no shortening or forced release",
++    "pre_expiry_takeover": "Must be rejected",
++    "after_expiry_fence": "Must advance",
++    "stale_owner": "Renew/effect rejected before network side effect",
++    "new_leader": "Starts unreconciled/stream not ready; new entry blocked",
++    "identity": "Reconcile/adopt same entry and original protection IDs",
++    "resubmission": "No duplicate entry POST",
++    "trigger_during_wait": "Record actual trigger/position changes; do not claim unchanged protected handoff",
++    "cleanup": "Original fenced policy; at most one new reduce-only exit intent if needed; repeated GET confirmation only",
++    "final": "Signed VERIFIED_FLAT and entries paused",
++    "emergency": "Preserve if entered; never automatically acknowledge/unlock"
++  },
++  "implementation_gates": [
++    "Separate DEMO-scoped client/CLI; do not repurpose test fixture or relax loopback guard",
++    "External-venue-like synthetic contract tests including trigger during lease wait, child early death, parent cleanup failure and stale fencing",
++    "Independent supervisor survives injected child death and retains bounded recovery-only path",
++    "Normal and all injected-failure paths prove no second entry submission",
++    "Explicit execution enable flags and operation UUID; no automatic execution from this plan"
++  ],
++  "current_implementation": "Separate ScopedClient/CappedCoordinator, protected child, cooperative parent pipe and independent natural-lease supervisor; explicit CLI flags required.",
++  "prior_scope": "The previous approved opposite-quote TP operation was one entry only and is closed. This proposes a new entry plus an intentionally terminated execution child.",
++  "latest_deployed_parent": "3853dde672521a411e5c3377b62bdd21e2d27630",
++  "current_worker_evidence": {
++    "source": "USER_WINDOWS_SCREENSHOT",
++    "worker_container": "running/healthy",
++    "observation_seconds": 3,
++    "heartbeat_advancing": true,
++    "first_heartbeat_age_ms": 200,
++    "last_heartbeat_age_ms": 193,
++    "worker_email_state": "CONFIGURED_PRIVATE_RAM",
++    "worker_api_config_consistent": true,
++    "critical_pending": 0,
++    "test_pending": 0,
++    "delivery_readiness_verified": false,
++    "smtp_authentication_checked": false,
++    "inbox_checked": false,
++    "new_mail_created": false
++  },
++  "latest_regression_sources": {
++    "tests/integration/test_demo_protected_worker_sigkill.py": "83d76a50390b4195a3f34e3e77d355b8c930575edfac7328fbd9ef9a0ef9e2ee",
++    "tests/fixtures/demo_protected_worker.py": "829d634b1242a6d7bad354ff56c00c906e9d53b07f60fe9b6824fc94f9459e88",
++    "tests/unit/test_demo_protected_worker_scope.py": "53c682d8fbe1ea52b00450c51b21a0a164c8ce009d1736f8dce5130fefd7b89e"
++  },
++  "orders_executed_during_preparation": 0,
++  "live_trading_enabled": false,
++  "main_merge": false,
++  "phase4_overall_accepted": false,
++  "execution_scope_authorized_in_conversation": true,
++  "runtime_source_hashes": {
++    "scripts/check_demo_protected_worker.py": "b06813e8ffe64e4ad5a89700d5610e612a9cc1eb44b3b3396f397c5e7abf58ee",
++    "services/execution/demo_protected_worker_check.py": "0e7027450669a7b4ef5467a5b6e6eb21ddfca0a2430d68ac25025076e31c0b79",
++    "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
++    "services/execution/demo_stream.py": "409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456",
++    "services/execution/demo_validation.py": "d703860caf01135b3f5e82a444adc5afde1795e1f4d48bbd515cc4b9de5666a0",
++    "services/execution/demo_flat_transport.py": "93f878c9869ad397a52546f0aa976bbe8071366eff36c7d0be6b1329df757401",
++    "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a"
++  },
++  "validation_scope": "Synthetic venue, local WS, real OS child and PostgreSQL; actual Windows DEMO result pending."
++}
+--- /dev/null
++++ b/PROTECTED_WORKER_KO.md
+@@ -0,0 +1,27 @@
++# 승인된 단일 DEMO 보호 worker 종료·복구 검증
++
++사용자는 phase4-protected-worker-plan-20261105의 새 DEMO 진입과 보호된 실행 자식 프로세스 종료1회 범위에 대해 "다음단계 진행해"로 진행을 지시했다. 이 패키지는 해당 범위의 전용 구현과 검증을 담는다. 아직 Windows 실제 계정 실행 결과는 없다.
++
++ZIP을 새 폴더에 풀고 RUN-ONE-PROTECTED-WORKER.cmd가 있는 위치에서 CMD로 실행한다.
++
++```bat
++RUN-ONE-PROTECTED-WORKER.cmd
++```
++
++이 명령은 실제 DEMO 지정가 진입을 최대1회 시도한다. BTCUSDT ISOLATED2배 LONG, OPPOSITE_QUOTE LIMIT, 수량 상한0.0007 BTC/명목100 USDT, 기존 손절0.5%/목표1%를 유지한다. 가격은 실행 시점의 신선한 실제 호가로 계산하며 가격 추격·시장가 신규 진입·한도 증가는 없다. 이전 TP 작업의 반복이 아닌 새 작업ID 5bb5814c-55e0-4b7f-882c-a7a449ec2182를 사용한다.
++
++전체 파일 SHA256과 기존 NORMAL/paused·기준일 일치·원격 빈 계정 준비 상태를 확인하고 api만 빌드/갱신한다. 이후 critical runtime 소스 해시와 준비 상태를 다시 확인한 뒤 실행한다. DB/web/alerts/key-session은 갱신/정지하지 않는다. RAM 키나 메일 설정을 지우거나 다시 입력하지 않으며 의존성/잠금 파일/위험 정책/마이그레이션도 변경하지 않는다.
++
++전량 체결·잔량0·원격 수량 일치·원래 SL/TP의 서명된 NEW/closePosition 확인·일시정지·유효 소유권이 확인된 때에만 이 명령이 만든 실행 자식 프로세스 하나를 SIGKILL1회 한다. API 서버나 알림 작업자를 종료하지 않는다. 미체결·부분체결·보호 실패이면 강제 종료를 하지 않고 기존 취소/보호/정리 절차를 수행한다. 감독 부모가 종료되거나 제어 파이프가 끊어지면 살아 있는 자식은 정상 정리를 시작한다.
++
++감독 프로세스는 계속 실행하며 기존60초 리스의 자연 만료와 보호 상태를 관찰한다. lease_until 강제 변경·시계 전진·리스 단축은 없다. 자연 만료 후 새 fence와 오래된 소유자의 부작용/renew 거부, 재대조 전 진입 차단, 새 실제 private 세션에서 동일 진입/보호ID 인계를 확인한다. 신규 진입은 자식에서1회로 제한하고, 부모는 진입과 보호 POST를 금지한다. 취소/정리도 이번 주문의 ID로 한정한다.
++
++대기 중 TP/SL이 실제 발동하거나 조회가 실패하면 보호 연속성 성공으로 판정하지 않지만 인계와 정리 경로는 계속 시도한다. 필요한 경우 원래 fenced 정책으로 첫 세대 reduce-only 종료 POST를 최대1회 허용하고 이후에는 재전송 없이 GET으로 flat을 확인한다. 이전 요청/주문/기준금/정책은 보존하고 고점은 낮추지 않는다. 실행 중 실제 위험 상태 전환에 따른 기존 경고 알림이 정상적으로 생성될 수 있다. 별도 TEST 알림이나 수동 메일 발송은 하지 않는다.
++
++빌드와 자연 대기·복구에는 몇 분이 필요할 수 있다. CMD 창과 Docker를 유지하고 다른 거래/복구 명령은 동시에 실행하지 않는다. 진행 표식이 화면에 나오며 결과는 protected-worker-result.log에 저장된다. 로그가 있으면 재실행을 차단하고 원장에 같은 작업의 시작/주문이 있어도 새 진입을 거부한다. 로그를 삭제해 재시도하지 않는다.
++
++성공은 PROTECTED_CHILD_SIGKILL_FENCED_RECOVERY_FLAT_VERIFIED다. forced_kill_verified, 동일ID 새 세션 인계, stale fence 차단, VERIFIED_FLAT과 leader_released를 함께 확인한다. 성공해도 안전 종료에 따른 EMERGENCY/paused는 유지할 수 있으며 자동 NORMAL 복구/거래 재개는 없다.
++
++NOT_ACCEPTED_KEEP_PAUSED 또는 BLOCKED_KEEP_PAUSED이면 로그를 그대로 공유한다. flat_confirmation이 UNKNOWN이면 종료가 확인되지 않은 것이다. 같은 명령을 반복하거나 잠금을 해제하지 않는다. 원래 코디네이터가 예외적인 잔여 노출에 대해 추가 세대 종료를 기록하더라도 이 도구는 추가 세대 POST를 거부하고 미확정 상태를 보존한다. 기존 자식이 준비 전에 종료했거나 보호 상태가 바뀐 경우도 정상 인계 수락과 구분한다.
++
++이 범위는 보호 완료 후 실행 자식 하나의 종료다. DB/API/호스트 동시 장애, 전송 도중 자발적인 프로세스 충돌 등 모든 장애 지점을 포괄하지 않는다. 실제 TP 발동 후 원래 SL 정리·수정 후 실제 부분체결 보호·Phase4 전체 수락·Phase5·LIVE·main 병합은 별도이며 이번 결과로 대체하지 않는다.
+--- /dev/null
++++ b/PROTECTED_WORKER_VALIDATION.md
+@@ -0,0 +1,17 @@
++# Validation —2026-11-05
++
++Parent deployed artifact: windows-demo-alert-visibility-20261105 commit3853dde672521a411e5c3377b62bdd21e2d27630. Existing application/config/dependency/migration files are byte-for-byte unchanged. Added dedicated runtime module/CLI and tests only; no loopback test guard was relaxed.
++
++Final runtime Ruff/format and strict mypy for both runtime files passed. New tests retain safety assertions. Initial test-fixture wiring and a validation-signal fixture were corrected without weakening any original test or production gate. Reuse rejection is checked before state readiness so an already used operation is reported consistently even when its prior cleanup left EMERGENCY.
++
++Testing was performed in separate runs:
++
++-41 passed in196.97s:32 initial scope/CLI tests,6 failure-path cases and3 real-process scenarios on the final runtime sources. OS tests include real child SIGKILL, original natural60s lease and real PostgreSQL plus synthetic HTTP/local WS. Scenarios: protected steady handoff; TP triggers during natural wait (not accepted, flat cleanup); recovery session failure (not accepted, flat cleanup).
++-96 passed in45.30s: final expanded38 new scope/CLI tests,7 new failure-path cases, and51 existing scope/TP/opposite-quote/worker-drain regressions. The failure cases include unfilled, partial, stop failure, parent lost before entry, parent lost after partial fill, unresolved reduce-only exit and early child exit before acquire.
++-The union contains99 unique passing tests, including48 new cases. This is a focused test result across runs, not a monolithic full-repository test result.
++
++Assertions prove no kill before full protected readiness, child cooperative cleanup, no second entry transmission, first-generation reduce-only transmission at most once per role, with core durable intents preventing re-sending a pending first exit across roles; later-generation transmissions denied, no parent entry/protection POST, original owned IDs only, real -9/no finally marker for the protected kill, natural wait not shortened, advancing fence, stale effects blocked before callback, same-ID revalidation in a second local private session, and original history/baselines preserved. An unresolved exit stays UNKNOWN/paused and is not represented as flat. No actual exchange or recipient was contacted: credentials and execution were synthetic, SMTP was not invoked.
++
++The two earlier development OS scenarios additionally printed: steady natural wait59654ms versus59652ms remaining,30 protection probes, synthetic fence2→3, entry1/protection2/parent exit1, final flat; trigger-during-wait59683ms versus59682ms remaining,30 probes, fence2→3, no parent exit and final flat, with continuity false/not accepted. These are development observations, not Windows timings or a latency SLA.
++
++Windows build, private-key session use, authenticated DEMO fill/protection and actual child-kill recovery remain pending execution of the packaged CMD. Existing12h credentials are reused without extension. The package does not claim that a fill, protection trigger, SMTP delivery or Phase4 overall acceptance has already occurred.
