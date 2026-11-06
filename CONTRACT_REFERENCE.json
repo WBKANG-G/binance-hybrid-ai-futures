@@ -1,0 +1,26 @@
+{
+  "retrieved_date_kst": "2026-11-07",
+  "primary_docs_fetch": "403 Forbidden in this environment; no live documentation claim",
+  "current_official_sdk": {
+    "repository": "binance/binance-connector-python",
+    "commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+    "account_source": "clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+    "account_sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39",
+    "enum_source": "clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/models/enums.py",
+    "enum_sha256": "32bebab1550064e3ec2117f41d68d93194022e972c54a58554387b9a3d0ac660",
+    "confirmed": [
+      "GET /fapi/v1/income",
+      "optional income_type includes TRANSFER and WELCOME_BONUS",
+      "start/end inclusive",
+      "IP weight30 documented",
+      "current method does not expose page; endpoint page semantics not inferred"
+    ],
+    "server_demo_support_verified": false
+  },
+  "deprecated_official_sdk": {
+    "repository": "binance/binance-futures-connector-python",
+    "commit": "a6bfbbf10fe2c1b4eb76fc24ffb82eb94bf9df89",
+    "sha256": "a2b143a57a68584fdb73facac49136617907f09382e1a59f8f88c92f62d824d2",
+    "notes": "Legacy source exposed page; repository is explicitly deprecated."
+  }
+}

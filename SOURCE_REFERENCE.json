@@ -1,0 +1,13 @@
+{
+  "deployed_reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "prior_income_budget_candidate": "167550b",
+  "actual_filter_review_artifact": "5f7af41915fab73bdbf703c11de3e21e3b6ca8a7",
+  "runtime_source_changed": false,
+  "candidate_wired_into_runtime": false,
+  "comparison_source_hashes": {
+    "integrations/binance_usdm/demo_snapshot.py": "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a",
+    "tests/fixtures/demo.py": "6f2e606aef0a4efe3330620f3fe0ba2e5923d0d7baab0589df06e9b8690114eb",
+    "tests/integration/test_demo.py": "26ca4551fe665de2afcb98758cdef56adada25614040aee107797e8f9ce9274b"
+  },
+  "actual_evidence": "Previously supplied Windows screenshots: 12 income rows, no TRANSFER/WELCOME_BONUS observed in bounded24h; not re-queried by this cloud review"
+}

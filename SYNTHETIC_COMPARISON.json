@@ -1,0 +1,114 @@
+{
+  "synthetic_only": true,
+  "runtime_deployed": false,
+  "runtime_switch_approved": false,
+  "actual_exchange_requests": 0,
+  "database_writes": 0,
+  "order_writes": 0,
+  "weight30_is_endpoint_model_not_lifecycle_budget": true,
+  "cases": [
+    {
+      "case": "fee_history_12",
+      "synthetic_rows": 12,
+      "reference_targets": 0,
+      "legacy_page_model_complete": true,
+      "legacy_page_model_requests": 1,
+      "strategies": {
+        "adaptive_filtered": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 1,
+          "income_weight30_model": 30,
+          "target_map_equal": true
+        },
+        "unfiltered_split": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 1,
+          "income_weight30_model": 30,
+          "target_map_equal": true
+        }
+      }
+    },
+    {
+      "case": "fee_history_1001",
+      "synthetic_rows": 1003,
+      "reference_targets": 2,
+      "legacy_page_model_complete": true,
+      "legacy_page_model_requests": 2,
+      "strategies": {
+        "adaptive_filtered": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 3,
+          "income_weight30_model": 90,
+          "target_map_equal": true
+        },
+        "unfiltered_split": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 3,
+          "income_weight30_model": 90,
+          "target_map_equal": true
+        }
+      }
+    },
+    {
+      "case": "fee_history_9001",
+      "synthetic_rows": 9003,
+      "reference_targets": 2,
+      "legacy_page_model_complete": true,
+      "legacy_page_model_requests": 10,
+      "strategies": {
+        "adaptive_filtered": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 3,
+          "income_weight30_model": 90,
+          "target_map_equal": true
+        },
+        "unfiltered_split": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 31,
+          "income_weight30_model": 930,
+          "target_map_equal": true
+        }
+      }
+    },
+    {
+      "case": "dense_target_history",
+      "synthetic_rows": 2501,
+      "reference_targets": 2501,
+      "legacy_page_model_complete": true,
+      "legacy_page_model_requests": 3,
+      "strategies": {
+        "adaptive_filtered": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 9,
+          "income_weight30_model": 270,
+          "target_map_equal": true
+        },
+        "unfiltered_split": {
+          "status": "COMPLETE_UNDER_SYNTHETIC_READER_CONTRACT",
+          "requests": 7,
+          "income_weight30_model": 210,
+          "target_map_equal": true
+        }
+      }
+    },
+    {
+      "case": "1000_targets_same_millisecond",
+      "synthetic_rows": 1000,
+      "reference_targets": 1000,
+      "legacy_page_model_complete": true,
+      "legacy_page_model_requests": 2,
+      "strategies": {
+        "adaptive_filtered": {
+          "status": "BLOCKED_NO_PARTIAL_RESULT",
+          "reason": "DENSE_MILLISECOND_UNRESOLVED",
+          "requests": 2
+        },
+        "unfiltered_split": {
+          "status": "BLOCKED_NO_PARTIAL_RESULT",
+          "reason": "DENSE_MILLISECOND_UNRESOLVED",
+          "requests": 1
+        }
+      }
+    }
+  ]
+}
