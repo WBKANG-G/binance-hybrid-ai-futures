@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "PositionState": {
+      "enum": [
+        "FLAT",
+        "ENTRY_PENDING",
+        "PARTIALLY_OPEN",
+        "OPEN_UNPROTECTED",
+        "PROTECTED",
+        "EXIT_PENDING",
+        "CLOSED"
+      ],
+      "title": "PositionState",
+      "type": "string"
+    },
+    "RiskState": {
+      "enum": [
+        "NORMAL",
+        "COOLDOWN",
+        "DAILY_LOCK",
+        "WEEKLY_LOCK",
+        "DRAWDOWN_LOCK",
+        "UNHEALTHY",
+        "EMERGENCY"
+      ],
+      "title": "RiskState",
+      "type": "string"
+    },
+    "TradingMode": {
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "TradingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "position_id": {
+      "format": "uuid",
+      "title": "Position Id",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/TradingMode"
+    },
+    "account_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "symbol": {
+      "pattern": "^[A-Z0-9]{5,30}$",
+      "title": "Symbol",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "LONG",
+        "SHORT"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "ge": 0,
+      "title": "Quantity"
+    },
+    "average_entry_price": {
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "gt": 0
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Average Entry Price"
+    },
+    "state": {
+      "$ref": "#/$defs/PositionState",
+      "default": "OPEN_UNPROTECTED"
+    },
+    "risk_state": {
+      "$ref": "#/$defs/RiskState",
+      "default": "UNHEALTHY"
+    },
+    "reconciliation_required": {
+      "default": true,
+      "title": "Reconciliation Required",
+      "type": "boolean"
+    },
+    "protection_failure": {
+      "default": false,
+      "title": "Protection Failure",
+      "type": "boolean"
+    },
+    "emergency": {
+      "default": false,
+      "title": "Emergency",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "position_id",
+    "environment",
+    "account_id",
+    "symbol",
+    "side",
+    "quantity"
+  ],
+  "title": "Position",
+  "type": "object"
+}

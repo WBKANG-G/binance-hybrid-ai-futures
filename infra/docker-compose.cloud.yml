@@ -1,0 +1,17 @@
+# Optional Codex cloud build networking and trusted CA injection. No credentials are copied.
+services:
+  api:
+    build:
+      network: host
+      extra_hosts: ["${CLOUD_PROXY_HOST:?}:${CLOUD_PROXY_IP:?}"]
+      args: [HTTP_PROXY, HTTPS_PROXY, NO_PROXY]
+      secrets: [cloud_ca]
+  web:
+    build:
+      network: host
+      extra_hosts: ["${CLOUD_PROXY_HOST:?}:${CLOUD_PROXY_IP:?}"]
+      args: [HTTP_PROXY, HTTPS_PROXY, NO_PROXY]
+      secrets: [cloud_ca]
+secrets:
+  cloud_ca:
+    file: ${SSL_CERT_FILE:?The cloud-provided public CA bundle path is required}
