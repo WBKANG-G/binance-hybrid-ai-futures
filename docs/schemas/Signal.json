@@ -1,0 +1,135 @@
+{
+  "$defs": {
+    "TradingMode": {
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "TradingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "signal_id": {
+      "format": "uuid",
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/TradingMode"
+    },
+    "symbol": {
+      "pattern": "^[A-Z0-9]{5,30}$",
+      "title": "Symbol",
+      "type": "string"
+    },
+    "strategy": {
+      "anyOf": [
+        {
+          "enum": [
+            "TREND_FOLLOWING",
+            "BREAKOUT"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Strategy"
+    },
+    "purpose": {
+      "default": "STRATEGY",
+      "enum": [
+        "STRATEGY",
+        "DEMO_VALIDATION"
+      ],
+      "title": "Purpose",
+      "type": "string"
+    },
+    "direction": {
+      "enum": [
+        "LONG",
+        "SHORT"
+      ],
+      "title": "Direction",
+      "type": "string"
+    },
+    "signal_closed_candle_at": {
+      "format": "date-time",
+      "title": "Signal Closed Candle At",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "entry_policy": {
+      "const": "LIMIT_ONLY",
+      "default": "LIMIT_ONLY",
+      "title": "Entry Policy",
+      "type": "string"
+    },
+    "suggested_limit_price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Suggested Limit Price"
+    },
+    "initial_stop_price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Initial Stop Price"
+    },
+    "target_price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Target Price"
+    },
+    "risk_profile_version": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Risk Profile Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "signal_id",
+    "environment",
+    "symbol",
+    "strategy",
+    "direction",
+    "signal_closed_candle_at",
+    "expires_at",
+    "suggested_limit_price",
+    "initial_stop_price",
+    "target_price",
+    "risk_profile_version"
+  ],
+  "title": "Signal",
+  "type": "object"
+}
