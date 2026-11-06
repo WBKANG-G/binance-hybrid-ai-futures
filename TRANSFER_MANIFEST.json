@@ -1,0 +1,15 @@
+{
+  "purpose": "Correct sell commission transcription, calculate verified net PnL, preserve strict signed-proof adoption and precise stage diagnostics",
+  "supersedes_artifact_commit": "46978e42126fa4c251938361cceffe8f74d6abb7",
+  "installed_runtime_unchanged_commit": "acdb14ac412b1fe9c28fedade0a05cf07c243735",
+  "tests": "47 passed in 8.66s; real local PostgreSQL and synthetic venue; Ruff pass; Windows adoption pending",
+  "files": {
+    "adopt_manual_close.py": "d4e999e7d888260762c3fe9a45083e3d91c3127408ec76b561baa695968595f6",
+    "test_manual_adoption.py": "52410b7426fed4b434d56a3ac35b09139d624abc38a992e358a5b6410717a95f",
+    "INCIDENT_REFERENCE.json": "47c8f439dfde50a7ab4f8ea675f78e9e749bffb1b5664a0b7574b4d3abbbaa56",
+    "VENUE_TRADES.json": "996db7356aebe98085d27d6fc2be7c3521064f06324189a70cb2ede6baccbee6",
+    "README_KO.md": "32fc0abd0195f60669963f31938893dfc45a7e977ac3ec0617d46d92e2d3e0da",
+    "VALIDATION.md": "7bf9fbe32181250a280216d89d2796addeb10023a25878d4b9929b67902af425",
+    "RUN_COMMAND.txt": "80cefcc3a2c6c18268b3ac8da456affb532d7a63087cf8fdd422a484121d41a7"
+  }
+}

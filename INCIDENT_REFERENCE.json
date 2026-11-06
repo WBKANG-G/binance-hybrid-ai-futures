@@ -1,0 +1,16 @@
+{
+  "source": "User-supplied signed userTrades and closing order screenshots, 2026-11-06",
+  "incident": "041d1f35-870e-46cb-aad2-ed6059bc1095",
+  "entry_order_id": "28668115919",
+  "closing_order_id": "28668119491",
+  "symbol": "BTCUSDT",
+  "quantity": "0.0007",
+  "closing_type": "MARKET",
+  "closing_status": "FILLED",
+  "closing_reduce_only": true,
+  "net_usdt": "-0.07032487",
+  "trades": [
+    {"id": "554837511", "order_id": "28668115919", "side": "BUY", "price": "75725.10", "realized_pnl": "0", "commission": "0.02120302", "time": 1793947690123},
+    {"id": "554838531", "order_id": "28668119491", "side": "SELL", "price": "75685.20", "realized_pnl": "-0.02793000", "commission": "0.02119185", "time": 1793947973987}
+  ]
+}

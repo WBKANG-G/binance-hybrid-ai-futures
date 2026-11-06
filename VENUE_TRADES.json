@@ -1,0 +1,28 @@
+[
+  {
+    "symbol": "BTCUSDT",
+    "id": 554837511,
+    "orderId": 28668115919,
+    "side": "BUY",
+    "positionSide": "BOTH",
+    "qty": "0.0007",
+    "price": "75725.10",
+    "realizedPnl": "0",
+    "commission": "0.02120302",
+    "commissionAsset": "USDT",
+    "time": 1793947690123
+  },
+  {
+    "symbol": "BTCUSDT",
+    "id": 554838531,
+    "orderId": 28668119491,
+    "side": "SELL",
+    "positionSide": "BOTH",
+    "qty": "0.0007",
+    "price": "75685.20",
+    "realizedPnl": "-0.02793000",
+    "commission": "0.02119185",
+    "commissionAsset": "USDT",
+    "time": 1793947973987
+  }
+]

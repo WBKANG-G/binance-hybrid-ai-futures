@@ -1,0 +1,1 @@
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; if((Get-FileHash -Algorithm SHA256 -LiteralPath 'adopt_manual_close.py').Hash.ToLower() -ne 'd4e999e7d888260762c3fe9a45083e3d91c3127408ec76b561baa695968595f6'){throw 'MANUAL_CLOSE_HELPER_HASH_MISMATCH'}" && docker exec -i hybrid-windows-api-1 python - --apply < adopt_manual_close.py
