@@ -1,0 +1,14 @@
+{
+  "tests": 42,
+  "failures": 0,
+  "errors": 0,
+  "seconds": "8.300",
+  "ruff": "passed",
+  "database": "isolated synthetic PostgreSQL only",
+  "exchange_access": "synthetic responses only; no real exchange calls",
+  "runtime_reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "source_pins_verified": 29,
+  "guard_ast_comparisons": "passed",
+  "operator_actual_preview": "not yet run",
+  "baseline_applied": false
+}

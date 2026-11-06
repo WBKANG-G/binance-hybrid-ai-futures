@@ -1,0 +1,12 @@
+{
+  "purpose": "READ_ONLY_OPERATOR_ATTESTED_MANUAL_CLOSE_DAY_PREVIEW_NO_APPLY",
+  "files": {
+    "README_KO.md": "87be047a4de20605a673e04a11acf07e7ded3c88df7432f2d681f66ce8c2f55b",
+    "RUN_COMMAND.txt": "ed76ee98da12a72bbc1fb3b860d726d610e5b5ee344b219119aba15677b46ef9",
+    "SOURCE_REFERENCE.json": "adfb5248322a7fc25bb7d9c724bc72bae08710dc7801cdcc3c172b23e96ad500",
+    "VALIDATION.json": "03139bb83673e20d36518aa7680febcaeb26aef06a323316bcc69d5b7b57dad2",
+    "preview_manual_close_day.py": "60831226a621d7445b11638c8d3adb5a120b62e05ce1dc3bd90ba72ace3a976b",
+    "test-results/pytest-day-preview.xml": "6d3955bcfbab5fd4803f95187d17320ec1a65e731165e17003caf755d6919041",
+    "test_manual_close_day_preview.py": "557c220b545a3473f361cf01fdc866bb9e4625fe8e4c60e2d6ef81d96e6f3efe"
+  }
+}
