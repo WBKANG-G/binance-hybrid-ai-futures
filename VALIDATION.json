@@ -1,0 +1,29 @@
+{
+  "date_kst": "2026-11-07",
+  "passed": 51,
+  "failed": 0,
+  "seconds": 11.3,
+  "scope": "Isolated PostgreSQL; synthetic HTTP/clock/income; no actual venue or keys",
+  "actual_windows_run": false,
+  "actual_demo_filter_support_verified": false,
+  "runtime_changed": false,
+  "image_or_schema_change": false,
+  "source_reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "deployed_source_pins_verified": 29,
+  "checks": {
+    "ruff": "PASS with deployed pyproject.toml",
+    "format": "PASS for two Python files",
+    "sql": "Read-only transaction and before/after accounts/events assertions; external-fence mutation separately injected by fixture and correctly blocked"
+  },
+  "bounds": {
+    "request_start_seconds": 75,
+    "http_attempts": 32,
+    "clock_attempts": 10,
+    "income_requests": 4,
+    "row_limit": 1000,
+    "max_window_hours": 24,
+    "page_parameter_used": false
+  },
+  "helper_sha256": "02e5441659047dadb2eca0153f74378e8f20e1b68a1b66011914d988398045bb",
+  "optimization_approved": false
+}
