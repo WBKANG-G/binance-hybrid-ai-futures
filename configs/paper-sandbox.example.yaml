@@ -1,0 +1,23 @@
+# Synthetic PAPER simulation assumptions ONLY. No LIVE approval or defaults.
+mode: PAPER
+sandbox_only: true
+rules_only: true
+risk:
+  version: paper-synthetic-v1
+  risk_per_trade_pct: '1'
+  max_leverage: '2'
+  max_concurrent_positions: 3
+  max_single_notional_pct: '100'
+  max_total_notional_pct: '150'
+  max_margin_usage_pct: '75'
+  daily_loss_limit_pct: '5'
+  weekly_loss_limit_pct: '10'
+  max_drawdown_pct: '15'
+  max_correlated_risk_pct: '2'
+  max_slippage_pct: '1'
+  max_spread_pct: '1'
+fee_rate: '0.0004'
+funding_allowance_rate: '0.0001'
+stop_slippage_pct: '0.1'
+max_snapshot_age_seconds: 30
+week_start_kst: 0

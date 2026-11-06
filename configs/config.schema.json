@@ -1,0 +1,299 @@
+{
+  "$defs": {
+    "RiskProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "default": "unassigned",
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "risk_per_trade_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk Per Trade Pct"
+        },
+        "max_leverage": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Leverage"
+        },
+        "max_concurrent_positions": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Concurrent Positions"
+        },
+        "max_single_notional_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Single Notional Pct"
+        },
+        "max_total_notional_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Total Notional Pct"
+        },
+        "max_margin_usage_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Margin Usage Pct"
+        },
+        "daily_loss_limit_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Daily Loss Limit Pct"
+        },
+        "weekly_loss_limit_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weekly Loss Limit Pct"
+        },
+        "max_drawdown_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Drawdown Pct"
+        },
+        "max_correlated_risk_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Correlated Risk Pct"
+        },
+        "max_slippage_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Slippage Pct"
+        },
+        "max_spread_pct": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "gt": 0,
+              "le": 100
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Spread Pct"
+        },
+        "allow_averaging_down": {
+          "const": false,
+          "default": false,
+          "title": "Allow Averaging Down",
+          "type": "boolean"
+        },
+        "allow_martingale": {
+          "const": false,
+          "default": false,
+          "title": "Allow Martingale",
+          "type": "boolean"
+        },
+        "protective_stop_required": {
+          "const": true,
+          "default": true,
+          "title": "Protective Stop Required",
+          "type": "boolean"
+        }
+      },
+      "title": "RiskProfile",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "default": "PAPER",
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "Mode",
+      "type": "string"
+    },
+    "live_trading_enabled": {
+      "default": false,
+      "title": "Live Trading Enabled",
+      "type": "boolean"
+    },
+    "risk": {
+      "$ref": "#/$defs/RiskProfile"
+    }
+  },
+  "title": "AppConfig",
+  "type": "object"
+}

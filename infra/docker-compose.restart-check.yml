@@ -1,0 +1,17 @@
+# Optional independent worker; uses the API image already built by hybrid-windows.
+services:
+  demo_restart_guard:
+    image: hybrid-windows-api
+    profiles: [open-api-restart-check]
+    command: [python, -m, scripts.check_demo_open_api_restart, --preview]
+    environment:
+      TRADING_MODE: PAPER
+      LIVE_TRADING_ENABLED: "false"
+      DATABASE_URL: postgresql+psycopg://dev:dev@db:5432/hybrid
+    tmpfs:
+      - /run/demo-keys:rw,noexec,nosuid,nodev,size=64k,mode=0700,uid=10001,gid=10001
+    healthcheck:
+      disable: true
+    stdin_open: true
+    tty: true
+    restart: "no"

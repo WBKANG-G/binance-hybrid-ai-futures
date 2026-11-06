@@ -1,0 +1,45 @@
+{
+  "runs": {
+    "broad": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "1",
+      "skipped": "0",
+      "tests": "911",
+      "time": "201.323",
+      "started_at_kst": "2026-11-06T19:13:47.375063+09:00"
+    },
+    "corrected_guard": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "11",
+      "time": "2.601",
+      "started_at_kst": "2026-11-06T19:14:34.641771+09:00"
+    },
+    "final_focused": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "760",
+      "time": "56.329",
+      "started_at_kst": "2026-11-06T19:21:01.946346+09:00"
+    },
+    "release_critical": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "40",
+      "time": "14.203",
+      "started_at_kst": "2026-11-06T19:23:25.673850+09:00"
+    }
+  },
+  "distinct_observed_cases": 912,
+  "distinct_cases_with_pass_evidence": 912,
+  "unresolved_failed_cases": [],
+  "scope": "All unit tests plus selected real PostgreSQL/local WSS/TLS, synthetic venue integration regressions; not the whole repository integration suite",
+  "actual_account_or_mail_used": false
+}

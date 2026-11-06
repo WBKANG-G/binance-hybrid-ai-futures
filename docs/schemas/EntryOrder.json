@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "OrderState": {
+      "enum": [
+        "CREATED",
+        "RISK_RESERVED",
+        "SUBMITTING",
+        "ACKNOWLEDGED",
+        "PARTIALLY_FILLED",
+        "FILLED",
+        "CANCEL_REQUESTED",
+        "CANCELED",
+        "EXPIRED",
+        "REJECTED",
+        "UNKNOWN",
+        "RECONCILING"
+      ],
+      "title": "OrderState",
+      "type": "string"
+    },
+    "TradingMode": {
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "TradingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "client_order_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Client Order Id",
+      "type": "string"
+    },
+    "order_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Order Id"
+    },
+    "signal_id": {
+      "format": "uuid",
+      "title": "Signal Id",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/TradingMode"
+    },
+    "account_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "symbol": {
+      "pattern": "^[A-Z0-9]{5,30}$",
+      "title": "Symbol",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "BUY",
+        "SELL"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Quantity"
+    },
+    "limit_price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Limit Price"
+    },
+    "order_type": {
+      "const": "LIMIT",
+      "default": "LIMIT",
+      "title": "Order Type",
+      "type": "string"
+    },
+    "time_in_force": {
+      "default": "GTC",
+      "enum": [
+        "GTC",
+        "GTX"
+      ],
+      "title": "Time In Force",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/OrderState",
+      "default": "CREATED"
+    }
+  },
+  "required": [
+    "client_order_id",
+    "signal_id",
+    "environment",
+    "account_id",
+    "symbol",
+    "side",
+    "quantity",
+    "limit_price"
+  ],
+  "title": "EntryOrder",
+  "type": "object"
+}
