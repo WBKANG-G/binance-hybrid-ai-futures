@@ -1,0 +1,24 @@
+{
+  "recovery": "READ_ONLY_BOUND_UNRESOLVED_DETAILS_KEEP_LOCK",
+  "audited_request_count": 78,
+  "unresolved_count": 4,
+  "risk_gates": "PASS",
+  "position_nonzero": false,
+  "active_orders": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "risk_state": "EMERGENCY",
+  "paused": true,
+  "unresolved_requests": [
+    {"request_ref":"85296c5f5538864a","request_kind":"DS","current_query_status":"NOT_FOUND_UNRESOLVED","local_request_status":"UNKNOWN","linked_orders":[{"operation_id":"b8454548-08d4-4cc3-9e77-d411b5659eff","role":"STOP","purpose":"DEMO_VALIDATION","signal_closed_candle_at":"2026-10-20T13:49:59.999000+00:00","entry_state":"CANCELED","position_state":"CLOSED","filled_quantity":"0.0000","remaining_quantity":"0","open_quantity":"0","exit_state":"UNKNOWN","is_latest_opposite_tp":false}],"unlinked_local_request":false,"local_no_send_evidence":null,"absence_proves_never_sent_or_never_filled":false},
+    {"request_ref":"b1501465465b6295","request_kind":"DS","current_query_status":"NOT_FOUND_UNRESOLVED","local_request_status":"NOT_SENT","linked_orders":[{"operation_id":"77db044e-1bcd-4358-80e6-df9730630213","role":"STOP","purpose":"DEMO_VALIDATION","signal_closed_candle_at":"2026-10-31T14:21:59.999000+00:00","entry_state":"FILLED","position_state":"CLOSED","filled_quantity":"0.0007","remaining_quantity":"0","open_quantity":"0","exit_state":"FILLED","is_latest_opposite_tp":false}],"unlinked_local_request":false,"local_no_send_evidence":"LOCAL_VALIDATION_FAILED","absence_proves_never_sent_or_never_filled":false},
+    {"request_ref":"7d101d4ff65720e7","request_kind":"DT","current_query_status":"NOT_FOUND_UNRESOLVED","local_request_status":"NOT_SENT","linked_orders":[{"operation_id":"426dd7a2-805b-4576-a1f4-85313a7c4f6c","role":"TARGET","purpose":"DEMO_VALIDATION","signal_closed_candle_at":"2026-10-31T10:57:59.999000+00:00","entry_state":"FILLED","position_state":"CLOSED","filled_quantity":"0.0007","remaining_quantity":"0","open_quantity":"0","exit_state":"FILLED","is_latest_opposite_tp":false}],"unlinked_local_request":false,"local_no_send_evidence":"LOCAL_VALIDATION_FAILED","absence_proves_never_sent_or_never_filled":false},
+    {"request_ref":"db0c256e607ba61e","request_kind":"DX","current_query_status":"NOT_FOUND_UNRESOLVED","local_request_status":"SUBMITTING","linked_orders":[{"operation_id":"b8454548-08d4-4cc3-9e77-d411b5659eff","role":"EXIT","purpose":"DEMO_VALIDATION","signal_closed_candle_at":"2026-10-20T13:49:59.999000+00:00","entry_state":"CANCELED","position_state":"CLOSED","filled_quantity":"0.0000","remaining_quantity":"0","open_quantity":"0","exit_state":"UNKNOWN","is_latest_opposite_tp":false}],"unlinked_local_request":false,"local_no_send_evidence":null,"absence_proves_never_sent_or_never_filled":false}
+  ],
+  "unresolved_set_digest": "1801ba7f74cf0ac87804b251bb1645498d278b3f008705579b27f682c6ee8de4",
+  "audit_details_bound_to_canonical_review": true,
+  "review_token_printed": false,
+  "database_changed": false,
+  "unresolved_history_acknowledged": false,
+  "unlock_applied": false
+}
