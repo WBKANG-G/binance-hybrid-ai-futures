@@ -1,0 +1,22 @@
+{
+  "passed": 31,
+  "failures": 0,
+  "errors": 0,
+  "seconds": "7.903",
+  "ruff": "PASS",
+  "isolated_postgresql": "PASS",
+  "synthetic_signed_responses": "PASS",
+  "guard_ast_identity": "PASS",
+  "deployed_pins_verified": 29,
+  "original_pair_reads": 28,
+  "candidate_pair_reads": 22,
+  "removed_history_reads": 6,
+  "current_global_reads_each": 4,
+  "full_historical_id_lookup_preserved": true,
+  "actual_venue_used": false,
+  "actual_database_changed": false,
+  "orders_created": 0,
+  "windows_probe": "Not yet run",
+  "runtime_installed": false,
+  "active_tp_cost_reduction_proven": false
+}

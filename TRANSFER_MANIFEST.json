@@ -1,0 +1,12 @@
+{
+  "purpose": "READ_ONLY_CLOSED_HISTORY_READ_COMPARISON_NO_INSTALL",
+  "files": {
+    "README_KO.md": "b94ff01e28acbf913e9bafbd117e0a768432355da202f7a24ff2641a8eb27200",
+    "RUN_COMMAND.txt": "64b01a75bf4e0a5d7c57fff0a5e8e204243c09fda027a85a798c957ee3e9cba8",
+    "SOURCE_REFERENCE.json": "a0d70467bf1868f0001bdb8d86556fe372e30efc9ef473f8fbaddc0beb5e1183",
+    "VALIDATION.json": "370250f6883c7c7cbb95f1286f00dc37d67c87de6bcd550351a23c6c48988447",
+    "compare_closed_history_reads.py": "ff570d91454f3e36d514d20b0d9a40a71e174a9ecb0db4c6af27db53548ba268",
+    "test-results/pytest-closed-history.xml": "ca03347d5be3e853783d52955b033cb529fd55559f7c14428d2d7a5969c009f9",
+    "test_closed_history_reads.py": "5b5bc702d8d72988211cfd5c702db0c724b1f1d5036eccbf305791154bddf2ca"
+  }
+}
