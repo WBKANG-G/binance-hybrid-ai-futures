@@ -1,0 +1,12 @@
+{
+  "purpose": "Single bounded GET-only published request-weight and empty-account idle read-shape observation; no order/session/lease/state change",
+  "installed_runtime_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "validation": "24 cases passed in2.85s, real isolated PostgreSQL with synthetic venue/clock/weights; Ruff pass. Actual published limit/header observation pending user run.",
+  "files": {
+    "probe_read_weight.py": "1b7ee0f06b7f20c9c066e99fa67db2172d18f99fe57cc1da9475aaca8a5d5582",
+    "test_read_weight_probe.py": "20c4b9ef1bab1d343b3f64a8f3fd6e723d3000429f33604672e15a7a43bbefc6",
+    "README_KO.md": "365e9ab496f4507c72bb03e41971e0351c3583284c122521ed599ec66a066758",
+    "VALIDATION.md": "bc24c46bf66775ea1b8e15f59f0f018551ccab410f39015190a5f56c5155afbe",
+    "RUN_COMMAND.txt": "81c24739b48262d83947ff45ec5f71f3b237346cfa07fc8459cbe351fa7aa30a"
+  }
+}
