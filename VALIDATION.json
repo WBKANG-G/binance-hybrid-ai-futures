@@ -1,0 +1,52 @@
+{
+  "date_kst": "2026-11-06",
+  "base_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "candidate_deployed": false,
+  "candidate_cli_enabled": false,
+  "actual_venue_used": false,
+  "actual_new_orders": 0,
+  "final_evidence": {
+    "unit_tests": {
+      "passed": 755,
+      "seconds": 12.5,
+      "file": "test-results/final-unit-tests.xml"
+    },
+    "integration_tests": {
+      "passed": 161,
+      "file": "test-results/initial-broad-regression.xml",
+      "selection": "all integration testcases in initial broad run; no integration failures",
+      "production_source_unchanged_since_run": true
+    },
+    "distinct_passed_across_runs": 916,
+    "single_all_green_run_claimed": false
+  },
+  "initial_broad_run": {
+    "tests": 912,
+    "passed": 909,
+    "failed": 3,
+    "seconds": 376.69,
+    "failure": "Legacy installation-guard positive review tests used deployed source hashes with candidate source. Production guard correctly rejected it before review. Unit positive review inputs were isolated; source tamper and real candidate rejection tests added. Production approval pins unchanged. All 755 final unit tests passed."
+  },
+  "focused_budget_run": {
+    "passed": 59,
+    "seconds": 14.55,
+    "scope": "50 accounting units + 9 isolated lifecycle tests; superseded by broader runs"
+  },
+  "checks": {
+    "ruff": "PASS for apps integrations packages scripts services tests",
+    "ruff_format": "PASS for eight changed files",
+    "mypy": "PASS, 133 source files",
+    "git_diff_check": "PASS",
+    "fresh_parent_patch_application": "PASS, eight source hashes verified"
+  },
+  "limits": [
+    "Model route costs are assumptions, not proven weights or maxima.",
+    "6000 model rejects entry before reservation with current synthetic history.",
+    "Active lifecycle control uses counterfactual 12000 capacity; not actual order-readiness evidence.",
+    "No automatic minute credit reset.",
+    "Cleanup retains original SDK cooldown and is not blocked solely by model credit.",
+    "Shared IP spike still leaves open exposure EMERGENCY/UNKNOWN.",
+    "Original capped limit entries, idempotency, fencing, stop/target and full flat proof retained."
+  ],
+  "synthetic_report_count": 9
+}

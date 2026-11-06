@@ -1,0 +1,16 @@
+{
+  "base_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "candidate_is_enabled_by_cli": false,
+  "deployed": false,
+  "files": {
+    "integrations/binance_usdm/demo_tp_budget.py": "12b3236d5518c9da24d63be896b97075f5cbdc1a1faf4b09dd6c78e724aeff54",
+    "services/execution/demo.py": "cd35cfac40692fe8e469e454dc611e40a34335f34ecb0fc5df84d1ed658e2609",
+    "services/execution/demo_tp_budget_candidate.py": "8aaff908e39099a2df12ad40e69664af51fb84a1723fa2189bc5c03a0633edd5",
+    "services/execution/demo_validation.py": "254cb6a912c8afc67b4072a3ae88721232589581f3cbd48ecacc50556f2f2de7",
+    "tests/fixtures/tp_weight_model.py": "a80b8b88afaef62cff9ce02133d87ffb98a0a87edc5ef99d0f5df05505c19194",
+    "tests/integration/test_tp_request_budget_lifecycle.py": "0aeba8e4a2bce11a846cd43625908e0b0dde05664b81ef231e92250e5f7ff7c4",
+    "tests/unit/test_tp_read_pool_install_guard.py": "6ffb92c87ed72fbd64c923cef446085320f7b551d10f842aa4d0f0019f28023b",
+    "tests/unit/test_tp_request_budget.py": "a0e44e7e437eb04c05c60be784c8ee47521b51738316d409add7a875c2f6ce56"
+  },
+  "patch_sha256": "bb23ce657cc9f93968dab9c10e0676a0b3781cf024d1dfd27ac0bb73d236e742"
+}
