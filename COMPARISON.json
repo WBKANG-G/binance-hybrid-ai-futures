@@ -1,0 +1,49 @@
+{
+  "actual_venue_used": false,
+  "costs_not_proven_bounds": true,
+  "published_limit_model": 6000,
+  "cases": [
+    {
+      "dual_assumed_cost": 30,
+      "False": {
+        "http_attempts": 593,
+        "assumed_total_weight": 3935,
+        "stop_reason": "ENTRY_LIFECYCLE_NO_HEADROOM",
+        "preparation_assumption": null,
+        "new_entry_posts": 0,
+        "full_historical_flat_snapshots": 5
+      },
+      "True": {
+        "http_attempts": 544,
+        "assumed_total_weight": 3238,
+        "stop_reason": "PREPARATION_LIFECYCLE_NO_HEADROOM",
+        "preparation_assumption": 697,
+        "new_entry_posts": 0,
+        "full_historical_flat_snapshots": 5
+      },
+      "http_reduction_percent": 8.26,
+      "assumed_weight_reduction_percent": 17.71
+    },
+    {
+      "dual_assumed_cost": 35,
+      "False": {
+        "http_attempts": 593,
+        "assumed_total_weight": 4025,
+        "stop_reason": "ENTRY_LIFECYCLE_NO_HEADROOM",
+        "preparation_assumption": null,
+        "new_entry_posts": 0,
+        "full_historical_flat_snapshots": 5
+      },
+      "True": {
+        "http_attempts": 544,
+        "assumed_total_weight": 3313,
+        "stop_reason": "PREPARATION_LIFECYCLE_NO_HEADROOM",
+        "preparation_assumption": 712,
+        "new_entry_posts": 0,
+        "full_historical_flat_snapshots": 5
+      },
+      "http_reduction_percent": 8.26,
+      "assumed_weight_reduction_percent": 17.69
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "date_kst": "2026-11-06",
+  "passed": 992,
+  "failed": 0,
+  "seconds": 154.87,
+  "single_run": true,
+  "unit_tests": 820,
+  "integration_tests": 172,
+  "actual_venue_used": false,
+  "actual_new_orders": 0,
+  "deployed": false,
+  "cli_enabled": false,
+  "checks": {
+    "ruff": "PASS for apps integrations packages scripts services tests",
+    "format": "PASS for six changed files of this increment",
+    "mypy": "PASS,133 source files",
+    "git_diff_check": "PASS",
+    "fresh_deployed_base_patch_apply": "PASS,14 reviewed file hashes match",
+    "proof_functions": "Original prepare/reserve/submit/resume/protect/flatten/flat source unchanged; original budget admission and transport unchanged from prior candidate",
+    "locked_spec_install_guards_and_cli": "unchanged"
+  },
+  "scope": "Real isolated PostgreSQL and localhost WebSocket; synthetic REST/clock/orders/weight assumptions",
+  "synthetic_report_count": 33,
+  "limitations": [
+    "Actual6000 model still rejects before new entry.",
+    "Early check grants no admission and is not an IP capacity reservation.",
+    "Preparation cost estimates697/712 and unmeasured route cost40 are assumptions, not proven limits.",
+    "Counterfactual100000 checks preservation, not actual readiness.",
+    "Counterfactual6500 with preparation1 still refuses at original reservation-time check.",
+    "Original account-change and quote-expiry tests refuse preparation.",
+    "Shared IP rate spike still leaves exposure EMERGENCY/UNKNOWN; no cooldown bypass."
+  ]
+}
