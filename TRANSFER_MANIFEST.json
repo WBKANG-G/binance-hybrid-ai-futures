@@ -1,0 +1,13 @@
+{
+  "purpose": "Scoped adoption of one signed operator manual close; no exchange writes, no risk recovery/resume/runtime change",
+  "installed_source_commit": "acdb14ac412b1fe9c28fedade0a05cf07c243735",
+  "tests": "38 passed in 7.45s, real PostgreSQL and synthetic venue; Ruff pass; Windows adoption pending",
+  "files": {
+    "adopt_manual_close.py": "d6969e6dbae0145be6cc484be87a579e998608e6db913aed17751df2192d1f18",
+    "test_manual_adoption.py": "601ed015e5cd5c6a9bfc470766d35ac5f7576e6455b6b6cade19a9da6e7c8979",
+    "INCIDENT_REFERENCE.json": "f5728b32135d1ab4662c262255bb1249950b21fb610b920126dd54884dc46310",
+    "README_KO.md": "d24e46502c4b386146b7632c6953be575677bcbce9815cac446854e368c5b78a",
+    "VALIDATION.md": "d73ad66e7d06fd26816c153accf9ca1713f95e33e2f95de5bdba2e6fc3f56436",
+    "RUN_COMMAND.txt": "e1ac2c0e7268c5097ff9c8707a32a8ef13e807c1481f77fccfb9b1798aba4880"
+  }
+}
