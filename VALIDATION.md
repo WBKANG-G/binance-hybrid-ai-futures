@@ -1,0 +1,11 @@
+# Public-only observation validation
+
+24 focused tests passed in 0.18s after final import formatting. Fixtures use a synthetic transport; no real exchange, key session, account, database or email was accessed. Strict mypy passes for the observer. Ruff lint and formatting pass for its source and two test files using the application's existing rule selection.
+
+Inherited route tests verify GET-only requests without API key headers or signatures, rejection of account/order/private-session/unexpected-symbol/unexpected-public routes before transport, stop on the first 429 without retry, and rejection of stale/future/malformed/wrong-lot/wrong-tick books. The existing fixture's cap, quantity and candidate checks were retained. The explicit sampling count expectation changed from 12 to 60 to match this public observation scope; the deadline-overrun fixture uses 121 seconds for the new 120-second window.
+
+New cases assert the unchanged 0.0007 BTC / 100 USDT caps, exact 60-sample / 120-second bounds, at most three candidate examples, no signal/partial-fill guarantee, the review-only next-action marker, termination before another request if a sleep reaches the deadline, failure if no sample can be collected, and no candidates for thick top-of-book. Source changes from the earlier public observer only extend the bounded observation window and summarize output instead of dumping all samples; no execution API is added.
+
+The window limit starts after public clock/rule setup; an in-flight bounded SDK request can finish after the window. This is not a guarantee that total process wall time is exactly 120 seconds. The report does not check current private account readiness and does not persist every raw sample. A thin displayed ask is an opportunity filter, not execution proof, a strategy signal or authority to submit an order. No within-cap thin top in this window does not establish permanent absence or unsupported DEMO functionality.
+
+Actual Windows observation remains pending. Phase 4 partial-fill protection and actual TP-fill/original-SL-cleanup success remain unverified. The successful protected-child SIGKILL and subsequent paused recovery are recorded as existing user-supplied evidence, without repeating them or claiming broad phase acceptance.
