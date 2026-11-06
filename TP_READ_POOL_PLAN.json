@@ -1,0 +1,53 @@
+{
+  "status": "INSTALL_ONLY_NORMAL_ENTRIES_STILL_PAUSED",
+  "phase": 4,
+  "environment": "DEMO",
+  "parent_artifact_commit": "1a7ed93df07b28ab94062029b4325afc8b67d6a3",
+  "new_trial_enabled": false,
+  "new_operation_id": null,
+  "automatic_recovery": false,
+  "automatic_resume": false,
+  "opt_in_flag": "--enable-pooled-read-tp-observation",
+  "required_scope": "Existing explicit OPPOSITE_QUOTE TP observation; no default activation",
+  "current_closed_unfilled_operation": "31c953e8-72dc-422d-89f3-8bbe7cdb5c0c",
+  "actual_protected_sigkill_success": "c75410e5-cbbb-4a75-bfe9-5272a8b447c6",
+  "last_successful_paused_recovery": "14aac5ad-5a13-4720-8d9d-4a1074c4cb65",
+  "guard_old_cli_sha256": "40522b50012be16fb6a888d67645bc72572d7da7c24b58f4b2b87f8edf9c7018",
+  "new_cli_sha256": "0bef5c186d6e4a5c226f66736085585cf1d209d13ef1bd8622666d44d52966f9",
+  "read_router_sha256": "a6e96b21135882a272cb5c97f86ddc14c3a5f4fa79dd115e40397252c679a66d",
+  "unchanged_safety_sources": {
+    "services/execution/demo_protected_worker_check.py": "70d9f0a6ec74223e8a7a82ec55c976288c10fb13c01c9b478f49f1a0fd408709",
+    "services/execution/demo_tp_trigger_check.py": "6b82ce5947480f87a58c194628853322496c90545a47713f4e07dd1fc0414dc8",
+    "services/execution/demo_validation.py": "d703860caf01135b3f5e82a444adc5afde1795e1f4d48bbd515cc4b9de5666a0",
+    "services/execution/demo_stream.py": "409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456",
+    "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a",
+    "integrations/binance_usdm/demo.py": "c5ec1f89d645dcd124a71cdf9cb39884cc9cfa5a2493636baf1c08db2c581a81",
+    "integrations/binance_usdm/recovery_transport.py": "11d66dd5e05b4707b5794707df0fa889be4cbb1204fcd7a0ec23d9c6008ea791",
+    "configs/demo-isolated.example.yaml": "d93e85c2e056ffbbc3dac5fab9f0e5bf28032fd16f41bbff1f3ae81fb00882ca"
+  },
+  "same_caps": {
+    "maximum_entry_attempts": 1,
+    "maximum_quantity_btc": "0.0007",
+    "maximum_notional_usdt": "100",
+    "entry_type": "LIMIT",
+    "style": "OPPOSITE_QUOTE",
+    "signal_expiry_seconds": 10,
+    "observation_seconds": 300
+  },
+  "measured_closed_order_get_ms": {
+    "original_sdk": [
+      155,
+      152
+    ],
+    "pooled_get": [
+      50,
+      55
+    ],
+    "samples_per_mode": 2,
+    "fill_cause_proven": false
+  },
+  "actual_pooled_execution_verified": false,
+  "phase4_overall_accepted": false,
+  "live_trading_enabled": false,
+  "main_merge": false
+}
