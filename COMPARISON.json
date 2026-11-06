@@ -1,0 +1,132 @@
+{
+  "actual_venue_used": false,
+  "not_a_benchmark_or_weight_proof": true,
+  "cases": [
+    {
+      "mode": "no_tp",
+      "False": {
+        "http_attempts": 1672,
+        "assumed_total_weight": 17653,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "True": {
+        "http_attempts": 1062,
+        "assumed_total_weight": 9945,
+        "batch_count": 6,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "http_reduction_percent": 36.48,
+      "assumed_weight_reduction_percent": 43.66
+    },
+    {
+      "mode": "tp",
+      "False": {
+        "http_attempts": 1803,
+        "assumed_total_weight": 17160,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
+      },
+      "True": {
+        "http_attempts": 1695,
+        "assumed_total_weight": 15960,
+        "batch_count": 1,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
+      },
+      "http_reduction_percent": 5.99,
+      "assumed_weight_reduction_percent": 6.99
+    },
+    {
+      "mode": "partial",
+      "False": {
+        "http_attempts": 1617,
+        "assumed_total_weight": 17637,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "True": {
+        "http_attempts": 1530,
+        "assumed_total_weight": 16458,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "http_reduction_percent": 5.38,
+      "assumed_weight_reduction_percent": 6.68
+    },
+    {
+      "mode": "unfilled",
+      "False": {
+        "http_attempts": 1557,
+        "assumed_total_weight": 17014,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "True": {
+        "http_attempts": 1557,
+        "assumed_total_weight": 17014,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "http_reduction_percent": 0.0,
+      "assumed_weight_reduction_percent": 0.0
+    },
+    {
+      "mode": "real_limit",
+      "False": {
+        "http_attempts": 593,
+        "assumed_total_weight": 4025,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 0,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "True": {
+        "http_attempts": 593,
+        "assumed_total_weight": 4025,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 5,
+        "new_entry_posts": 0,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "http_reduction_percent": 0.0,
+      "assumed_weight_reduction_percent": 0.0
+    },
+    {
+      "mode": "spike",
+      "False": {
+        "http_attempts": 250,
+        "assumed_total_weight": 3513,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 0,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "True": {
+        "http_attempts": 250,
+        "assumed_total_weight": 3513,
+        "batch_count": 0,
+        "full_historical_flat_snapshots": 0,
+        "new_entry_posts": 1,
+        "tp_check": "NOT_ACCEPTED"
+      },
+      "http_reduction_percent": 0.0,
+      "assumed_weight_reduction_percent": 0.0
+    }
+  ]
+}

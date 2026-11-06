@@ -1,0 +1,27 @@
+{
+  "test_count": 961,
+  "unit_tests": 801,
+  "integration_tests": 160,
+  "passed": 961,
+  "failures": 0,
+  "seconds": 150.33,
+  "single_run": true,
+  "date_kst": "2026-11-06",
+  "actual_venue_used": false,
+  "actual_new_orders": 0,
+  "deployed": false,
+  "cli_enabled": false,
+  "checks": {
+    "ruff": "PASS for apps integrations packages scripts services tests",
+    "format": "PASS for six changed files of this increment",
+    "mypy": "PASS, 133 source files",
+    "diff_check": "PASS",
+    "original_proof_methods": "exact source segments unchanged from deployed reference",
+    "locked_spec_and_install_guards": "unchanged",
+    "fresh_base_patch_apply": "PASS; all 12 source hashes match"
+  },
+  "comparison_scope": "synthetic 2-second ACCOUNT_UPDATE stress, 100000 counterfactual capacity for full trace comparison; not actual venue/minute capacity",
+  "real_limit_model": "6000 refuses entry before reservation, unchanged",
+  "shared_ip_spike": "still EMERGENCY/UNKNOWN; no cooldown bypass",
+  "synthetic_report_count": 21
+}
