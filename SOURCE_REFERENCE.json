@@ -1,0 +1,30 @@
+{
+  "base_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "prior_local_commit": "5170d96fe18d1c7db34a6f02eb90c1a2d258a81d",
+  "deployed": false,
+  "cli_enabled": false,
+  "files": {
+    "integrations/binance_usdm/demo_snapshot.py": "927d8a6c35ec4243b343ae5dd26c8911bdda467ff2180ebd7b413e009eb1b5a9",
+    "integrations/binance_usdm/demo_tp_budget.py": "f0cbc5781f7029aaa495e48891158de155a5319686ea4b44195c7dd8c49cea98",
+    "services/execution/demo.py": "cd35cfac40692fe8e469e454dc611e40a34335f34ecb0fc5df84d1ed658e2609",
+    "services/execution/demo_event_inbox.py": "9cb14d30ba9f315b0d02a83a2720733a4ce2973b8f99928dacb30bd6dd79385f",
+    "services/execution/demo_stream.py": "6d83ce945b50b4bde784abde3d58e70a60af397f3068832486309e5724b2965c",
+    "services/execution/demo_tp_budget_candidate.py": "ab2785b33aa14e1697da3bd53ddfd4b4654ca4d42b3d2c1877e43763c210c9b4",
+    "services/execution/demo_validation.py": "64c90c483216ae0067799911592ed9c285ce705ded40d5d94dd50c35fd1b8107",
+    "services/execution/demo_validation_limits.py": "e3c64ca87f3a0cbdb02e48d30faa9772b369f7448a825bacde67f65e49c17bc7",
+    "tests/fixtures/tp_phase_audit.py": "03f47d640b18347e8771868d071099e06f2db7fd7dab2f7f1723996f6f76bcce",
+    "tests/fixtures/tp_weight_model.py": "a80b8b88afaef62cff9ce02133d87ffb98a0a87edc5ef99d0f5df05505c19194",
+    "tests/integration/test_tp_event_batch_lifecycle.py": "2904bcf9f95a6e43d3e64e1d57cc99d51dc8d5075ae82d3e2256d2e847d270b6",
+    "tests/integration/test_tp_income_budget_lifecycle.py": "e15d12120eedb530e06a03f30db85dd9fd40df0af7d140d52e020f5fb0488619",
+    "tests/integration/test_tp_lifecycle_cost_audit.py": "99cadbf20069db313a8614f2790ce3948d9d21dc50c2b2f79b466dae1384d197",
+    "tests/integration/test_tp_prepare_precheck_lifecycle.py": "63712398b67c936c6406cb4bded3dfd504fd8487f5ce3ecb13f80e048021aceb",
+    "tests/integration/test_tp_request_budget_lifecycle.py": "407efef4d6f3bb3925bc0f562630c28881d5a80c81354c07640f8d9d866650ad",
+    "tests/unit/test_demo_protected_event_batch.py": "b0393ed39543a07a6740ee2910a112580624de454b1dd59108bd168aafc519d2",
+    "tests/unit/test_tp_income_budget.py": "51356558ae89c8424cb9204071f39ba4f7a297b8f13d366cd5030c08fb5f671d",
+    "tests/unit/test_tp_phase_cost_audit.py": "38ba6a21d3894e1749ff291008aa61de51bab3f813184fa59676a4cbb9769ce3",
+    "tests/unit/test_tp_prepare_precheck.py": "cd624858aea16bee460a1d343452e07304d6aacfef86eb7688e93d52d91a6123",
+    "tests/unit/test_tp_read_pool_install_guard.py": "6ffb92c87ed72fbd64c923cef446085320f7b551d10f842aa4d0f0019f28023b",
+    "tests/unit/test_tp_request_budget.py": "a0e44e7e437eb04c05c60be784c8ee47521b51738316d409add7a875c2f6ce56"
+  },
+  "patch_sha256": "0948a863afa19068503580d80db19bf7b5bd2bcc6a567e02c1e490c841b64fdc"
+}

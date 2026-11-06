@@ -1,0 +1,44 @@
+{
+  "date_kst": "2026-11-07",
+  "passed": 1062,
+  "failed": 0,
+  "unit_tests": 855,
+  "integration_tests": 207,
+  "single_run": true,
+  "seconds": 233.04,
+  "actual_venue_used": false,
+  "actual_new_orders": 0,
+  "deployed": false,
+  "cli_enabled": false,
+  "new_focused_cases": 38,
+  "new_lifecycle_cases": 18,
+  "checks": {
+    "ruff": "PASS for apps integrations packages scripts services tests",
+    "format": "PASS for eight increment files",
+    "mypy": "PASS,134 source files",
+    "fresh_base_patch_apply": "PASS,21 source file hashes match",
+    "proof_function_comparison": "PASS,exact source segments",
+    "snapshot_parser_comparison": "PASS,normalized AST after constants substitution",
+    "locked_spec_install_guards_cli": "unchanged",
+    "git_diff_check": "PASS"
+  },
+  "model": {
+    "max_income_pages": 10,
+    "page_size": 1000,
+    "flat_confirmation_attempts": 4,
+    "income_cost_assumption": 30,
+    "one_page_preparation_assumption": 712,
+    "required_preparation_assumption": 1522,
+    "required_entry_assumption": 3120,
+    "cleanup_per_attempt_assumption": 6240,
+    "required_cleanup_assumption": 24960,
+    "known_upper_bound": false
+  },
+  "limitations": [
+    "Model derives from audited normal-path snapshot counts; not universal branch coverage or a proven endpoint-cost maximum.",
+    "Real6000 model rejects original allowance profile before preparation.",
+    "Larger explicit profile uses only synthetic100000 counterfactual capacity.",
+    "Shared-IP spike and incomplete income pagination still cannot guarantee automatic flatten.",
+    "Actual account periods and RAM-key availability have not been queried on Nov7KST."
+  ]
+}

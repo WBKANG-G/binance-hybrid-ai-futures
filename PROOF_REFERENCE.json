@@ -1,0 +1,91 @@
+{
+  "services/execution/demo.py::reserve": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "4d6b447bd3050a370122dfdbbf931a70d94bfa2b26081273112ea6048833c3cb",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::submit": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "9c328dc4703a0f1a4e9c05475b19c7be5479848ac4a058df7a4f8e65591dd109",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::resume_entries": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "e54a891752c5432b5a853d33e87489c09f9cb091a000268a0e128fdf5f1788ca",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::_reconcile_checked": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "e4b816117c912ed08183b67f8530087c0537b1b3acc184d77fa6842d6281d75c",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::_protect": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "2fd1cb7adda36add3f02d8fe9d727e4fd6cdd7e993c65e0617394bc3ca1ba992",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::_flatten": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "32a750484067f7be0d4b8cc598622bfceb9331c0489aba33222a61821c0d8fd7",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::_cleanup": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "19b7b2fbc4c996b08432ced4c73eb469744f351e34b958c917b1b6ebd95a0441",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo.py::_confirm_flat_checked": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "2ac22c162910e7025c34b0940abd0a346ce028c3670f680424db9ce225aebb99",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo_validation.py::prepare": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "39a61ca651a91e00fe19fbc8bd1e6a295217c16132f7e49b5e91bac2f9a5bb43",
+    "comparison": "exact source segment"
+  },
+  "services/execution/demo_validation.py::confirm_exit": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "c8115eb640d69271c4f962e47b5e3effb683376a9ede1e25e0056043245e3b84",
+    "comparison": "exact source segment"
+  },
+  "integrations/binance_usdm/demo_tp_budget.py::admit_entry": {
+    "reference": "5170d96fe18d1c7db34a6f02eb90c1a2d258a81d",
+    "sha256": "a4ac8da0e6c9bf6c5d7a0ed5d317651e87bf1e11f4573edcee1f6dcbd38bdc34",
+    "comparison": "exact source segment"
+  },
+  "integrations/binance_usdm/demo_tp_budget.py::__call__": {
+    "reference": "5170d96fe18d1c7db34a6f02eb90c1a2d258a81d",
+    "sha256": "b8e9641fadd99a759bab745e8bf68e7263440c963ca58b93d914bb40ea72b9b5",
+    "comparison": "exact source segment"
+  },
+  "integrations/binance_usdm/demo_tp_budget.py::precheck_preparation": {
+    "reference": "5170d96fe18d1c7db34a6f02eb90c1a2d258a81d",
+    "sha256": "da83951fb7a1bb0d8f23fcb96e681968ccadab2fd404123fad0b2fdc11ee5495",
+    "comparison": "exact source segment"
+  },
+  "snapshot_parser": {
+    "comparison": "AST identical after substituting shared constants10/1000 and folding10+1/str1000",
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098"
+  },
+  "MASTER_SPEC_V1_0.md": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "d92d00e8a4bf87f53b9b012a273dffcc296cd47e27b9dd298f087b9dc5e70ced",
+    "comparison": "exact file"
+  },
+  "guard_tp_rate_install.py": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "a9613f5af59a0090c3f3764171f6a8e2ae287daa5419efeb0bf6bfa2f032eb79",
+    "comparison": "exact file"
+  },
+  "guard_tp_read_pool_install.py": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "74b94d15b174b8d49c78d7b6889c9cafc1518711c691143e5d73e553e463fb51",
+    "comparison": "exact file"
+  },
+  "scripts/check_demo_tp_trigger.py": {
+    "reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+    "sha256": "e9a04c8b0dd877c8cdb1708ee2b75714984ab9c6837d873c067dc0a94e6c2baa",
+    "comparison": "exact file"
+  }
+}

@@ -1,0 +1,3237 @@
+diff --git a/integrations/binance_usdm/demo_snapshot.py b/integrations/binance_usdm/demo_snapshot.py
+index 568e06833c18d40d5bac4679cd422473355c03a9..d57062d545e12d82307077cb9bb4076de42cd930 100644
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -11,6 +11,9 @@ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import OrderState, PositionState
+ from services.execution.demo_models import DemoLedger, DemoSnapshot
+ 
++MAX_INCOME_PAGES = 10
++INCOME_PAGE_SIZE = 1000
++
+ 
+ def signed_number(value: object) -> Decimal:
+     if isinstance(value, (float, bool)) or not isinstance(value, (str, int, Decimal)):
+@@ -241,14 +244,14 @@ def _snapshot(
+     )
+     transfers: dict[str, str] = {}
+     if ledger.income_since_ms is not None:
+-        for page in range(1, 11):
++        for page in range(1, MAX_INCOME_PAGES + 1):
+             incomes = client.request(
+                 "GET",
+                 "/fapi/v1/income",
+                 {
+                     "startTime": str(ledger.income_since_ms),
+                     "endTime": str(int(now.timestamp() * 1000)),
+-                    "limit": "1000",
++                    "limit": str(INCOME_PAGE_SIZE),
+                     "page": str(page),
+                 },
+             )
+@@ -261,7 +264,7 @@ def _snapshot(
+                     transfers[item["incomeType"] + ":" + str(item["tranId"])] = str(
+                         signed_number(item["income"])
+                     )
+-            if len(incomes) < 1000:
++            if len(incomes) < INCOME_PAGE_SIZE:
+                 break
+         else:
+             raise DemoFailure("DEMO income pagination incomplete; refuse new entries")
+diff --git a/integrations/binance_usdm/demo_tp_budget.py b/integrations/binance_usdm/demo_tp_budget.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..5a265d2a5552d4691edb8e503f458dfe7773afa5
+--- /dev/null
++++ b/integrations/binance_usdm/demo_tp_budget.py
+@@ -0,0 +1,289 @@
++"""Candidate DEMO-only admission budget. Costs are assumptions, never IP reservations.
++
++Not enabled by any CLI. Do not reset credit on local minute changes or lower
++headers: the guard deliberately budgets the entire bounded observation. Cleanup
++keeps the existing SDK cooldown/authorization; this guard never retries requests.
++"""
++
++import threading
++import time
++from collections.abc import Callable, Mapping
++from dataclasses import dataclass
++from typing import Any, NoReturn
++from urllib.parse import parse_qs
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure, Transport
++from integrations.binance_usdm.demo_rate_limits import rate_headers
++from integrations.binance_usdm.demo_snapshot import MAX_INCOME_PAGES
++from integrations.binance_usdm.rest import RESTResponse
++from services.execution.demo_validation_limits import FLAT_CONFIRMATION_ATTEMPTS
++
++
++class TPBudgetStopped(DemoFailure):
++    """Local admission failure, distinct from an exchange 418/429."""
++
++
++def published_weight_limit(info: Any) -> int:
++    if not isinstance(info, dict) or not isinstance(info.get("rateLimits"), list):
++        raise TPBudgetStopped("TP budget metadata unavailable")
++    rows = [
++        r
++        for r in info["rateLimits"]
++        if isinstance(r, dict)
++        and r.get("rateLimitType") == "REQUEST_WEIGHT"
++        and r.get("interval") == "MINUTE"
++        and r.get("intervalNum") == 1
++        and type(r.get("intervalNum")) is int
++    ]
++    if len(rows) != 1 or type(rows[0].get("limit")) is not int or rows[0]["limit"] <= 0:
++        raise TPBudgetStopped("TP budget metadata ambiguous")
++    return int(rows[0]["limit"])
++
++
++@dataclass(frozen=True)
++class TPBudgetPlan:
++    published_limit: int
++    entry_and_protection: int
++    cleanup_reserve: int
++    headroom: int
++    header_max_age_seconds: float = 5.0
++
++    def __post_init__(self) -> None:
++        for number in (
++            self.published_limit,
++            self.entry_and_protection,
++            self.cleanup_reserve,
++            self.headroom,
++        ):
++            if type(number) is not int or number <= 0:
++                raise ValueError("TP budget requires positive integer assumptions")
++        if self.entry_and_protection + self.cleanup_reserve + self.headroom >= self.published_limit:
++            raise ValueError("TP budget assumptions leave no admission space")
++        if not 0 < self.header_max_age_seconds <= 5:
++            raise ValueError("TP budget header freshness must be at most five seconds")
++
++    @property
++    def ordinary_ceiling(self) -> int:
++        return self.published_limit - self.cleanup_reserve - self.headroom
++
++
++class TPRequestBudget:
++    def __init__(
++        self,
++        sender: Transport,
++        plan: TPBudgetPlan,
++        costs: Mapping[tuple[str, str], int],
++        *,
++        monotonic: Callable[[], float] = time.monotonic,
++    ):
++        if not costs or any(type(n) is not int or n <= 0 for n in costs.values()):
++            raise ValueError("TP budget requires explicit positive route assumptions")
++        self.original = sender
++        self.plan = plan
++        self._costs = dict(costs)
++        self._now = monotonic
++        self._lock = threading.Lock()
++        self._used = self._attempts = self._denials = 0
++        self._phase = "ORDINARY"
++        self._header_at: float | None = None
++        self._last_now: float | None = None
++        self._untrusted = False
++        self._admitted = False
++        self._stopped = False
++        self._stop_reason = "NONE"
++        self._income_profile: dict[str, int | bool] = {}
++        self._income_profile_checks = 0
++        self._preparation_checks = 0
++        self._last_preparation_assumption: int | None = None
++        self._weights = {"ORDINARY": 0, "CLEANUP": 0}
++        self._cleanup_over_model = False
++
++    def _clock(self) -> float:
++        now = self._now()
++        if self._last_now is not None and now < self._last_now:
++            self._untrusted = True
++        self._last_now = now
++        return now
++
++    def _stop(self, reason: str = "BUDGET_UNAVAILABLE") -> NoReturn:
++        if self._stop_reason == "NONE":
++            self._stop_reason = reason
++        self._stopped = True
++        self._denials += 1
++        raise TPBudgetStopped("TP request budget exhausted or untrusted; keep paused")
++
++    def _fresh(self, now: float) -> bool:
++        return bool(
++            not self._untrusted
++            and self._header_at is not None
++            and 0 <= now - self._header_at <= self.plan.header_max_age_seconds
++        )
++
++    def precheck_income_allowances(self, one_page_preparation: int) -> int:
++        """Reject a known insufficient modeled allowance; this grants no admission.
++
++        Baselines1500/3000 and snapshot counts6/12 come from the audited normal
++        path, not a universal upper bound. Charge extra income pages, and reserve
++        four complete cleanup envelopes conservatively for bounded observations.
++        Unmeasured costs, additional branches and shared-IP load remain unproven.
++        """
++        if type(one_page_preparation) is not int or one_page_preparation <= 0:
++            raise ValueError("Positive one-page preparation assumption required")
++        with self._lock:
++            now = self._clock()
++            self._income_profile_checks += 1
++            if self._phase != "ORDINARY" or self._stopped or self._admitted:
++                self._stop("INCOME_PROFILE_SCOPE_OR_ALREADY_STOPPED")
++            if not self._fresh(now):
++                self._stop("INCOME_PROFILE_WEIGHT_METADATA_UNAVAILABLE")
++            cost = self._costs.get(("GET", "/fapi/v1/income"))
++            if cost is None:
++                self._stop("INCOME_ROUTE_COST_UNMODELED")
++            extra = (MAX_INCOME_PAGES - 1) * cost
++            required_preparation = one_page_preparation + 3 * extra
++            required_entry = 1500 + 6 * extra
++            cleanup_per_attempt = 3000 + 12 * extra
++            required_cleanup = FLAT_CONFIRMATION_ATTEMPTS * cleanup_per_attempt
++            self._income_profile = {
++                "max_income_pages": MAX_INCOME_PAGES,
++                "income_page_cost_assumption": cost,
++                "flat_confirmation_attempts": FLAT_CONFIRMATION_ATTEMPTS,
++                "required_preparation_assumption": required_preparation,
++                "required_entry_assumption": required_entry,
++                "cleanup_per_attempt_assumption": cleanup_per_attempt,
++                "required_cleanup_assumption": required_cleanup,
++                "is_proven_upper_bound": False,
++            }
++            if (
++                self.plan.entry_and_protection < required_entry
++                or self.plan.cleanup_reserve < required_cleanup
++            ):
++                self._stop("INCOME_PAGINATION_ALLOWANCE_INSUFFICIENT")
++            return required_preparation
++
++    def precheck_preparation(self, assumed_preparation_cost: int) -> None:
++        """Deny a doomed preparation early; never grants admission or reserves IP credit.
++
++        The explicit assumption covers work until admit_entry(), not any of its
++        entry/protection allowance. Actual requests are still charged normally.
++        Both the original reserve-time admission and per-request checks remain.
++        """
++        if type(assumed_preparation_cost) is not int or assumed_preparation_cost <= 0:
++            raise ValueError("TP preparation requires an explicit positive integer assumption")
++        with self._lock:
++            now = self._clock()
++            self._preparation_checks += 1
++            self._last_preparation_assumption = assumed_preparation_cost
++            if self._phase != "ORDINARY" or self._stopped or self._admitted:
++                self._stop("PREPARATION_SCOPE_OR_ALREADY_STOPPED")
++            if not self._fresh(now):
++                self._stop("PREPARATION_WEIGHT_METADATA_UNAVAILABLE")
++            if (
++                self._used + assumed_preparation_cost + self.plan.entry_and_protection
++                > self.plan.ordinary_ceiling
++            ):
++                self._stop("PREPARATION_LIFECYCLE_NO_HEADROOM")
++
++    def admit_entry(self) -> None:
++        with self._lock:
++            now = self._clock()
++            if self._phase != "ORDINARY" or self._stopped or self._admitted:
++                self._stop("ENTRY_SCOPE_OR_ALREADY_STOPPED")
++            if not self._fresh(now):
++                self._stop("ENTRY_WEIGHT_METADATA_UNAVAILABLE")
++            if self._used + self.plan.entry_and_protection > self.plan.ordinary_ceiling:
++                self._stop("ENTRY_LIFECYCLE_NO_HEADROOM")
++            self._admitted = True
++
++    def begin_cleanup(self) -> None:
++        """Sticky transition only after the stream and its workers have drained."""
++        with self._lock:
++            self._phase = "CLEANUP"
++
++    @property
++    def stopped(self) -> bool:
++        with self._lock:
++            return self._stopped
++
++    def __call__(
++        self, method: str, path: str, query: SecretStr, api_key: SecretStr | None
++    ) -> RESTResponse:
++        # Inspect only the admission discriminator, never retain/log query or keys.
++        is_entry = False
++        if method == "POST" and path == "/fapi/v1/order":
++            params = parse_qs(query.get_secret_value(), keep_blank_values=True)
++            is_entry = params.get("reduceOnly") != ["true"]
++        with self._lock:
++            now = self._clock()
++            cost = self._costs.get((method, path))
++            if cost is None:
++                self._stop("ROUTE_COST_UNKNOWN")  # No implicit cheap fallback, including cleanup.
++            if is_entry and (self._phase != "ORDINARY" or not self._admitted):
++                self._stop("ENTRY_FORBIDDEN")
++            if self._phase == "ORDINARY":
++                # A clock GET can refresh stale metadata, but cannot restore stopped credit.
++                clock_probe = method == "GET" and path == "/fapi/v1/time"
++                if self._stopped or self._untrusted:
++                    self._stop("WEIGHT_METADATA_UNTRUSTED")
++                if not clock_probe and not self._fresh(now):
++                    self._stop("WEIGHT_HEADER_STALE")
++                if self._used + cost > self.plan.ordinary_ceiling:
++                    self._stop("ORDINARY_HEADROOM_EXHAUSTED")
++            self._used += cost
++            self._weights[self._phase] += cost
++            self._attempts += 1
++            if self._phase == "CLEANUP" and self._used > self.plan.published_limit:
++                self._cleanup_over_model = True
++        try:
++            response = self.original(method, path, query, api_key)
++        except Exception:
++            # A possibly-sent call is charged, never automatically retried or refunded.
++            with self._lock:
++                self._untrusted = True
++            raise
++        metadata = rate_headers(response.headers)
++        with self._lock:
++            now = self._clock()
++            header = metadata.get("x-mbx-used-weight-1m")
++            if header is None:
++                self._untrusted = True
++            else:
++                self._used = max(self._used, int(header))
++                self._header_at = now
++            if response.status in {418, 429}:
++                self._untrusted = True
++            if self._phase == "CLEANUP" and self._used > self.plan.published_limit:
++                self._cleanup_over_model = True
++        return response  # SDK retains its own response validation and cooldown handling.
++
++    def diagnostics(self) -> dict[str, Any]:
++        with self._lock:
++            return {
++                "tp_request_budget": "CANDIDATE_NON_RENEWING_OBSERVATION_BUDGET",
++                "published_limit": self.plan.published_limit,
++                "ordinary_ceiling": self.plan.ordinary_ceiling,
++                "entry_protection_assumption": self.plan.entry_and_protection,
++                "income_profile_checks": self._income_profile_checks,
++                "income_profile": dict(self._income_profile),
++                "preparation_prechecks": self._preparation_checks,
++                "last_preparation_assumption": self._last_preparation_assumption,
++                "cleanup_reserve_assumption": self.plan.cleanup_reserve,
++                "headroom_assumption": self.plan.headroom,
++                "used_conservative_model": self._used,
++                "phase": self._phase,
++                "forwarded_attempts": self._attempts,
++                "denials": self._denials,
++                "ordinary_assumed_weight": self._weights["ORDINARY"],
++                "cleanup_assumed_weight": self._weights["CLEANUP"],
++                "cleanup_exceeded_model_limit": self._cleanup_over_model,
++                "admitted": self._admitted,
++                "stopped": self._stopped,
++                "stop_reason": self._stop_reason,
++                "metadata_untrusted": self._untrusted,
++                "resets_or_refunds": 0,
++                "added_retries": 0,
++                "shared_ip_capacity_reserved": False,
++                "endpoint_weights_proven": False,
++            }
+diff --git a/services/execution/demo.py b/services/execution/demo.py
+index a74d829a51b4b1cf861162fa32cca8a3f2b8473a..ac2e2c85f0e5f18d7d30220b5c68e6e3741ccd0a 100644
+--- a/services/execution/demo.py
++++ b/services/execution/demo.py
+@@ -351,6 +351,9 @@ class DemoCoordinator:
+         self.store.change(self.lease, "DEMO_ENTRY_EFFECT", effect)
+         self.reconcile()
+ 
++    def begin_finalization(self) -> None:
++        """Optional local scheduling hook after all private-session workers drain."""
++
+     def disconnect(self) -> None:
+         def apply(ledger: DemoLedger) -> None:
+             ledger.stream_ready, ledger.reconciled = False, False
+diff --git a/services/execution/demo_event_inbox.py b/services/execution/demo_event_inbox.py
+index 7f339ed7ac830313bee1a3141fb1fad2d8be6a1c..6f329fe497bf3599fe9b9af81acca1b6892c2038 100644
+--- a/services/execution/demo_event_inbox.py
++++ b/services/execution/demo_event_inbox.py
+@@ -49,6 +49,7 @@ class EventInbox:
+         self.now_ms, self.failed = now_ms, failed
+         self.validate_time = validate_time
+         self.wakeup = asyncio.Event()
++        self.urgent = asyncio.Event()
+         self.latest: ReceivedHint | None = None
+         self.pending = 0
+         self.received = 0
+@@ -94,6 +95,7 @@ class EventInbox:
+                             DemoFailure("DEMO event clock validation interrupted"), detail
+                         )
+                         self.failed()
++                        self.urgent.set()
+                         self.wakeup.set()
+                         raise
+                 else:
+@@ -109,16 +111,39 @@ class EventInbox:
+                 self.pending += 1
+                 if self.latest is None or stamp >= self.latest.stamp:
+                     self.latest = hint
++                if kind != "ACCOUNT_UPDATE":
++                    self.urgent.set()
+                 self.wakeup.set()
+         except Exception as error:
+             self.failure = failure_diagnostic(error, detail)
+             self.failed()  # In-memory admission gate; never races DB cleanup.
++            self.urgent.set()
+             self.wakeup.set()
+ 
+-    async def take(self, timeout: float = 5) -> ReceivedHint:
++    async def take(
++        self,
++        timeout: float = 5,
++        *,
++        before_coalesce: Callable[[], Awaitable[float]] | None = None,
++    ) -> ReceivedHint:
+         self.raise_if_failed()
+         await asyncio.wait_for(self.wakeup.wait(), timeout=timeout)
+         self.raise_if_failed()
++        # Only the opt-in protected-observation candidate supplies this hook.
++        # The deadline starts at wakeup, not after invalidation or the last frame.
++        deadline = asyncio.get_running_loop().time()
++        if before_coalesce is not None and not self.urgent.is_set():
++            delay = await before_coalesce()
++            self.raise_if_failed()
++            if not 0 <= delay <= 0.25:
++                raise DemoFailure("Invalid DEMO event batch delay")
++            remaining = deadline + delay - asyncio.get_running_loop().time()
++            if remaining > 0 and not self.urgent.is_set():
++                try:
++                    await asyncio.wait_for(self.urgent.wait(), timeout=remaining)
++                except TimeoutError:
++                    pass
++            self.raise_if_failed()
+         hint = self.latest
+         if hint is None:
+             raise DemoFailure("DEMO private event inbox empty")
+@@ -126,4 +151,5 @@ class EventInbox:
+         self.latest = None
+         self.pending = 0
+         self.wakeup.clear()
++        self.urgent.clear()
+         return hint
+diff --git a/services/execution/demo_stream.py b/services/execution/demo_stream.py
+index 5e448656348952d8041dfec25b86f5518892bea2..67309d223822bcdaa98f3d2736631a37e5032435 100644
+--- a/services/execution/demo_stream.py
++++ b/services/execution/demo_stream.py
+@@ -217,7 +217,17 @@ async def session(
+                         coordinator.session_diagnostic.event_age_ms = None
+                         coordinator.session_diagnostic.event_receive_age_ms = None
+                         coordinator.session_diagnostic.event_clock_wait_ms = 0
+-                        hint = await inbox.take(timeout=wait_seconds)
++                        batch_hook = getattr(coordinator, "prepare_event_batch", None)
++                        if batch_hook is None:
++                            hint = await inbox.take(timeout=wait_seconds)
++                        else:
++
++                            async def before_batch(hook: Callable[[], float] = batch_hook) -> float:
++                                return float(await settled_call(hook))
++
++                            hint = await inbox.take(
++                                timeout=wait_seconds, before_coalesce=before_batch
++                            )
+                         coordinator.session_diagnostic.stage = "EVENT"
+                         (
+                             coordinator.session_diagnostic.event_kind,
+diff --git a/services/execution/demo_tp_budget_candidate.py b/services/execution/demo_tp_budget_candidate.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..14bf1ddab326c7b021b20f6ade2df4abc06f89d5
+--- /dev/null
++++ b/services/execution/demo_tp_budget_candidate.py
+@@ -0,0 +1,164 @@
++"""Cloud-tested candidate only; no CLI/default or production activation."""
++
++from decimal import Decimal
++from typing import Literal
++
++from integrations.binance_usdm.demo_tp_budget import TPRequestBudget
++from packages.domain.contracts import OrderState, PositionState, RiskState, Signal
++from packages.persistence.demo import DemoStore
++from services.execution.demo_models import DemoLedger
++from services.execution.demo_tp_trigger_check import PooledReadTPTriggerCoordinator, TPTriggerClient
++from services.execution.models import Lease, PaperOrder
++from services.risk.paper import GateSnapshot
++
++
++class BudgetedTPTriggerCoordinator(PooledReadTPTriggerCoordinator):
++    def __init__(
++        self, store: DemoStore, lease: Lease, client: TPTriggerClient, budget: TPRequestBudget
++    ):
++        if client.send is not budget:
++            raise ValueError("Candidate coordinator requires its shared budget transport")
++        super().__init__(store, lease, client)
++        self.request_budget = budget
++
++    def reserve(
++        self,
++        signal: Signal,
++        gate: GateSnapshot,
++        *,
++        quantity_cap: Decimal | None = None,
++        entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "OPPOSITE_QUOTE",
++    ) -> PaperOrder:
++        # Fail before creating an entry reservation/intent if its lifecycle cannot fit.
++        # The parent still owns scope, quote, expiry, size and risk/fencing checks.
++        self.request_budget.admit_entry()
++        return super().reserve(signal, gate, quantity_cap=quantity_cap, entry_style=entry_style)
++
++    def disconnect(self) -> None:
++        super().disconnect()
++        # The private supervisor intentionally suppresses close-time errors. A
++        # local budget stop there must still invalidate observation acceptance.
++        if self.request_budget.stopped:
++            self.session_failed = True
++
++    def begin_finalization(self) -> None:
++        self.request_budget.begin_cleanup()
++        if not self.request_budget.stopped:
++            return
++        self.session_failed = True
++
++        def pause(ledger: DemoLedger) -> None:
++            ledger.paused = True
++            ledger.stream_ready = ledger.reconciled = False
++            if (
++                any(ledger.positions.values())
++                or any(o.open_quantity for o in ledger.orders.values())
++            ) and ledger.risk_state not in {
++                RiskState.EMERGENCY,
++                RiskState.DAILY_LOCK,
++                RiskState.WEEKLY_LOCK,
++                RiskState.DRAWDOWN_LOCK,
++            }:
++                ledger.risk_state = RiskState.EMERGENCY
++
++        self.store.change(self.lease, "DEMO_TP_BUDGET_FINALIZATION_PAUSE", pause)
++
++
++class CoalescedBudgetedTPTriggerCoordinator(BudgetedTPTriggerCoordinator):
++    """Opt-in cloud candidate: only fully protected ACCOUNT_UPDATE hints may batch."""
++
++    def prepare_event_batch(self) -> float:
++        ledger = self.store.read(self.lease.account_id)
++        delay = 0.25
++        active = [o for o in ledger.orders.values() if o.open_quantity]
++        if (
++            self.session_failed
++            or self.request_budget.stopped
++            or not self.client.settings.demo_trading_enabled
++            or self.client.settings.margin_mode != "ISOLATED"
++            or self.client.settings.symbols != ("BTCUSDT",)
++            or ledger.risk_state != RiskState.NORMAL
++            or not ledger.reconciled
++            or not ledger.stream_ready
++            or any(o.remaining for o in ledger.orders.values())
++            or len(active) != 1
++            or ledger.last_reconciled is None
++            or ledger.stream_at is None
++            or any(
++                not 0
++                <= (self.store.now() - stamp).total_seconds()
++                <= ledger.policy.max_snapshot_age_seconds / 2 - delay
++                for stamp in (ledger.last_reconciled, ledger.stream_at)
++            )
++        ):
++            return 0.0
++        order = active[0]
++        evidence = ledger.validation_evidence.get(str(order.signal.signal_id), {})
++        if (
++            order.state != OrderState.FILLED
++            or order.signal.purpose != "DEMO_VALIDATION"
++            or order.signal.symbol != "BTCUSDT"
++            or order.signal.direction != "LONG"
++            or not 0 < order.quantity <= Decimal("0.0007")
++            or order.quantity * order.signal.suggested_limit_price > 100
++            or order.open_quantity != order.filled
++            or order.filled != order.quantity
++            or order.position_state != PositionState.PROTECTED
++            or not order.protected
++            or not order.algo_id
++            or not order.tp_algo_id
++            or order.exit_id is not None
++            or order.exit_state != "NONE"
++            or not evidence.get("stop_verified")
++            or not evidence.get("target_verified")
++            or ledger.positions.get("BTCUSDT") != order.open_quantity
++            or any(q for symbol, q in ledger.positions.items() if symbol != "BTCUSDT")
++        ):
++            return 0.0
++        # Invalidate admission BEFORE any delay. The next event() still performs
++        # the original clock validation, full snapshot pair, protection recheck.
++        self.disconnect()
++        return delay
++
++
++class PrecheckedBudgetedTPTriggerCoordinator(CoalescedBudgetedTPTriggerCoordinator):
++    """Candidate only: early refusal before resuming entries or planning prices."""
++
++    def __init__(
++        self,
++        store: DemoStore,
++        lease: Lease,
++        client: TPTriggerClient,
++        budget: TPRequestBudget,
++        *,
++        preparation_cost_assumption: int,
++    ):
++        if type(preparation_cost_assumption) is not int or preparation_cost_assumption <= 0:
++            raise ValueError("Explicit positive preparation cost assumption required")
++        super().__init__(store, lease, client, budget)
++        self.preparation_cost_assumption = preparation_cost_assumption
++
++    def before_entry_prepare(self) -> None:
++        self.request_budget.precheck_preparation(self.preparation_cost_assumption)
++
++
++class IncomeBudgetedTPTriggerCoordinator(PrecheckedBudgetedTPTriggerCoordinator):
++    """Opt-in candidate: account for pagination before preparation and reservation."""
++
++    def before_entry_prepare(self) -> None:
++        preparation = self.request_budget.precheck_income_allowances(
++            self.preparation_cost_assumption
++        )
++        self.request_budget.precheck_preparation(preparation)
++
++    def reserve(
++        self,
++        signal: Signal,
++        gate: GateSnapshot,
++        *,
++        quantity_cap: Decimal | None = None,
++        entry_style: Literal["PASSIVE", "OPPOSITE_QUOTE"] = "OPPOSITE_QUOTE",
++    ) -> PaperOrder:
++        # Recheck the profile without charging the preparation forecast again.
++        self.request_budget.precheck_income_allowances(self.preparation_cost_assumption)
++        return super().reserve(signal, gate, quantity_cap=quantity_cap, entry_style=entry_style)
+diff --git a/services/execution/demo_validation.py b/services/execution/demo_validation.py
+index 89b7cb4a9d88384ae061f11acfc3296747858927..25ee6de18aa56f7bd99d935fd9232ef12e0c0d5a 100644
+--- a/services/execution/demo_validation.py
++++ b/services/execution/demo_validation.py
+@@ -10,16 +10,19 @@ from uuid import UUID, uuid5
+ from sqlalchemy.exc import SQLAlchemyError
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoRateLimited
++from integrations.binance_usdm.demo_tp_budget import TPBudgetStopped
+ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import RiskState, Signal, TradingMode
+ from services.execution.demo import DemoCoordinator
+ from services.execution.demo_models import DemoLedger
+ from services.execution.demo_preview import PreviewBlocked, preview
+ from services.execution.demo_stream import session as session
++from services.execution.demo_validation_limits import (
++    FLAT_CONFIRMATION_ATTEMPTS as FLAT_CONFIRMATION_ATTEMPTS,
++)
+ from services.risk.paper import GateSnapshot, RiskRejected
+ 
+ MAX_TEST_NOTIONAL = Decimal("100")  # DEMO-only hard ceiling, never LIVE configuration.
+-FLAT_CONFIRMATION_ATTEMPTS = 4
+ FLAT_CONFIRMATION_INTERVAL_SECONDS = 1
+ 
+ 
+@@ -36,6 +39,8 @@ def database_failure(error: SQLAlchemyError) -> str:
+ 
+ def safe_failure(error: Exception) -> str:
+     """Allowlisted categories only; never return raw exception text or private URLs."""
++    if isinstance(error, TPBudgetStopped):
++        return "TP_REQUEST_BUDGET_STOPPED"
+     if isinstance(error, DemoRateLimited):
+         return "DEMO_RATE_LIMITED"
+     if isinstance(error, PreviewBlocked) and str(error) == (
+@@ -229,6 +234,10 @@ async def validate_once(
+         try:
+             current = store.read(lease.account_id)
+             if key not in current.orders:
++                prepare_check = getattr(coordinator, "before_entry_prepare", None)
++                if prepare_check is not None:
++                    validation_stage = "ENTRY_BUDGET_PRECHECK"
++                    prepare_check()
+                 validation_stage = "RESUME_ENTRIES"
+                 coordinator.resume_entries(uuid5(operation_id, "resume"))
+                 validation_stage = "PREPARE_ENTRY"
+@@ -310,6 +319,9 @@ async def validate_once(
+     completion_failure = "NONE"
+     completion_database_failure = "NONE"
+     try:
++        await asyncio.to_thread(coordinator.begin_finalization)
++        # A drained session may have suppressed a close-time scheduling error.
++        failure = failure or coordinator.session_failed
+         await asyncio.to_thread(pause_finalization_locally, coordinator)
+         if coordinator.client.clock_ms() < coordinator.client.cooldown_until:
+             raise DemoRateLimited("DEMO cooldown active; manual exchange verification required")
+diff --git a/services/execution/demo_validation_limits.py b/services/execution/demo_validation_limits.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..8e4f63d5266a42d7017eaa49275b476413e3faa6
+--- /dev/null
++++ b/services/execution/demo_validation_limits.py
+@@ -0,0 +1,3 @@
++"""Shared bounded flat-observation count; does not authorize mutation retries."""
++
++FLAT_CONFIRMATION_ATTEMPTS = 4
+diff --git a/tests/fixtures/tp_phase_audit.py b/tests/fixtures/tp_phase_audit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..709cdf3dc7171c9dc3e1aed2627a608c267f2ccf
+--- /dev/null
++++ b/tests/fixtures/tp_phase_audit.py
+@@ -0,0 +1,142 @@
++"""Observational synthetic lifecycle cost audit; never logs query, keys or bodies.
++
++This fixture does not grant, reserve, wait, retry, or change any SDK response.
++It is not wired into a CLI or production execution path.
++"""
++
++import threading
++from collections.abc import Callable, Iterator, Mapping
++from contextlib import contextmanager
++from contextvars import ContextVar
++from typing import Any
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import Transport
++from integrations.binance_usdm.rest import RESTResponse
++
++PHASES = frozenset(
++    {
++        "BOOTSTRAP",
++        "SESSION_OTHER",
++        "SESSION_READY",
++        "EARLY_CHECK",
++        "RESUME",
++        "PREPARATION",
++        "RESERVATION",
++        "SUBMISSION_PROTECTION",
++        "OBSERVATION",
++        "FINALIZATION",
++        "FLAT_CONFIRMATION",
++    }
++)
++
++
++class PhaseAudit:
++    def __init__(
++        self, sender: Transport, costs: Mapping[tuple[str, str], int], *, trace_cap: int = 5000
++    ):
++        if type(trace_cap) is not int or not 1 <= trace_cap <= 10000:
++            raise ValueError("Invalid synthetic trace cap")
++        if any(type(v) is not int or v <= 0 for v in costs.values()):
++            raise ValueError("Explicit positive cost assumptions required")
++        self.sender = sender
++        self.costs = dict(costs)
++        self.trace_cap = trace_cap
++        self._stack: ContextVar[tuple[str, ...]] = ContextVar(
++            "synthetic_lifecycle_phase", default=()
++        )
++        self._lock = threading.Lock()
++        self._finalizing = False
++        self._rows: list[dict[str, Any]] = []
++        self._counts: dict[str, int] = {}
++        self._weights: dict[str, int] = {}
++        self._unmodeled = self._attempts = 0
++
++    @contextmanager
++    def span(self, phase: str) -> Iterator[None]:
++        if phase not in PHASES:
++            raise ValueError("Unknown audit phase")
++        token = self._stack.set((*self._stack.get(), phase))
++        try:
++            yield
++        finally:
++            self._stack.reset(token)
++
++    def instrument[**P, R](self, phase: str, function: Callable[P, R]) -> Callable[P, R]:
++        def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
++            with self.span(phase):
++                return function(*args, **kwargs)
++
++        return wrapped
++
++    def begin_finalization(self) -> None:
++        with self._lock:
++            self._finalizing = True
++
++    def _phase(self) -> str:
++        stack = self._stack.get()
++        if "FLAT_CONFIRMATION" in stack:
++            return "FLAT_CONFIRMATION"
++        if self._finalizing:
++            return "FINALIZATION"
++        if "OBSERVATION" in stack:
++            return "OBSERVATION"
++        return stack[-1] if stack else "SESSION_OTHER"
++
++    def _record(
++        self, method: str, path: str, status: int | None, *, phase: str | None = None
++    ) -> None:
++        with self._lock:
++            current = phase or self._phase()
++            cost = self.costs.get((method, path))
++            self._attempts += 1
++            self._counts[current] = self._counts.get(current, 0) + 1
++            if cost is None:
++                self._unmodeled += 1
++            else:
++                self._weights[current] = self._weights.get(current, 0) + cost
++            if len(self._rows) < self.trace_cap:
++                self._rows.append(
++                    {
++                        "attempt": self._attempts,
++                        "phase": current,
++                        "method": method if method in {"GET", "POST", "PUT", "DELETE"} else "OTHER",
++                        "path": path if cost is not None else "UNMODELED_ROUTE",
++                        "status": status,
++                        "assumed_weight": cost,
++                    }
++                )
++
++    def import_bootstrap(self, rows: list[dict[str, Any]]) -> None:
++        """Import only the allowlisted method/path/status from prior synthetic calls."""
++        for row in rows:
++            self._record(str(row["method"]), str(row["path"]), row.get("status"), phase="BOOTSTRAP")
++
++    def __call__(
++        self, method: str, path: str, query: SecretStr, api_key: SecretStr | None
++    ) -> RESTResponse:
++        status = None
++        with self._lock:
++            phase = self._phase()
++        try:
++            response = self.sender(method, path, query, api_key)
++            status = response.status
++            return response
++        finally:
++            self._record(method, path, status, phase=phase)
++
++    def report(self) -> dict[str, Any]:
++        with self._lock:
++            return {
++                "actual_venue_used": False,
++                "assumed_weights_are_not_proven_bounds": True,
++                "attempts": self._attempts,
++                "known_assumed_total_weight": sum(self._weights.values()),
++                "phase_attempts": dict(self._counts),
++                "phase_assumed_weights": dict(self._weights),
++                "unmodeled_attempts": self._unmodeled,
++                "complete_cost_model": self._unmodeled == 0,
++                "trace_truncated": len(self._rows) != self._attempts,
++                "trace": list(self._rows),
++            }
+diff --git a/tests/fixtures/tp_weight_model.py b/tests/fixtures/tp_weight_model.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..944df2484738a4e3ddb677928d4e36c691b7a42d
+--- /dev/null
++++ b/tests/fixtures/tp_weight_model.py
+@@ -0,0 +1,268 @@
++"""Synthetic weight/history support; copied from reviewed 61-case shadow validation.
++
++Observed deltas are assumptions; unknown route cost40 is not a proven maximum.
++"""
++
++import threading
++import time
++from datetime import timedelta
++from decimal import Decimal as D
++from urllib.parse import parse_qs
++
++from integrations.binance_usdm.rest import RESTResponse
++from packages.domain.contracts import OrderState, PositionState
++from services.execution.models import PaperOrder
++from tests.integration.test_paper import signal, snapshot
++
++GET_COSTS = {
++    "/fapi/v1/algoOrder": 1,
++    "/fapi/v1/exchangeInfo": 1,
++    "/fapi/v1/income": 30,
++    "/fapi/v1/multiAssetsMargin": 30,
++    "/fapi/v1/openAlgoOrders": 40,
++    "/fapi/v1/openOrders": 40,
++    "/fapi/v1/order": 1,
++    "/fapi/v1/positionSide/dual": 35,
++    "/fapi/v1/symbolConfig": 5,
++    "/fapi/v1/time": 1,
++    "/fapi/v3/account": 5,
++    "/fapi/v3/positionRisk": 5,
++}
++
++
++def seed_history(store, c, fake):
++    history = {}
++    for n in range(19):
++        manual = n == 16
++        ambiguous = n == 17
++        unfilled = n == 18
++        cid = f"DE-shadow-history-{n}"
++        exit_id = None if manual or unfilled else f"DX-shadow-history-{n}"
++        stop = None if unfilled else f"DS-shadow-history-{n}"
++        target = None if ambiguous or unfilled else f"DT-shadow-history-{n}"
++        qty = D("0.0007")
++        filled = D(0) if ambiguous or unfilled else qty
++        sig = signal(
++            environment="DEMO",
++            purpose="DEMO_VALIDATION",
++            strategy=None,
++            signal_closed_candle_at=store.now() - timedelta(days=2),
++            expires_at=store.now() - timedelta(days=2) + timedelta(seconds=10),
++            suggested_limit_price="80000.1",
++            initial_stop_price="79600",
++            target_price="80800.2",
++        )
++        key = str(sig.signal_id)
++        order = PaperOrder(
++            client_id=cid,
++            signal=sig,
++            snapshot=snapshot(),
++            group="BTC",
++            quantity=qty,
++            quantity_step="0.0001",
++            price_tick="0.1",
++            loss_per_unit="500",
++            budget="1",
++            state=OrderState.CANCELED if not filled else OrderState.FILLED,
++            position_state=PositionState.CLOSED,
++            filled=filled,
++            remaining="0",
++            open_quantity="0",
++            average_price="80000.1" if filled else "0",
++            server_order_id=str(1000 + n),
++            algo_id=stop,
++            tp_algo_id=target,
++            exit_id=exit_id,
++            exit_state="NONE" if manual or unfilled else "UNKNOWN" if ambiguous else "FILLED",
++        )
++        history[key] = order
++        raw = dict(
++            symbol="BTCUSDT",
++            clientOrderId=cid,
++            orderId=str(1000 + n),
++            side="BUY",
++            type="LIMIT",
++            status=order.state.value,
++            origQty=str(qty),
++            executedQty=str(filled),
++            avgPrice=str(order.average_price),
++            price="80000.1",
++            positionSide="BOTH",
++            reduceOnly=False,
++        )
++        fake.orders[cid] = raw
++        if exit_id and not ambiguous:
++            fake.orders[exit_id] = dict(
++                raw,
++                clientOrderId=exit_id,
++                orderId=str(2000 + n),
++                side="SELL",
++                type="MARKET",
++                status="FILLED",
++                reduceOnly=True,
++                price="0",
++            )
++        for identifier, kind, price in (
++            (stop, "STOP_MARKET", "79600"),
++            (target, "TAKE_PROFIT_MARKET", "80800.2"),
++        ):
++            if identifier:
++                fake.algos[identifier] = dict(
++                    symbol="BTCUSDT",
++                    clientAlgoId=identifier,
++                    algoId=str(3000 + 2 * n + (kind == "TAKE_PROFIT_MARKET")),
++                    side="SELL",
++                    orderType=kind,
++                    algoStatus="EXPIRED",
++                    triggerPrice=price,
++                    closePosition=True,
++                    positionSide="BOTH",
++                    workingType="MARK_PRICE",
++                    priceProtect=False,
++                    algoType="CONDITIONAL",
++                    actualOrderId="",
++                )
++        if ambiguous:
++            fake.algos.pop(stop)
++    # Two additional historical no-send uncertainties: source status remains preserved.
++    fake.algos.pop("DS-shadow-history-0")
++    fake.algos.pop("DT-shadow-history-1")
++
++    def bind(ledger):
++        ledger.orders.update(history)
++        ledger.paused = True
++        ledger.stream_ready = ledger.reconciled = False
++        for order in history.values():
++            ledger.requests[order.client_id] = order.state.value
++            if order.exit_id:
++                ledger.requests[order.exit_id] = (
++                    "UNKNOWN" if order.exit_state == "UNKNOWN" else "FILLED"
++                )
++            for identifier in (order.algo_id, order.tp_algo_id):
++                if identifier:
++                    ledger.requests[identifier] = (
++                        "UNKNOWN" if identifier not in fake.algos else "VERIFIED"
++                    )
++
++    store.change(c.lease, "SYNTHETIC_WEIGHT_SHADOW_HISTORY", bind)
++    return history
++
++
++class Meter:
++    def __init__(
++        self,
++        sender,
++        fake,
++        *,
++        seed,
++        unknown_cost,
++        cap,
++        spike,
++        partial,
++        options,
++        dual_cost=35,
++        windowed=False,
++    ):
++        self.sender, self.fake = sender, fake
++        self.used = seed
++        self.seed = seed
++        self.unknown_cost = unknown_cost
++        self.get_costs = dict(GET_COSTS)
++        self.get_costs["/fapi/v1/positionSide/dual"] = dual_cost
++        self.cap = cap
++        self.spike = spike
++        self.spiked = False
++        self.partial = partial
++        self.options = options
++        self.windowed = windowed
++        self.window = int(fake.at.timestamp()) // 60
++        self.window_origin = self.window
++        self.window_peaks = {self.window: seed}
++        self.rows = []
++        self.lock = threading.Lock()
++        self.started = time.monotonic()
++
++    def __call__(self, method, path, query, key):
++        params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++        protected = (
++            any(self.fake.positions.values())
++            and any(
++                a["algoStatus"] == "NEW" and a["orderType"] == "STOP_MARKET"
++                for a in tuple(self.fake.algos.values())
++            )
++            and any(
++                a["algoStatus"] == "NEW" and a["orderType"] == "TAKE_PROFIT_MARKET"
++                for a in tuple(self.fake.algos.values())
++            )
++        )
++        if method == "POST" and path == "/fapi/v1/order":
++            stage = "reduce_exit" if params.get("reduceOnly") == "true" else "entry"
++        elif method == "POST" and path == "/fapi/v1/algoOrder":
++            stage = "protection"
++        elif method == "DELETE":
++            stage = "cancel_or_cleanup"
++        elif protected:
++            stage = "protected_reads"
++        elif any(self.fake.positions.values()):
++            stage = "unprotected_reads"
++        elif any(
++            o["status"] == "FILLED"
++            and o["clientOrderId"].startswith("DE-")
++            and "shadow-history" not in o["clientOrderId"]
++            for o in tuple(self.fake.orders.values())
++        ):
++            stage = "post_fill_flat_reads"
++        else:
++            stage = "pre_entry_reads"
++        cost = (
++            self.get_costs[path]
++            if method == "GET" and path in self.get_costs
++            else self.unknown_cost
++        )
++        with self.lock:
++            window = int(self.fake.at.timestamp()) // 60
++            if self.windowed and window != self.window:
++                self.window = window
++                self.used = 0
++            if (
++                self.spike
++                and not self.spiked
++                and protected
++                and method == "GET"
++                and path == "/fapi/v1/time"
++            ):
++                self.used = max(self.used, self.cap)
++                self.spiked = True
++            self.used += cost
++            self.window_peaks[self.window] = max(self.window_peaks.get(self.window, 0), self.used)
++            blocked = self.used > self.cap
++            row = {
++                "seq": len(self.rows) + 1,
++                "method": method,
++                "path": path,
++                "stage": stage,
++                "assumed_weight": cost,
++                "simulated_used_weight": self.used,
++                "forwarded": not blocked,
++                "status": 429 if blocked else None,
++                "elapsed_ms": int((time.monotonic() - self.started) * 1000),
++            }
++            self.rows.append(row)
++        if blocked:
++            return RESTResponse(
++                429, b"not-json", {"X-MBX-USED-WEIGHT-1M": str(self.used), "Retry-After": "120"}
++            )
++        response = self.sender(method, path, query, key)
++        if (
++            self.partial
++            and method == "POST"
++            and path == "/fapi/v1/order"
++            and params.get("type") == "LIMIT"
++        ):
++            self.fake.fill(params["newClientOrderId"], D("0.0003"), D("80000.1"))
++        row["status"] = response.status
++        return RESTResponse(
++            response.status,
++            response.body,
++            {"X-MBX-USED-WEIGHT-1M": str(row["simulated_used_weight"])},
++        )
+diff --git a/tests/integration/test_tp_event_batch_lifecycle.py b/tests/integration/test_tp_event_batch_lifecycle.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..e6ae43d9527664c3fe4453d31f64701192db38fc
+--- /dev/null
++++ b/tests/integration/test_tp_event_batch_lifecycle.py
+@@ -0,0 +1,107 @@
++"""Opt-in batching comparison; real PG/local WS and synthetic venue only."""
++
++import json
++
++import pytest
++
++from services.execution import demo as demo_module
++from services.risk.paper import RiskRejected
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++from tests.integration.test_tp_request_budget_lifecycle import candidate, exercise_long, save
++
++
++@pytest.mark.parametrize("coalesced", [False, True])
++@pytest.mark.parametrize("mode", ["no_tp", "tp", "partial", "unfilled", "spike", "real_limit"])
++def test_batch_preserves_proof_and_limits_with_measured_synthetic_read_count(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    coalesced,
++    mode,
++):
++    if mode in {"no_tp", "partial", "spike"}:
++        opposite_case[3]["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        opposite_case[3]["fill"] = False
++    if mode == "unfilled":
++        opposite_case[3]["trigger"] = False
++    # 100000 is an unlimited counterfactual to compare complete traces. 6000
++    # explicitly tests actual-profile admission; no real quota is changed.
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=6000 if mode == "real_limit" else 100000,
++        partial=mode == "partial",
++        spike=mode == "spike",
++        coalesced=coalesced,
++    )
++    store, c, fake, _ = scenario
++    before = store.read("DEMO-test")
++    delayed = []
++    proof_calls = []
++    original_proof = demo_module.historical_snapshot
++
++    def counted_proof(*args, **kwargs):
++        proof_calls.append(True)
++        return original_proof(*args, **kwargs)
++
++    monkeypatch.setattr(demo_module, "historical_snapshot", counted_proof)
++    if coalesced:
++        original = c.prepare_event_batch
++
++        def observe():
++            delay = original()
++            if delay:
++                state = store.read("DEMO-test")
++                assert not state.reconciled and not state.stream_ready
++                with pytest.raises(RiskRejected):
++                    c._fresh(state)
++                delayed.append(delay)
++            return delay
++
++        monkeypatch.setattr(c, "prepare_event_batch", observe)
++    try:
++        report = exercise_long(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    after = store.read("DEMO-test")
++    assert all(after.orders[k] == v for k, v in before.orders.items())
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert report["history_and_baselines_preserved"] and after.paused
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    if mode == "spike":
++        assert meter.spiked and any(fake.positions.values())
++        assert report["flat_confirmation"] == "UNKNOWN" and report["risk_state"] == "EMERGENCY"
++        assert report["operator_exit_post_attempts"] == 0
++        first = next(i for i, r in enumerate(meter.rows) if r["status"] == 429)
++        assert len(meter.rows) == first + 1
++    else:
++        assert final["validation"] == "FINISHED_FLAT" and final["completion_failure"] == "NONE"
++        assert not any(fake.positions.values())
++        assert all(r["status"] != 429 for r in meter.rows)
++        assert len(proof_calls) == 5  # Full original flat evidence, unchanged.
++    if mode == "real_limit":
++        assert report["new_entry_post_count"] == 0 and budget.stopped and not delayed
++    else:
++        assert report["new_entry_post_count"] == 1 and report["operator_exit_post_attempts"] <= 1
++    if mode == "tp":
++        assert report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++    if coalesced and mode == "no_tp":
++        assert delayed and report["operator_exit_post_attempts"] == 1
++    if mode in {"partial", "unfilled"}:
++        assert not delayed  # Never slow protection installation or entry expiry.
++    report["full_historical_flat_snapshot_calls"] = len(proof_calls)
++    report["batch_count_synthetic"] = len(delayed)
++    report["batch_max_delay_seconds"] = max(delayed, default=0)
++    report["comparison_coalesced"] = coalesced
++    report["synthetic_http_attempts"] = len(meter.rows)
++    report["synthetic_model_total_weight"] = sum(r["assumed_weight"] for r in meter.rows)
++    save(f"event-batch-{mode}-coalesced{coalesced}", report, meter, budget)
+diff --git a/tests/integration/test_tp_income_budget_lifecycle.py b/tests/integration/test_tp_income_budget_lifecycle.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..2366e845a8f78f486956c02d433159c4845da9d9
+--- /dev/null
++++ b/tests/integration/test_tp_income_budget_lifecycle.py
+@@ -0,0 +1,232 @@
++"""Pagination budget candidate: actual isolated PG/WS, synthetic venue only."""
++
++import json
++import os
++from pathlib import Path
++from urllib.parse import parse_qs
++
++import pytest
++
++from integrations.binance_usdm.demo_snapshot import INCOME_PAGE_SIZE, MAX_INCOME_PAGES
++from integrations.binance_usdm.demo_tp_budget import TPBudgetPlan
++from services.execution import demo as demo_module
++from services.execution.demo_validation_limits import FLAT_CONFIRMATION_ATTEMPTS
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import exercise_opposite, opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++from tests.integration.test_tp_request_budget_lifecycle import candidate
++
++
++def run_income_case(
++    scenario,
++    monkeypatch,
++    capsys,
++    *,
++    mode="no_tp",
++    pages=10,
++    old_allowance=False,
++    cap=100000,
++    repeat=False,
++    full=False,
++    downgrade=False,
++    spike=False,
++):
++    if mode in {"no_tp", "partial"}:
++        scenario[3]["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        scenario[3]["fill"] = False
++    if mode == "unfilled":
++        scenario[3]["trigger"] = False
++    built, meter, budget, route, sender = candidate(
++        scenario,
++        cap=cap,
++        partial=mode == "partial",
++        spike=spike,
++        preparation_cost=712,
++        income_guard=True,
++        entry_allowance=1500 if old_allowance else 3120,
++        cleanup_allowance=3000 if old_allowance else 24960,
++    )
++    store, c, fake, _ = built
++    before = store.read("DEMO-test")
++    paging = {"pages": 1, "full": False}
++    original_sender = meter.sender
++    records = [{"incomeType": "COMMISSION"}] * INCOME_PAGE_SIZE
++
++    def income(method, path, query, key):
++        response = original_sender(method, path, query, key)
++        if method == "GET" and path == "/fapi/v1/income":
++            page = int(parse_qs(query.get_secret_value())["page"][0])
++            filled = page < paging["pages"] or (paging["full"] and page == paging["pages"])
++            return fake.response(records if filled else [])
++        return response
++
++    meter.sender = income
++    original_begin = c.begin_finalization
++
++    def begin():
++        paging["pages"] = pages
++        paging["full"] = full
++        return original_begin()
++
++    monkeypatch.setattr(c, "begin_finalization", begin)
++    proofs = []
++    original_history = demo_module.historical_snapshot
++
++    def historical(*args, **kwargs):
++        proofs.append(True)
++        return original_history(*args, **kwargs)
++
++    monkeypatch.setattr(demo_module, "historical_snapshot", historical)
++    confirmations = []
++    original_confirm = c.confirm_flat
++
++    def confirm():
++        result = original_confirm()
++        confirmations.append(result)
++        # Synthetic lost confirmation: all original evidence is still queried,
++        # but acceptance is withheld until the last bounded observation attempt.
++        if repeat and len(confirmations) < FLAT_CONFIRMATION_ATTEMPTS:
++            return "UNKNOWN"
++        return result
++
++    monkeypatch.setattr(c, "confirm_flat", confirm)
++    if downgrade:
++        original_reserve = c.reserve
++
++        def reserve(*args, **kwargs):
++            budget.plan = TPBudgetPlan(cap, 1500, 3000, 300)
++            return original_reserve(*args, **kwargs)
++
++        monkeypatch.setattr(c, "reserve", reserve)
++    try:
++        report = exercise_opposite(built, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    output = capsys.readouterr().out
++    final = next(
++        json.loads(s)
++        for s in output.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    after = store.read("DEMO-test")
++    d = budget.diagnostics()
++    assert after.paused and report["history_and_baselines_preserved"]
++    assert all(after.orders[k] == v for k, v in before.orders.items())
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert report["new_entry_post_count"] <= 1 and report["operator_exit_post_attempts"] <= 1
++    if old_allowance or downgrade:
++        assert not posts(fake) and not d["admitted"] and budget.stopped
++        assert d["stop_reason"] == "INCOME_PAGINATION_ALLOWANCE_INSUFFICIENT"
++        assert final["validation_stage"] == (
++            "RESERVE_ENTRY" if downgrade else "ENTRY_BUDGET_PRECHECK"
++        )
++        assert final["validation"] == "FINISHED_FLAT" and len(proofs) == 5
++    elif spike:
++        assert any(fake.positions.values()) and report["risk_state"] == "EMERGENCY"
++        assert (
++            report["flat_confirmation"] == "UNKNOWN" and report["operator_exit_post_attempts"] == 0
++        )
++        i = next(i for i, r in enumerate(meter.rows) if r["status"] == 429)
++        assert len(meter.rows) == i + 1
++    elif full:
++        assert (
++            final["validation"] != "FINISHED_FLAT" and report["tp_trigger_check"] == "NOT_ACCEPTED"
++        )
++        if any(fake.positions.values()):
++            assert report["risk_state"] == "EMERGENCY"
++    else:
++        assert not any(fake.positions.values()) and final["validation"] == "FINISHED_FLAT"
++        assert final["completion_failure"] == "NONE"
++        assert all(r["status"] != 429 for r in meter.rows)
++        assert len(proofs) == 5 * (FLAT_CONFIRMATION_ATTEMPTS if repeat else 1)
++        assert d["cleanup_assumed_weight"] <= 24960
++        assert d["income_profile_checks"] == 2
++        if mode == "tp":
++            assert (
++                report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++            )
++        if repeat:
++            assert len(confirmations) == 4 and report["operator_exit_post_attempts"] == 1
++    folder = os.getenv("TP_INCOME_BUDGET_REPORT_DIR")
++    if folder:
++        p = Path(folder)
++        p.mkdir(parents=True, exist_ok=True)
++        label = f"{mode}-pages{pages}-old{old_allowance}-cap{cap}-repeat{repeat}-full{full}-downgrade{downgrade}-spike{spike}"
++        (p / (label + ".json")).write_text(
++            json.dumps(
++                {
++                    "actual_venue_used": False,
++                    "case": label,
++                    "mode": mode,
++                    "income_pages": pages,
++                    "parser_max_income_pages": MAX_INCOME_PAGES,
++                    "report": report,
++                    "completion": final,
++                    "budget": d,
++                    "full_historical_flat_snapshots": len(proofs),
++                    "confirmation_results": confirmations,
++                    "synthetic_requests": meter.rows,
++                },
++                indent=2,
++            )
++            + "\n"
++        )
++
++
++@pytest.mark.parametrize("cap", [6000, 100000])
++def test_original_one_page_allowances_are_rejected_before_any_order_or_resume(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    cap,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, old_allowance=True, cap=cap, pages=1)
++
++
++@pytest.mark.parametrize("mode", ["tp", "no_tp", "partial", "unfilled"])
++@pytest.mark.parametrize("pages", [1, 3, 10])
++def test_larger_explicit_counterfactual_budget_handles_page_growth_with_original_proof(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    mode,
++    pages,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, mode=mode, pages=pages)
++
++
++def test_all_four_flat_observations_are_budgeted_without_new_exit_post(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, pages=10, repeat=True)
++
++
++def test_full_tenth_page_retains_original_incomplete_income_rejection(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, pages=10, full=True)
++
++
++def test_profile_downgrade_after_precheck_is_rejected_again_before_reservation(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, pages=1, downgrade=True)
++
++
++def test_shared_ip_spike_still_has_no_sdk_cooldown_bypass(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    run_income_case(opposite_case, monkeypatch, capsys, pages=1, spike=True)
+diff --git a/tests/integration/test_tp_lifecycle_cost_audit.py b/tests/integration/test_tp_lifecycle_cost_audit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..925edcda4aff8b8905839cf440b2804c09d34af8
+--- /dev/null
++++ b/tests/integration/test_tp_lifecycle_cost_audit.py
+@@ -0,0 +1,198 @@
++"""Phase attribution and income-pagination stress; no production source changes."""
++
++import json
++import os
++from pathlib import Path
++from urllib.parse import parse_qs
++
++import pytest
++
++from services.execution import demo as demo_module
++from services.execution import demo_validation as validation
++from tests.fixtures.tp_phase_audit import PhaseAudit
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import exercise_opposite, opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++from tests.integration.test_tp_request_budget_lifecycle import candidate
++
++CASES = [
++    (mode, pages, "finalization", False, False, 100000)
++    for mode in ["tp", "no_tp", "partial", "unfilled"]
++    for pages in [1, 3, 10]
++] + [
++    ("no_tp", 3, "preparation", False, False, 100000),
++    ("no_tp", 10, "preparation", False, False, 100000),
++    ("no_tp", 10, "finalization", True, False, 100000),
++    ("no_tp", 1, "finalization", False, True, 100000),
++    ("no_tp", 1, "finalization", False, False, 6000),
++]
++
++
++@pytest.mark.parametrize("mode,pages,when,full_limit,spike,capacity", CASES)
++def test_lifecycle_phase_attribution_and_reserve_sensitivity(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    mode,
++    pages,
++    when,
++    full_limit,
++    spike,
++    capacity,
++):
++    if mode in {"no_tp", "partial"}:
++        opposite_case[3]["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        opposite_case[3]["fill"] = False
++    if mode == "unfilled":
++        opposite_case[3]["trigger"] = False
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=capacity,
++        partial=mode == "partial",
++        spike=spike,
++        preparation_cost=712,
++    )
++    store, c, fake, _ = scenario
++    before = store.read("DEMO-test")
++    # Bootstrap is unchanged and initially one page. Escalation starts only after
++    # bootstrap or at begin_finalization, as specified by the case label.
++    audit = PhaseAudit(budget.original, budget._costs)
++    audit.import_bootstrap(meter.rows)
++    budget.original = audit
++    paging = {"pages": pages if when == "preparation" else 1, "full": False}
++    original_sender = meter.sender
++    ignored_income = [{"incomeType": "COMMISSION"}] * 1000
++
++    def income_pages(method, path, query, key):
++        response = original_sender(method, path, query, key)
++        if method == "GET" and path == "/fapi/v1/income":
++            params = parse_qs(query.get_secret_value())
++            page = int(params["page"][0])
++            full = page < paging["pages"] or (paging["full"] and page == paging["pages"])
++            return fake.response(ignored_income if full else [])
++        return response
++
++    meter.sender = income_pages
++    for method, phase in [
++        ("connected", "SESSION_READY"),
++        ("event", "OBSERVATION"),
++        ("before_entry_prepare", "EARLY_CHECK"),
++        ("resume_entries", "RESUME"),
++        ("reserve", "RESERVATION"),
++        ("submit", "SUBMISSION_PROTECTION"),
++        ("confirm_flat", "FLAT_CONFIRMATION"),
++    ]:
++        monkeypatch.setattr(c, method, audit.instrument(phase, getattr(c, method)))
++    monkeypatch.setattr(validation, "prepare", audit.instrument("PREPARATION", validation.prepare))
++    original_begin = c.begin_finalization
++
++    def begin():
++        if when == "finalization":
++            paging.update(pages=pages, full=full_limit)
++        audit.begin_finalization()
++        return original_begin()
++
++    monkeypatch.setattr(c, "begin_finalization", begin)
++    historical = demo_module.historical_snapshot
++    proofs = []
++
++    def counted(*args, **kwargs):
++        proofs.append(True)
++        return historical(*args, **kwargs)
++
++    monkeypatch.setattr(demo_module, "historical_snapshot", counted)
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    output = capsys.readouterr().out
++    final = next(
++        json.loads(s)
++        for s in output.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    result = audit.report()
++    assert result["complete_cost_model"] and not result["trace_truncated"]
++    assert result["attempts"] == len(meter.rows)
++    assert result["known_assumed_total_weight"] == sum(r["assumed_weight"] for r in meter.rows)
++    assert sum(result["phase_attempts"].values()) == result["attempts"]
++    after = store.read("DEMO-test")
++    assert after.paused and report["history_and_baselines_preserved"]
++    assert all(after.orders[k] == v for k, v in before.orders.items())
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert len([p for p in posts(fake) if p.get("reduceOnly") != "true"]) <= 1
++    assert len([p for p in posts(fake) if p.get("reduceOnly") == "true"]) <= 1
++    if spike:
++        assert any(fake.positions.values()) and report["flat_confirmation"] == "UNKNOWN"
++        assert report["risk_state"] == "EMERGENCY" and report["operator_exit_post_attempts"] == 0
++        i = next(i for i, r in enumerate(meter.rows) if r["status"] == 429)
++        assert i + 1 == len(meter.rows)
++    elif full_limit:
++        assert final["validation"] != "FINISHED_FLAT"
++        assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++        assert final["completion_failure"] != "NONE"
++    else:
++        assert not any(fake.positions.values()) and final["validation"] == "FINISHED_FLAT"
++        assert final["completion_failure"] == "NONE" and len(proofs) == 5
++        assert all(r["status"] != 429 for r in meter.rows)
++        if mode == "tp" and capacity > 6000:
++            assert (
++                report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++            )
++    if capacity == 6000:
++        assert report["new_entry_post_count"] == 0 and budget.stopped
++    weights = result["phase_assumed_weights"]
++    result.update(
++        {
++            "mode": mode,
++            "income_pages": pages,
++            "escalation_after": when,
++            "page10_also_full": full_limit,
++            "shared_spike": spike,
++            "counterfactual_capacity": capacity,
++            "full_historical_flat_snapshots": len(proofs),
++            "entry_protection_phase_weight": weights.get("RESERVATION", 0)
++            + weights.get("SUBMISSION_PROTECTION", 0),
++            "cleanup_phase_weight": weights.get("FINALIZATION", 0)
++            + weights.get("FLAT_CONFIRMATION", 0),
++            "entry_protection_assumption": 1500,
++            "cleanup_reserve_assumption": 3000,
++            "validation_completion": final["validation"],
++            "tp_result": report["tp_trigger_check"],
++            "flat_report": report["flat_confirmation"],
++            "position_nonzero_at_stop": any(fake.positions.values()),
++            "risk_state": report["risk_state"],
++            "new_entry_posts": report["new_entry_post_count"],
++            "reduce_exit_posts": report["operator_exit_post_attempts"],
++        }
++    )
++    result["entry_assumption_exceeded"] = result["entry_protection_phase_weight"] > 1500
++    result["cleanup_assumption_exceeded"] = result["cleanup_phase_weight"] > 3000
++    result["model_verdict"] = (
++        "INCOMPLETE_PAGINATION_NO_FLAT_PROOF"
++        if full_limit
++        else "RATE_LIMIT_EXPOSURE_UNKNOWN"
++        if spike
++        else "REAL_LIMIT_MODEL_ENTRY_BLOCKED"
++        if capacity == 6000
++        else "ALLOWANCE_COUNTEREXAMPLE_DO_NOT_DEPLOY"
++        if result["entry_assumption_exceeded"] or result["cleanup_assumption_exceeded"]
++        else "NO_EXCEEDANCE_IN_THIS_CASE_NOT_AN_UPPER_BOUND"
++    )
++    if not full_limit and not spike and capacity > 6000:
++        if mode in {"no_tp", "partial"} and pages >= 3:
++            assert result["cleanup_assumption_exceeded"]
++        if when == "preparation" and pages >= 3:
++            assert result["entry_assumption_exceeded"]
++        if mode in {"no_tp", "partial"} and pages == 10:
++            assert result["cleanup_phase_weight"] > 6000
++    folder = os.getenv("TP_PHASE_REPORT_DIR")
++    if folder:
++        p = Path(folder)
++        p.mkdir(parents=True, exist_ok=True)
++        name = f"{mode}-pages{pages}-{when}-full{full_limit}-spike{spike}-cap{capacity}.json"
++        (p / name).write_text(json.dumps(result, indent=2) + "\n")
+diff --git a/tests/integration/test_tp_prepare_precheck_lifecycle.py b/tests/integration/test_tp_prepare_precheck_lifecycle.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..96e7669b2f37e02c7035dcbff8c68ef10fea66ab
+--- /dev/null
++++ b/tests/integration/test_tp_prepare_precheck_lifecycle.py
+@@ -0,0 +1,229 @@
++"""Preparation-only reduction; real isolated PG/WSS, synthetic orders/costs."""
++
++import json
++
++import pytest
++
++from services.execution import demo as demo_module
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import exercise_opposite, opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++from tests.integration.test_tp_request_budget_lifecycle import candidate, save
++
++
++def preparation_assumption(dual):
++    # Explicit synthetic assumption: resume snapshot + preview pair; three clock
++    # GETs; public metadata1 and book/mark/kline40 each. Not a proven venue bound.
++    return 3 * (196 if dual == 35 else 191) + 3 + 1 + 3 * 40
++
++
++@pytest.mark.parametrize("dual", [30, 35])
++@pytest.mark.parametrize("early", [False, True])
++def test_real_limit_model_refuses_without_price_planning_and_preserves_full_flat_proof(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    dual,
++    early,
++):
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=6000,
++        dual=dual,
++        preparation_cost=preparation_assumption(dual) if early else None,
++    )
++    store, c, fake, _ = scenario
++    before = store.read("DEMO-test")
++    historical = demo_module.historical_snapshot
++    proof = []
++
++    def counted(*args, **kwargs):
++        proof.append(True)
++        return historical(*args, **kwargs)
++
++    monkeypatch.setattr(demo_module, "historical_snapshot", counted)
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    assert budget.stopped and not budget.diagnostics()["admitted"]
++    assert (
++        not posts(fake)
++        and report["new_entry_post_count"] == report["operator_exit_post_attempts"] == 0
++    )
++    assert len(proof) == 5 and final["validation"] == "FINISHED_FLAT"
++    assert final["completion_failure"] == "NONE" and final["session_error"]
++    assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++    after = store.read("DEMO-test")
++    assert after.orders == before.orders and after.requests == before.requests
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert report["history_and_baselines_preserved"] and after.paused
++    assert not any(fake.positions.values()) and all(r["status"] != 429 for r in meter.rows)
++    market = [
++        r
++        for r in meter.rows
++        if r["path"] in {"/fapi/v1/ticker/bookTicker", "/fapi/v1/premiumIndex", "/fapi/v1/klines"}
++    ]
++    if early:
++        assert not market
++        assert final["validation_stage"] == "ENTRY_BUDGET_PRECHECK"
++        assert budget.diagnostics()["stop_reason"] == "PREPARATION_LIFECYCLE_NO_HEADROOM"
++        assert budget.diagnostics()["preparation_prechecks"] == 1
++    else:
++        assert len(market) == 3 and final["validation_stage"] == "RESERVE_ENTRY"
++        assert budget.diagnostics()["stop_reason"] == "ENTRY_LIFECYCLE_NO_HEADROOM"
++    report["full_historical_flat_snapshot_calls"] = len(proof)
++    report["synthetic_http_attempts"] = len(meter.rows)
++    report["synthetic_model_total_weight"] = sum(r["assumed_weight"] for r in meter.rows)
++    save(f"preparation-6000-dual{dual}-early{early}", report, meter, budget)
++
++
++@pytest.mark.parametrize("mode", ["tp", "no_tp", "partial", "unfilled", "spike"])
++def test_passing_forecast_keeps_all_original_preparation_and_execution_checks(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    mode,
++):
++    if mode in {"no_tp", "partial", "spike"}:
++        opposite_case[3]["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        opposite_case[3]["fill"] = False
++    if mode == "unfilled":
++        opposite_case[3]["trigger"] = False
++    # Unlimited counterfactual: verifies preservation, not real6000 readiness.
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=100000,
++        partial=mode == "partial",
++        spike=mode == "spike",
++        preparation_cost=preparation_assumption(35),
++    )
++    store, c, fake, _ = scenario
++    snapshots = []
++    original = demo_module.snapshot
++
++    def counted(*args, **kwargs):
++        snapshots.append(True)
++        return original(*args, **kwargs)
++
++    monkeypatch.setattr(demo_module, "snapshot", counted)
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    assert budget.diagnostics()["preparation_prechecks"] == 1
++    assert budget.diagnostics()["admitted"] and report["new_entry_post_count"] == 1
++    assert len(snapshots) >= 9  # Original startup, reserve, submit, protection/reconciliation.
++    assert {r["path"] for r in meter.rows} >= {
++        "/fapi/v1/ticker/bookTicker",
++        "/fapi/v1/premiumIndex",
++        "/fapi/v1/klines",
++    }
++    assert report["history_and_baselines_preserved"] and store.read("DEMO-test").paused
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    if mode == "spike":
++        assert any(fake.positions.values()) and report["risk_state"] == "EMERGENCY"
++        assert (
++            report["flat_confirmation"] == "UNKNOWN" and report["operator_exit_post_attempts"] == 0
++        )
++        first = next(i for i, r in enumerate(meter.rows) if r["status"] == 429)
++        assert len(meter.rows) == first + 1
++    else:
++        assert not any(fake.positions.values()) and final["validation"] == "FINISHED_FLAT"
++    if mode == "tp":
++        assert report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++    save(f"preparation-counterfactual100000-{mode}", report, meter, budget)
++
++
++def test_optimistic_preparation_forecast_does_not_bypass_later_reservation_gate(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    # Counterfactual6500 separates the early and final predicates. Deliberately
++    # under-estimate preparation; actual requests must still cause final refusal.
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=6500,
++        preparation_cost=1,
++    )
++    store, c, fake, _ = scenario
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    assert budget.diagnostics()["preparation_prechecks"] == 1
++    assert budget.diagnostics()["stop_reason"] == "ENTRY_LIFECYCLE_NO_HEADROOM"
++    assert final["validation_stage"] == "RESERVE_ENTRY" and final["validation"] == "FINISHED_FLAT"
++    assert not posts(fake) and not budget.diagnostics()["admitted"]
++    assert not any(fake.positions.values()) and store.read("DEMO-test").paused
++    assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++    save("preparation-counterfactual6500-underestimate-no-bypass", report, meter, budget)
++
++
++@pytest.mark.parametrize("change", ["account_changed", "quote_expired"])
++def test_passing_precheck_cannot_skip_original_account_or_quote_verification(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    change,
++):
++    from datetime import timedelta
++    from decimal import Decimal
++
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case,
++        cap=100000,
++        preparation_cost=preparation_assumption(35),
++    )
++    store, c, fake, _ = scenario
++    original = meter.sender
++    changed = []
++
++    def alter(method, path, query, key):
++        response = original(method, path, query, key)
++        if path == "/fapi/v1/premiumIndex" and not changed:
++            changed.append(True)
++            if change == "account_changed":
++                fake.wallet -= Decimal("1")
++            else:
++                fake.at += timedelta(seconds=6)
++        return response
++
++    meter.sender = alter
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    assert changed and budget.diagnostics()["preparation_prechecks"] == 1
++    assert not posts(fake) and report["new_entry_post_count"] == 0
++    assert final["session_error"] and final["validation_stage"] == "PREPARE_ENTRY"
++    assert not budget.diagnostics()["admitted"] and not any(fake.positions.values())
++    assert store.read("DEMO-test").paused and report["tp_trigger_check"] == "NOT_ACCEPTED"
++    save(f"preparation-original-guard-{change}", report, meter, budget)
+diff --git a/tests/integration/test_tp_request_budget_lifecycle.py b/tests/integration/test_tp_request_budget_lifecycle.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..9fcab137c4fb481aef93f4d9d17d160cb5d19998
+--- /dev/null
++++ b/tests/integration/test_tp_request_budget_lifecycle.py
+@@ -0,0 +1,275 @@
++"""Candidate only: real isolated PG/local WSS; fake weights/orders/clock."""
++
++import asyncio
++import json
++import os
++from pathlib import Path
++
++import pytest
++
++from integrations.binance_usdm.demo import PUBLIC, SIGNED_GET
++from integrations.binance_usdm.demo_read_routing import TPReadRouting
++from integrations.binance_usdm.demo_tp_budget import TPBudgetPlan, TPRequestBudget
++from services.execution import demo_tp_trigger_check as tp_module
++from services.execution.demo_tp_budget_candidate import (
++    BudgetedTPTriggerCoordinator,
++    CoalescedBudgetedTPTriggerCoordinator,
++    IncomeBudgetedTPTriggerCoordinator,
++    PrecheckedBudgetedTPTriggerCoordinator,
++)
++from tests.fixtures.tp_weight_model import GET_COSTS, Meter, seed_history
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import exercise_opposite, opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case, exercise  # noqa: F401
++
++
++def candidate(
++    scenario,
++    *,
++    cap=6000,
++    spike=False,
++    partial=False,
++    dual=35,
++    drop_route=None,
++    coalesced=False,
++    preparation_cost=None,
++    income_guard=False,
++    entry_allowance=1500,
++    cleanup_allowance=3000,
++):
++    store, old, fake, options = scenario
++    seed_history(store, old, fake)
++    sender = old.client.send
++    meter = Meter(
++        sender,
++        fake,
++        seed=0,
++        unknown_cost=40,
++        cap=cap,
++        spike=spike,
++        partial=partial,
++        options=options,
++        dual_cost=dual,
++    )
++
++    class Pool:
++        def __call__(self, *args):
++            return meter(*args)
++
++        def close(self):
++            pass
++
++        def diagnostics(self):
++            return {}
++
++    route = TPReadRouting(meter, pool=Pool())
++    costs = {("GET", p): GET_COSTS.get(p, 40) for p in PUBLIC | SIGNED_GET}
++    costs["GET", "/fapi/v1/positionSide/dual"] = dual
++    for method, path in (
++        ("POST", "/fapi/v1/order"),
++        ("DELETE", "/fapi/v1/order"),
++        ("POST", "/fapi/v1/algoOrder"),
++        ("DELETE", "/fapi/v1/algoOrder"),
++        ("POST", "/fapi/v1/listenKey"),
++        ("PUT", "/fapi/v1/listenKey"),
++        ("DELETE", "/fapi/v1/listenKey"),
++    ):
++        costs[method, path] = 40
++    if drop_route is not None:
++        costs.pop(drop_route)
++    budget = TPRequestBudget(
++        route, TPBudgetPlan(cap, entry_allowance, cleanup_allowance, 300), costs
++    )
++    old.client.send = budget
++    coordinator_type = (
++        CoalescedBudgetedTPTriggerCoordinator if coalesced else BudgetedTPTriggerCoordinator
++    )
++    preparation_type = (
++        IncomeBudgetedTPTriggerCoordinator
++        if income_guard
++        else PrecheckedBudgetedTPTriggerCoordinator
++    )
++    coordinator = (
++        preparation_type(
++            store,
++            old.lease,
++            old.client,
++            budget,
++            preparation_cost_assumption=preparation_cost,
++        )
++        if preparation_cost is not None
++        else coordinator_type(store, old.lease, old.client, budget)
++    )
++    coordinator.client.sync_clock()
++    coordinator.refresh_metadata()
++    coordinator.reconcile()
++    return (store, coordinator, fake, options), meter, budget, route, sender
++
++
++def exercise_long(scenario, monkeypatch):
++    original = tp_module.run
++
++    async def explicit(coordinator, operation):
++        # Real-time stress bound only; enough hints to force the budget stop.
++        tp_module.OBSERVATION_SECONDS = 2
++        return await original(coordinator, operation, entry_style="OPPOSITE_QUOTE")
++
++    monkeypatch.setattr(tp_module, "run", explicit)
++    return asyncio.run(exercise(scenario, monkeypatch))
++
++
++def save(label, report, meter, budget):
++    folder = os.getenv("TP_BUDGET_REPORT_DIR")
++    if folder:
++        p = Path(folder)
++        p.mkdir(parents=True, exist_ok=True)
++        (p / f"{label}.json").write_text(
++            json.dumps(
++                {
++                    "actual_venue_used": False,
++                    "label": label,
++                    "report": report,
++                    "budget": budget.diagnostics(),
++                    "synthetic_requests": meter.rows,
++                },
++                indent=2,
++            )
++            + "\n"
++        )
++
++
++@pytest.mark.parametrize("dual", [30, 35])
++def test_observed_history_model_6000_refuses_entry_before_reservation(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    dual,
++):
++    scenario, meter, budget, route, sender = candidate(opposite_case, dual=dual)
++    store, c, fake, _ = scenario
++    before = store.read("DEMO-test")
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    after = store.read("DEMO-test")
++    assert budget.stopped and not budget.diagnostics()["admitted"]
++    assert budget.diagnostics()["stop_reason"] == "ENTRY_LIFECYCLE_NO_HEADROOM"
++    assert report["new_entry_post_count"] == report["operator_exit_post_attempts"] == 0
++    assert not posts(fake) and after.orders == before.orders and after.requests == before.requests
++    assert report["tp_trigger_check"] == "NOT_ACCEPTED" and after.paused
++    assert not any(fake.positions.values()) and all(r["status"] != 429 for r in meter.rows)
++    lines = [json.loads(s) for s in capsys.readouterr().out.splitlines() if s.startswith("{")]
++    final = next(r for r in lines if "completion_stage" in r)
++    assert final["validation"] == "FINISHED_FLAT" and final["completion_failure"] == "NONE"
++    assert final["session_failure"] == "TP_REQUEST_BUDGET_STOPPED"
++    assert report["history_and_baselines_preserved"]
++    save(f"actual-profile-model-6000-dual{dual}-no-entry", report, meter, budget)
++
++
++@pytest.mark.parametrize("mode", ["tp", "no_tp", "partial", "unfilled", "sl"])
++def test_synthetic_larger_limit_stops_routine_and_preserves_original_cleanup(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++    mode,
++):
++    options = opposite_case[3]
++    if mode in {"no_tp", "partial"}:
++        options["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        options["fill"] = False
++    if mode == "unfilled":
++        options["trigger"] = False
++    if mode == "sl":
++        options["trigger"] = "SL"
++    # Counterfactual capacity for exercising active control, never the real limit.
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case, cap=12000, partial=mode == "partial"
++    )
++    store, c, fake, _ = scenario
++    before = store.read("DEMO-test")
++    try:
++        report = exercise_long(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    after = store.read("DEMO-test")
++    assert report["new_entry_post_count"] == 1
++    assert report["operator_exit_post_attempts"] <= 1
++    assert not any(fake.positions.values()) and after.paused
++    assert all(r["status"] != 429 for r in meter.rows)
++    assert all(after.orders[k] == v for k, v in before.orders.items())
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert after.daily_base == before.daily_base and after.weekly_base == before.weekly_base
++    assert report["history_and_baselines_preserved"]
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    assert final["validation"] == "FINISHED_FLAT" and final["completion_failure"] == "NONE"
++    assert budget.diagnostics()["phase"] == "CLEANUP"
++    assert not budget.diagnostics()["cleanup_exceeded_model_limit"]
++    if mode in {"no_tp", "partial"}:
++        assert budget.stopped
++        assert budget.diagnostics()["stop_reason"] == "ORDINARY_HEADROOM_EXHAUSTED"
++        assert report["operator_exit_post_attempts"] == 1
++    if budget.stopped:
++        assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++    save(f"counterfactual-limit12000-{mode}", report, meter, budget)
++
++
++def test_shared_ip_spike_retains_sdk_cooldown_and_reports_unknown(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++):
++    opposite_case[3]["trigger"] = False
++    scenario, meter, budget, route, sender = candidate(opposite_case, cap=12000, spike=True)
++    store, c, fake, _ = scenario
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    assert meter.spiked and any(r["status"] == 429 for r in meter.rows)
++    assert any(fake.positions.values()) and store.read("DEMO-test").paused
++    assert report["risk_state"] == "EMERGENCY" and report["flat_confirmation"] == "UNKNOWN"
++    assert report["operator_exit_post_attempts"] == 0
++    assert c.client.cooldown_until > c.client.clock_ms()
++    first = next(i for i, r in enumerate(meter.rows) if r["status"] == 429)
++    assert len(meter.rows) == first + 1
++    save("shared-ip-spike-no-cooldown-bypass", report, meter, budget)
++
++
++def test_suppressed_last_listen_key_close_budget_error_cannot_be_tp_acceptance(
++    opposite_case,  # noqa: F811
++    monkeypatch,
++    capsys,
++):
++    # Deliberately omit one cleanup route in a generously-sized synthetic model.
++    # This forces failure only in the private supervisor's suppressed last DELETE.
++    scenario, meter, budget, route, sender = candidate(
++        opposite_case, cap=100000, drop_route=("DELETE", "/fapi/v1/listenKey")
++    )
++    store, c, fake, _ = scenario
++    try:
++        report = exercise_opposite(scenario, monkeypatch)
++    finally:
++        route.close()
++        c.client.send = sender
++    assert budget.stopped and budget.diagnostics()["stop_reason"] == "ROUTE_COST_UNKNOWN"
++    assert c.client.tp_fill_before_sl_delete and c.client.sl_cancel_query_verified
++    assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++    assert not any(fake.positions.values()) and store.read("DEMO-test").paused
++    final = next(
++        json.loads(s)
++        for s in capsys.readouterr().out.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    )
++    assert final["validation"] == "FINISHED_FLAT"
++    assert final["session_error"] and not final["filled_protection_and_flat_verified"]
++    save("counterfactual-last-close-error-not-accepted", report, meter, budget)
+diff --git a/tests/unit/test_demo_protected_event_batch.py b/tests/unit/test_demo_protected_event_batch.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f8a988d0afb71de8c403f1b5db69b8429521843b
+--- /dev/null
++++ b/tests/unit/test_demo_protected_event_batch.py
+@@ -0,0 +1,366 @@
++"""Bounded account-only batching never hides urgent, invalid or cancelled hints."""
++
++import asyncio
++
++import pytest
++
++from integrations.binance_usdm.demo import DemoFailure
++from tests.unit.test_demo_event_inbox import close, event, ready
++
++
++def test_account_burst_invalidates_before_delay_and_uses_one_latest_hint():
++    async def run():
++        inbox, reader, failures = await ready([event(1000), event(2000)])
++        invalidated = asyncio.Event()
++
++        async def invalidate():
++            invalidated.set()
++            return 0.25
++
++        take = asyncio.create_task(inbox.take(before_coalesce=invalidate))
++        await invalidated.wait()
++        assert not take.done() and inbox.pending == 2
++        hint = await asyncio.wait_for(take, 1)
++        assert hint.stamp == 2000 and inbox.coalesced == 1 and not failures
++        assert inbox.pending == 0 and not inbox.urgent.is_set()
++        await close(reader)
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize(
++    "kind",
++    ["ORDER_TRADE_UPDATE", "ALGO_UPDATE", "MARGIN_CALL", "ACCOUNT_CONFIG_UPDATE", "TRADE_LITE"],
++)
++def test_every_nonaccount_kind_is_urgent_even_if_later_account_hint_is_latest(kind):
++    async def run():
++        inbox, reader, _ = await ready([event(1000, kind), event(2000)])
++
++        async def forbidden():
++            pytest.fail("urgent hint must not wait or call batching hook")
++
++        await asyncio.wait_for(inbox.take(before_coalesce=forbidden), 1)
++        assert not inbox.urgent.is_set() and inbox.coalesced == 1
++        await close(reader)
++
++    asyncio.run(run())
++
++
++def test_urgent_frame_interrupts_an_existing_account_batch():
++    async def run():
++        from services.execution.demo_event_inbox import EventInbox
++        from tests.unit.test_demo_event_inbox import Source
++
++        source = Source([event()])
++        inbox = EventInbox(lambda: 2000, lambda: None)
++        reader = asyncio.create_task(inbox.run(source))
++        started = asyncio.Event()
++
++        async def invalidate():
++            started.set()
++            return 0.25
++
++        take = asyncio.create_task(inbox.take(before_coalesce=invalidate))
++        await started.wait()
++        source.queue.put_nowait(event(kind="ALGO_UPDATE"))
++        hint = await asyncio.wait_for(take, 1)
++        assert hint.kind == "ALGO_UPDATE" and inbox.coalesced == 1
++        await close(reader)
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize(
++    "bad", [event(kind="UNKNOWN"), event(kind="listenKeyExpired"), event(2001), "NaN"]
++)
++def test_invalid_frame_during_batch_stops_admission_and_cannot_be_masked(bad):
++    async def run():
++        from services.execution.demo_event_inbox import EventInbox
++        from tests.unit.test_demo_event_inbox import Source
++
++        source = Source([event()])
++        failures = []
++        inbox = EventInbox(lambda: 2000, lambda: failures.append(True))
++        reader = asyncio.create_task(inbox.run(source))
++        started = asyncio.Event()
++
++        async def invalidate():
++            started.set()
++            return 0.25
++
++        take = asyncio.create_task(inbox.take(before_coalesce=invalidate))
++        await started.wait()
++        source.queue.put_nowait(bad)
++        source.queue.put_nowait(event())
++        with pytest.raises(DemoFailure):
++            await asyncio.wait_for(take, 1)
++        await reader
++        assert failures == [True] and inbox.failure is not None
++        assert inbox.pending == 1  # No batch was consumed after invalidation failure.
++
++    asyncio.run(run())
++
++
++@pytest.mark.parametrize("delay", [-1, 0.251, float("nan"), float("inf")])
++def test_bad_hook_delay_fails_before_consuming_hint(delay):
++    async def run():
++        inbox, reader, _ = await ready([event()])
++
++        async def hook():
++            return delay
++
++        with pytest.raises(DemoFailure, match="batch delay"):
++            await inbox.take(before_coalesce=hook)
++        assert inbox.pending == 1
++        await close(reader)
++
++    asyncio.run(run())
++
++
++def test_cancellation_during_batch_leaves_hint_pending_for_session_shutdown():
++    async def run():
++        inbox, reader, failures = await ready([event()])
++        started = asyncio.Event()
++
++        async def invalidate():
++            started.set()
++            return 0.25
++
++        take = asyncio.create_task(inbox.take(before_coalesce=invalidate))
++        await started.wait()
++        take.cancel()
++        with pytest.raises(asyncio.CancelledError):
++            await take
++        assert inbox.pending == 1 and not failures and not reader.done()
++        await close(reader)
++
++    asyncio.run(run())
++
++
++def test_continuous_account_hints_do_not_extend_fixed_deadline():
++    async def run():
++        from services.execution.demo_event_inbox import EventInbox
++        from tests.unit.test_demo_event_inbox import Source
++
++        source = Source([event(), event()])
++        inbox = EventInbox(lambda: 2000, lambda: None)
++        reader = asyncio.create_task(inbox.run(source))
++        calls = []
++
++        async def hook():
++            calls.append(True)
++            return 0.25
++
++        async def flood():
++            while True:
++                await asyncio.sleep(0.01)
++                source.queue.put_nowait(event())
++
++        producer = asyncio.create_task(flood())
++        await asyncio.wait_for(inbox.take(before_coalesce=hook), 1)
++        assert len(calls) == 1 and inbox.coalesced >= 1
++        await close(producer)
++        await close(reader)
++
++    asyncio.run(run())
++
++
++def protected_candidate():
++    from datetime import UTC, datetime
++    from decimal import Decimal
++    from types import SimpleNamespace as NS
++
++    from packages.domain.contracts import OrderState, PositionState, RiskState
++    from services.execution.demo_tp_budget_candidate import CoalescedBudgetedTPTriggerCoordinator
++
++    now = datetime(2026, 11, 6, tzinfo=UTC)
++    order = NS(
++        state=OrderState.FILLED,
++        quantity=Decimal("0.0007"),
++        filled=Decimal("0.0007"),
++        open_quantity=Decimal("0.0007"),
++        remaining=0,
++        protected=True,
++        position_state=PositionState.PROTECTED,
++        algo_id="DS-own",
++        tp_algo_id="DT-own",
++        exit_id=None,
++        exit_state="NONE",
++        signal=NS(
++            signal_id="own",
++            purpose="DEMO_VALIDATION",
++            symbol="BTCUSDT",
++            direction="LONG",
++            suggested_limit_price=Decimal("80000"),
++        ),
++    )
++    ledger = NS(
++        orders={"own": order},
++        positions={"BTCUSDT": Decimal("0.0007")},
++        risk_state=RiskState.NORMAL,
++        reconciled=True,
++        stream_ready=True,
++        last_reconciled=now,
++        stream_at=now,
++        policy=NS(max_snapshot_age_seconds=30),
++        validation_evidence={"own": {"stop_verified": True, "target_verified": True}},
++    )
++    c = CoalescedBudgetedTPTriggerCoordinator.__new__(CoalescedBudgetedTPTriggerCoordinator)
++    c.session_failed = False
++    c.client = NS(
++        settings=NS(demo_trading_enabled=True, margin_mode="ISOLATED", symbols=("BTCUSDT",))
++    )
++    c.request_budget = NS(stopped=False)
++    c.lease = NS(account_id="synthetic")
++    c.store = NS(read=lambda _: ledger, now=lambda: now)
++    calls = []
++
++    def disconnect():
++        calls.append(True)
++        ledger.reconciled = ledger.stream_ready = False
++
++    c.disconnect = disconnect
++    return c, ledger, order, calls
++
++
++def test_eligible_protected_position_invalidates_admission_before_returning_delay():
++    c, ledger, _, calls = protected_candidate()
++    assert c.prepare_event_batch() == 0.25
++    assert calls == [True] and not ledger.reconciled and not ledger.stream_ready
++    assert c.prepare_event_batch() == 0  # No batching using already-invalidated evidence.
++
++
++@pytest.mark.parametrize(
++    "case",
++    [
++        "partial",
++        "remaining",
++        "missing_stop",
++        "missing_tp",
++        "unprotected",
++        "exit_intent",
++        "exit_unknown",
++        "order_unknown",
++        "missing_stop_proof",
++        "missing_tp_proof",
++        "stream_untrusted",
++        "not_reconciled",
++        "session_failed",
++        "budget_stopped",
++        "emergency",
++        "stale",
++        "future",
++        "other_position",
++        "position_mismatch",
++        "second_active",
++        "wrong_scope",
++        "wrong_direction",
++        "over_cap",
++        "over_notional",
++        "disabled",
++        "crossed",
++    ],
++)
++def test_ineligible_or_uncertain_positions_never_delay_event_reconciliation(case):
++    from copy import deepcopy
++    from datetime import timedelta
++    from decimal import Decimal
++
++    from packages.domain.contracts import OrderState, RiskState
++
++    c, ledger, order, calls = protected_candidate()
++    if case == "partial":
++        order.filled = order.open_quantity = Decimal("0.0003")
++    elif case == "remaining":
++        order.remaining = Decimal("0.0001")
++    elif case == "missing_stop":
++        order.algo_id = None
++    elif case == "missing_tp":
++        order.tp_algo_id = None
++    elif case == "unprotected":
++        order.protected = False
++    elif case == "exit_intent":
++        order.exit_id = "DX-own"
++    elif case == "exit_unknown":
++        order.exit_state = "UNKNOWN"
++    elif case == "order_unknown":
++        order.state = OrderState.UNKNOWN
++    elif case == "missing_stop_proof":
++        ledger.validation_evidence["own"]["stop_verified"] = False
++    elif case == "missing_tp_proof":
++        ledger.validation_evidence["own"]["target_verified"] = False
++    elif case == "stream_untrusted":
++        ledger.stream_ready = False
++    elif case == "not_reconciled":
++        ledger.reconciled = False
++    elif case == "session_failed":
++        c.session_failed = True
++    elif case == "budget_stopped":
++        c.request_budget.stopped = True
++    elif case == "emergency":
++        ledger.risk_state = RiskState.EMERGENCY
++    elif case == "stale":
++        ledger.last_reconciled -= timedelta(seconds=15)
++    elif case == "future":
++        ledger.stream_at += timedelta(seconds=1)
++    elif case == "other_position":
++        ledger.positions["ETHUSDT"] = 1
++    elif case == "position_mismatch":
++        ledger.positions["BTCUSDT"] = Decimal("0.0003")
++    elif case == "second_active":
++        ledger.orders["other"] = deepcopy(order)
++    elif case == "wrong_scope":
++        order.signal.purpose = "OTHER"
++    elif case == "wrong_direction":
++        order.signal.direction = "SHORT"
++    elif case == "over_cap":
++        order.quantity = Decimal("0.0008")
++    elif case == "over_notional":
++        order.signal.suggested_limit_price = Decimal("1000000")
++    elif case == "disabled":
++        c.client.settings.demo_trading_enabled = False
++    elif case == "crossed":
++        c.client.settings.margin_mode = "CROSSED"
++    before = deepcopy(ledger)
++    assert c.prepare_event_batch() == 0 and not calls and ledger == before
++
++
++def test_idle_without_hint_never_calls_invalidation_hook():
++    async def run():
++        inbox, reader, _ = await ready([])
++
++        async def forbidden():
++            pytest.fail("idle wait must not invalidate or introduce extra delay")
++
++        with pytest.raises(TimeoutError):
++            await inbox.take(timeout=0.001, before_coalesce=forbidden)
++        await close(reader)
++
++    asyncio.run(run())
++
++
++def test_pending_overflow_during_batch_still_fails_closed():
++    async def run():
++        from services.execution.demo_event_inbox import MAX_PENDING_EVENTS, EventInbox
++        from tests.unit.test_demo_event_inbox import Source
++
++        source = Source([event()])
++        failures = []
++        inbox = EventInbox(lambda: 2000, lambda: failures.append(True))
++        reader = asyncio.create_task(inbox.run(source))
++        started = asyncio.Event()
++
++        async def invalidate():
++            started.set()
++            return 0.25
++
++        take = asyncio.create_task(inbox.take(before_coalesce=invalidate))
++        await started.wait()
++        for _ in range(MAX_PENDING_EVENTS):
++            source.queue.put_nowait(event())
++        with pytest.raises(DemoFailure):
++            await asyncio.wait_for(take, 1)
++        await reader
++        assert failures == [True] and inbox.failure.code == "EVENT_BUFFER_OVERFLOW"
++
++    asyncio.run(run())
+diff --git a/tests/unit/test_tp_income_budget.py b/tests/unit/test_tp_income_budget.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..c6aecb2e295cb76b8bdd7b2ab9fbb38be0ae7e73
+--- /dev/null
++++ b/tests/unit/test_tp_income_budget.py
+@@ -0,0 +1,124 @@
++"""Pagination minimums reject known under-budgeting; never authorize orders."""
++
++import json
++
++import pytest
++
++from integrations.binance_usdm.demo_snapshot import MAX_INCOME_PAGES
++from integrations.binance_usdm.demo_tp_budget import TPBudgetPlan, TPBudgetStopped, TPRequestBudget
++from services.execution import demo_validation as validation
++from services.execution.demo_validation_limits import FLAT_CONFIRMATION_ATTEMPTS
++from tests.unit.test_tp_request_budget import (
++    COSTS,
++    ORDER,
++    TIME,
++    call,
++    setup,  # noqa: F401
++)
++
++
++def profiled(setup, *, entry=3120, cleanup=24960, income=30):  # noqa: F811
++    old, clock, calls, response = setup
++    costs = dict(COSTS)
++    if income is not None:
++        costs["GET", "/fapi/v1/income"] = income
++    budget = TPRequestBudget(
++        old.original, TPBudgetPlan(100000, entry, cleanup, 300), costs, monotonic=lambda: clock[0]
++    )
++    call(budget, TIME)
++    return budget, clock, calls, response
++
++
++def test_maximum_pages_and_attempts_match_actual_source_limits(setup):  # noqa: F811
++    b, _, calls, _ = profiled(setup)
++    assert (
++        MAX_INCOME_PAGES == 10
++        and FLAT_CONFIRMATION_ATTEMPTS == validation.FLAT_CONFIRMATION_ATTEMPTS == 4
++    )
++    assert b.precheck_income_allowances(712) == 1522
++    d = b.diagnostics()
++    p = d["income_profile"]
++    assert p["required_entry_assumption"] == 3120
++    assert p["cleanup_per_attempt_assumption"] == 6240
++    assert p["required_cleanup_assumption"] == 24960
++    assert p["max_income_pages"] == 10 and p["flat_confirmation_attempts"] == 4
++    assert not p["is_proven_upper_bound"]
++    assert len(calls) == 1 and d["used_conservative_model"] == 1 and not d["admitted"]
++    with pytest.raises(TPBudgetStopped):
++        call(b, ORDER, "POST", "type=LIMIT")
++    assert len(calls) == 1
++
++
++@pytest.mark.parametrize(
++    "entry,cleanup", [(1500, 3000), (3119, 24960), (3120, 24959), (3120, 6240)]
++)
++def test_one_page_or_one_attempt_allowance_is_rejected_before_network(setup, entry, cleanup):  # noqa: F811
++    b, _, calls, _ = profiled(setup, entry=entry, cleanup=cleanup)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_income_allowances(712)
++    assert b.diagnostics()["stop_reason"] == "INCOME_PAGINATION_ALLOWANCE_INSUFFICIENT"
++    assert not b.diagnostics()["admitted"] and len(calls) == 1
++
++
++def test_larger_explicit_income_cost_increases_required_allowances(setup):  # noqa: F811
++    b, _, calls, _ = profiled(setup, income=40)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_income_allowances(712)
++    p = b.diagnostics()["income_profile"]
++    assert p["required_preparation_assumption"] == 1792
++    assert p["required_entry_assumption"] == 3660 and p["required_cleanup_assumption"] == 29280
++    assert len(calls) == 1
++
++
++def test_missing_route_cost_cannot_fall_back_to_cheaper_assumption(setup):  # noqa: F811
++    b, _, calls, _ = profiled(setup, income=None)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_income_allowances(712)
++    assert b.diagnostics()["stop_reason"] == "INCOME_ROUTE_COST_UNMODELED" and len(calls) == 1
++
++
++@pytest.mark.parametrize("age", [-1, 5.001, 60])
++def test_stale_metadata_or_local_minute_cannot_enable_profile(setup, age):  # noqa: F811
++    b, clock, calls, _ = profiled(setup)
++    clock[0] = age
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_income_allowances(712)
++    assert len(calls) == 1 and not b.diagnostics()["admitted"]
++
++
++@pytest.mark.parametrize("scope", ["admitted", "cleanup", "stopped"])
++def test_scope_cannot_be_reopened_by_rechecking_page_costs(setup, scope):  # noqa: F811
++    b, _, calls, _ = profiled(setup)
++    if scope == "admitted":
++        b.admit_entry()
++    elif scope == "cleanup":
++        b.begin_cleanup()
++    else:
++        with pytest.raises(TPBudgetStopped):
++            b.precheck_preparation(100000)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_income_allowances(712)
++    assert len(calls) == 1
++
++
++@pytest.mark.parametrize("value", [True, 0, -1, 1.5, None, "712"])
++def test_invalid_preparation_argument_neither_sends_nor_grants(setup, value):  # noqa: F811
++    b, _, calls, _ = profiled(setup)
++    with pytest.raises(ValueError):
++        b.precheck_income_allowances(value)
++    assert len(calls) == 1 and not b.diagnostics()["admitted"]
++
++
++def test_profile_pass_still_requires_original_preparation_and_entry_headroom(setup):  # noqa: F811
++    from integrations.binance_usdm.rest import RESTResponse
++
++    b, _, calls, response = profiled(setup)
++    preparation = b.precheck_income_allowances(712)
++    b.precheck_preparation(preparation)
++    assert not b.diagnostics()["admitted"]
++    response[0] = RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "80000"})
++    call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    assert b.diagnostics()["stop_reason"] == "ENTRY_LIFECYCLE_NO_HEADROOM"
++    assert len(calls) == 2 and "private" not in json.dumps(b.diagnostics())
+diff --git a/tests/unit/test_tp_phase_cost_audit.py b/tests/unit/test_tp_phase_cost_audit.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4f0b94c326be85b834d90582f47d721ea26dec56
+--- /dev/null
++++ b/tests/unit/test_tp_phase_cost_audit.py
+@@ -0,0 +1,109 @@
++"""Instrumentation cannot change calls, hide errors, or leak request material."""
++
++import asyncio
++import json
++from concurrent.futures import ThreadPoolExecutor
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.rest import RESTResponse
++from tests.fixtures.tp_phase_audit import PhaseAudit
++
++
++def test_same_request_and_response_once_no_private_material_recorded():
++    calls = []
++    response = RESTResponse(200, b"private-body", {"Set-Cookie": "private-cookie"})
++    query, key = SecretStr("private-query"), SecretStr("private-key")
++
++    def sender(*args):
++        calls.append(args)
++        return response
++
++    audit = PhaseAudit(sender, {("GET", "/known"): 7})
++    with audit.span("PREPARATION"):
++        assert audit("GET", "/known", query, key) is response
++    assert len(calls) == 1 and calls[0] == ("GET", "/known", query, key)
++    encoded = json.dumps(audit.report())
++    assert "private" not in encoded
++    assert audit.report()["phase_assumed_weights"] == {"PREPARATION": 7}
++
++
++def test_original_exception_propagates_without_retry_or_error_text():
++    calls = []
++    original = OSError("private-transport-error")
++
++    def fail(*args):
++        calls.append(True)
++        raise original
++
++    audit = PhaseAudit(fail, {("POST", "/known"): 40})
++    with pytest.raises(OSError) as error:
++        audit("POST", "/known", SecretStr("private"), None)
++    assert error.value is original and len(calls) == 1
++    assert audit.report()["trace"][0]["status"] is None
++    assert "private" not in json.dumps(audit.report())
++
++
++def test_nested_spans_are_exclusive_and_finalization_crosses_thread_boundaries():
++    audit = PhaseAudit(lambda *a: RESTResponse(200, b"{}", {}), {("GET", "/known"): 1})
++    with audit.span("OBSERVATION"):
++        with audit.span("SESSION_READY"):
++            audit("GET", "/known", SecretStr(""), None)
++    audit.begin_finalization()
++    with ThreadPoolExecutor(max_workers=1) as pool:
++        pool.submit(audit, "GET", "/known", SecretStr(""), None).result()
++    with audit.span("FLAT_CONFIRMATION"):
++        audit("GET", "/known", SecretStr(""), None)
++    r = audit.report()
++    assert r["phase_attempts"] == {"OBSERVATION": 1, "FINALIZATION": 1, "FLAT_CONFIRMATION": 1}
++    assert r["attempts"] == r["known_assumed_total_weight"] == 3
++
++
++def test_context_propagation_and_reset_after_exception():
++    async def run():
++        audit = PhaseAudit(lambda *a: RESTResponse(200, b"{}", {}), {("GET", "/known"): 1})
++        with pytest.raises(ValueError):
++            with audit.span("PREPARATION"):
++                await asyncio.to_thread(audit, "GET", "/known", SecretStr(""), None)
++                raise ValueError
++        audit("GET", "/known", SecretStr(""), None)
++        assert audit.report()["phase_attempts"] == {"PREPARATION": 1, "SESSION_OTHER": 1}
++
++    asyncio.run(run())
++
++
++def test_trace_cap_never_discards_aggregate_cost_or_blocks_forwarding():
++    calls = []
++
++    def send(*args):
++        calls.append(True)
++        return RESTResponse(200, b"{}", {})
++
++    audit = PhaseAudit(send, {("GET", "/known"): 2}, trace_cap=2)
++    for _ in range(5):
++        audit("GET", "/known", SecretStr(""), None)
++    r = audit.report()
++    assert len(calls) == r["attempts"] == 5 and r["known_assumed_total_weight"] == 10
++    assert len(r["trace"]) == 2 and r["trace_truncated"]
++
++
++def test_unmodeled_path_is_redacted_and_cannot_claim_complete_cost_model():
++    audit = PhaseAudit(lambda *a: RESTResponse(200, b"{}", {}), {})
++    audit("GET", "/private-user-id", SecretStr("private"), None)
++    r = audit.report()
++    assert not r["complete_cost_model"] and r["unmodeled_attempts"] == 1
++    assert r["trace"][0]["assumed_weight"] is None
++    assert "private" not in json.dumps(r)
++
++
++@pytest.mark.parametrize("cap", [0, -1, 10001, True, 1.5])
++def test_bad_trace_caps_rejected(cap):
++    with pytest.raises(ValueError):
++        PhaseAudit(lambda *a: None, {}, trace_cap=cap)
++
++
++@pytest.mark.parametrize("weight", [0, -1, True, 1.5])
++def test_bad_costs_rejected(weight):
++    with pytest.raises(ValueError):
++        PhaseAudit(lambda *a: None, {("GET", "/known"): weight})
+diff --git a/tests/unit/test_tp_prepare_precheck.py b/tests/unit/test_tp_prepare_precheck.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..14ea83ef6e0d0b3c96bef686a56d0d97b19d9206
+--- /dev/null
++++ b/tests/unit/test_tp_prepare_precheck.py
+@@ -0,0 +1,116 @@
++"""Early refusal never grants entry, debits forecast credit, or weakens final checks."""
++
++import pytest
++
++from integrations.binance_usdm.demo_tp_budget import TPBudgetStopped
++from services.execution.demo_tp_budget_candidate import PrecheckedBudgetedTPTriggerCoordinator
++from tests.unit.test_tp_request_budget import (
++    ORDER,
++    TIME,
++    call,
++    setup,  # noqa: F401
++)
++
++
++def test_passing_precheck_has_no_wire_or_credit_or_entry_permission(setup):  # noqa: F811
++    b, _, calls, _ = setup
++    call(b, TIME)
++    before = b.diagnostics()
++    b.precheck_preparation(20)
++    after = b.diagnostics()
++    assert len(calls) == 1 and not after["admitted"]
++    assert before["used_conservative_model"] == after["used_conservative_model"] == 1
++    assert after["preparation_prechecks"] == 1 and after["last_preparation_assumption"] == 20
++    with pytest.raises(TPBudgetStopped):
++        call(b, ORDER, "POST", "type=LIMIT")
++    assert len(calls) == 1
++
++
++def test_precheck_stops_when_preparation_plus_lifecycle_cannot_fit(setup):  # noqa: F811
++    b, _, calls, _ = setup
++    call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_preparation(40)  # 1 + 40 + entry20 > ordinary ceiling60.
++    d = b.diagnostics()
++    assert d["stop_reason"] == "PREPARATION_LIFECYCLE_NO_HEADROOM"
++    assert len(calls) == 1 and not d["admitted"] and d["used_conservative_model"] == 1
++
++
++def test_exact_boundary_pass_is_rechecked_by_real_admission_after_header_jump(setup):  # noqa: F811
++    from integrations.binance_usdm.rest import RESTResponse
++
++    b, _, calls, response = setup
++    call(b, TIME)
++    b.precheck_preparation(39)  # Exactly fits the planning predicate.
++    response[0] = RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "50"})
++    call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    assert len(calls) == 2 and b.diagnostics()["stop_reason"] == "ENTRY_LIFECYCLE_NO_HEADROOM"
++
++
++def test_underestimated_preparation_still_uses_original_per_request_and_admission_gates(setup):  # noqa: F811
++    b, _, calls, _ = setup
++    call(b, TIME)
++    b.precheck_preparation(1)
++    for _ in range(4):
++        call(b)
++    assert b.diagnostics()["used_conservative_model"] == 41
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    assert len(calls) == 5 and not b.diagnostics()["admitted"]
++
++
++@pytest.mark.parametrize("age", [-1, 5.001, 60])
++def test_stale_or_backward_header_refuses_before_planning(setup, age):  # noqa: F811
++    b, clock, calls, _ = setup
++    call(b, TIME)
++    clock[0] = age
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_preparation(1)
++    assert len(calls) == 1
++    assert b.diagnostics()["stop_reason"] == "PREPARATION_WEIGHT_METADATA_UNAVAILABLE"
++
++
++@pytest.mark.parametrize("phase", ["cleanup", "admitted", "stopped"])
++def test_preparation_cannot_reopen_closed_or_already_admitted_scope(setup, phase):  # noqa: F811
++    b, _, calls, _ = setup
++    call(b, TIME)
++    if phase == "cleanup":
++        b.begin_cleanup()
++    elif phase == "admitted":
++        b.admit_entry()
++    else:
++        with pytest.raises(TPBudgetStopped):
++            b.precheck_preparation(100)
++    before = len(calls)
++    with pytest.raises(TPBudgetStopped):
++        b.precheck_preparation(1)
++    assert len(calls) == before
++
++
++@pytest.mark.parametrize("cost", [True, False, 0, -1, 1.1, float("nan"), "10", None])
++def test_invalid_preparation_cost_neither_grants_nor_sends(setup, cost):  # noqa: F811
++    b, _, calls, _ = setup
++    with pytest.raises(ValueError):
++        b.precheck_preparation(cost)
++    assert not calls and not b.diagnostics()["admitted"]
++    assert b.diagnostics()["preparation_prechecks"] == 0
++    with pytest.raises(ValueError):
++        PrecheckedBudgetedTPTriggerCoordinator(
++            None, None, None, None, preparation_cost_assumption=cost
++        )
++
++
++def test_repeated_concurrent_prechecks_cannot_reserve_or_mint_credit(setup):  # noqa: F811
++    from concurrent.futures import ThreadPoolExecutor
++
++    b, _, calls, _ = setup
++    call(b, TIME)
++    with ThreadPoolExecutor(max_workers=8) as executor:
++        list(executor.map(b.precheck_preparation, [10] * 40))
++    assert len(calls) == 1 and b.diagnostics()["preparation_prechecks"] == 40
++    assert b.diagnostics()["used_conservative_model"] == 1 and not b.diagnostics()["admitted"]
++    b.admit_entry()
++    call(b, ORDER, "POST", "type=LIMIT")
++    assert len(calls) == 2
+diff --git a/tests/unit/test_tp_read_pool_install_guard.py b/tests/unit/test_tp_read_pool_install_guard.py
+index ace09a140487a9607307007aafdcae72b546df11..6b3e1c448f9de137398969bea231c844ce02d2c8 100644
+--- a/tests/unit/test_tp_read_pool_install_guard.py
++++ b/tests/unit/test_tp_read_pool_install_guard.py
+@@ -1,4 +1,5 @@
+ import copy
++import hashlib
+ import importlib.util
+ from pathlib import Path
+ 
+@@ -24,10 +25,22 @@ SAFE = {
+ }
+ 
+ 
++@pytest.fixture
++def pinned_review_source(tmp_path, monkeypatch):
++    # Review/redaction tests control their source inputs just as they already
++    # control the digest and account review. Production approval pins stay intact.
++    source = tmp_path / "synthetic_approved_source.py"
++    source.write_bytes(b"synthetic source fixture, never executable\n")
++    monkeypatch.setattr(
++        m, "UNCHANGED", {str(source): hashlib.sha256(source.read_bytes()).hexdigest()}
++    )
++    return source
++
++
+ @pytest.mark.parametrize(
+     "phase,digest", [("pre", m.OLD_SHA), ("pre", m.NEW_SHA), ("post", m.NEW_SHA)]
+ )
+-def test_only_read_review_is_called_and_token_never_returned(phase, digest):
++def test_only_read_review_is_called_and_token_never_returned(phase, digest, pinned_review_source):
+     calls = []
+ 
+     def local(engine):
+@@ -59,7 +72,7 @@ def test_only_read_review_is_called_and_token_never_returned(phase, digest):
+         {"unresolved_count": True},
+     ],
+ )
+-def test_unsafe_review_blocks_without_apply(change):
++def test_unsafe_review_blocks_without_apply(change, pinned_review_source):
+     with pytest.raises(ValueError):
+         m.run(
+             None,
+@@ -70,7 +83,7 @@ def test_unsafe_review_blocks_without_apply(change):
+         )
+ 
+ 
+-def test_changed_account_blocks_after_review():
++def test_changed_account_blocks_after_review(pinned_review_source):
+     rows = iter([("BEFORE",), ("CHANGED",)])
+     with pytest.raises(ValueError):
+         m.run(
+@@ -122,3 +135,35 @@ def test_production_unresolved_refs_match_original_independent_report():
+     )
+     assert m.UNRESOLVED_REFS == set(original["request_refs"])
+     assert len(m.UNRESOLVED_REFS) == 4
++
++
++@pytest.mark.parametrize(
++    "phase,digest", [("pre", m.OLD_SHA), ("pre", m.NEW_SHA), ("post", m.NEW_SHA)]
++)
++def test_altered_source_still_blocks_before_database_or_review(phase, digest, pinned_review_source):
++    pinned_review_source.write_bytes(b"altered synthetic source fixture\n")
++    with pytest.raises(ValueError, match="SOURCE_HASH_MISMATCH"):
++        m.run(
++            None,
++            phase,
++            digest=digest,
++            read_local=lambda _: pytest.fail("no database access for altered source"),
++            read_review=lambda: pytest.fail("no signed review for altered source"),
++        )
++
++
++def test_old_install_guard_rejects_this_unapproved_candidate_before_database():
++    # This is an actual checkout check, independent of the synthetic fixture.
++    # A new review-only candidate must not inherit approval from the deployed version.
++    changed = {
++        n for n, h in m.UNCHANGED.items() if hashlib.sha256(Path(n).read_bytes()).hexdigest() != h
++    }
++    assert "services/execution/demo_validation.py" in changed
++    with pytest.raises(ValueError, match="SOURCE_HASH_MISMATCH"):
++        m.run(
++            None,
++            "pre",
++            digest=m.NEW_SHA,
++            read_local=lambda _: pytest.fail("no database access for candidate source"),
++            read_review=lambda: pytest.fail("no signed review for candidate source"),
++        )
+diff --git a/tests/unit/test_tp_request_budget.py b/tests/unit/test_tp_request_budget.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..4c51e993b4e478190730371adcc09e91fa7c38ca
+--- /dev/null
++++ b/tests/unit/test_tp_request_budget.py
+@@ -0,0 +1,238 @@
++"""Budget accounting and concurrency; no venue, keys, DB or sleeps."""
++
++from concurrent.futures import ThreadPoolExecutor
++from dataclasses import replace
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import DemoFailure
++from integrations.binance_usdm.demo_tp_budget import (
++    TPBudgetPlan,
++    TPBudgetStopped,
++    TPRequestBudget,
++    published_weight_limit,
++)
++from integrations.binance_usdm.rest import RESTResponse
++from services.execution.demo_validation import safe_failure
++
++TIME = "/fapi/v1/time"
++READ = "/fapi/v3/positionRisk"
++ORDER = "/fapi/v1/order"
++PLAN = TPBudgetPlan(100, 20, 30, 10)
++COSTS = {("GET", TIME): 1, ("GET", READ): 10, ("POST", ORDER): 2}
++EMPTY = SecretStr("")
++
++
++@pytest.fixture
++def setup():
++    clock = [0.0]
++    calls = []
++    response = [RESTResponse(200, b"{}", {"X-MBX-USED-WEIGHT-1M": "0"})]
++
++    def send(*args):
++        calls.append(args)
++        return response[0]
++
++    budget = TPRequestBudget(send, PLAN, COSTS, monotonic=lambda: clock[0])
++    return budget, clock, calls, response
++
++
++def call(budget, path=READ, method="GET", query=""):
++    return budget(method, path, SecretStr(query), None)
++
++
++def test_budget_stops_ordinary_before_cleanup_and_never_refunds(setup):
++    b, clock, calls, response = setup
++    call(b, TIME)
++    b.admit_entry()
++    for _ in range(5):
++        call(b)
++    with pytest.raises(TPBudgetStopped):
++        call(b)
++    assert len(calls) == 6 and b.diagnostics()["used_conservative_model"] == 51
++    clock[0] += 60  # A local minute rollover is never new credit.
++    with pytest.raises(TPBudgetStopped):
++        call(b, TIME)
++    b.begin_cleanup()
++    call(b, ORDER, "POST", "reduceOnly=true")
++    assert len(calls) == 7 and b.diagnostics()["phase"] == "CLEANUP"
++    assert b.diagnostics()["resets_or_refunds"] == 0
++
++
++@pytest.mark.parametrize("header", [None, "-1", "1.0", "secret-cookie", "9" * 13])
++def test_bad_header_stops_ordinary_but_not_original_cleanup(setup, header):
++    b, _, calls, response = setup
++    response[0] = RESTResponse(
++        200, b"{}", {} if header is None else {"X-MBX-USED-WEIGHT-1M": header}
++    )
++    call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    with pytest.raises(TPBudgetStopped):
++        call(b)
++    b.begin_cleanup()
++    call(b)
++    assert len(calls) == 2 and b.diagnostics()["metadata_untrusted"]
++
++
++@pytest.mark.parametrize("status", [418, 429])
++def test_actual_limit_response_returned_unchanged_for_sdk_and_stops_ordinary(setup, status):
++    b, _, calls, response = setup
++    raw = RESTResponse(status, b"not-json", {"Retry-After": "120", "X-MBX-USED-WEIGHT-1M": "99"})
++    response[0] = raw
++    assert call(b, TIME) is raw
++    with pytest.raises(TPBudgetStopped):
++        call(b, TIME)
++    assert len(calls) == 1 and b.diagnostics()["metadata_untrusted"]
++
++
++def test_header_highwater_and_local_estimate_never_decrease_after_reset(setup):
++    b, clock, _, response = setup
++    response[0] = RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "40"})
++    call(b, TIME)
++    response[0] = RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "1"})
++    clock[0] = 60
++    call(b, TIME)
++    assert b.diagnostics()["used_conservative_model"] == 41
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()  # 41+20 exceeds ordinary ceiling60.
++
++
++@pytest.mark.parametrize("age", [-1, 5.001, 60])
++def test_stale_or_backwards_metadata_cannot_admit_or_read(setup, age):
++    b, clock, calls, _ = setup
++    call(b, TIME)
++    clock[0] = age
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    assert len(calls) == 1
++
++
++def test_stale_header_can_be_refreshed_before_any_stop(setup):
++    b, clock, _, _ = setup
++    call(b, TIME)
++    clock[0] = 60
++    call(b, TIME)
++    b.admit_entry()
++    assert b.diagnostics()["admitted"]
++
++
++def test_entry_needs_explicit_single_admission_and_is_forbidden_after_finalization(setup):
++    b, _, calls, _ = setup
++    call(b, TIME)
++    b.admit_entry()
++    call(b, ORDER, "POST", "type=LIMIT")
++    with pytest.raises(TPBudgetStopped):
++        b.admit_entry()
++    b.begin_cleanup()
++    for query in ("type=LIMIT", "reduceOnly=false", "reduceOnly=true&reduceOnly=false"):
++        with pytest.raises(TPBudgetStopped):
++            call(b, ORDER, "POST", query)
++    call(b, ORDER, "POST", "reduceOnly=true")
++    assert len(calls) == 3
++
++
++def test_no_admission_no_entry_and_no_implicit_unknown_cost(setup):
++    b, _, calls, _ = setup
++    call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        call(b, ORDER, "POST", "type=LIMIT")
++    b.begin_cleanup()
++    with pytest.raises(TPBudgetStopped):
++        call(b, "/unknown")
++    assert len(calls) == 1
++
++
++def test_failed_send_keeps_charge_and_prevents_normal_retry():
++    calls = []
++
++    def fail(*args):
++        calls.append(args)
++        raise OSError("private-payload-must-not-appear")
++
++    b = TPRequestBudget(fail, PLAN, COSTS)
++    with pytest.raises(OSError):
++        call(b, TIME)
++    with pytest.raises(TPBudgetStopped):
++        call(b, TIME)
++    assert len(calls) == 1 and b.diagnostics()["used_conservative_model"] == 1
++    assert "private" not in str(b.diagnostics())
++
++
++def test_atomic_accounting_prevents_concurrent_spending_of_reserve(setup):
++    b, _, calls, _ = setup
++    call(b, TIME)
++
++    def attempt(_):
++        try:
++            call(b)
++            return True
++        except TPBudgetStopped:
++            return False
++
++    with ThreadPoolExecutor(max_workers=16) as executor:
++        results = list(executor.map(attempt, range(40)))
++    assert sum(results) == 5 and len(calls) == 6
++    assert b.diagnostics()["used_conservative_model"] == 51
++
++
++def test_cleanup_counts_cost_but_does_not_block_original_risk_reduction(setup):
++    b, _, calls, response = setup
++    call(b, TIME)
++    response[0] = RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "101"})
++    b.begin_cleanup()
++    for _ in range(12):
++        call(b)
++    assert len(calls) == 13
++    d = b.diagnostics()
++    assert d["cleanup_exceeded_model_limit"] and d["cleanup_assumed_weight"] == 120
++    assert d["added_retries"] == 0 and not d["shared_ip_capacity_reserved"]
++    assert safe_failure(TPBudgetStopped("secret")) == "TP_REQUEST_BUDGET_STOPPED"
++    assert safe_failure(DemoFailure("secret")) == "DEMO_SESSION_OR_QUERY_FAILED"
++
++
++@pytest.mark.parametrize(
++    "field", ["published_limit", "entry_and_protection", "cleanup_reserve", "headroom"]
++)
++@pytest.mark.parametrize("value", [True, 0, -1, 1.5])
++def test_invalid_integer_plan_rejected(field, value):
++    with pytest.raises(ValueError):
++        replace(PLAN, **{field: value})
++
++
++@pytest.mark.parametrize("value", [float("nan"), float("inf"), 0, -1, 6])
++def test_invalid_header_freshness_rejected(value):
++    with pytest.raises(ValueError):
++        replace(PLAN, header_max_age_seconds=value)
++
++
++@pytest.mark.parametrize("cost", [True, 0, -1, 1.5])
++def test_no_invalid_route_costs(cost):
++    with pytest.raises(ValueError):
++        TPRequestBudget(lambda *args: None, PLAN, {("GET", TIME): cost})
++
++
++def test_plan_cannot_consume_entire_limit():
++    with pytest.raises(ValueError):
++        TPBudgetPlan(60, 20, 30, 10)
++
++
++@pytest.mark.parametrize("limit", [True, 0, -1, "6000", None])
++def test_published_limit_needs_exact_positive_integer(limit):
++    row = {
++        "rateLimitType": "REQUEST_WEIGHT",
++        "interval": "MINUTE",
++        "intervalNum": 1,
++        "limit": limit,
++    }
++    with pytest.raises(TPBudgetStopped):
++        published_weight_limit({"rateLimits": [row]})
++
++
++def test_published_limit_needs_one_unambiguous_minute_row():
++    row = {"rateLimitType": "REQUEST_WEIGHT", "interval": "MINUTE", "intervalNum": 1, "limit": 6000}
++    assert published_weight_limit({"rateLimits": [row]}) == 6000
++    for data in ({}, None, {"rateLimits": []}, {"rateLimits": [row, row]}):
++        with pytest.raises(TPBudgetStopped):
++            published_weight_limit(data)
