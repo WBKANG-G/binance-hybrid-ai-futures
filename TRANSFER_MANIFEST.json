@@ -1,0 +1,13 @@
+{
+  "purpose": "REVIEWED_OPERATOR_ATTESTED_EXTERNAL_CLOSE_DAY_ADOPTION_KEEP_PAUSED",
+  "files": {
+    "README_KO.md": "5f83af211caeb447a8aaaeb0c1964477130b188286c3f6d17a2a3569f26cd2bc",
+    "REVIEWED_VALUES.json": "ac3801336453595e954d6cc9829bf1248b3725b975fafd04efbe94be3779c7f8",
+    "RUN_COMMAND.txt": "abd99e1e7ef2984364ac5a9b4ab932a17f55f96697d42da46f3baea537d518b7",
+    "SOURCE_REFERENCE.json": "8e7fe23be249733d79eb78dda8516626d950aa6090471620d21a6f15e3ccb377",
+    "VALIDATION.json": "10a31d97df87254747cbdcd6674bf1b4d4181ef91db6711f817437b1e31259bd",
+    "adopt_manual_close_day.py": "a65368a2740268f363914e394e19ad774c6b57a6bdb5239074d7c99ecee01698",
+    "test-results/pytest-day-apply.xml": "c95c75e402d80cb10258d56a5afcd32499ca77fcc7c398491869d4183866fc11",
+    "test_manual_close_day_apply.py": "198af2189e755a94bab6f1544a04a3ea22ab32d8fee1fb8bbe659d9fcfb45a6b"
+  }
+}

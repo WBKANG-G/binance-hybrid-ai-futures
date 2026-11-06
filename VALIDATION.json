@@ -1,0 +1,14 @@
+{
+  "tests": 65,
+  "failures": 0,
+  "errors": 0,
+  "seconds": "16.153",
+  "ruff": "passed",
+  "database": "Isolated synthetic PostgreSQL only",
+  "exchange": "Synthetic signed GET responses only; no real exchange call",
+  "guards_ast_comparison": "passed",
+  "deployed_pins_verified": 29,
+  "runtime_reference": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "windows_application": "Not yet run",
+  "main_merged_or_updated": false
+}

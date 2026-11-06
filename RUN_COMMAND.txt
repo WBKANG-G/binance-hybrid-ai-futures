@@ -1,0 +1,2 @@
+cd /d "%USERPROFILE%\Desktop\windows-demo-tp-manual-close-day-apply"
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; if((Get-FileHash -Algorithm SHA256 -LiteralPath 'adopt_manual_close_day.py').Hash.ToLower() -ne 'a65368a2740268f363914e394e19ad774c6b57a6bdb5239074d7c99ecee01698'){throw 'DAY_ADOPTION_HASH_MISMATCH'}" && docker exec -i hybrid-windows-api-1 python - --apply --attest-no-activity-since-manual-close < adopt_manual_close_day.py

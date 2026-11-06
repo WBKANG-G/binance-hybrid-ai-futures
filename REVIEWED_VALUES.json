@@ -1,0 +1,17 @@
+{
+  "reviewed_values": {
+    "old_day_kst": "2026-11-06",
+    "proposed_day_kst": "2026-11-07",
+    "current_week_kst": "2026-11-02",
+    "old_daily_base_usdt": "4998.95579884",
+    "proposed_daily_base_usdt": "4998.74183608",
+    "weekly_base_usdt_preserved": "4998.99761493",
+    "high_water_usdt_preserved": "5000.00000000",
+    "adoption_snapshot_anchor_utc": "2026-11-06T07:25:25.109073+00:00"
+  },
+  "incident": "041d1f35-870e-46cb-aad2-ed6059bc1095",
+  "operator_attestation": "No additional trading or deposits/withdrawals since manual close; confirmed by user in this conversation",
+  "exact_midnight_valuation_verified": false,
+  "account_wide_trade_export_verified": false,
+  "authorization": "User requested next step after reviewing successful preview; no resume or order authorization"
+}
