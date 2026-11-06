@@ -1,0 +1,4398 @@
+{
+  "actual_venue_used": false,
+  "assumed_weights_are_not_proven_bounds": true,
+  "attempts": 544,
+  "known_assumed_total_weight": 3313,
+  "phase_attempts": {
+    "BOOTSTRAP": 45,
+    "SESSION_OTHER": 16,
+    "SESSION_READY": 43,
+    "FINALIZATION": 45,
+    "FLAT_CONFIRMATION": 395
+  },
+  "phase_assumed_weights": {
+    "BOOTSTRAP": 591,
+    "SESSION_OTHER": 237,
+    "SESSION_READY": 589,
+    "FINALIZATION": 591,
+    "FLAT_CONFIRMATION": 1305
+  },
+  "unmodeled_attempts": 0,
+  "complete_cost_model": true,
+  "trace_truncated": false,
+  "trace": [
+    {
+      "attempt": 1,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 2,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/exchangeInfo",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 3,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 4,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 5,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 6,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 7,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 8,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 9,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 10,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 11,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 12,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 13,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 14,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 15,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 16,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 17,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 18,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 19,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 20,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 21,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 22,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 23,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 24,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 25,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 26,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 27,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 28,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 29,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 30,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 31,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 32,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 33,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 34,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 35,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 36,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 37,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 38,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 39,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 40,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 41,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 42,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 43,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 44,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 45,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 46,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 47,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 48,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 49,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 50,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 51,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 52,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 53,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 54,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 55,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 56,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 57,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 58,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 59,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 60,
+      "phase": "SESSION_OTHER",
+      "method": "POST",
+      "path": "/fapi/v1/listenKey",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 61,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 62,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 63,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 64,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 65,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 66,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 67,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 68,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 69,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 70,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 71,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 72,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 73,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 74,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 75,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 76,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 77,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 78,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 79,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 80,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 81,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 82,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 83,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 84,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 85,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 86,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 87,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 88,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 89,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 90,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 91,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 92,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 93,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 94,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 95,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 96,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 97,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 98,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 99,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 100,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 101,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 102,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 103,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 104,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 105,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 106,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 107,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 108,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 109,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 110,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 111,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 112,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 113,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 114,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 115,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 116,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 117,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 118,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 119,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 120,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 121,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 122,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 123,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 124,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 125,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 126,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 127,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 128,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 129,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 130,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 131,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 132,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 133,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 134,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 135,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 136,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 137,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 138,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 139,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 140,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 141,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 142,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 143,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 144,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 145,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 146,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 147,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 148,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 149,
+      "phase": "FINALIZATION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 150,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 151,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 152,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 153,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 154,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 155,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 156,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 157,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 158,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 159,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 160,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 161,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 162,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 163,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 164,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 165,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 166,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 167,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 168,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 169,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 170,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 171,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 172,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 173,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 174,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 175,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 176,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 177,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 178,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 179,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 180,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 181,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 182,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 183,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 184,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 185,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 186,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 187,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 188,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 189,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 190,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 191,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 192,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 193,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 194,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 195,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 196,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 197,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 198,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 199,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 200,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 201,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 202,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 203,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 204,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 205,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 206,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 207,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 208,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 209,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 210,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 211,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 212,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 213,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 214,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 215,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 216,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 217,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 218,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 219,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 220,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 221,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 222,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 223,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 224,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 225,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 226,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 227,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 228,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 229,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 230,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 231,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 232,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 233,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 234,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 235,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 236,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 237,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 238,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 239,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 240,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 241,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 242,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 243,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 244,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 245,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 246,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 247,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 248,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 249,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 250,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 251,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 252,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 253,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 254,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 255,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 256,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 257,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 258,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 259,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 260,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 261,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 262,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 263,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 264,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 265,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 266,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 267,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 268,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 269,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 270,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 271,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 272,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 273,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 274,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 275,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 276,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 277,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 278,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 279,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 280,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 281,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 282,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 283,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 284,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 285,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 286,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 287,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 288,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 289,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 290,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 291,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 292,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 293,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 294,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 295,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 296,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 297,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 298,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 299,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 300,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 301,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 302,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 303,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 304,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 305,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 306,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 307,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 308,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 309,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 310,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 311,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 312,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 313,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 314,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 315,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 316,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 317,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 318,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 319,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 320,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 321,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 322,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 323,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 324,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 325,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 326,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 327,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 328,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 329,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 330,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 331,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 332,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 333,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 334,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 335,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 336,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 337,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 338,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 339,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 340,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 341,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 342,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 343,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 344,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 345,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 346,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 347,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 348,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 349,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 350,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 351,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 352,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 353,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 354,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 355,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 356,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 357,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 358,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 359,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 360,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 361,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 362,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 363,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 364,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 365,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 366,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 367,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 368,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 369,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 370,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 371,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 372,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 373,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 374,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 375,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 376,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 377,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 378,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 379,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 380,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 381,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 382,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 383,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 384,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 385,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 386,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 387,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 388,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 389,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 390,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 391,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 392,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 393,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 394,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 395,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 396,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 397,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 398,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 399,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 400,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 401,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 402,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 403,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 404,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 405,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 406,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 407,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 408,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 409,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 410,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 411,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 412,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 413,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 414,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 415,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 416,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 417,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 418,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 419,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 420,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 421,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 422,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 423,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 424,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 425,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 426,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 427,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 428,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 429,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 430,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 431,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 432,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 433,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 434,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 435,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 436,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 437,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 438,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 439,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 440,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 441,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 442,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 443,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 444,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 445,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 446,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 447,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 448,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 449,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 450,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 451,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 452,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 453,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 454,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 455,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 456,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 457,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 458,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 459,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 460,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 461,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 462,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 463,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 464,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 465,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 466,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 467,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 468,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 469,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 470,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 471,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 472,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 473,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 474,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 475,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 476,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 477,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 478,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 479,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 480,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 481,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 482,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 483,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 484,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 485,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 486,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 487,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 488,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 489,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 490,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 491,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 492,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 493,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 494,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 495,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 496,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 497,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 498,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 499,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 500,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 501,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 502,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 503,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 504,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 505,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 506,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 507,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 508,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 509,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 510,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 511,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 512,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 513,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 514,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 515,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 516,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 517,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 518,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 519,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 520,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 521,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 522,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 523,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 524,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 525,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 526,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 527,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 528,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 529,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 530,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 531,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 532,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 533,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 534,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 535,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 536,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 537,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 538,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 539,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 540,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 541,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 542,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 543,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 544,
+      "phase": "FLAT_CONFIRMATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    }
+  ],
+  "mode": "no_tp",
+  "income_pages": 1,
+  "escalation_after": "finalization",
+  "page10_also_full": false,
+  "shared_spike": false,
+  "counterfactual_capacity": 6000,
+  "full_historical_flat_snapshots": 5,
+  "entry_protection_phase_weight": 0,
+  "cleanup_phase_weight": 1896,
+  "entry_protection_assumption": 1500,
+  "cleanup_reserve_assumption": 3000,
+  "validation_completion": "FINISHED_FLAT",
+  "tp_result": "NOT_ACCEPTED",
+  "flat_report": "UNKNOWN",
+  "position_nonzero_at_stop": false,
+  "risk_state": "NORMAL",
+  "new_entry_posts": 0,
+  "reduce_exit_posts": 0,
+  "entry_assumption_exceeded": false,
+  "cleanup_assumption_exceeded": false,
+  "model_verdict": "REAL_LIMIT_MODEL_ENTRY_BLOCKED"
+}

@@ -1,0 +1,27 @@
+{
+  "deployed_base_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "previous_candidate_commit": "c4b90e1a2e63ed1974a7d548c26f3e2143085155",
+  "audit_only_new_files": {
+    "tests/fixtures/tp_phase_audit.py": "03f47d640b18347e8771868d071099e06f2db7fd7dab2f7f1723996f6f76bcce",
+    "tests/integration/test_tp_lifecycle_cost_audit.py": "99cadbf20069db313a8614f2790ce3948d9d21dc50c2b2f79b466dae1384d197",
+    "tests/unit/test_tp_phase_cost_audit.py": "38ba6a21d3894e1749ff291008aa61de51bab3f813184fa59676a4cbb9769ce3"
+  },
+  "audit_patch_sha256": "7260d4a07670b168853662f39d6e58f2734f8a414d4bb87eb2e45d367d283951",
+  "base_candidate_patch_sha256": "c1a2f081b1c8b5628b70234390ea3b4475d6ca1e504ef9d5224fcd2d1c3f206c",
+  "base_candidate_source_hashes": {
+    "integrations/binance_usdm/demo_tp_budget.py": "0919cf595d3aa1e9e7c7809b65fd6950614772712d246e825a568c7c7fee3c6c",
+    "services/execution/demo.py": "cd35cfac40692fe8e469e454dc611e40a34335f34ecb0fc5df84d1ed658e2609",
+    "services/execution/demo_event_inbox.py": "9cb14d30ba9f315b0d02a83a2720733a4ce2973b8f99928dacb30bd6dd79385f",
+    "services/execution/demo_stream.py": "6d83ce945b50b4bde784abde3d58e70a60af397f3068832486309e5724b2965c",
+    "services/execution/demo_tp_budget_candidate.py": "38bfc0344d219c3188c6deb9d7a83224025e025ff16b53e48ff07dea31ec9912",
+    "services/execution/demo_validation.py": "a6b19750067b6bbdb5608dfb11df5a539f8b2c0c7c58605e1e432b35c152a1ae",
+    "tests/fixtures/tp_weight_model.py": "a80b8b88afaef62cff9ce02133d87ffb98a0a87edc5ef99d0f5df05505c19194",
+    "tests/integration/test_tp_event_batch_lifecycle.py": "2904bcf9f95a6e43d3e64e1d57cc99d51dc8d5075ae82d3e2256d2e847d270b6",
+    "tests/integration/test_tp_prepare_precheck_lifecycle.py": "63712398b67c936c6406cb4bded3dfd504fd8487f5ce3ecb13f80e048021aceb",
+    "tests/integration/test_tp_request_budget_lifecycle.py": "56b78acd293bed371af10b1c23a1ffaaeb6f0d6111c0345cb6f02c43bad654f2",
+    "tests/unit/test_demo_protected_event_batch.py": "b0393ed39543a07a6740ee2910a112580624de454b1dd59108bd168aafc519d2",
+    "tests/unit/test_tp_prepare_precheck.py": "cd624858aea16bee460a1d343452e07304d6aacfef86eb7688e93d52d91a6123",
+    "tests/unit/test_tp_read_pool_install_guard.py": "6ffb92c87ed72fbd64c923cef446085320f7b551d10f842aa4d0f0019f28023b",
+    "tests/unit/test_tp_request_budget.py": "a0e44e7e437eb04c05c60be784c8ee47521b51738316d409add7a875c2f6ce56"
+  }
+}

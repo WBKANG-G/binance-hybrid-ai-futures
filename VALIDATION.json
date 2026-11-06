@@ -1,0 +1,22 @@
+{
+  "date_kst": "2026-11-06",
+  "passed": 852,
+  "failed": 0,
+  "seconds": 43.45,
+  "unit_tests": 835,
+  "lifecycle_audit_cases": 17,
+  "single_run": true,
+  "runtime_changed": false,
+  "actual_venue_used": false,
+  "actual_new_orders": 0,
+  "deployed": false,
+  "checks": {
+    "ruff": "PASS for apps integrations packages scripts services tests",
+    "format": "PASS for three new files",
+    "mypy": "PASS for new typed audit fixture",
+    "runtime_reference": "All tracked runtime/config source files byte-identical to previous candidate",
+    "fresh_patch_chain_apply": "PASS,previous14 + audit3 files match reviewed source"
+  },
+  "finding": "Fixed modeled entry/protection1500 and cleanup3000 allowances exceeded in multipage income counterexamples; no reduction or deployment justified.",
+  "scope": "Real isolated PostgreSQL and local WebSocket; synthetic REST/orders/clock/income pages/costs; counterfactual100000 model to observe completion. Real6000 model blocks entry."
+}

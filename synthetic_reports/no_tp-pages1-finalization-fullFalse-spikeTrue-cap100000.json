@@ -1,0 +1,2050 @@
+{
+  "actual_venue_used": false,
+  "assumed_weights_are_not_proven_bounds": true,
+  "attempts": 250,
+  "known_assumed_total_weight": 3513,
+  "phase_attempts": {
+    "BOOTSTRAP": 45,
+    "SESSION_OTHER": 18,
+    "SESSION_READY": 43,
+    "RESUME": 14,
+    "PREPARATION": 34,
+    "RESERVATION": 14,
+    "SUBMISSION_PROTECTION": 82
+  },
+  "phase_assumed_weights": {
+    "BOOTSTRAP": 591,
+    "SESSION_OTHER": 239,
+    "SESSION_READY": 589,
+    "RESUME": 196,
+    "PREPARATION": 515,
+    "RESERVATION": 196,
+    "SUBMISSION_PROTECTION": 1187
+  },
+  "unmodeled_attempts": 0,
+  "complete_cost_model": true,
+  "trace_truncated": false,
+  "trace": [
+    {
+      "attempt": 1,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 2,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/exchangeInfo",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 3,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 4,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 5,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 6,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 7,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 8,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 9,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 10,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 11,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 12,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 13,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 14,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 15,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 16,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 17,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 18,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 19,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 20,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 21,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 22,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 23,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 24,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 25,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 26,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 27,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 28,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 29,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 30,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 31,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 32,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 33,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 34,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 35,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 36,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 37,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 38,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 39,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 40,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 41,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 42,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 43,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 44,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 45,
+      "phase": "BOOTSTRAP",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 46,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 47,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 48,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 49,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 50,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 51,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 52,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 53,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 54,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 55,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 56,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 57,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 58,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 59,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 60,
+      "phase": "SESSION_OTHER",
+      "method": "POST",
+      "path": "/fapi/v1/listenKey",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 61,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 62,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 63,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 64,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 65,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 66,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 67,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 68,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 69,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 70,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 71,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 72,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 73,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 74,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 75,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 76,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 77,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 78,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 79,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 80,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 81,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 82,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 83,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 84,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 85,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 86,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 87,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 88,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 89,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 90,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 91,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 92,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 93,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 94,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 95,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 96,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 97,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 98,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 99,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 100,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 101,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 102,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 103,
+      "phase": "SESSION_READY",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 104,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 105,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 106,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 107,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 108,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 109,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 110,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 111,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 112,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 113,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 114,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 115,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 116,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 117,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 118,
+      "phase": "RESUME",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 119,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 120,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 121,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 122,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 123,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 124,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 125,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 126,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 127,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 128,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 129,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 130,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 131,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 132,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 133,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 134,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 135,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/exchangeInfo",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 136,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/ticker/bookTicker",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 137,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/premiumIndex",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 138,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 139,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 140,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 141,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 142,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 143,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 144,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 145,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 146,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 147,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 148,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 149,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 150,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 151,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 152,
+      "phase": "PREPARATION",
+      "method": "GET",
+      "path": "/fapi/v1/klines",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 153,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 154,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 155,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 156,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 157,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 158,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 159,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 160,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 161,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 162,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 163,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 164,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 165,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 166,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 167,
+      "phase": "RESERVATION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 168,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/exchangeInfo",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 169,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 170,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 171,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 172,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 173,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 174,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 175,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 176,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 177,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 178,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 179,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 180,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 181,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 182,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 183,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 184,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/ticker/bookTicker",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 185,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/premiumIndex",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 186,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "POST",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 187,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 188,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 189,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 190,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 191,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 192,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 193,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 194,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 195,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 196,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 197,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 198,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 199,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 200,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 201,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 202,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 203,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 204,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 205,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 206,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 207,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 208,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 209,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 210,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 211,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 212,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 213,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 214,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 215,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 216,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 217,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 218,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "POST",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 219,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 220,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 221,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 222,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 223,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 224,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 225,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 226,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 227,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 228,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 229,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 230,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 231,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 232,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 233,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 234,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "POST",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 235,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/positionSide/dual",
+      "status": 200,
+      "assumed_weight": 35
+    },
+    {
+      "attempt": 236,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/multiAssetsMargin",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 237,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/account",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 238,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/symbolConfig",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 239,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v3/positionRisk",
+      "status": 200,
+      "assumed_weight": 5
+    },
+    {
+      "attempt": 240,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 241,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/openAlgoOrders",
+      "status": 200,
+      "assumed_weight": 40
+    },
+    {
+      "attempt": 242,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 243,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 244,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 400,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 245,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 246,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/order",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 247,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 248,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/algoOrder",
+      "status": 200,
+      "assumed_weight": 1
+    },
+    {
+      "attempt": 249,
+      "phase": "SUBMISSION_PROTECTION",
+      "method": "GET",
+      "path": "/fapi/v1/income",
+      "status": 200,
+      "assumed_weight": 30
+    },
+    {
+      "attempt": 250,
+      "phase": "SESSION_OTHER",
+      "method": "GET",
+      "path": "/fapi/v1/time",
+      "status": 429,
+      "assumed_weight": 1
+    }
+  ],
+  "mode": "no_tp",
+  "income_pages": 1,
+  "escalation_after": "finalization",
+  "page10_also_full": false,
+  "shared_spike": true,
+  "counterfactual_capacity": 100000,
+  "full_historical_flat_snapshots": 0,
+  "entry_protection_phase_weight": 1383,
+  "cleanup_phase_weight": 0,
+  "entry_protection_assumption": 1500,
+  "cleanup_reserve_assumption": 3000,
+  "validation_completion": "UNRESOLVED_DO_NOT_REPEAT",
+  "tp_result": "NOT_ACCEPTED",
+  "flat_report": "UNKNOWN",
+  "position_nonzero_at_stop": true,
+  "risk_state": "EMERGENCY",
+  "new_entry_posts": 1,
+  "reduce_exit_posts": 0,
+  "entry_assumption_exceeded": false,
+  "cleanup_assumption_exceeded": false,
+  "model_verdict": "RATE_LIMIT_EXPOSURE_UNKNOWN"
+}
