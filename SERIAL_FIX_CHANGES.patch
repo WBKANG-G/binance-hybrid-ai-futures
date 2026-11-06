@@ -1,0 +1,1112 @@
+--- a/PROTECTED_WORKER_PLAN.json
++++ b/PROTECTED_WORKER_PLAN.json
+@@ -1,5 +1,5 @@
+ {
+-  "status": "IMPLEMENTED_WINDOWS_EXECUTION_PENDING",
++  "status": "FIX_INSTALL_ONLY_KEEP_PAUSED_NO_NEW_TRIAL",
+   "phase": 4,
+   "environment": "DEMO",
+   "operation_id": "5bb5814c-55e0-4b7f-882c-a7a449ec2182",
+@@ -65,9 +65,9 @@
+     "Normal and all injected-failure paths prove no second entry submission",
+     "Explicit execution enable flags and operation UUID; no automatic execution from this plan"
+   ],
+-  "current_implementation": "Separate ScopedClient/CappedCoordinator, protected child, cooperative parent pipe and independent natural-lease supervisor; explicit CLI flags required.",
++  "current_implementation": "Readiness mutations serialized inside initial private-stream callback; supervisor loop does not write while stream events run. Child failure stage/code is recorded after draining.",
+   "prior_scope": "The previous approved opposite-quote TP operation was one entry only and is closed. This proposes a new entry plus an intentionally terminated execution child.",
+-  "latest_deployed_parent": "3853dde672521a411e5c3377b62bdd21e2d27630",
++  "latest_deployed_parent": "efa176a736b372f4c70cfa2626971f0b78f258d1",
+   "current_worker_evidence": {
+     "source": "USER_WINDOWS_SCREENSHOT",
+     "worker_container": "running/healthy",
+@@ -82,7 +82,8 @@
+     "delivery_readiness_verified": false,
+     "smtp_authentication_checked": false,
+     "inbox_checked": false,
+-    "new_mail_created": false
++    "new_mail_created": false,
++    "historical_observation_only": true
+   },
+   "latest_regression_sources": {
+     "tests/integration/test_demo_protected_worker_sigkill.py": "83d76a50390b4195a3f34e3e77d355b8c930575edfac7328fbd9ef9a0ef9e2ee",
+@@ -96,12 +97,13 @@
+   "execution_scope_authorized_in_conversation": true,
+   "runtime_source_hashes": {
+     "scripts/check_demo_protected_worker.py": "b06813e8ffe64e4ad5a89700d5610e612a9cc1eb44b3b3396f397c5e7abf58ee",
+-    "services/execution/demo_protected_worker_check.py": "0e7027450669a7b4ef5467a5b6e6eb21ddfca0a2430d68ac25025076e31c0b79",
++    "services/execution/demo_protected_worker_check.py": "9c264588fa7802efc0dcaa4f923153072fa85ba6fd888a23a2dda8ede4966238",
+     "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
+     "services/execution/demo_stream.py": "409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456",
+     "services/execution/demo_validation.py": "d703860caf01135b3f5e82a444adc5afde1795e1f4d48bbd515cc4b9de5666a0",
+     "services/execution/demo_flat_transport.py": "93f878c9869ad397a52546f0aa976bbe8071366eff36c7d0be6b1329df757401",
+     "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a"
+   },
+-  "validation_scope": "Synthetic venue, local WS, real OS child and PostgreSQL; actual Windows DEMO result pending."
++  "validation_scope": "Previous actual Windows trial failed readiness with no kill; fixed-code synthetic regression passed; Windows fix install pending.",
++  "new_trial_authorized": false
+ }
+--- a/RUN-ONE-PROTECTED-WORKER.cmd
++++ b/RUN-ONE-PROTECTED-WORKER.cmd
+@@ -1,21 +1,3 @@
+ @echo off
+-setlocal
+-cd /d "%~dp0"
+-if exist protected-worker-result.log (
+-  echo BLOCKED: prior execution log exists. Do not repeat this operation.
+-  exit /b 2
+-)
+-echo This command runs the approved ONE capped DEMO LIMIT entry and ONE protected child kill.
+-echo Quantity cap 0.0007 BTC; notional cap 100 USDT. Keep this window and Docker running.
+-powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $m=Get-Content -Raw 'TRANSFER_MANIFEST.json' | ConvertFrom-Json; foreach($p in $m.files.PSObject.Properties){if((Get-FileHash -Algorithm SHA256 -LiteralPath $p.Name).Hash.ToLower() -ne $p.Value){throw 'SOURCE_HASH_MISMATCH'}}; Write-Output 'TRANSFER_FILES_VERIFIED'"
+-if errorlevel 1 exit /b 2
+-docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
+-if errorlevel 1 exit /b 2
+-docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --no-deps --wait api
+-if errorlevel 1 exit /b 2
+-docker exec hybrid-windows-api-1 python -c "import hashlib; from pathlib import Path; expected={'scripts/check_demo_protected_worker.py': 'b06813e8ffe64e4ad5a89700d5610e612a9cc1eb44b3b3396f397c5e7abf58ee', 'services/execution/demo_protected_worker_check.py': '0e7027450669a7b4ef5467a5b6e6eb21ddfca0a2430d68ac25025076e31c0b79', 'services/execution/demo.py': 'deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab', 'services/execution/demo_stream.py': '409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456', 'services/execution/demo_validation.py': 'd703860caf01135b3f5e82a444adc5afde1795e1f4d48bbd515cc4b9de5666a0', 'services/execution/demo_flat_transport.py': '93f878c9869ad397a52546f0aa976bbe8071366eff36c7d0be6b1329df757401', 'packages/persistence/demo.py': '40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a'}; assert all(hashlib.sha256(Path(n).read_bytes()).hexdigest()==h for n,h in expected.items()), 'SOURCE_HASH_MISMATCH'; print('PROTECTED_WORKER_RUNTIME_SOURCE_VERIFIED')"
+-if errorlevel 1 exit /b 2
+-docker exec hybrid-windows-api-1 python -m scripts.check_demo_session_ready
+-if errorlevel 1 exit /b 2
+-powershell -NoProfile -Command "& docker exec hybrid-windows-api-1 python -m scripts.check_demo_protected_worker --enable-demo --enable-protected-worker-kill --operation-id 5bb5814c-55e0-4b7f-882c-a7a449ec2182 | Tee-Object -FilePath 'protected-worker-result.log'; exit $LASTEXITCODE"
+-exit /b %errorlevel%
++echo BLOCKED: the prior operation is completed. This package installs a fix only.
++exit /b 2
+--- a/services/execution/demo_protected_worker_check.py
++++ b/services/execution/demo_protected_worker_check.py
+@@ -283,59 +283,80 @@
+     )
+     callback_done = asyncio.Event()
+     loop = asyncio.get_running_loop()
++    announced = False
++    child_stage = "SESSION_CONNECT"
++    child_failure = "NONE"
+ 
+     def ready() -> None:
++        nonlocal announced, child_stage
+         try:
++            child_stage = "RESUME_ENTRIES"
+             coordinator.resume_entries(UUID(marker(operation, "resume")))
++            child_stage = "PREPARE_ENTRY"
+             sig, gate, cap = prepare(coordinator, operation, "LONG", entry_style="OPPOSITE_QUOTE")
++            child_stage = "RESERVE_AND_SUBMIT"
+             coordinator.reserve(sig, gate, quantity_cap=cap, entry_style="OPPOSITE_QUOTE")
+             coordinator.submit(str(operation))
++            state = store.read(lease.account_id)
++            order = state.orders.get(str(operation))
++            if order and order.filled == order.quantity and not order.remaining and order.protected:
++                # The private receiver remains active, but session() does not dispatch
++                # events/heartbeat writes until this ready callback has returned.
++                # All child readiness mutations belong to this serialized callback.
++                child_stage = "PAUSE_AND_VERIFY_PROTECTION"
++                coordinator.command(UUID(marker(operation, "pause-new")), "PAUSE_ENTRIES")
++                protected(store, client, lease.account_id, operation)
++
++                def mark(s: DemoLedger) -> None:
++                    s.operations[marker(operation, "counts")] = json.dumps(
++                        {"entry": client.entry_attempts, "exit": client.exit_attempts}
++                    )
++                    s.operations[marker(operation, "ready")] = "FULL_PROTECTED_READY"
++
++                store.change(lease, "DEMO_PROTECTED_WORKER_READY", mark)
++                announced = True
++            child_stage = "STREAM_OBSERVATION"
+         finally:
+             loop.call_soon_threadsafe(callback_done.set)
+ 
+     task = asyncio.create_task(session(coordinator, connector=connector, on_ready=ready))
+     started = time.monotonic()
+-    announced = False
+     try:
+         while time.monotonic() - started < lifetime and not stop():
+             if task.done():
+                 await task
+                 raise CheckBlocked("CHILD_SESSION_ENDED")
+-            if callback_done.is_set() and not announced:
+-                state = await settled_call(store.read, lease.account_id)
+-                order = state.orders.get(str(operation))
+-                if (
+-                    order
+-                    and order.filled == order.quantity
+-                    and not order.remaining
+-                    and order.protected
+-                ):
+-                    await settled_call(
+-                        coordinator.command, UUID(marker(operation, "pause-new")), "PAUSE_ENTRIES"
+-                    )
+-                    await settled_call(protected, store, client, lease.account_id, operation)
+-
+-                    def mark(s: DemoLedger) -> None:
+-                        s.operations[marker(operation, "counts")] = json.dumps(
+-                            {"entry": client.entry_attempts, "exit": client.exit_attempts}
+-                        )
+-                        s.operations[marker(operation, "ready")] = "FULL_PROTECTED_READY"
+-
+-                    await settled_call(store.change, lease, "DEMO_PROTECTED_WORKER_READY", mark)
+-                    announced = True
+-                elif time.monotonic() - started >= ready_timeout:
+-                    break
+-            elif not callback_done.is_set() and time.monotonic() - started >= ready_timeout:
++            # This task only supervises time/control; it never mutates the account
++            # alongside session's event/heartbeat consumer. Late/partial fills keep
++            # their original protection/cleanup but do not arm this kill scenario.
++            if not announced and time.monotonic() - started >= ready_timeout:
++                child_failure = "PROTECTED_READY_NOT_OBSERVED_IN_CALLBACK"
+                 break
+             await asyncio.sleep(0.2)
++    except Exception as error:
++        child_failure = str(error) if isinstance(error, CheckBlocked) else safe_failure(error)
++        raise
+     finally:
+-        await drain_session(task, cancel=True)
++        drained_error = await drain_session(task, cancel=True)
++        if child_failure == "NONE" and isinstance(drained_error, Exception):
++            child_failure = (
++                str(drained_error)
++                if isinstance(drained_error, CheckBlocked)
++                else safe_failure(drained_error)
++            )
+         try:
+             await settled_call(
+                 store.change,
+                 lease,
+                 "DEMO_PROTECTED_WORKER_FINALLY",
+-                lambda s: s.operations.__setitem__(marker(operation, "finally"), "FINALLY_RAN"),
++                lambda s: s.operations.update(
++                    {
++                        marker(operation, "finally"): "FINALLY_RAN",
++                        marker(operation, "failure"): json.dumps(
++                            {"stage": child_stage, "code": child_failure}
++                        ),
++                    }
++                ),
+             )
+             await finish(coordinator, operation)
+         finally:
+--- /dev/null
++++ b/tests/integration/test_demo_protected_worker_serialization.py
+@@ -0,0 +1,87 @@
++"""Real two-second PostgreSQL lock timeout: stream callback and event cannot overlap."""
++
++import asyncio
++import threading
++import time
++from uuid import uuid4
++
++from services.execution import demo_protected_worker_check as module
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++
++
++def test_slow_pause_completes_before_event_handler_and_does_not_self_lock(case, monkeypatch):  # noqa: F811
++    store, old, fake, options = case
++    options["trigger"] = False
++    operation = uuid4()
++    client = module.ScopedClient(
++        old.client.settings,
++        old.client.credentials,
++        send=old.client.send,
++        clock_ms=old.client.clock_ms,
++        account="DEMO-test",
++        operation=operation,
++        entry_enabled=True,
++    )
++    client.sync_clock()
++    c = module.CappedCoordinator(store, old.lease, client)
++    c.refresh_metadata()
++    pause_entered = threading.Event()
++    stamps = {}
++    sqlstates = []
++    command = c.command
++    event = c.event
++
++    def slow_command(op, name):
++        if str(op) == module.marker(operation, "pause-new"):
++
++            def hold(state):
++                pause_entered.set()
++                time.sleep(2.4)  # Longer than the original PostgreSQL lock_timeout='2s'.
++
++            store.change(c.lease, "TEST_HOLD_PROTECTED_PAUSE", hold)
++            stamps["pause_finished"] = time.monotonic()
++        return command(op, name)
++
++    def record_event(raw):
++        stamps["event_started"] = time.monotonic()
++        return event(raw)
++
++    monkeypatch.setattr(c, "command", slow_command)
++    monkeypatch.setattr(c, "event", record_event)
++
++    async def exercise():
++        processed = asyncio.Event()
++
++        async def sequenced_session(coordinator, *, connector=None, on_ready=None):
++            await module.settled_call(coordinator.connected)
++            await module.settled_call(on_ready)
++            assert await asyncio.to_thread(pause_entered.wait, 5)
++            try:
++                await module.settled_call(
++                    coordinator.event, {"e": "ALGO_UPDATE", "E": client.clock_ms()}
++                )
++            except Exception as error:
++                sqlstates.append(
++                    getattr(getattr(error, "orig", None), "sqlstate", type(error).__name__)
++                )
++                raise
++            finally:
++                processed.set()
++            await asyncio.sleep(3600)
++
++        monkeypatch.setattr(module, "session", sequenced_session)
++        await module.child_run(c, operation, stop=processed.is_set, ready_timeout=8, lifetime=15)
++
++    asyncio.run(exercise())
++    assert not sqlstates, sqlstates
++    assert stamps["pause_finished"] <= stamps["event_started"]
++    current = store.read("DEMO-test")
++    assert current.operations[module.marker(operation, "ready")] == "FULL_PROTECTED_READY"
++    assert current.paused and current.orders[str(operation)].position_state.value == "CLOSED"
++    assert (
++        not any(fake.positions.values())
++        and client.entry_attempts == 1
++        and client.exit_attempts == 1
++    )
+--- /dev/null
++++ b/guard_serial_fix_install.py
+@@ -0,0 +1,171 @@
++"""Read-only pre/post guard for API code update; never applies recovery or trading."""
++
++import argparse
++import hashlib
++import json
++import os
++import subprocess
++import sys
++from decimal import Decimal
++from pathlib import Path
++from uuid import UUID
++
++from sqlalchemy import create_engine, select
++
++from packages.domain.config import database_url
++from packages.persistence.demo import accounts
++from services.execution.demo_models import DemoLedger
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++OPERATION = UUID("5bb5814c-55e0-4b7f-882c-a7a449ec2182")
++OLD_SHA = "0e7027450669a7b4ef5467a5b6e6eb21ddfca0a2430d68ac25025076e31c0b79"
++NEW_SHA = "9c264588fa7802efc0dcaa4f923153072fa85ba6fd888a23a2dda8ede4966238"
++SOURCE = Path("services/execution/demo_protected_worker_check.py")
++
++
++CODES = {
++    "INSTALL_GUARD_BLOCKED",
++    "SOURCE_HASH_MISMATCH",
++    "CANONICAL_REVIEW_BLOCKED",
++    "CANONICAL_GATES_NOT_READY",
++    "ACCOUNT_CHANGED_DURING_REVIEW",
++}
++
++
++class GuardBlocked(ValueError):
++    pass
++
++
++def require(value, code="INSTALL_GUARD_BLOCKED"):
++    if not value:
++        raise GuardBlocked(code)
++
++
++def local(engine):
++    with engine.connect() as conn:
++        conn.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
++        conn.exec_driver_sql("SET LOCAL statement_timeout='3s'")
++        row = (
++            conn.execute(select(accounts).where(accounts.c.account_id == ACCOUNT)).mappings().one()
++        )
++    state = DemoLedger.model_validate(row["state"])
++    order = state.orders.get(str(OPERATION))
++    require(
++        row["owner"] is None and state.paused and state.risk_state.value in {"EMERGENCY", "NORMAL"}
++    )
++    require(order is not None)
++    require(
++        order.signal.symbol == "BTCUSDT"
++        and order.signal.direction == "LONG"
++        and order.signal.purpose == "DEMO_VALIDATION"
++        and order.quantity == Decimal("0.0007")
++        and order.state.value == "FILLED"
++        and order.filled == order.quantity
++        and not order.remaining
++        and not order.open_quantity
++        and order.position_state.value == "CLOSED"
++        and order.exit_state == "FILLED"
++        and bool(order.exit_id)
++    )
++    require(
++        not any(state.positions.values())
++        and all(not o.remaining and not o.open_quantity for o in state.orders.values())
++    )
++    require(
++        state.validation_evidence.get(str(OPERATION), {}).get("stop_verified") is True
++        and state.validation_evidence.get(str(OPERATION), {}).get("target_verified") is True
++    )
++    return (row["owner"], row["fence"], row["lease_until"], state)
++
++
++def review():
++    process = subprocess.run(
++        [sys.executable, "-m", "scripts.review_demo_recovery"],
++        stdin=subprocess.DEVNULL,
++        capture_output=True,
++        text=True,
++        timeout=150,
++        check=False,
++    )
++    require(process.returncode == 0, "CANONICAL_REVIEW_BLOCKED")
++    value = json.loads(process.stdout)
++    require(isinstance(value, dict))
++    return value
++
++
++def validate_review(value):
++    require(
++        value.get("recovery") == "REVIEW_ONLY_NO_DATABASE_CHANGE"
++        and value.get("risk_gates") == "PASS"
++        and value.get("position_nonzero") is False
++        and type(value.get("active_orders")) is int
++        and value["active_orders"] == 0
++        and value.get("paused") is True
++        and value.get("risk_state") in {"EMERGENCY", "NORMAL"}
++        and value.get("orders_enabled") is False
++        and value.get("live_trading_enabled") is False
++    )
++    count = value.get("unresolved_count")
++    require(type(count) is int and 0 <= count <= 128)
++    return count
++
++
++def run(engine, phase, *, read_local=local, read_review=review, digest=None):
++    digest = digest or hashlib.sha256(SOURCE.read_bytes()).hexdigest()
++    require(digest == NEW_SHA if phase == "post" else digest in {OLD_SHA, NEW_SHA})
++    before = read_local(engine)
++    result = read_review()
++    count = validate_review(result)
++    require(read_local(engine) == before, "ACCOUNT_CHANGED_DURING_REVIEW")
++    return {
++        "serial_fix_guard": "POSTCHECKED_KEEP_PAUSED"
++        if phase == "post"
++        else "PRECHECKED_KEEP_PAUSED",
++        "risk_state": result["risk_state"],
++        "paused": True,
++        "remote_empty_verified": True,
++        "unresolved_count": count,
++        "recovery_applied": False,
++        "database_changed": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--phase", choices=["pre", "post"], required=True)
++    args = parser.parse_args()
++    engine = None
++    try:
++        require(
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "false"
++            and os.getenv("TRADING_MODE", "PAPER").upper() != "LIVE"
++        )
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        report = run(engine, args.phase)
++        code = 0
++    except Exception as error:  # noqa: BLE001 -- canonical token/private query output stays in RAM
++        report = {
++            "serial_fix_guard": "BLOCKED_KEEP_PAUSED_NO_AUTOMATIC_RETRY",
++            "phase": args.phase,
++            "details_redacted": True,
++            "failure_code": str(error)
++            if isinstance(error, GuardBlocked) and str(error) in CODES
++            else "INSTALL_CHECK_UNAVAILABLE",
++            "recovery_applied": False,
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++        code = 2
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(json.dumps(report), flush=True)
++    raise SystemExit(code)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/tests/unit/test_serial_fix_install_guard.py
+@@ -0,0 +1,110 @@
++import copy
++import importlib.util
++from pathlib import Path
++
++import pytest
++
++spec = importlib.util.spec_from_file_location("fix_guard", Path("guard_serial_fix_install.py"))
++m = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(m)
++SAFE = {
++    "recovery": "REVIEW_ONLY_NO_DATABASE_CHANGE",
++    "risk_gates": "PASS",
++    "position_nonzero": False,
++    "active_orders": 0,
++    "paused": True,
++    "risk_state": "EMERGENCY",
++    "orders_enabled": False,
++    "live_trading_enabled": False,
++    "unresolved_count": 4,
++    "review_token": "SYNTHETIC_PRIVATE_TOKEN",
++}
++
++
++@pytest.mark.parametrize(
++    "phase,digest", [("pre", m.OLD_SHA), ("pre", m.NEW_SHA), ("post", m.NEW_SHA)]
++)
++def test_only_read_review_is_called_and_token_never_returned(phase, digest):
++    calls = []
++
++    def local(engine):
++        calls.append("LOCAL")
++        return ("STABLE",)
++
++    def review():
++        calls.append("REVIEW_ONLY")
++        return copy.deepcopy(SAFE)
++
++    report = m.run(None, phase, read_local=local, read_review=review, digest=digest)
++    assert calls == ["LOCAL", "REVIEW_ONLY", "LOCAL"]
++    assert report["paused"] and not report["recovery_applied"] and not report["database_changed"]
++    assert "SYNTHETIC_PRIVATE_TOKEN" not in str(report)
++
++
++@pytest.mark.parametrize(
++    "change",
++    [
++        {"risk_gates": "FAIL"},
++        {"position_nonzero": True},
++        {"active_orders": 1},
++        {"paused": False},
++        {"orders_enabled": True},
++        {"live_trading_enabled": True},
++        {"recovery": "APPLIED"},
++        {"unresolved_count": True},
++    ],
++)
++def test_unsafe_review_blocks_without_apply(change):
++    with pytest.raises(ValueError):
++        m.run(
++            None,
++            "pre",
++            read_local=lambda e: ("STABLE",),
++            read_review=lambda: SAFE | change,
++            digest=m.OLD_SHA,
++        )
++
++
++def test_changed_account_blocks_after_review():
++    rows = iter([("BEFORE",), ("CHANGED",)])
++    with pytest.raises(ValueError):
++        m.run(
++            None, "pre", read_local=lambda e: next(rows), read_review=lambda: SAFE, digest=m.OLD_SHA
++        )
++
++
++def test_post_update_requires_new_runtime_source():
++    with pytest.raises(ValueError):
++        m.run(
++            None, "post", digest=m.OLD_SHA, read_local=lambda e: pytest.fail("no DB for bad source")
++        )
++
++
++def test_cli_raw_failure_is_redacted(monkeypatch, capsys):
++    monkeypatch.setattr("sys.argv", ["guard", "--phase", "pre"])
++
++    def fail(*a, **k):
++        raise ValueError("PRIVATE_CONNECTION_OR_TOKEN")
++
++    monkeypatch.setattr(m, "create_engine", fail)
++    with pytest.raises(SystemExit) as error:
++        m.main()
++    assert error.value.code == 2 and "PRIVATE_CONNECTION_OR_TOKEN" not in capsys.readouterr().out
++
++
++def test_subprocess_command_has_no_apply_or_export_flags(monkeypatch):
++    import json
++    from types import SimpleNamespace
++
++    captured = []
++
++    def execute(args, **kwargs):
++        captured.append((args, kwargs))
++        return SimpleNamespace(returncode=0, stdout=json.dumps(SAFE))
++
++    monkeypatch.setattr(m.subprocess, "run", execute)
++    assert m.review()["risk_gates"] == "PASS"
++    args, options = captured[0]
++    assert args == [m.sys.executable, "-m", "scripts.review_demo_recovery"]
++    assert options["stdin"] == m.subprocess.DEVNULL and options["timeout"] == 150
++    assert "--apply-review" not in args and "env" not in options
+--- /dev/null
++++ b/tests/integration/test_serial_fix_local_guard.py
+@@ -0,0 +1,46 @@
++import importlib.util
++from pathlib import Path
++from uuid import UUID, uuid4
++
++import pytest
++from sqlalchemy import select
++
++from packages.persistence.demo import accounts, events
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import exercise_opposite, opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++
++spec = importlib.util.spec_from_file_location(
++    "local_fix_guard", Path("guard_serial_fix_install.py")
++)
++m = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(m)
++
++
++@pytest.mark.parametrize("fault", [None, "active_owner", "wrong_operation"])
++def test_real_local_guard_reads_only_closed_scoped_flat_state(opposite_case, monkeypatch, fault):  # noqa: F811
++    store, c, fake, options = opposite_case
++    options["trigger"] = False
++    result = exercise_opposite(opposite_case, monkeypatch)
++    operation = UUID(result["operation_id"])
++    monkeypatch.setattr(m, "ACCOUNT", "DEMO-test")
++    monkeypatch.setattr(m, "OPERATION", uuid4() if fault == "wrong_operation" else operation)
++    if fault != "active_owner":
++        store.release(c.lease)
++
++    def snapshot():
++        with store.engine.connect() as conn:
++            return conn.execute(select(accounts)).mappings().all(), conn.execute(
++                select(events)
++            ).mappings().all()
++
++    before = snapshot()
++    calls = list(fake.calls)
++    if fault is None:
++        state = m.local(store.engine)
++        assert state[0] is None and state[-1].paused
++    else:
++        with pytest.raises(ValueError):
++            m.local(store.engine)
++    assert snapshot() == before and fake.calls == calls
+--- /dev/null
++++ b/diagnostics/protected_ready/inspect_protected_ready.py
+@@ -0,0 +1,247 @@
++"""Read-only local evidence for one failed protected-worker readiness check."""
++
++import json
++import os
++from decimal import Decimal, InvalidOperation
++from uuid import UUID, uuid5
++
++from sqlalchemy import cast, create_engine, func, select
++from sqlalchemy.dialects.postgresql import JSONB
++
++from packages.domain.config import database_url
++from packages.domain.contracts import OrderState, PositionState, RiskState
++from packages.persistence.demo import accounts, events
++from services.execution.demo_models import PrivateSessionDiagnostic
++
++ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
++OPERATION = UUID("5bb5814c-55e0-4b7f-882c-a7a449ec2182")
++KINDS = {
++    "DEMO_PROTECTED_WORKER_START",
++    "DEMO_PROTECTED_WORKER_READY",
++    "DEMO_PROTECTED_WORKER_FINALLY",
++    "DEMO_OPERATOR_RESUME",
++    "DEMO_ENTRY_RESERVED",
++    "DEMO_ENTRY_INTENT",
++    "DEMO_ENTRY_EFFECT",
++    "DEMO_RECONCILIATION_FAILED",
++    "DEMO_PRIVATE_SESSION_FAILED",
++    "DEMO_SL_VERIFIED_QUERY",
++    "DEMO_PROTECTION_RECHECK",
++    "DEMO_OPERATION_INTENT",
++    "DEMO_CANCEL_INTENT",
++    "DEMO_CANCEL_EFFECT",
++    "DEMO_REDUCE_ONLY_INTENT",
++    "DEMO_REDUCE_ONLY_EFFECT",
++    "DEMO_FLAT_CONFIRMATION_CHECK",
++    "DEMO_STREAM_UNTRUSTED",
++    "DEMO_STREAM_CONNECTED",
++}
++REQUESTS = {
++    "VERIFIED",
++    "NONE",
++    "SUBMITTING",
++    "ACKNOWLEDGED",
++    "UNKNOWN",
++    "NOT_SENT",
++    "REJECTED",
++    "RECONCILED",
++    "FILLED",
++    "CANCELED",
++    "EXPIRED",
++}
++MISMATCHES = {
++    "available_balance",
++    "entry_prices",
++    "equity",
++    "isolated_margins",
++    "isolated_wallets",
++    "liquidation_prices",
++    "margin_used",
++    "orders",
++    "positions",
++    "wallet_balance",
++    "leverage",
++    "margin_types",
++}
++
++
++def marker(operation, name):
++    return str(uuid5(operation, "protected-worker-" + name))
++
++
++def text(value, allowed):
++    return value if isinstance(value, str) and value in allowed else "UNRECOGNIZED"
++
++
++def number(value):
++    try:
++        n = Decimal(str(value))
++        return str(n) if n.is_finite() else None
++    except (InvalidOperation, ValueError, TypeError):
++        return None
++
++
++def session_failure(state):
++    raw = state.get("last_private_session_failure")
++    if raw is None:
++        return None
++    try:
++        return PrivateSessionDiagnostic.model_validate(raw).model_dump(mode="json")
++    except ValueError:
++        return {"code": "DIAGNOSTIC_SCHEMA_UNRECOGNIZED"}
++
++
++def summary(state, operation):
++    key = str(operation)
++    order = state.get("orders", {}).get(key)
++    out = {
++        "risk_state": text(state.get("risk_state"), {v.value for v in RiskState}),
++        "paused": state.get("paused") if type(state.get("paused")) is bool else None,
++        "reconciliation_failure_code": text(
++            state.get("reconciliation_failure_code", "NONE"),
++            {"NONE", "SNAPSHOT_CHANGED", "SNAPSHOT_INVALID", "OTHER_DEMO_FAILURE"},
++        ),
++        "mismatch_fields": [
++            v for v in state.get("last_reconciliation_mismatch_fields", []) if v in MISMATCHES
++        ],
++        "session_failure": session_failure(state),
++        "stop_verified": state.get("validation_evidence", {}).get(key, {}).get("stop_verified")
++        is True,
++        "target_verified": state.get("validation_evidence", {}).get(key, {}).get("target_verified")
++        is True,
++        "order_present": isinstance(order, dict),
++    }
++    if isinstance(order, dict):
++        out["order"] = {
++            "entry_state": text(order.get("state"), {v.value for v in OrderState}),
++            "position_state": text(order.get("position_state"), {v.value for v in PositionState}),
++            "quantity": number(order.get("quantity")),
++            "filled": number(order.get("filled")),
++            "remaining": number(order.get("remaining")),
++            "exit_state": text(order.get("exit_state", "NONE"), REQUESTS),
++            "exit_id_present": bool(order.get("exit_id")),
++            "request_states": {
++                role: text(state.get("requests", {}).get(order.get(field), "NONE"), REQUESTS)
++                for role, field in [
++                    ("ENTRY", "client_id"),
++                    ("STOP", "algo_id"),
++                    ("TARGET", "tp_algo_id"),
++                    ("EXIT", "exit_id"),
++                ]
++            },
++        }
++    return out
++
++
++def inspect(engine, account=ACCOUNT, operation=OPERATION):
++    with engine.connect() as conn:
++        conn.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
++        conn.exec_driver_sql("SET LOCAL statement_timeout='3s'")
++        row = (
++            conn.execute(
++                select(accounts.c.state, accounts.c.owner, accounts.c.fence).where(
++                    accounts.c.account_id == account
++                )
++            )
++            .mappings()
++            .one()
++        )
++        start_key = marker(operation, "start")
++        condition = (
++            (events.c.account_id == account)
++            & (events.c.kind == "DEMO_PROTECTED_WORKER_START")
++            & (cast(events.c.payload, JSONB)["operations"][start_key].astext == "STARTED")
++        )
++        started = (
++            conn.execute(select(events.c.as_of, events.c.fence).where(condition))
++            .mappings()
++            .one_or_none()
++        )
++        if started is None:
++            raise ValueError("SCOPED_START_NOT_FOUND")
++        start, start_fence = started["as_of"], started["fence"]
++        scope = (
++            (events.c.account_id == account)
++            & (events.c.as_of >= start)
++            & events.c.kind.in_(KINDS)
++            & events.c.fence.in_([start_fence, start_fence + 1])
++        )
++        total = conn.execute(select(func.count()).select_from(events).where(scope)).scalar_one()
++        history = (
++            conn.execute(
++                select(events.c.as_of, events.c.kind, events.c.fence, events.c.payload)
++                .where(scope)
++                .order_by(events.c.as_of, events.c.event_id)
++                .limit(201)
++            )
++            .mappings()
++            .all()
++        )
++    state = row["state"]
++    operations = state.get("operations", {})
++    timeline = []
++    for record in history[:200]:
++        snapshot = json.loads(record["payload"])
++        timeline.append(
++            {
++                "at_utc": record["as_of"].isoformat(),
++                "kind": record["kind"],
++                "fence": record["fence"],
++                **summary(snapshot, operation),
++            }
++        )
++    # Fixed projection only. No raw ledger, requests, event payloads or exception output.
++    return {
++        "protected_ready_diagnostic": "READ_ONLY_LOCAL_SCOPED_EVIDENCE_KEEP_PAUSED",
++        "operation_id": str(operation),
++        "observed_start_utc": start.isoformat(),
++        "leader_released": row["owner"] is None,
++        "current_fence": row["fence"],
++        "ready_marker_recorded": operations.get(marker(operation, "ready"))
++        == "FULL_PROTECTED_READY",
++        "finally_marker_recorded": operations.get(marker(operation, "finally")) == "FINALLY_RAN",
++        "child_failure_exception_recorded": False,
++        "current_local_state": summary(state, operation),
++        "timeline_count": total,
++        "timeline_fence_scope": [start_fence, start_fence + 1],
++        "timeline_truncated": total > 200,
++        "timeline": timeline,
++        "audit_time_scope": "LOCAL_AFTER_ROW_LOCK_BEFORE_APPLY_NOT_EXCHANGE_OR_COMMIT_TIME",
++        "exchange_checked": False,
++        "database_changed_by_diagnostic": False,
++        "unlock_applied": False,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++    }
++
++
++def main():
++    engine = None
++    try:
++        if (
++            os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
++            or os.getenv("TRADING_MODE", "PAPER").upper() == "LIVE"
++        ):
++            raise ValueError("DEMO_CONTEXT_REQUIRED")
++        engine = create_engine(
++            database_url().get_secret_value(), connect_args={"connect_timeout": 2}
++        )
++        report = inspect(engine)
++        code = 0
++    except Exception:  # noqa: BLE001 -- never expose credentials, ledger or exception details
++        report = {
++            "protected_ready_diagnostic": "UNAVAILABLE_KEEP_PAUSED",
++            "details_redacted": True,
++            "orders_enabled": False,
++            "live_trading_enabled": False,
++        }
++        code = 2
++    finally:
++        if engine is not None:
++            engine.dispose()
++    print(json.dumps(report), flush=True)
++    raise SystemExit(code)
++
++
++if __name__ == "__main__":
++    main()
+--- /dev/null
++++ b/diagnostics/protected_ready/test_inspect_protected_ready.py
+@@ -0,0 +1,185 @@
++import json
++from uuid import uuid4
++
++import inspect_protected_ready as reader
++import pytest
++from sqlalchemy import event, select
++
++from packages.persistence.demo import accounts, events, outbox
++from packages.persistence.demo_alerts import alerts, attempts
++from services.execution.demo_models import PrivateSessionDiagnostic
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_paper import signal, snapshot
++
++
++@pytest.fixture
++def closed(demo_system):  # noqa: F811
++    store, c, fake = demo_system
++    sig = signal(environment="DEMO")
++    op = sig.signal_id
++
++    def start(state):
++        state.operations[reader.marker(op, "start")] = "STARTED"
++        state.operations["private-fixture"] = "SYNTHETIC_PRIVATE_NEVER_OUTPUT"
++
++    store.change(c.lease, "DEMO_PROTECTED_WORKER_START", start)
++    order = c.reserve(sig, snapshot())
++    c.submit(str(op))
++    fake.fill(order.client_id, order.quantity)
++    c.reconcile()
++
++    def fail(state):
++        state.last_private_session_failure = PrivateSessionDiagnostic(
++            stage="READY_CALLBACK",
++            code="SNAPSHOT_CHANGED",
++            ready_callback_ms=20000,
++            received_events=2,
++        )
++
++    store.change(c.lease, "DEMO_PRIVATE_SESSION_FAILED", fail)
++    c.command(uuid4(), "EMERGENCY_FLATTEN")
++    assert c.confirm_flat() == "VERIFIED_FLAT"
++    store.change(
++        c.lease,
++        "DEMO_PROTECTED_WORKER_FINALLY",
++        lambda s: s.operations.__setitem__(reader.marker(op, "finally"), "FINALLY_RAN"),
++    )
++    store.release(c.lease)
++    return store, fake, op
++
++
++def db_snapshot(store):
++    with store.engine.connect() as conn:
++        return [
++            conn.execute(select(t).order_by(*t.primary_key.columns)).mappings().all()
++            for t in [accounts, events, outbox, alerts, attempts]
++        ]
++
++
++def test_readonly_scoped_timeline_and_no_exchange_or_writes(closed):
++    store, fake, op = closed
++    before, calls = db_snapshot(store), list(fake.calls)
++    sql = []
++
++    def capture(conn, cursor, statement, parameters, context, many):
++        sql.append(statement)
++
++    event.listen(store.engine, "before_cursor_execute", capture)
++    try:
++        result = reader.inspect(store.engine, "DEMO-test", op)
++    finally:
++        event.remove(store.engine, "before_cursor_execute", capture)
++    assert result["protected_ready_diagnostic"] == "READ_ONLY_LOCAL_SCOPED_EVIDENCE_KEEP_PAUSED"
++    assert (
++        result["leader_released"]
++        and result["finally_marker_recorded"]
++        and not result["ready_marker_recorded"]
++    )
++    assert result["current_local_state"]["order"]["filled"] != "0"
++    assert result["current_local_state"]["order"]["exit_state"] == "FILLED"
++    assert result["current_local_state"]["order"]["request_states"]["STOP"] == "VERIFIED"
++    assert result["current_local_state"]["order"]["request_states"]["TARGET"] == "VERIFIED"
++    assert any(
++        r["session_failure"] and r["session_failure"]["code"] == "SNAPSHOT_CHANGED"
++        for r in result["timeline"]
++    )
++    assert any(r["kind"] == "DEMO_ENTRY_EFFECT" for r in result["timeline"])
++    assert sql[0] == "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"
++    assert len(sql) == 6 and all(s.startswith(("SET ", "SELECT ")) for s in sql)
++    assert db_snapshot(store) == before and fake.calls == calls
++    text = json.dumps(result)
++    assert "SYNTHETIC_PRIVATE_NEVER_OUTPUT" not in text
++    assert "payload" not in text and "client_id" not in text and "review_token" not in text
++    assert (
++        not result["exchange_checked"]
++        and not result["unlock_applied"]
++        and not result["database_changed_by_diagnostic"]
++    )
++
++
++def test_other_operation_cannot_be_misreported_as_this_operation(closed):
++    store, _, _ = closed
++    before = db_snapshot(store)
++    with pytest.raises(ValueError, match="SCOPED_START_NOT_FOUND"):
++        reader.inspect(store.engine, "DEMO-test", uuid4())
++    assert db_snapshot(store) == before
++
++
++def test_projection_drops_raw_private_values_and_invalid_numeric_data():
++    op = uuid4()
++    state = {
++        "risk_state": "PRIVATE_SECRET",
++        "paused": True,
++        "last_reconciliation_mismatch_fields": ["orders", "PRIVATE_SECRET"],
++        "last_private_session_failure": {
++            "stage": "PRIVATE_SECRET",
++            "code": "PRIVATE_SECRET",
++            "url": "PRIVATE_SECRET",
++        },
++        "requests": {"entry": "PRIVATE_SECRET"},
++        "orders": {
++            str(op): {
++                "client_id": "entry",
++                "state": "PRIVATE_SECRET",
++                "position_state": "PRIVATE_SECRET",
++                "quantity": "NaN",
++                "filled": "PRIVATE_SECRET",
++                "remaining": "0",
++                "exit_state": "PRIVATE_SECRET",
++            }
++        },
++    }
++    result = reader.summary(state, op)
++    assert "PRIVATE_SECRET" not in json.dumps(result)
++    assert result["order"]["filled"] is None and result["order"]["quantity"] is None
++    assert result["mismatch_fields"] == ["orders"]
++    assert result["session_failure"] == {"code": "DIAGNOSTIC_SCHEMA_UNRECOGNIZED"}
++
++
++def test_no_order_is_not_an_invented_zero_fill():
++    result = reader.summary({"risk_state": "EMERGENCY", "paused": True}, uuid4())
++    assert result["order_present"] is False and "order" not in result
++
++
++@pytest.mark.parametrize("failure", [ValueError("PRIVATE_SECRET"), OSError("PRIVATE_SECRET")])
++def test_cli_failure_never_prints_raw_details(monkeypatch, capsys, failure):
++    def fail(*a, **k):
++        raise failure
++
++    monkeypatch.setattr(reader, "create_engine", fail)
++    with pytest.raises(SystemExit) as error:
++        reader.main()
++    assert error.value.code == 2 and "PRIVATE_SECRET" not in capsys.readouterr().out
++
++
++def test_live_context_blocks_before_db(monkeypatch, capsys):
++    monkeypatch.setenv("LIVE_TRADING_ENABLED", "true")
++    monkeypatch.setattr(reader, "create_engine", lambda *a, **k: pytest.fail("no database"))
++    with pytest.raises(SystemExit):
++        reader.main()
++    assert "UNAVAILABLE_KEEP_PAUSED" in capsys.readouterr().out
++
++
++def test_later_owner_failure_is_not_attributed_to_the_failed_child(closed):
++    from datetime import timedelta
++
++    from sqlalchemy import insert
++
++    store, _, op = closed
++    with store.engine.begin() as conn:
++        row = conn.execute(
++            select(accounts.c.state).where(accounts.c.account_id == "DEMO-test")
++        ).scalar_one()
++        conn.execute(
++            insert(events).values(
++                event_id=str(uuid4()),
++                account_id="DEMO-test",
++                fence=999,
++                as_of=store.now() + timedelta(seconds=1),
++                kind="DEMO_PRIVATE_SESSION_FAILED",
++                payload=json.dumps(row),
++            )
++        )
++    result = reader.inspect(store.engine, "DEMO-test", op)
++    assert all(e["fence"] != 999 for e in result["timeline"])
++    assert len(result["timeline_fence_scope"]) == 2
+--- /dev/null
++++ b/INSTALL-SERIAL-FIX.cmd
+@@ -0,0 +1,16 @@
++@echo off
++setlocal
++cd /d "%~dp0"
++echo Install code fix only. No new entry, child kill or recovery acknowledgement.
++powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $m=Get-Content -Raw 'TRANSFER_MANIFEST.json' | ConvertFrom-Json; foreach($p in $m.files.PSObject.Properties){if((Get-FileHash -Algorithm SHA256 -LiteralPath $p.Name).Hash.ToLower() -ne $p.Value){throw 'SOURCE_HASH_MISMATCH'}}; Write-Output 'TRANSFER_FILES_VERIFIED'"
++if errorlevel 1 exit /b 2
++docker exec -i hybrid-windows-api-1 python - --phase pre < guard_serial_fix_install.py
++if errorlevel 1 exit /b 2
++docker compose -p hybrid-windows -f infra/docker-compose.yml up -d --build --no-deps --wait api
++if errorlevel 1 exit /b 2
++docker exec hybrid-windows-api-1 python -c "import hashlib; from pathlib import Path; expected={'services/execution/demo_protected_worker_check.py': '9c264588fa7802efc0dcaa4f923153072fa85ba6fd888a23a2dda8ede4966238', 'packages/persistence/demo.py': '40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a', 'services/execution/demo_stream.py': '409098cb05abbfb97eb9b9f1db2070ca6bb5782bc6dd7542311e4eb703b6f456', 'scripts/review_demo_recovery.py': 'dad0a79f584f8b660b0240254d03666a8bc12bbdbaa7073ba7843824c913e675'}; assert all(hashlib.sha256(Path(n).read_bytes()).hexdigest()==h for n,h in expected.items()), 'RUNTIME_SOURCE_MISMATCH'; print('SERIAL_FIX_SOURCE_VERIFIED_ORIGINAL_LOCK_AND_STREAM_UNCHANGED')"
++if errorlevel 1 exit /b 2
++docker exec -i hybrid-windows-api-1 python - --phase post < guard_serial_fix_install.py
++if errorlevel 1 exit /b 2
++echo SERIAL_FIX_INSTALLED_NO_NEW_TRIAL_ENTRIES_STILL_PAUSED
++exit /b 0
+--- /dev/null
++++ b/SERIAL_FIX_KO.md
+@@ -0,0 +1,27 @@
++# 보호 worker 준비 확인의 자체 DB 잠금 경쟁 수정
++
++Windows의5bb5814c-55e0-4b7f-882c-a7a449ec2182 시험은 미수락이다. 실제0.0007 BTC 전량 체결/SL·TP 확인 뒤 ALGO_UPDATE 처리에서 DB_LOCK_TIMEOUT이 기록됐고, 강제 종료는0회였다. 최종 flat/리스 반환은 확인됐으며 EMERGENCY/paused다. 이 결과를 성공으로 바꾸거나 같은 시험을 반복하지 않는다.
++
++새 도구의 바깥 감독 루프가 PAUSE_ENTRIES/보호 확인/ready 기록을 실행하는 동안, private session 소비자가 같은 계정 행을 갱신할 수 있었다. 실제 PostgreSQL에서 pause 쓰기를2.4초 유지하는 회귀 시험을 추가했고, 이전 코드에서 SQLSTATE55P03을 재현했다. 수정 후에는 callback 안에서 준비 확인 쓰기를 끝낸 다음 이벤트 처리를 시작하므로 같은 시험이 통과한다. 기존2초 DB 잠금 제한,60초 리스, 이벤트 freshness 및 거래/보호 위험 게이트를 늘리거나 약화하지 않았다. 실제 사건의33개 전체 타임라인 파일은 아직 제출되지 않았으므로 그 외 외부 경쟁이 없었다고 단정하지 않는다.
++
++수정은 준비 확인을 초기 private-stream on_ready callback으로 옮긴다. 수신 inbox는 계속 동작하지만 이벤트/heartbeat 소비는 callback 완료 후 시작한다. 별도 감독 루프는 시간/제어 파이프만 관찰하고 계정 쓰기를 하지 않는다. callback 시점에 전량 체결/보호가 확인되지 않은 경우에는 늦은/부분 체결의 원래 보호·정리를 유지하되 kill 준비를 선언하지 않는다. 자식 실패 단계/안전한 코드도 세션 drain 후 finally 감사에 남긴다. 원문 예외나 비밀은 남기지 않는다.
++
++별도로 이전 조회 도구 REQUESTS 허용 목록에 정상값 VERIFIED가 빠져 있었다. 해당 코드의 실제 SL/TP 요청 상태는 VERIFIED를 사용할 수 있는데 화면에서는 UNRECOGNIZED로 표시됐다. 수정된 조회 소스와 실제 PostgreSQL 회귀를 포함했다. 이 표시만으로 보호 실패를 판정하지 않으며 DB 값을 변경하지 않는다.
++
++## 이번 설치
++
++ZIP을 새 폴더에 풀고 INSTALL-SERIAL-FIX.cmd가 있는 위치에서 CMD로 실행한다.
++
++```bat
++INSTALL-SERIAL-FIX.cmd
++```
++
++이 명령은 새 주문/취소/프로세스 종료/위험 복구 승인을 실행하지 않는다. 먼저 이번 종료된 주문과 비활성 리더를 로컬 READ ONLY로 확인하고 기존 canonical 전체 복구 심사를 조회 전용으로 수행해 risk_gates PASS·원격 빈 계정·paused를 확인한다. 심사 토큰은 RAM에서만 받고 출력/적용하지 않는다. 계정 상태가 조회 중 달라져도 중단한다.
++
++그 뒤 api만 빌드/갱신한다. DB/web/alerts/key-session과 키/메일 설정은 재시작/초기화하지 않는다. 소스 해시로 새 도구와 원래 DB/stream/복구 모듈을 확인하고, 같은 조회 전용 심사를 다시 수행한다. 과거 원장/감사/미해결 요청을 변경하지 않는다. 앱 재시작의 원래 Alembic 명령은 그대로이며 새 migration 파일은 없다.
++
++성공은 PRECHECKED_KEEP_PAUSED → SERIAL_FIX_SOURCE_VERIFIED_ORIGINAL_LOCK_AND_STREAM_UNCHANGED → POSTCHECKED_KEEP_PAUSED → SERIAL_FIX_INSTALLED_NO_NEW_TRIAL_ENTRIES_STILL_PAUSED다. 결과의 risk_state·unresolved_count를 공유한다. EMERGENCY를 자동 해제하거나 기준금을 고치거나 새 시험을 실행하지 않는다. 준비 심사가 실패하면 설치 전에 중단하며, 설치 후 심사만 실패한 경우 코드 적용은 이미 끝났을 수 있으므로 출력 그대로 공유한다.
++
++이 패키지의 예전 RUN-ONE-PROTECTED-WORKER.cmd는 실행 차단했다. 기존 결과 로그를 삭제해 재시도하거나 이전 폴더의 실행 파일을 다시 사용하지 않는다. 새 실제 검증은 원인 조치/복구/새 단일 작업 범위를 확인한 뒤 별도로 준비한다. 기존5bb 작업은 재사용하지 않는다.
++
++실제 Windows에서 수정 설치/복구 적격성/다음 시험은 아직 확인되지 않았다. 이번 수정과 합성 회귀로 실제 보호 worker 장애 성공·실제 TP 성공·수정 후 실제 부분체결 성공·Phase4 전체 수락/LIVE/Phase5를 선언하지 않는다.
+--- /dev/null
++++ b/SERIAL_FIX_VALIDATION.md
+@@ -0,0 +1,12 @@
++# Validation —2026-11-06
++
++- Reproduction against prior deployed runtime0e702745... using its own pytest config/import path: same new regression fails with recorded SQLSTATE55P03 when the readiness pause holds the actual PostgreSQL account row2.4s and event dispatch overlaps it. The new source passes the same assertions. No original test was weakened and the database2s lock_timeout is unchanged.
++-100 focused execution/scope/TP/opposite-quote/worker-drain/serialization tests passed in233.20s on fixed runtime, including3 real child SIGKILL/natural60s PostgreSQL lease scenarios with synthetic HTTP/local WS. Original scene acceptance unchanged: steady handoff success; protection trigger during wait and recovery-session failure remain not accepted with flat cleanup.
++-8 diagnostic read-only/projection tests passed in1.34s, now explicitly asserting normal STOP/TARGET VERIFIED statuses and excluding a later owner's failures.
++-18 fix-installer guard tests passed in4.79s: pre/post source hashes, static review-only subprocess without apply flags, invalid/moving candidate rejection, token/exception redaction; real PG accepts only inactive-owner/scoped closed fill and refuses wrong operation or active owner, with no exchange call/write from local guard.
++-126 unique focused tests passed across these runs. Not a monolithic full-repository suite.
++-Ruff/format passed for all modified/new Python files. Strict mypy passed the runtime and its existing CLI. No dependency/config/migration/global execution policy changes. Root main64e9e7b remains clean.
++
++Windows input: ready marker absent/finally present, exit2, kill0, original fence91/new parent92 with no natural wait, history preserved, parent transport attempts0, VERIFIED_FLAT/leader released, EMERGENCY/paused. Session EVENT/DB_LOCK_TIMEOUT/ALGO_UPDATE, ready callback20740ms, received6/coalesced5, event age2494ms, receive age151ms. These are user-reported local durable observations; current diagnostic did not query exchange. Raw child exceptions from that old run were not retained. The fix does not retroactively fill missing evidence.
++
++No actual exchange, recipient, order, production DB mutation or risk acknowledgement was performed during cloud work. Installer's actual Windows pre/post canonical reviews and deployment are pending. On ambiguous results it stops; no retry/unlock/new trial is bundled.
