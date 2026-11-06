@@ -1,0 +1,14 @@
+{
+  "date_kst": "2026-11-06",
+  "test_count": 61,
+  "passed": 61,
+  "failures": 0,
+  "seconds": 89.02,
+  "ruff_check": "PASS with parent pyproject.toml",
+  "ruff_format": "PASS with parent pyproject.toml",
+  "test_scope": "isolated PostgreSQL; synthetic REST sender and minute counter; localhost real WebSocket; no venue/keys/mail",
+  "production_modified": false,
+  "new_actual_orders": 0,
+  "shadow_traces": 60,
+  "shape_only_test_without_trace": 1
+}

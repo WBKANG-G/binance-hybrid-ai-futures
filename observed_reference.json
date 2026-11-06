@@ -1,0 +1,28 @@
+{
+  "source": "User's completed read-only profile, 2026-11-06",
+  "runtime_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "published_request_weight_1m": 6000,
+  "http_attempts": 132,
+  "signed_gets": 126,
+  "completed_rounds": 3,
+  "elapsed_ms": 33957,
+  "max_observed_weight": 1151,
+  "counter_resets_or_window_changes": 1,
+  "observed_deltas_are_not_endpoint_weight_proof": true,
+  "get_observed_delta_ranges": {
+    "/fapi/v1/algoOrder": [1,1],
+    "/fapi/v1/exchangeInfo": [1,1],
+    "/fapi/v1/income": [30,30],
+    "/fapi/v1/multiAssetsMargin": [30,30],
+    "/fapi/v1/openAlgoOrders": [40,40],
+    "/fapi/v1/openOrders": [40,40],
+    "/fapi/v1/order": [1,1],
+    "/fapi/v1/positionSide/dual": [30,35],
+    "/fapi/v1/symbolConfig": [5,5],
+    "/fapi/v1/time": [1,1],
+    "/fapi/v3/account": [5,5],
+    "/fapi/v3/positionRisk": [5,5]
+  },
+  "unmeasured_route_cost_sensitivity_values": [1,40],
+  "costs_are_shadow_assumptions_not_venue_guarantees": true
+}
