@@ -1,0 +1,23 @@
+{
+  "passed": 793,
+  "errors": 0,
+  "failures": 0,
+  "seconds": "49.720",
+  "single_run": true,
+  "approved_baseline_tests": 753,
+  "candidate_tests": 40,
+  "candidate_snapshot_and_adversarial_cases": 24,
+  "candidate_lifecycle_cases": 16,
+  "ruff": "PASS",
+  "mypy": "PASS;133 source files including candidate",
+  "parser_ast_proof": "PASS;only one additional closed-receipt condition",
+  "receipt_ast_proof": "PASS;current financial timestamp separated from immutable closure only",
+  "fresh_single_file_patch_apply": "PASS",
+  "candidate_wiring": "Test-only monkeypatch of coordinator and preview operational readers; canonical full-historical reader untouched",
+  "full_runtime_patch_regression": "NOT RUN; baseline runtime remained unchanged",
+  "actual_venue_used": false,
+  "actual_database_changed": false,
+  "deployed": false,
+  "cli_enabled": false,
+  "actual_6000_limit_admission_proven": false
+}

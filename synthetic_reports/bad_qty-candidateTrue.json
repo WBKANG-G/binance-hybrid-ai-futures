@@ -1,0 +1,379 @@
+{
+  "synthetic_only": true,
+  "mode": "bad_qty",
+  "candidate": true,
+  "operational_snapshot_count": 82,
+  "operational_snapshot_rows": [
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    }
+  ],
+  "full_historical_snapshot_count": 5,
+  "full_historical_archived_id_reads": 15,
+  "validation_requests": 1046,
+  "hypothetical_old_id_weight1_saving": 246,
+  "actual_weight_saved_verified": false,
+  "runtime_installed": false,
+  "result": {
+    "tp_trigger_check": "NOT_ACCEPTED",
+    "scope": "BOUNDED_ACTUAL_TP_FILL_AND_ORIGINAL_STOP_CLEANUP",
+    "operation_id": "e23629d1-cea1-4cd8-a401-c193a8783b14",
+    "entry_style": "OPPOSITE_QUOTE",
+    "observation_seconds": 0.8,
+    "maximum_quantity_cap": "0.0007",
+    "signed_tp_fill_before_sl_delete_verified": false,
+    "sl_cancel_query_verified": false,
+    "sl_delete_attempts": 1,
+    "entry_post_attempts": 1,
+    "new_entry_post_count": 1,
+    "operator_exit_post_attempts": 0,
+    "filled_quantity": "0.0007",
+    "position_state": "CLOSED",
+    "history_and_baselines_preserved": true,
+    "failure": "TP_FILL_NOT_OBSERVED",
+    "flat_confirmation": "VERIFIED_FLAT",
+    "risk_state": "NORMAL",
+    "private_session_diagnostic": {
+      "stage": "EVENT",
+      "code": "NONE",
+      "event_kind": "ACCOUNT_UPDATE",
+      "event_age_ms": 0,
+      "ready_callback_ms": 64,
+      "event_receive_age_ms": 0,
+      "received_events": 38,
+      "coalesced_events": 17,
+      "event_clock_offset_ms": 0,
+      "event_clock_rtt_ms": 0,
+      "event_clock_wait_ms": 0,
+      "event_local_age_ms": 0
+    },
+    "final_paused": true,
+    "orders_enabled": false,
+    "live_trading_enabled": false
+  }
+}

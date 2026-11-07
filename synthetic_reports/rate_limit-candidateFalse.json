@@ -1,0 +1,43 @@
+{
+  "synthetic_only": true,
+  "runtime_installed": false,
+  "cooldown_preserved": true,
+  "no_retry_after_first429": true,
+  "result": {
+    "tp_trigger_check": "NOT_ACCEPTED",
+    "scope": "BOUNDED_ACTUAL_TP_FILL_AND_ORIGINAL_STOP_CLEANUP",
+    "operation_id": "813b59b8-ba50-402f-9ce7-a367c7702485",
+    "entry_style": "OPPOSITE_QUOTE",
+    "observation_seconds": 0.8,
+    "maximum_quantity_cap": "0.0007",
+    "signed_tp_fill_before_sl_delete_verified": false,
+    "sl_cancel_query_verified": false,
+    "sl_delete_attempts": 0,
+    "entry_post_attempts": 1,
+    "new_entry_post_count": 1,
+    "operator_exit_post_attempts": 0,
+    "filled_quantity": "0.0007",
+    "position_state": "OPEN_UNPROTECTED",
+    "history_and_baselines_preserved": true,
+    "failure": "DEMO_SESSION_OR_QUERY_FAILED",
+    "flat_confirmation": "UNKNOWN",
+    "risk_state": "EMERGENCY",
+    "private_session_diagnostic": {
+      "stage": "EVENT",
+      "code": "RATE_LIMITED",
+      "event_kind": "ACCOUNT_UPDATE",
+      "event_age_ms": 0,
+      "ready_callback_ms": 80,
+      "event_receive_age_ms": 0,
+      "received_events": 7,
+      "coalesced_events": 5,
+      "event_clock_offset_ms": 0,
+      "event_clock_rtt_ms": 0,
+      "event_clock_wait_ms": 0,
+      "event_local_age_ms": 0
+    },
+    "final_paused": true,
+    "orders_enabled": false,
+    "live_trading_enabled": false
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "base_commit": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "base_deployed_stage": "Readiness-only optimization; user confirmed installation postcheck",
+  "main_merged": false,
+  "runtime_modified": false,
+  "candidate_imported_by_runtime": false,
+  "approved_snapshot_sha256": "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a",
+  "approved_receipt_validator_sha256": "0c9cb90bc74402fdaed025f715a98a2e47169eee4d1f9990c75e8f5671e358da",
+  "candidate_snapshot_sha256": "b2c48e19a720a0234dc5f06dd36d2dc6f3f391016521793bb56e218d9246f1b4",
+  "candidate_patch_sha256": "fab3e453c3ddd06c1036a779274c235731ede91bd36a215b3179fcdec0d6dd0b",
+  "scope": "Uninstalled single-file parser candidate; reviewed immutable past-close receipt only"
+}

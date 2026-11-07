@@ -1,0 +1,129 @@
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -1,15 +1,22 @@
+-"""Strict REST snapshot used after startup, reconnect, fills and uncertain writes."""
++"""Uninstalled operational-history candidate; synthetic review only.
++
++Copied from the approved strict parser. Only the proved external-close
++condition is added; original current-state and full-history logic stays intact.
++"""
+ 
+ import hashlib
+ import json
+-from datetime import datetime
+-from decimal import Decimal, InvalidOperation
++import re
++from datetime import datetime, timedelta
++from decimal import Decimal, DecimalException, InvalidOperation
+ from typing import Any
++from uuid import UUID, uuid5
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import OrderState, PositionState
+ from services.execution.demo_models import DemoLedger, DemoSnapshot
++from services.execution.models import PaperOrder
+ 
+ 
+ def signed_number(value: object) -> Decimal:
+@@ -180,6 +187,7 @@
+             and (
+                 (order.filled > 0 and order.exit_state == "FILLED")
+                 or (not order.filled and order.exit_id is None and order.exit_state == "NONE")
++                or receipt_proven_closed(ledger, order, now)
+             )
+             and not any(identifier in orders for identifier in (order.client_id, order.exit_id))
+             and not any(identifier in algos for identifier in (order.algo_id, order.tp_algo_id))
+@@ -284,3 +292,92 @@
+         isolated_margins=isolated_margins,
+         liquidation_prices=liquidation_prices,
+     )
++
++
++INCIDENT = "041d1f35-870e-46cb-aad2-ed6059bc1095"
++
++RECEIPT = str(uuid5(UUID(INCIDENT), "signed-operator-manual-close-v1"))
++
++
++def _matches(ledger: DemoLedger, now: datetime) -> bool:
++    current = ledger.orders.get(INCIDENT)
++    if (
++        current is None
++        or current.signal.signal_id != UUID(INCIDENT)
++        or current.signal.environment.value != "DEMO"
++        or ledger.income_since_ms is None
++        or not 0 <= ledger.income_since_ms <= int(ledger.value.as_of.timestamp() * 1000)
++        or ledger.operations.get(str(uuid5(UUID(INCIDENT), "tp-trigger-observation")))
++        != "TP_TRIGGER:NOT_ACCEPTED"
++        or current.quantity != current.filled
++        or current.filled != Decimal("0.0007")
++        or current.state.value != "FILLED"
++        or current.exit_id is not None
++        or current.exit_state != "NONE"
++        or str(current.server_order_id) != "28668115919"
++        or not current.algo_id
++        or not current.tp_algo_id
++        or current.algo_id == current.tp_algo_id
++        or current.signal.symbol != "BTCUSDT"
++        or current.signal.direction != "LONG"
++        or current.signal.purpose != "DEMO_VALIDATION"
++    ):
++        return False
++    raw = json.loads(ledger.operations.get(RECEIPT, "{}"))
++    if not isinstance(raw, dict) or not (
++        raw.get("incident") == INCIDENT
++        and raw.get("source") == "SIGNED_OPERATOR_MANUAL_CLOSE"
++        and raw.get("entry_order_id") == "28668115919"
++        and raw.get("manual_close_order_id") == "28668119491"
++        and raw.get("trade_ids") == ["554837511", "554838531"]
++        and Decimal(raw.get("net_usdt", "NaN")) == Decimal("-0.07032487")
++        and isinstance(raw.get("manual_close_client_id"), str)
++        and raw["manual_close_client_id"].startswith("web_")
++        and raw["manual_close_client_id"] not in ledger.requests
++        and all(
++            isinstance(raw.get(k), str) and re.fullmatch("[0-9a-f]{64}", raw[k])
++            for k in ("exchange_fingerprint", "prior_ledger_sha256")
++        )
++    ):
++        return False
++    original = PaperOrder.model_validate(raw.get("original_order"))
++    allowed = {"open_quantity", "actual_risk", "protected", "position_state"}
++    before, after = original.model_dump(mode="json"), current.model_dump(mode="json")
++    if not (
++        all(before[k] == after[k] for k in before.keys() - allowed)
++        and original.state.value == "FILLED"
++        and original.position_state.value == "OPEN_UNPROTECTED"
++        and original.open_quantity == original.quantity == original.filled == Decimal("0.0007")
++        and not original.remaining
++        and not original.protected
++        and original.exit_id is None
++        and original.exit_state == "NONE"
++    ):
++        return False
++    stamp = datetime.fromisoformat(raw["acknowledged_at_utc"])
++    return stamp.tzinfo is not None and stamp.utcoffset() == timedelta(0) and stamp <= now
++
++
++def receipt_proven_closed(ledger: DemoLedger, order: PaperOrder, now: datetime) -> bool:
++    """Candidate only: immutable closure proof, independent of later account valuation.
++
++    The existing caller still requires absence from BOTH fresh open lists.
++    Other active orders and full historical snapshots retain the original path.
++    This file is not imported by the installed runtime or any CLI.
++    """
++    if (
++        str(order.signal.signal_id) != INCIDENT
++        or ledger.orders.get(INCIDENT) is not order
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or order.position_state != PositionState.CLOSED
++        or order.remaining
++        or order.open_quantity
++        or order.actual_risk
++        or order.protected
++    ):
++        return False
++    try:
++        return _matches(ledger, now)
++    except (ValueError, TypeError, KeyError, DecimalException):
++        return False

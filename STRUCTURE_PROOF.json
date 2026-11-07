@@ -1,0 +1,21 @@
+{
+  "functions_identical": [
+    "signed_number",
+    "pick",
+    "snapshot",
+    "operational_snapshot"
+  ],
+  "snapshot_parser_identical_after_removing_one_closed_receipt_condition": true,
+  "receipt_validator_change": "Only decouple current account valuation time from immutable past closure; all original binding checks retained.",
+  "unchanged_approved_proof_sources": {
+    "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
+    "services/execution/demo_validation.py": "54b7c41e679f69c78019fac81781fc8c43954375343ee35e40d43830251d111f",
+    "services/execution/demo_tp_trigger_check.py": "f2a0cbac4fc33142fa63befb5aa38e1eb7a6ac2bb10018c0ea04290f7e310a6a",
+    "services/execution/demo_stream.py": "770b0783287dcd607c35dad96b8882acd2bcb6a205928046b9831f9920a6a29f",
+    "services/execution/demo_empty_db_restart.py": "6adcc8284b43050bc4a115f2796c001d424ba7e0261654c099075fb3d950e39f",
+    "services/risk/paper.py": "7afe00460abae04dda795ab0dba8b8ad84877fa25686342c1fbce3f12ac80832",
+    "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a",
+    "MASTER_SPEC_V1_0.md": "d92d00e8a4bf87f53b9b012a273dffcc296cd47e27b9dd298f087b9dc5e70ced"
+  },
+  "runtime_import_or_cli_activation_added": false
+}

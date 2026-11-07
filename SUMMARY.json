@@ -1,0 +1,191 @@
+{
+  "synthetic_only": true,
+  "runtime_installed": false,
+  "actual_exchange_used": false,
+  "cases": [
+    {
+      "case": "bad_qty-candidateFalse",
+      "operational_snapshot_count": 85,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "bad_qty-candidateTrue",
+      "operational_snapshot_count": 82,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "missing_cancel-candidateFalse",
+      "operational_snapshot_count": 82,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "missing_cancel-candidateTrue",
+      "operational_snapshot_count": 85,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "mixed_readers-candidateFalse",
+      "operational_snapshot_count": 73,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
+    },
+    {
+      "case": "mixed_readers-candidateTrue",
+      "mixed_reader_fingerprint_gate_blocked": true,
+      "cooldown_preserved": false,
+      "no_retry_after_first429": false,
+      "new_entry_posts": 0,
+      "flat_confirmation": "UNKNOWN",
+      "risk_state": "NORMAL"
+    },
+    {
+      "case": "no_tp-candidateFalse",
+      "operational_snapshot_count": 97,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 1,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "no_tp-candidateTrue",
+      "operational_snapshot_count": 91,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 1,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "partial-candidateFalse",
+      "operational_snapshot_count": 100,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 1,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "partial-candidateTrue",
+      "operational_snapshot_count": 91,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 1,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "rate_limit-candidateFalse",
+      "mixed_reader_fingerprint_gate_blocked": false,
+      "cooldown_preserved": true,
+      "no_retry_after_first429": true,
+      "new_entry_posts": 1,
+      "flat_confirmation": "UNKNOWN",
+      "risk_state": "EMERGENCY"
+    },
+    {
+      "case": "rate_limit-candidateTrue",
+      "mixed_reader_fingerprint_gate_blocked": false,
+      "cooldown_preserved": true,
+      "no_retry_after_first429": true,
+      "new_entry_posts": 1,
+      "flat_confirmation": "UNKNOWN",
+      "risk_state": "EMERGENCY"
+    },
+    {
+      "case": "tp-candidateFalse",
+      "operational_snapshot_count": 79,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
+    },
+    {
+      "case": "tp-candidateTrue",
+      "operational_snapshot_count": 76,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
+    },
+    {
+      "case": "unfilled-candidateFalse",
+      "operational_snapshot_count": 77,
+      "archived_id_reads_per_operational_snapshot": [
+        3
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    },
+    {
+      "case": "unfilled-candidateTrue",
+      "operational_snapshot_count": 83,
+      "archived_id_reads_per_operational_snapshot": [
+        0
+      ],
+      "full_historical_snapshot_count": 5,
+      "full_historical_archived_id_reads": 15,
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "validation_outcome": "NOT_ACCEPTED"
+    }
+  ],
+  "claim": "Only3 archived-ID GETs removed per eligible operational snapshot. Full historical evidence unchanged. No actual quota or weight saving proven."
+}
