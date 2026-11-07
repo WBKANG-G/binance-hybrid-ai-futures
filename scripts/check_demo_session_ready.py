@@ -15,6 +15,7 @@ from scripts.observe_demo_private import ACCOUNT
 from services.execution.demo_empty_db_restart import DBRestartBlocked, empty, exchange_digest
 from services.execution.demo_recovery import local_period_status
 from services.execution.demo_validation import safe_failure
+from services.execution.readiness_closed_history import readiness_view
 
 
 def main() -> None:
@@ -47,7 +48,8 @@ def main() -> None:
         else:
             client = DemoClient(cfg, key)
             client.sync_clock()
-            _, metrics = exchange_digest(store, client, before)
+            view, omitted = readiness_view(cfg, before, store.now())
+            _, metrics = exchange_digest(store, client, view)
             if store.read(ACCOUNT) != before:
                 raise DBRestartBlocked("HISTORY_CHANGED")
             report = {
@@ -64,6 +66,8 @@ def main() -> None:
                 "orders_enabled": False,
                 "live_trading_enabled": False,
                 "read_diagnostic": metrics,
+                "closed_history_omitted_count": omitted,
+                "closed_history_scope": "READ_ONLY_READINESS_ONLY",
             }
             success = True
     except Exception as error:
