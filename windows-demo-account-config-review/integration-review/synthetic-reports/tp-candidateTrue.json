@@ -1,0 +1,348 @@
+{
+  "synthetic_only": true,
+  "isolated_checkout_parser_applied": true,
+  "mode": "tp",
+  "candidate": true,
+  "operational_snapshot_count": 74,
+  "operational_snapshot_rows": [
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 8,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 9,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 11,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    },
+    {
+      "requests": 12,
+      "archived_id_reads": 0
+    }
+  ],
+  "full_historical_snapshot_count": 5,
+  "full_historical_archived_id_reads": 15,
+  "validation_requests": 930,
+  "hypothetical_old_id_weight1_saving": 222,
+  "actual_weight_saved_verified": false,
+  "windows_runtime_installed": false,
+  "result": {
+    "tp_trigger_check": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED",
+    "scope": "BOUNDED_ACTUAL_TP_FILL_AND_ORIGINAL_STOP_CLEANUP",
+    "operation_id": "6627fbe9-b628-4374-b4c4-60de36079f6b",
+    "entry_style": "OPPOSITE_QUOTE",
+    "observation_seconds": 0.8,
+    "maximum_quantity_cap": "0.0007",
+    "signed_tp_fill_before_sl_delete_verified": true,
+    "sl_cancel_query_verified": true,
+    "sl_delete_attempts": 1,
+    "entry_post_attempts": 1,
+    "new_entry_post_count": 1,
+    "operator_exit_post_attempts": 0,
+    "filled_quantity": "0.0007",
+    "position_state": "CLOSED",
+    "history_and_baselines_preserved": true,
+    "failure": "NONE",
+    "flat_confirmation": "VERIFIED_FLAT",
+    "risk_state": "NORMAL",
+    "private_session_diagnostic": {
+      "stage": "EVENT",
+      "code": "NONE",
+      "event_kind": "ACCOUNT_UPDATE",
+      "event_age_ms": 0,
+      "ready_callback_ms": 90,
+      "event_receive_age_ms": 0,
+      "received_events": 38,
+      "coalesced_events": 19,
+      "event_clock_offset_ms": 0,
+      "event_clock_rtt_ms": 0,
+      "event_clock_wait_ms": 0,
+      "event_local_age_ms": 0
+    },
+    "final_paused": true,
+    "orders_enabled": false,
+    "live_trading_enabled": false
+  }
+}

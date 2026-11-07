@@ -1,0 +1,27 @@
+{
+  "commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+  "files": {
+    "account_api.py": {
+      "url": "https://github.com/binance/binance-connector-python/blob/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+      "sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39"
+    },
+    "futures_account_configuration_response.py": {
+      "url": "https://github.com/binance/binance-connector-python/blob/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/models/futures_account_configuration_response.py",
+      "sha256": "58d33a8930247a1c079c0ec7ff81de54010bd775dbeffe1ca7495e465f8f79ba"
+    }
+  },
+  "GET /fapi/v1/accountConfig": {
+    "weight_ip": 5,
+    "fields": [
+      "dualSidePosition",
+      "multiAssetsMargin"
+    ]
+  },
+  "GET /fapi/v1/positionSide/dual": {
+    "weight_ip": 30
+  },
+  "GET /fapi/v1/multiAssetsMargin": {
+    "weight_ip": 30
+  },
+  "limitation": "Official SDK contract is reference only; DEMO support and equality require actual read-only comparison. Counter deltas include other IP activity and do not prove an upper bound."
+}

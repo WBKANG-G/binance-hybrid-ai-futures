@@ -1,0 +1,36 @@
+{
+  "applied_isolated_source_commit": "0e12bf8592147fcc22bb12a0482cac779919398d",
+  "approved_installed_source": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "windows_source_installed_by_this_package": false,
+  "tests": {
+    "runtime-1602.xml": {
+      "tests": "1602",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "435.965"
+    },
+    "approved-guards-52.xml": {
+      "tests": "52",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "28.500"
+    },
+    "consumer-bindings-9.xml": {
+      "tests": "9",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "1.185"
+    },
+    "account-config-probe-62.xml": {
+      "tests": "62",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.260"
+    }
+  },
+  "note": "9-case focused consumer run overlaps runtime suite; do not add as unique coverage. Version-bound guard positives run at approved source; parser rejection tested in candidate suite. Five long natural-lease SIGKILL suites not rerun; see integration-review/TEST_SCOPE.json. All exchange responses in cloud tests are synthetic. No cloud request to actual account."
+}

@@ -1,0 +1,2 @@
+cd /d "%USERPROFILE%\Desktop\windows-demo-account-config-review"
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; if((Get-FileHash -Algorithm SHA256 -LiteralPath 'compare_account_config.py').Hash.ToLower() -ne '3b4409c83aa3f9c2090177b59a63e9cc733789161ea7e42b3ea844c9e110da1e'){throw 'ACCOUNT_CONFIG_PROBE_HASH_MISMATCH'}" && docker exec -i hybrid-windows-api-1 python - < compare_account_config.py

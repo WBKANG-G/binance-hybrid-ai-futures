@@ -1,0 +1,33 @@
+{
+  "package": "windows-demo-account-config-review",
+  "files": {
+    "OFFICIAL_SDK_REFERENCE.json": "1b331f696aeae92da89b2444c13de5426b6bdbc700b7fc4c3d9c8db68143a6a9",
+    "README.md": "1e4e8dcc6b9c7c8ee310cf852091a6e416f956678b41becc9699ce26baf26f74",
+    "RUN_COMMAND.txt": "eb2567386ba1cc41fd7bb45326d3d3b5e785e5d4c1c9f23a78e30c83b9604679",
+    "VALIDATION.json": "2e0f71f55946be5bbb9dfaa0940c70715b56264c6f25a8b7f4b8b637d89874e8",
+    "compare_account_config.py": "3b4409c83aa3f9c2090177b59a63e9cc733789161ea7e42b3ea844c9e110da1e",
+    "integration-review/STRUCTURE_PROOF.json": "19f90f9eda36f8d9d30cb46051f40a4af2695165d982899ad335f8eed33d3924",
+    "integration-review/TEST_SCOPE.json": "6fd3e8a4ae1550d76ccf5255a680641299ad8dad6408dd694900a038072cfe62",
+    "integration-review/TIMING_FIXTURE_NOTE.json": "c63fcf69da246fcbdd1a19b5b8130e770c52c174628b96195c94053fa3bfa22e",
+    "integration-review/candidate-source/integrations/binance_usdm/demo_snapshot.py": "b2c48e19a720a0234dc5f06dd36d2dc6f3f391016521793bb56e218d9246f1b4",
+    "integration-review/candidate-source/tests/fixtures/approved_snapshot_v1.py": "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a",
+    "integration-review/candidate-source/tests/integration/test_demo_private_stability.py": "01c68779cc3c85a4d4cc98569bb620dbd09c6b7297d1e922c90594dfa9801079",
+    "integration-review/candidate-source/tests/integration/test_operational_history_consumers.py": "bdfc7f6a9d476dbfd22843819e4e27052c87f978414469945f673a7bc893d6ff",
+    "integration-review/candidate-source/tests/integration/test_operational_history_lifecycle.py": "5aa88db84b8aa92545be06c8ed54cb87448c5638e42d6f080805cba2ddcea94e",
+    "integration-review/candidate-source/tests/integration/test_readiness_closed_history_cli.py": "28d439c51d51e55f16df71bfcf6b704bbbbfd12df9471dfd2c89991d98a87996",
+    "integration-review/source.patch": "c3473d8d60afb522470a931981c86521806f3c0521f5137d2be1a73f4db1a11c",
+    "integration-review/synthetic-reports/bad_qty-candidateTrue.json": "756348b6aaa7ee2ce6ecd26504b9926c6a9bdbcf0eb5b48fb4bb7705a1d36d93",
+    "integration-review/synthetic-reports/missing_cancel-candidateTrue.json": "b92ba4161564d0a0ceed70c1bbb512f568c2594de80b7b4f660d1e19e9d63750",
+    "integration-review/synthetic-reports/mixed_readers-candidateTrue.json": "2dbc45c7d933128944a40ab0627d52210d32b8705174ac5b473268233f6611f0",
+    "integration-review/synthetic-reports/no_tp-candidateTrue.json": "62ee2e12226a12a717b82e371a07cb56f854491b60c2c21112530c22911c4e77",
+    "integration-review/synthetic-reports/partial-candidateTrue.json": "194c3d089141ea46de1ee622634a3d4a27fe1d66523186b5f60ac180580ebffa",
+    "integration-review/synthetic-reports/rate_limit-candidateTrue.json": "de36273788976aed88350647959ca067e2dbf022bd0c69f60411b106d1008af7",
+    "integration-review/synthetic-reports/tp-candidateTrue.json": "060de87c2b1b6328708b3389ed8806fec2a0cd47e49aaa51042f7344c76a9537",
+    "integration-review/synthetic-reports/unfilled-candidateTrue.json": "22eb92562aa0879bf9630e64ade15d52b390b47d838f186c0bef364d0d7ec696",
+    "test-results/account-config-probe-62.xml": "9ff80d184e0e766eb0fd896ea2a404b2bd94284edd349986a2426b2a59ba5e36",
+    "test-results/approved-guards-52.xml": "fc0392ada2599d5ac1b2e49fe0f2a72cf8e19a03d61b64a310b9996650d3c613",
+    "test-results/consumer-bindings-9.xml": "8667969b29a5c8e20843f4ad10798d345b329e7c4f281438ba1abce0080876d1",
+    "test-results/runtime-1602.xml": "98d2d24b11e7378f7e24c8744a918ab189da15079fa51651b4bc299788611306",
+    "test_account_config_review.py": "51b9c08afb69fbf6bed1dfae3704ea902f92ed93aea3fbeffef312ebdca68b49"
+  }
+}

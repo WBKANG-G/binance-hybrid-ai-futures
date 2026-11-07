@@ -1,0 +1,22 @@
+{
+  "candidate_runtime_suite": [
+    "tests/unit",
+    "tests/integration"
+  ],
+  "version_bound_tests_run_unchanged_on_approved_70a854c": [
+    "tests/unit/test_tp_read_pool_install_guard.py",
+    "tests/integration/test_tp_rate_install_guard.py",
+    "tests/integration/test_tp_pool_normal_install_audit.py",
+    "tests/integration/test_readiness_history_install.py"
+  ],
+  "version_bound_passed": 52,
+  "version_guard_rules": "Original fixed hashes were not broadened. New integration tests confirm both older guards reject the candidate parser before key/DB/remote callbacks. Version-bound positive tests run at the source version they approve.",
+  "long_natural_lease_sigkill_suites_not_rerun": [
+    "tests/integration/test_demo_protected_worker_sigkill.py",
+    "tests/integration/test_demo_protected_execution.py",
+    "tests/integration/test_demo_protected_execution_failures.py",
+    "tests/integration/test_demo_protected_worker_serialization.py",
+    "tests/integration/test_demo_protected_leader_probe.py"
+  ],
+  "reason_long_suites": "Lease/fencing/protection and full historical flat code are unchanged; new scope is immutable closed-record observation only. Other empty-worker recovery, restart and scoped lifecycle tests remain in candidate suite."
+}

@@ -1,0 +1,985 @@
+diff --git a/integrations/binance_usdm/demo_snapshot.py b/integrations/binance_usdm/demo_snapshot.py
+index 568e068..ba1e3a5 100644
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -1,15 +1,22 @@
+-"""Strict REST snapshot used after startup, reconnect, fills and uncertain writes."""
++"""Uninstalled operational-history candidate; synthetic review only.
++
++Copied from the approved strict parser. Only the proved external-close
++condition is added; original current-state and full-history logic stays intact.
++"""
+ 
+ import hashlib
+ import json
+-from datetime import datetime
+-from decimal import Decimal, InvalidOperation
++import re
++from datetime import datetime, timedelta
++from decimal import Decimal, DecimalException, InvalidOperation
+ from typing import Any
++from uuid import UUID, uuid5
+ 
+ from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
+ from integrations.binance_usdm.filters import number
+ from packages.domain.contracts import OrderState, PositionState
+ from services.execution.demo_models import DemoLedger, DemoSnapshot
++from services.execution.models import PaperOrder
+ 
+ 
+ def signed_number(value: object) -> Decimal:
+@@ -180,6 +187,7 @@ def _snapshot(
+             and (
+                 (order.filled > 0 and order.exit_state == "FILLED")
+                 or (not order.filled and order.exit_id is None and order.exit_state == "NONE")
++                or receipt_proven_closed(ledger, order, now)
+             )
+             and not any(identifier in orders for identifier in (order.client_id, order.exit_id))
+             and not any(identifier in algos for identifier in (order.algo_id, order.tp_algo_id))
+@@ -284,3 +292,92 @@ def _snapshot(
+         isolated_margins=isolated_margins,
+         liquidation_prices=liquidation_prices,
+     )
++
++
++INCIDENT = "041d1f35-870e-46cb-aad2-ed6059bc1095"
++
++RECEIPT = str(uuid5(UUID(INCIDENT), "signed-operator-manual-close-v1"))
++
++
++def _matches(ledger: DemoLedger, now: datetime) -> bool:
++    current = ledger.orders.get(INCIDENT)
++    if (
++        current is None
++        or current.signal.signal_id != UUID(INCIDENT)
++        or current.signal.environment.value != "DEMO"
++        or ledger.income_since_ms is None
++        or not 0 <= ledger.income_since_ms <= int(ledger.value.as_of.timestamp() * 1000)
++        or ledger.operations.get(str(uuid5(UUID(INCIDENT), "tp-trigger-observation")))
++        != "TP_TRIGGER:NOT_ACCEPTED"
++        or current.quantity != current.filled
++        or current.filled != Decimal("0.0007")
++        or current.state.value != "FILLED"
++        or current.exit_id is not None
++        or current.exit_state != "NONE"
++        or str(current.server_order_id) != "28668115919"
++        or not current.algo_id
++        or not current.tp_algo_id
++        or current.algo_id == current.tp_algo_id
++        or current.signal.symbol != "BTCUSDT"
++        or current.signal.direction != "LONG"
++        or current.signal.purpose != "DEMO_VALIDATION"
++    ):
++        return False
++    raw = json.loads(ledger.operations.get(RECEIPT, "{}"))
++    if not isinstance(raw, dict) or not (
++        raw.get("incident") == INCIDENT
++        and raw.get("source") == "SIGNED_OPERATOR_MANUAL_CLOSE"
++        and raw.get("entry_order_id") == "28668115919"
++        and raw.get("manual_close_order_id") == "28668119491"
++        and raw.get("trade_ids") == ["554837511", "554838531"]
++        and Decimal(raw.get("net_usdt", "NaN")) == Decimal("-0.07032487")
++        and isinstance(raw.get("manual_close_client_id"), str)
++        and raw["manual_close_client_id"].startswith("web_")
++        and raw["manual_close_client_id"] not in ledger.requests
++        and all(
++            isinstance(raw.get(k), str) and re.fullmatch("[0-9a-f]{64}", raw[k])
++            for k in ("exchange_fingerprint", "prior_ledger_sha256")
++        )
++    ):
++        return False
++    original = PaperOrder.model_validate(raw.get("original_order"))
++    allowed = {"open_quantity", "actual_risk", "protected", "position_state"}
++    before, after = original.model_dump(mode="json"), current.model_dump(mode="json")
++    if not (
++        all(before[k] == after[k] for k in before.keys() - allowed)
++        and original.state.value == "FILLED"
++        and original.position_state.value == "OPEN_UNPROTECTED"
++        and original.open_quantity == original.quantity == original.filled == Decimal("0.0007")
++        and not original.remaining
++        and not original.protected
++        and original.exit_id is None
++        and original.exit_state == "NONE"
++    ):
++        return False
++    stamp = datetime.fromisoformat(raw["acknowledged_at_utc"])
++    return stamp.tzinfo is not None and stamp.utcoffset() == timedelta(0) and stamp <= now
++
++
++def receipt_proven_closed(ledger: DemoLedger, order: PaperOrder, now: datetime) -> bool:
++    """Candidate only: immutable closure proof, independent of later account valuation.
++
++    The existing caller still requires absence from BOTH fresh open lists.
++    Other active orders and full historical snapshots retain the original path.
++    This file is not imported by the installed runtime or any CLI.
++    """
++    if (
++        str(order.signal.signal_id) != INCIDENT
++        or ledger.orders.get(INCIDENT) is not order
++        or ledger.margin_mode != "ISOLATED"
++        or ledger.symbols != ("BTCUSDT",)
++        or order.position_state != PositionState.CLOSED
++        or order.remaining
++        or order.open_quantity
++        or order.actual_risk
++        or order.protected
++    ):
++        return False
++    try:
++        return _matches(ledger, now)
++    except (ValueError, TypeError, KeyError, DecimalException):
++        return False
+diff --git a/tests/fixtures/approved_snapshot_v1.py b/tests/fixtures/approved_snapshot_v1.py
+new file mode 100644
+index 0000000..568e068
+--- /dev/null
++++ b/tests/fixtures/approved_snapshot_v1.py
+@@ -0,0 +1,286 @@
++"""Strict REST snapshot used after startup, reconnect, fills and uncertain writes."""
++
++import hashlib
++import json
++from datetime import datetime
++from decimal import Decimal, InvalidOperation
++from typing import Any
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
++from integrations.binance_usdm.filters import number
++from packages.domain.contracts import OrderState, PositionState
++from services.execution.demo_models import DemoLedger, DemoSnapshot
++
++
++def signed_number(value: object) -> Decimal:
++    if isinstance(value, (float, bool)) or not isinstance(value, (str, int, Decimal)):
++        raise DemoFailure("Invalid DEMO financial number")
++    result = Decimal(value)
++    if not result.is_finite():
++        raise DemoFailure("Non-finite DEMO financial number")
++    return result
++
++
++def pick(raw: Any, keys: tuple[str, ...]) -> dict[str, str]:
++    if not isinstance(raw, dict) or any(key not in raw for key in keys):
++        raise DemoFailure("Incomplete DEMO order snapshot")
++    return {
++        key: str(raw[key]).lower() if isinstance(raw[key], bool) else str(raw[key]) for key in keys
++    }
++
++
++ORDER_KEYS = (
++    "symbol",
++    "clientOrderId",
++    "orderId",
++    "side",
++    "type",
++    "status",
++    "origQty",
++    "executedQty",
++    "avgPrice",
++    "price",
++    "positionSide",
++    "reduceOnly",
++)
++ALGO_KEYS = (
++    "symbol",
++    "clientAlgoId",
++    "algoId",
++    "side",
++    "orderType",
++    "algoStatus",
++    "triggerPrice",
++    "closePosition",
++    "positionSide",
++    "workingType",
++    "priceProtect",
++    "algoType",
++)
++
++
++def snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
++    try:
++        return _snapshot(client, ledger, now, include_closed_history=include_closed_history)
++    except (KeyError, TypeError, ValueError, InvalidOperation, OverflowError):
++        # Keep malformed financial responses inside the coordinator's existing
++        # fail-closed/minimal-position emergency reconciliation path.
++        raise DemoFailure("Invalid/incomplete DEMO snapshot") from None
++
++
++def operational_snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++    """Current exchange truth plus unresolved intents; full historical review stays explicit."""
++    return snapshot(client, ledger, now, include_closed_history=False)
++
++
++def _snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
++    mode = client.request("GET", "/fapi/v1/positionSide/dual")
++    assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
++    if (
++        not isinstance(mode, dict)
++        or mode.get("dualSidePosition") is not False
++        or not isinstance(assets, dict)
++        or assets.get("multiAssetsMargin") is not False
++    ):
++        raise DemoFailure(
++            "DEMO supports verified one-way/single-asset only; settings are never changed automatically"
++        )
++    account = client.request("GET", "/fapi/v3/account")
++    configs = client.request("GET", "/fapi/v1/symbolConfig")
++    positions_raw = client.request("GET", "/fapi/v3/positionRisk")
++    regular = client.request("GET", "/fapi/v1/openOrders")
++    algos_raw = client.request("GET", "/fapi/v1/openAlgoOrders")
++    if not isinstance(account, dict) or not all(
++        isinstance(x, list) for x in (positions_raw, regular, algos_raw, configs)
++    ):
++        raise DemoFailure("Invalid DEMO account/open-order response")
++    wallet = signed_number(account["totalWalletBalance"])
++    unrealized = signed_number(account["totalUnrealizedProfit"])
++    available = number(account["availableBalance"], allow_zero=True)
++    margin = number(account["totalInitialMargin"], allow_zero=True)
++    positions: dict[str, Decimal] = {}
++    entry_prices: dict[str, Decimal] = {}
++    leverage: dict[str, Decimal] = {}
++    margin_types: dict[str, str] = {}
++    isolated_wallets: dict[str, Decimal] = {}
++    isolated_margins: dict[str, Decimal] = {}
++    liquidation_prices: dict[str, Decimal] = {}
++    scope = set(client.settings.symbols)
++    for item in configs:
++        symbol = item["symbol"]
++        if symbol in margin_types:
++            raise DemoFailure("Duplicate DEMO symbol configuration")
++        actual_mode = item.get("marginType")
++        if actual_mode not in {"CROSSED", "ISOLATED"}:
++            raise DemoFailure("Unknown DEMO margin mode")
++        margin_types[symbol] = actual_mode
++        if not scope or symbol in scope:
++            if actual_mode != client.settings.margin_mode:
++                raise DemoFailure("DEMO margin mode does not match explicit configuration")
++            auto_add = item.get("isAutoAddMargin")
++            if actual_mode == "ISOLATED" and auto_add is not False and auto_add != "false":
++                raise DemoFailure("ISOLATED requires verified automatic margin addition disabled")
++        leverage[symbol] = number(item["leverage"])
++        if (
++            client.settings.margin_mode == "ISOLATED"
++            and symbol in scope
++            and leverage[symbol] > ledger.policy.limit("max_leverage")
++        ):
++            raise DemoFailure("ISOLATED configured leverage exceeds DEMO policy")
++    if scope - margin_types.keys():
++        raise DemoFailure("Missing configured DEMO symbol settings")
++    for row in positions_raw:
++        if row.get("positionSide") != "BOTH":
++            raise DemoFailure("Unsupported DEMO position mode")
++        symbol = row["symbol"]
++        if symbol in positions:
++            raise DemoFailure("Ambiguous DEMO positions")
++        positions[symbol] = signed_number(row["positionAmt"])
++        entry_prices[symbol] = number(row["entryPrice"], allow_zero=True)
++        if positions[symbol]:
++            if scope and symbol not in scope:
++                raise DemoFailure("DEMO position outside configured symbol scope")
++            expected = client.settings.margin_mode
++            if margin_types.get(symbol) != expected:
++                raise DemoFailure("DEMO position margin settings unavailable or mismatched")
++            if "marginType" in row and row["marginType"] != (
++                "isolated" if expected == "ISOLATED" else "cross"
++            ):
++                raise DemoFailure("DEMO position/config margin mismatch")
++            if expected == "ISOLATED":
++                isolated_wallets[symbol] = number(row["isolatedWallet"])
++                isolated_margins[symbol] = number(row["isolatedMargin"], allow_zero=True)
++                liquidation_prices[symbol] = number(row["liquidationPrice"])
++                # A locked isolated wallet cannot fund another entry. Do not add it
++                # to availableBalance or totalWalletBalance (already account totals).
++                margin = max(margin, sum(isolated_wallets.values(), Decimal(0)))
++        # V3 omits leverage: account configuration is queried separately per symbol.
++
++    orders = {str(row["clientOrderId"]): pick(row, ORDER_KEYS) for row in regular}
++    algos = {
++        str(row["clientAlgoId"]): pick(row, ALGO_KEYS)
++        | {"actualOrderId": str(row.get("actualOrderId", ""))}
++        for row in algos_raw
++    }
++    if len(orders) != len(regular) or len(algos) != len(algos_raw):
++        raise DemoFailure("Duplicate remote IDs")
++    if scope and any(row["symbol"] not in scope for row in [*orders.values(), *algos.values()]):
++        raise DemoFailure("DEMO open order outside configured symbol scope")
++    for order in ledger.orders.values():
++        if (
++            not include_closed_history
++            and order.state
++            in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++            and order.position_state == PositionState.CLOSED
++            and not (order.remaining or order.open_quantity or order.actual_risk or order.protected)
++            and (
++                (order.filled > 0 and order.exit_state == "FILLED")
++                or (not order.filled and order.exit_id is None and order.exit_state == "NONE")
++            )
++            and not any(identifier in orders for identifier in (order.client_id, order.exit_id))
++            and not any(identifier in algos for identifier in (order.algo_id, order.tp_algo_id))
++        ):
++            # Only previously proven closed records absent from BOTH fresh open
++            # lists are omitted. Pending/unknown/partial/protected entries and
++            # anything reappearing remotely still use the original-ID queries.
++            continue
++        if order.client_id not in orders:
++            try:
++                raw = client.request(
++                    "GET",
++                    "/fapi/v1/order",
++                    {"symbol": order.signal.symbol, "origClientOrderId": order.client_id},
++                )
++                orders[order.client_id] = pick(raw, ORDER_KEYS)
++            except DemoNotFound:
++                pass  # Preserve SUBMITTING/UNKNOWN and its reservation; absence is not rejection.
++        for algo_id in [order.algo_id, order.tp_algo_id]:
++            if algo_id and algo_id not in algos:
++                try:
++                    raw = client.request("GET", "/fapi/v1/algoOrder", {"clientAlgoId": algo_id})
++                    algos[algo_id] = pick(raw, ALGO_KEYS) | {
++                        "actualOrderId": str(raw.get("actualOrderId", ""))
++                    }
++                except DemoNotFound:
++                    pass
++        if order.exit_id and order.exit_id not in orders:
++            try:
++                raw = client.request(
++                    "GET",
++                    "/fapi/v1/order",
++                    {"symbol": order.signal.symbol, "origClientOrderId": order.exit_id},
++                )
++                orders[order.exit_id] = pick(raw, ORDER_KEYS)
++            except DemoNotFound:
++                pass
++    for algo in algos.values():
++        actual = algo.get("actualOrderId")
++        if algo["algoStatus"] == "FINISHED" and actual and actual != "0":
++            raw = client.request(
++                "GET", "/fapi/v1/order", {"symbol": algo["symbol"], "orderId": actual}
++            )
++            orders["ALGO_EXEC:" + actual] = pick(raw, ORDER_KEYS)
++    data = dict(
++        positions={s: str(q) for s, q in positions.items()},
++        orders=orders,
++        algos=algos,
++        wallet=str(wallet),
++        unrealized=str(unrealized),
++        available=str(available),
++        margin=str(margin),
++        margin_types=margin_types,
++        leverage={s: str(q) for s, q in leverage.items()},
++        entry_prices={s: str(q) for s, q in entry_prices.items()},
++        isolated_wallets={s: str(q) for s, q in isolated_wallets.items()},
++        isolated_margins={s: str(q) for s, q in isolated_margins.items()},
++        liquidation_prices={s: str(q) for s, q in liquidation_prices.items()},
++    )
++    transfers: dict[str, str] = {}
++    if ledger.income_since_ms is not None:
++        for page in range(1, 11):
++            incomes = client.request(
++                "GET",
++                "/fapi/v1/income",
++                {
++                    "startTime": str(ledger.income_since_ms),
++                    "endTime": str(int(now.timestamp() * 1000)),
++                    "limit": "1000",
++                    "page": str(page),
++                },
++            )
++            if not isinstance(incomes, list):
++                raise DemoFailure("Invalid DEMO income response")
++            for item in incomes:
++                if item["incomeType"] in {"TRANSFER", "WELCOME_BONUS"}:
++                    if item.get("asset") != "USDT":
++                        raise DemoFailure("Unexpected account transfer asset")
++                    transfers[item["incomeType"] + ":" + str(item["tranId"])] = str(
++                        signed_number(item["income"])
++                    )
++            if len(incomes) < 1000:
++                break
++        else:
++            raise DemoFailure("DEMO income pagination incomplete; refuse new entries")
++    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
++    return DemoSnapshot(
++        as_of=now,
++        equity=wallet + unrealized,
++        wallet_balance=wallet,
++        available_balance=available,
++        margin_used=margin,
++        positions=positions,
++        entry_prices=entry_prices,
++        leverage=leverage,
++        orders=orders,
++        algos=algos,
++        fingerprint=fingerprint,
++        transfers=transfers,
++        margin_types=margin_types,
++        isolated_wallets=isolated_wallets,
++        isolated_margins=isolated_margins,
++        liquidation_prices=liquidation_prices,
++    )
+diff --git a/tests/integration/test_demo_private_stability.py b/tests/integration/test_demo_private_stability.py
+index ba97b15..38a1efb 100644
+--- a/tests/integration/test_demo_private_stability.py
++++ b/tests/integration/test_demo_private_stability.py
+@@ -2,8 +2,11 @@
+ 
+ import asyncio
+ import json
++import time as real_time
+ from contextlib import asynccontextmanager
+ from datetime import timedelta
++from types import SimpleNamespace
++from unittest.mock import patch
+ from uuid import uuid4
+ 
+ import pytest
+@@ -32,6 +35,7 @@ def case(preview_case):  # noqa: F811
+ 
+ async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
+     _, c, fake = case
++    original_clock = c.client.sync_clock
+     if accelerate:
+         original = c.client.sync_clock
+ 
+@@ -67,9 +71,52 @@ async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
+             async with connect(f"ws://127.0.0.1:{port}") as socket:
+                 yield socket
+ 
+-        return await module.run(
+-            c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
+-        )
++        # The accelerated account clock still traverses the original25-minute
++        # renewal interval. Do not require150 sync calls to fit inside5 real
++        # seconds on every CI machine. Hold only this observer's duration clock
++        # below completion until a genuine renewal succeeds; a real30s outer
++        # watchdog still fails if renewal never happens. AsyncIO time is untouched.
++        first = []
++        created = []
++        renewal_elapsed = []
++        original_key = c.client.listen_key
++
++        def observe_clock():
++            now = real_time.monotonic()
++            if not first:
++                first.append(now)
++            return min(now, first[0] + duration - 0.001) if not c.client.key_renewals else now
++
++        def observe_key(method):
++            if method == "POST":
++                created.append(fake.at)
++            if method == "PUT" and created:
++                renewal_elapsed.append(int((fake.at - created[-1]).total_seconds() * 1000))
++            return original_key(method)
++
++        try:
++            if accelerate:
++                with (
++                    patch.object(module, "time", SimpleNamespace(monotonic=observe_clock)),
++                    patch.object(c.client, "listen_key", observe_key),
++                ):
++                    result = await asyncio.wait_for(
++                        module.run(
++                            c,
++                            uuid4(),
++                            connector=connector,
++                            observation_seconds=duration,
++                            progress_seconds=0.25,
++                        ),
++                        timeout=30,
++                    )
++                result["synthetic_renewal_elapsed_ms"] = renewal_elapsed
++                return result
++            return await module.run(
++                c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
++            )
++        finally:
++            c.client.sync_clock = original_clock
+ 
+ 
+ def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # noqa: F811
+@@ -80,6 +127,10 @@ def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # n
+         json.dumps(report)
+     )
+     assert report["successful_key_renewals"] >= 1
++    assert (
++        report["synthetic_renewal_elapsed_ms"]
++        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
++    )
+     assert report["key_create_success_count"] == report["key_close_success_count"] == 1
+     assert report["observed_elapsed_ms"] >= 5000
+     assert report["failure"] == report["completion_failure"] == "NONE"
+@@ -140,6 +191,10 @@ def test_key_close_failure_prevents_acceptance_after_successful_renewal(case, mo
+     report = asyncio.run(exercise(case, duration=5, accelerate=True))
+     assert report["private_stability"] == "NOT_ACCEPTED"
+     assert report["successful_key_renewals"] >= 1 and report["key_close_success_count"] == 0
++    assert (
++        report["synthetic_renewal_elapsed_ms"]
++        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
++    )
+     assert report["failure"] == "KEY_CLOSE_NOT_VERIFIED"
+ 
+ 
+diff --git a/tests/integration/test_operational_history_consumers.py b/tests/integration/test_operational_history_consumers.py
+new file mode 100644
+index 0000000..9f27d14
+--- /dev/null
++++ b/tests/integration/test_operational_history_consumers.py
+@@ -0,0 +1,148 @@
++"""All operational callers bind the installed parser; no per-caller monkeypatch."""
++
++import importlib.util
++import json
++from pathlib import Path
++
++import pytest
++
++from integrations.binance_usdm import demo_snapshot
++from scripts import check_demo_disconnect
++from services.execution import (
++    demo,
++    demo_api_restart_check,
++    demo_empty_db_restart,
++    demo_empty_worker_recovery,
++    demo_preview,
++)
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_readiness_closed_history_cli import installed  # noqa: F401
++from tests.unit.test_readiness_closed_history import INCIDENT, basis  # noqa: F401
++
++
++def test_every_operational_consumer_uses_same_installed_function():
++    assert hasattr(demo_snapshot, "receipt_proven_closed")
++    assert (
++        demo.snapshot
++        is demo_preview.snapshot
++        is demo_empty_db_restart.operational_snapshot
++        is demo_empty_worker_recovery.operational_snapshot
++        is demo_api_restart_check.operational_snapshot
++        is check_demo_disconnect.operational_snapshot
++        is demo_snapshot.operational_snapshot
++    )
++    assert demo.historical_snapshot is demo_snapshot.snapshot
++
++
++def test_generic_operational_pair_and_readiness_share_financial_fields_and_fingerprint(installed):  # noqa: F811
++    store, client, _ = installed
++    ledger = store.read("DEMO-ready")
++    before = ledger.model_dump_json()
++    first = demo.snapshot(client, ledger, store.now())
++    second = demo_preview.snapshot(client, ledger, store.now())
++    assert first.model_dump(exclude={"as_of"}) == second.model_dump(exclude={"as_of"})
++    assert ledger.orders[INCIDENT].client_id not in first.orders
++    assert ledger.model_dump_json() == before
++
++
++def test_full_history_remains_independent_and_includes_closed_original_ids(installed):  # noqa: F811
++    store, client, fake = installed
++    ledger = store.read("DEMO-ready")
++    start = len(fake.calls)
++    result = demo.historical_snapshot(client, ledger, store.now())
++    assert ledger.orders[INCIDENT].client_id in result.orders
++    assert sum(p.get("origClientOrderId") == "DE-test" for _, _, p in fake.calls[start:]) == 1
++    assert sum(p.get("clientAlgoId") == "DS-test" for _, _, p in fake.calls[start:]) == 1
++
++
++def test_previously_published_install_guard_rejects_unapproved_parser_before_keys_or_db(
++    monkeypatch, capsys
++):
++    spec = importlib.util.spec_from_file_location(
++        "old_approved_guard", Path("guard_readiness_history_install.py")
++    )
++    guard = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(guard)
++    monkeypatch.setattr("sys.argv", ["guard", "--phase", "post", "--expected-digest", "0" * 64])
++    monkeypatch.setattr(
++        guard, "credentials", lambda **k: pytest.fail("no keys for unapproved source")
++    )
++    monkeypatch.setattr(
++        guard, "create_engine", lambda *a, **k: pytest.fail("no DB for unapproved source")
++    )
++    with pytest.raises(SystemExit) as error:
++        guard.main()
++    assert error.value.code == 2
++    assert json.loads(capsys.readouterr().out)["stop_reason"] == "INSTALLED_SOURCE_HASH_MISMATCH"
++
++
++def test_approved_reader_fixture_is_byte_identical_to_pre_extension_parser():
++    import hashlib
++
++    assert (
++        hashlib.sha256(Path("tests/fixtures/approved_snapshot_v1.py").read_bytes()).hexdigest()
++        == "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a"
++    )
++
++
++def test_worker_and_api_empty_checks_use_new_global_reader_without_db_changes(installed):  # noqa: F811
++    from types import SimpleNamespace
++
++    store, client, fake = installed
++    ledger = store.read("DEMO-ready")
++    original = ledger.model_dump_json()
++    start = len(fake.calls)
++    demo_empty_worker_recovery.remote_empty(store, client, "DEMO-ready")
++    c = SimpleNamespace(store=store, client=client, lease=SimpleNamespace(account_id="DEMO-ready"))
++    demo_api_restart_check.empty(c)
++    from scripts.observe_demo_private import ObservationClient
++
++    observer = ObservationClient(
++        client.settings, client.credentials, send=client.send, clock_ms=client.clock_ms
++    )
++    disconnected = SimpleNamespace(
++        store=store, client=observer, lease=SimpleNamespace(account_id="DEMO-ready")
++    )
++    check_demo_disconnect.remote_empty(disconnected)
++    assert not any(p.get("origClientOrderId") == "DE-test" for _, _, p in fake.calls[start:])
++    assert sum(p.get("origClientOrderId") == "DE-unadopted" for _, _, p in fake.calls[start:]) == 3
++    assert store.read("DEMO-ready").model_dump_json() == original
++
++
++def test_db_restart_digest_keeps_snapshot_pair_and22_signed_reads(installed):  # noqa: F811
++    store, client, _ = installed
++    before = store.read("DEMO-ready")
++    digest, metrics = demo_empty_db_restart.exchange_digest(store, client, before)
++    assert len(digest) == 64 and metrics["signed_get_count"] == 22
++    assert store.read("DEMO-ready") == before
++
++
++def test_legacy_fingerprint_is_blocked_until_fresh_reconciliation(installed):  # noqa: F811
++    from tests.fixtures import approved_snapshot_v1
++
++    store, client, fake = installed
++    ledger = store.read("DEMO-ready")
++    ledger.reconciled = True
++    ledger.fingerprint = approved_snapshot_v1.operational_snapshot(
++        client, ledger, store.now()
++    ).fingerprint
++    before = ledger.model_dump_json()
++    with pytest.raises(demo_preview.PreviewBlocked, match="changed after reconciliation"):
++        demo_preview.preview(client, ledger)
++    assert ledger.model_dump_json() == before
++
++
++def test_older_pool_install_guard_also_rejects_parser_before_callbacks():
++    spec = importlib.util.spec_from_file_location(
++        "old_pool_guard", Path("guard_tp_read_pool_install.py")
++    )
++    g = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(g)
++    with pytest.raises(g.GuardBlocked, match="SOURCE_HASH_MISMATCH"):
++        g.run(
++            None,
++            "pre",
++            digest=g.NEW_SHA,
++            read_local=lambda *a: pytest.fail("no DB callback"),
++            read_review=lambda: pytest.fail("no remote callback"),
++        )
+diff --git a/tests/integration/test_operational_history_lifecycle.py b/tests/integration/test_operational_history_lifecycle.py
+new file mode 100644
+index 0000000..08cde7d
+--- /dev/null
++++ b/tests/integration/test_operational_history_lifecycle.py
+@@ -0,0 +1,244 @@
++"""Real isolated PG/local WSS with only synthetic fills; no runtime entry point."""
++
++# ruff: noqa: F811
++import json
++from pathlib import Path
++
++import pytest
++
++from integrations.binance_usdm import demo_snapshot as canonical_snapshot
++from tests.fixtures import approved_snapshot_v1
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import (
++    exercise_opposite,
++    opposite_case,  # noqa: F401
++)
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++from tests.unit.test_readiness_closed_history import INCIDENT, RECEIPT, basis  # noqa: F401
++
++
++@pytest.mark.parametrize(
++    "mode",
++    [
++        "tp",
++        "no_tp",
++        "unfilled",
++        "partial",
++        "bad_qty",
++        "missing_cancel",
++        "mixed_readers",
++        "rate_limit",
++    ],
++)
++def test_active_lifecycle_preserves_all_original_proofs_and_old_history(
++    opposite_case, basis, monkeypatch, mode
++):
++    from decimal import Decimal
++
++    use_candidate = True
++
++    store, c, fake, options = opposite_case
++    _, archived = basis
++    old = archived.orders[INCIDENT].model_copy(deep=True)
++    receipt = json.loads(archived.operations[RECEIPT])
++    receipt["acknowledged_at_utc"] = store.now().isoformat()
++
++    def seed(s):
++        s.orders[INCIDENT] = old
++        s.operations.update(archived.operations)
++        s.operations[RECEIPT] = json.dumps(receipt)
++
++    store.change(c.lease, "SYNTHETIC_ADOPTED_MANUAL_CLOSE_HISTORY", seed)
++    fake.orders[old.client_id] = {
++        "symbol": "BTCUSDT",
++        "clientOrderId": old.client_id,
++        "orderId": "28668115919",
++        "side": "BUY",
++        "type": "LIMIT",
++        "status": "FILLED",
++        "origQty": "0.0007",
++        "executedQty": "0.0007",
++        "avgPrice": "0",
++        "price": "100",
++        "positionSide": "BOTH",
++        "reduceOnly": False,
++    }
++    for identity, kind, trigger in [
++        (old.algo_id, "STOP_MARKET", "90"),
++        (old.tp_algo_id, "TAKE_PROFIT_MARKET", "120"),
++    ]:
++        fake.algos[identity] = {
++            "symbol": "BTCUSDT",
++            "clientAlgoId": identity,
++            "algoId": identity + "1",
++            "side": "SELL",
++            "orderType": kind,
++            "algoStatus": "EXPIRED",
++            "triggerPrice": trigger,
++            "closePosition": True,
++            "positionSide": "BOTH",
++            "workingType": "MARK_PRICE",
++            "priceProtect": False,
++            "algoType": "CONDITIONAL",
++            "actualOrderId": "",
++        }
++    if mode in {"no_tp", "partial", "unfilled", "rate_limit"}:
++        options["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        options["fill"] = False
++    if mode == "bad_qty":
++        options["tamper"] = True
++    if mode == "missing_cancel":
++        options["cancel_query"] = True
++    original_send = c.client.send
++    rate_mark = []
++
++    def sender(method, path, query, key):
++        from urllib.parse import parse_qs
++
++        params = {k: v[0] for k, v in parse_qs(query.get_secret_value()).items()}
++        if mode == "rate_limit" and rate_mark:
++            from integrations.binance_usdm.rest import RESTResponse
++
++            fake.calls.append((method, path, params))
++            return RESTResponse(429, b"synthetic-non-json", {"Retry-After": "120"})
++        response = original_send(method, path, query, key)
++        if (
++            mode == "partial"
++            and method == "POST"
++            and path == "/fapi/v1/order"
++            and params.get("type") == "LIMIT"
++        ):
++            fake.fill(params["newClientOrderId"], Decimal("0.0003"), Decimal("80000"))
++        if mode == "rate_limit" and not rate_mark and path == "/fapi/v3/account":
++            state = store.read("DEMO-test")
++            if any(
++                k != INCIDENT and e.get("stop_verified") and e.get("target_verified")
++                for k, e in state.validation_evidence.items()
++            ):
++                rate_mark.append(len(fake.calls))
++        return response
++
++    c.client.send = sender
++    per_snapshot = []
++    historical = []
++    original_snapshot = canonical_snapshot._snapshot
++
++    def observed(client, ledger, now, *, include_closed_history=True):
++        start = len(fake.calls)
++        result = original_snapshot(
++            client, ledger, now, include_closed_history=include_closed_history
++        )
++        calls = fake.calls[start:]
++        old_reads = sum(
++            p.get("origClientOrderId") == old.client_id
++            or p.get("clientAlgoId") in {old.algo_id, old.tp_algo_id}
++            for _, _, p in calls
++        )
++        if include_closed_history:
++            assert old_reads == 3
++            historical.append(True)
++        else:
++            assert old_reads == 0
++            per_snapshot.append({"requests": len(calls), "archived_id_reads": old_reads})
++        return result
++
++    # Observation hook only; no operational consumer or returned response is replaced.
++    monkeypatch.setattr(canonical_snapshot, "_snapshot", observed)
++    if mode == "mixed_readers":
++        from services.execution import demo_preview
++
++        monkeypatch.setattr(demo_preview, "snapshot", approved_snapshot_v1.operational_snapshot)
++    c.reconcile()
++    before = store.read("DEMO-test")
++    start = len(fake.calls)
++    report = exercise_opposite(opposite_case, monkeypatch)
++    after = store.read("DEMO-test")
++    assert after.orders[INCIDENT] == before.orders[INCIDENT]
++    assert after.operations[RECEIPT] == before.operations[RECEIPT]
++    assert (
++        after.daily_base == before.daily_base
++        and after.weekly_base == before.weekly_base
++        and after.high_water == before.high_water
++    )
++    assert report["history_and_baselines_preserved"] and after.paused
++    if mode == "mixed_readers" and use_candidate:
++        assert report["entry_post_attempts"] == report["new_entry_post_count"] == 0
++        assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++        assert len(historical) == 5 and not any(fake.positions.values())
++        folder = Path("synthetic_reports/operational-history-integration")
++        folder.mkdir(parents=True, exist_ok=True)
++        (folder / "mixed_readers-candidateTrue.json").write_text(
++            json.dumps(
++                {
++                    "synthetic_only": True,
++                    "isolated_checkout_parser_applied": True,
++                    "mixed_reader_fingerprint_gate_blocked": True,
++                    "new_entry_posts": 0,
++                    "full_historical_snapshot_count": len(historical),
++                    "result": report,
++                },
++                indent=2,
++            )
++            + "\n"
++        )
++        return
++    assert report["entry_post_attempts"] == report["new_entry_post_count"] == 1
++    if mode == "rate_limit":
++        assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++        assert report["flat_confirmation"] == "UNKNOWN" and report["risk_state"] == "EMERGENCY"
++        assert any(fake.positions.values()) and c.client.cooldown_until > c.client.clock_ms()
++        assert rate_mark and len(fake.calls) == rate_mark[0] + 1
++        assert all(m == "GET" for m, _, _ in fake.calls[rate_mark[0] :])
++        folder = Path("synthetic_reports/operational-history-integration")
++        folder.mkdir(parents=True, exist_ok=True)
++        (folder / ("rate_limit-candidate" + str(use_candidate) + ".json")).write_text(
++            json.dumps(
++                {
++                    "synthetic_only": True,
++                    "isolated_checkout_parser_applied": True,
++                    "windows_runtime_installed": False,
++                    "cooldown_preserved": True,
++                    "no_retry_after_first429": True,
++                    "result": report,
++                },
++                indent=2,
++            )
++            + "\n"
++        )
++        return
++    assert report["operator_exit_post_attempts"] <= 1
++    assert len(historical) == 5 and not any(fake.positions.values())
++    assert per_snapshot and all(
++        r["archived_id_reads"] == (0 if use_candidate else 3) for r in per_snapshot
++    )
++    if mode in {"tp", "mixed_readers"}:
++        assert report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++        assert (
++            report["signed_tp_fill_before_sl_delete_verified"]
++            and report["sl_cancel_query_verified"]
++        )
++        assert report["operator_exit_post_attempts"] == 0 and report["sl_delete_attempts"] == 1
++    else:
++        assert report["tp_trigger_check"] == "NOT_ACCEPTED"
++    summary = {
++        "synthetic_only": True,
++        "isolated_checkout_parser_applied": True,
++        "mode": mode,
++        "candidate": use_candidate,
++        "operational_snapshot_count": len(per_snapshot),
++        "operational_snapshot_rows": per_snapshot,
++        "full_historical_snapshot_count": len(historical),
++        "full_historical_archived_id_reads": 15,
++        "validation_requests": len(fake.calls) - start,
++        "hypothetical_old_id_weight1_saving": 3 * len(per_snapshot) if use_candidate else 0,
++        "actual_weight_saved_verified": False,
++        "windows_runtime_installed": False,
++        "result": report,
++    }
++    folder = Path("synthetic_reports/operational-history-integration")
++    folder.mkdir(parents=True, exist_ok=True)
++    (folder / (mode + "-candidate" + str(use_candidate) + ".json")).write_text(
++        json.dumps(summary, indent=2) + "\n"
++    )
+diff --git a/tests/integration/test_readiness_closed_history_cli.py b/tests/integration/test_readiness_closed_history_cli.py
+index 987c5a0..ce4fc1d 100644
+--- a/tests/integration/test_readiness_closed_history_cli.py
++++ b/tests/integration/test_readiness_closed_history_cli.py
+@@ -12,7 +12,6 @@ from integrations.binance_usdm.demo import DemoClient, DemoCredentials, DemoSett
+ from integrations.binance_usdm.demo_snapshot import operational_snapshot, snapshot
+ from packages.persistence.demo import accounts, events
+ from scripts import check_demo_session_ready as ready
+-from services.execution.demo_empty_db_restart import exchange_digest
+ from tests.integration.test_demo import system as demo_system  # noqa: F401
+ from tests.unit.test_readiness_closed_history import INCIDENT, NOW, RECEIPT, basis  # noqa: F401
+ 
+@@ -107,11 +106,17 @@ def installed(demo_system, basis, monkeypatch):  # noqa: F811
+     return store, client, fake
+ 
+ 
+-def test_actual_readiness_cli_reduces_pair_28_to_22_without_writes(installed, monkeypatch, capsys):
++def test_readiness_cli_stays22_and_approved_baseline_stays28_without_writes(
++    installed, monkeypatch, capsys
++):
+     store, client, fake = installed
+     before = rows(store)
+-    _, old_metrics = exchange_digest(store, client, store.read("DEMO-ready"))
+-    assert old_metrics["signed_get_count"] == 28
++    from tests.fixtures import approved_snapshot_v1
++
++    baseline_start = len(fake.calls)
++    for _ in range(2):
++        approved_snapshot_v1.operational_snapshot(client, store.read("DEMO-ready"), store.now())
++    assert len(fake.calls) - baseline_start == 28
+     start = len(fake.calls)
+     for method in ("create", "acquire", "change", "renew", "release"):
+         monkeypatch.setattr(store, method, lambda *a, **k: pytest.fail("no mutation"))
+@@ -126,14 +131,18 @@ def test_actual_readiness_cli_reduces_pair_28_to_22_without_writes(installed, mo
+ 
+ 
+ @pytest.mark.parametrize("parser", [operational_snapshot, snapshot])
+-def test_generic_snapshot_paths_keep_original_history_and_protection_queries(installed, parser):
++def test_full_history_keeps_ids_and_operational_skips_only_reviewed_closed_record(
++    installed, parser
++):
+     store, client, fake = installed
+     start = len(fake.calls)
+     parser(client, store.read("DEMO-ready"), store.now())
+     calls = fake.calls[start:]
+-    assert sum(p.get("origClientOrderId") == "DE-test" for _, _, p in calls) == 1
+-    assert sum(p.get("clientAlgoId") == "DS-test" for _, _, p in calls) == 1
+-    assert sum(p.get("clientAlgoId") == "DT-test" for _, _, p in calls) == 1
++    expected = 1 if parser is snapshot else 0
++    assert sum(p.get("origClientOrderId") == "DE-test" for _, _, p in calls) == expected
++    assert sum(p.get("clientAlgoId") == "DS-test" for _, _, p in calls) == expected
++    assert sum(p.get("clientAlgoId") == "DT-test" for _, _, p in calls) == expected
++    assert sum(p.get("origClientOrderId") == "DE-unadopted" for _, _, p in calls) == 1
+ 
+ 
+ @pytest.mark.parametrize("fault", ["position", "open_order", "open_algo", "rate_limit"])
