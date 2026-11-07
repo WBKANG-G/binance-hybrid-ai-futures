@@ -1,0 +1,24 @@
+{
+  "passed": 753,
+  "failures": 0,
+  "errors": 0,
+  "seconds": "27.065",
+  "counts": {
+    "unit": 725,
+    "integration": 28
+  },
+  "single_run": true,
+  "ruff": "PASS; all source and tests",
+  "mypy": "PASS;132 source files",
+  "git_diff_check": "PASS",
+  "guard_pre_post_source_maps": "PASS",
+  "pre_post_account_hash_binding": "PASS",
+  "synthetic_readiness_pair_reads": "28 ->22",
+  "generic_and_historical_parser_original_id_queries": "unchanged and tested",
+  "unchanged_safety_and_build_paths_verified": 12,
+  "actual_venue_orders": 0,
+  "actual_database_changed": false,
+  "windows_installation": "Not yet performed",
+  "active_tp_cost_reduction_proven": false,
+  "fresh_base_patch_apply": "PASS; all 8 changed file hashes match"
+}

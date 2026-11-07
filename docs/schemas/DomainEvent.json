@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "TradingMode": {
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "TradingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "event_id": {
+      "format": "uuid",
+      "title": "Event Id",
+      "type": "string"
+    },
+    "event_type": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Event Type",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "environment": {
+      "$ref": "#/$defs/TradingMode"
+    },
+    "account_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "strategy_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Strategy Id"
+    },
+    "signal_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Signal Id"
+    },
+    "position_id": {
+      "anyOf": [
+        {
+          "format": "uuid",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Position Id"
+    },
+    "event_time_utc": {
+      "format": "date-time",
+      "title": "Event Time Utc",
+      "type": "string"
+    },
+    "ingest_time_utc": {
+      "format": "date-time",
+      "title": "Ingest Time Utc",
+      "type": "string"
+    },
+    "correlation_id": {
+      "format": "uuid",
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "causation_id": {
+      "format": "uuid",
+      "title": "Causation Id",
+      "type": "string"
+    },
+    "source": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Source",
+      "type": "string"
+    },
+    "external_event_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "External Event Id",
+      "type": "string"
+    },
+    "payload_json": {
+      "title": "Payload Json",
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_type",
+    "environment",
+    "account_id",
+    "event_time_utc",
+    "ingest_time_utc",
+    "correlation_id",
+    "causation_id",
+    "source",
+    "external_event_id",
+    "payload_json"
+  ],
+  "title": "DomainEvent",
+  "type": "object"
+}

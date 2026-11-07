@@ -1,0 +1,34 @@
+[project]
+name = "binance-hybrid-ai-futures"
+version = "0.3.0"
+description = "Phase 4: isolated DEMO execution/recovery; LIVE trading disabled"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "fastapi==0.146.0", "pydantic==2.14.1", "pydantic-settings==2.16.0",
+  "sqlalchemy==2.1.5", "psycopg[binary]==3.3.6", "alembic==1.20.0",
+  "pyyaml==6.0.3", "uvicorn==0.49.0", "websockets==17.2",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "ruff==0.17.1", "mypy==2.4.0", "httpx2==2.14.0", "types-PyYAML"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["apps/api", "packages", "scripts", "integrations", "services/market_data", "services/strategies", "services/risk", "services/execution", "services/protection", "backtest", "migrations"]

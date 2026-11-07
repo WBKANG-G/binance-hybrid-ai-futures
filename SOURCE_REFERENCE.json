@@ -1,0 +1,23 @@
+{
+  "base_commit": "e9327bd4729c7b5a4eeebff0e309f0f631395098",
+  "candidate_commit": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "main_merged": false,
+  "actual_runtime_installed": false,
+  "files": {
+    "compare_closed_history_reads.py": "ff570d91454f3e36d514d20b0d9a40a71e174a9ecb0db4c6af27db53548ba268",
+    "guard_readiness_history_install.py": "8f0b11cd5f71a8ba8d42f031d26ba8813482ba978a62ea116a6ab779c881b3c2",
+    "scripts/check_demo_session_ready.py": "18259376c0404f98bc0cb91afeb31e33789f581562e14939989816c2fa8754d9",
+    "services/execution/readiness_closed_history.py": "0c9cb90bc74402fdaed025f715a98a2e47169eee4d1f9990c75e8f5671e358da",
+    "tests/fixtures/closed_history_probe.py": "e770b0489dedc089a20bd7b28c0281d3ab6258d4064c9fdd6c9a3ca293368340",
+    "tests/integration/test_readiness_closed_history_cli.py": "71f8058bd1e9d8cdee6f13a4581560bc2636a7d5138b635460531d637f744560",
+    "tests/integration/test_readiness_history_install.py": "0fc2e022e5c66586c53cdfcc7c56eb836786b9ec636b759986ae20085bf2dd60",
+    "tests/unit/test_readiness_closed_history.py": "77431acd7167cf7e3ce6ba65e9f7c079e51e1f96b0d5ad71c03df0ab46f075aa"
+  },
+  "runtime_files_changed": [
+    "scripts/check_demo_session_ready.py",
+    "services/execution/readiness_closed_history.py"
+  ],
+  "source_patch_sha256": "a26aed9bfee60696002382c063acf5915bf3e478d0d0cc3a9b0d74bf9b4d3c42",
+  "actual_probe_artifact": "5e98a4be4a495b7475ba6d6604482dadced2cbba",
+  "actual_probe_evidence": "User supplied Windows JSON: original pair28, candidate22, removed6; financial/transfer fields equal; DB unchanged; NORMAL/paused; not installed."
+}

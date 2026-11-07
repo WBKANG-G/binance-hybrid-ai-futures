@@ -1,0 +1,11 @@
+# Validation — staged opposite-quote TP mode
+
+2026-11-05 exact final scoped suite:163 passed52.88s, failed0/skipped0. Existing96 expiry/core/TP/validation/worker/disconnect tests plus28 event-clock,23 capture,16 explicit opposite-mode tests. No actual exchange/account requests; dedicated synthetic PostgreSQL/local WS. Ruff check/format6 Python files and strict mypy4 execution/helper files passed.
+
+Legacy TP coordinator still rejects opposite quote. New mode checks exact capped LONG/BTCUSDT/DEMO_VALIDATION and paired CLI opt-ins before credentials. Real PG/local WS tests validate ask-based LIMIT0.0007, actual-shaped TP linked fill before original SL deletion, history/baselines, no operator exit on TP, no duplicate entry, unfilled/noTP/SL/tamper/missing-cancel rejection and original flat cleanup. NoTP after fill can retain EMERGENCY. Default/incorrect coordinator/style cannot start the experiment.
+
+Capture tests retain only known e/E+numeric clocks, reject malformed/stale/future hints, no-event not-accepted, deny order/account mutations in observation-only helper, verify source-independent actual session injection on synthetic PG/socket, readonly financial digest, changed-readiness/redaction. New CLI glue test confirms replay failure cannot overwrite original TP result and session binding restores. This test initially failed because mocked credentials did not accept prompt=False; mock corrected, original assertions retained. Initial expanded run162 passed/1 failed that fixture; final exact163 passed. No failing test deleted or weakened.
+
+Only3 existing source files changed among500 parent manifest entries: TP service, TP CLI, explicit session re-export alias in validation (typing only). Added separate coordinator, copied previously reviewed sanitized hint helper and additive tests. Existing tests/configs/requirements/DB migrations/risk/fee assumptions/TTL/SL/TP distances not modified. Full app regression and production Docker rebuild not run; Windows deployment and actual new-mode execution pending explicit user decision. Main unchanged.
+
+A source ZIP and one-run API-only update/verification procedure are review-ready. The procedure can place one DEMO LIMIT at fresh opposite quote, with taker fee possible; this is a new execution-price mode, not a passive retry or a TP-fill guarantee. No cloud deploy/order sent.

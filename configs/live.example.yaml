@@ -1,0 +1,20 @@
+# No trading engine is available in Phase 0. OPEN values deliberately unset.
+mode: LIVE
+live_trading_enabled: false
+risk:
+  version: unassigned
+  risk_per_trade_pct: null
+  max_leverage: null
+  max_concurrent_positions: null
+  max_single_notional_pct: null
+  max_total_notional_pct: null
+  max_margin_usage_pct: null
+  daily_loss_limit_pct: null
+  weekly_loss_limit_pct: null
+  max_drawdown_pct: null
+  max_correlated_risk_pct: null
+  max_slippage_pct: null
+  max_spread_pct: null
+  allow_averaging_down: false
+  allow_martingale: false
+  protective_stop_required: true
