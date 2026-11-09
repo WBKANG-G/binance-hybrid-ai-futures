@@ -1,0 +1,55 @@
+{
+  "source_commit": "c8fc141f2f6759dff35f62de7c490d1ce5b685a4",
+  "installed_runtime_base": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "changed_files": [
+    "tests/fixtures/installed_tp_budget_audit.py",
+    "tests/fixtures/installed_tp_phase_audit.py",
+    "tests/integration/test_installed_tp_budget_audit.py",
+    "tests/unit/test_installed_tp_budget_audit.py"
+  ],
+  "tests": {
+    "quiet-tp-300s.xml": {
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "300.911"
+    },
+    "quiet-no-tp-300s.xml": {
+      "tests": "1",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "300.988"
+    },
+    "stress.xml": {
+      "tests": "10",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "45.150"
+    },
+    "audit-unit.xml": {
+      "tests": "12",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "0.325"
+    }
+  },
+  "total_checks": 24,
+  "long_runs_completed_real_seconds": true,
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS:132 production source files",
+    "diff_check": "PASS"
+  },
+  "harness_notes": [
+    "An initial test-only quiet WSS handler failed to stop after socket close. Fixed close detection and restarted both full300s tests; the final JUnits reflect completed runs.",
+    "Long default-latency0 runs were already executing when the optional50ms stress mode and its output field were added. The long reports retain original filenames/fields; absent latency field means0. All production source bytes and long-input behavior unchanged.",
+    "No synthetic position left by quota exhaustion is counted as verified flat. Per-case evidence explicitly distinguishes position0 from complete signed-history flat proof."
+  ],
+  "full_runtime_suite_not_rerun": "Production files unchanged; these are test-only budget measurements, not a runtime optimization.",
+  "windows_changed": false,
+  "actual_account_calls": 0
+}

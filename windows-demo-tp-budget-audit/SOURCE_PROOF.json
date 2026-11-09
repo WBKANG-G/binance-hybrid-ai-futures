@@ -1,0 +1,28 @@
+{
+  "installed_base": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "audit_source_commit": "c8fc141f2f6759dff35f62de7c490d1ce5b685a4",
+  "unchanged_runtime_sources": {
+    "integrations/binance_usdm/demo.py": "767d3a29b59882035bdfbf61d3271b39bfece0bff4b359e636db62ad9a5e84eb",
+    "integrations/binance_usdm/demo_snapshot.py": "f80f6e51505ab1095c25b6ee76af01c258cff911aabd02c201bfcddc636f2258",
+    "integrations/binance_usdm/demo_read_routing.py": "a6e96b21135882a272cb5c97f86ddc14c3a5f4fa79dd115e40397252c679a66d",
+    "integrations/binance_usdm/recovery_transport.py": "7495c0436437070644627d5ee175d7a63332dc5dc2134574285a7870e8bbba77",
+    "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
+    "services/execution/demo_preview.py": "58ba6376f61f8467d2b3c9e75923444105f5fe610f9bde4455a94b5fb5d6f267",
+    "services/execution/demo_validation.py": "54b7c41e679f69c78019fac81781fc8c43954375343ee35e40d43830251d111f",
+    "services/execution/demo_stream.py": "770b0783287dcd607c35dad96b8882acd2bcb6a205928046b9831f9920a6a29f",
+    "services/execution/demo_event_inbox.py": "6d9be8c64e144592a5c2343c1db6e4dfc1dee65aa65eeebc08bd52b5aa633281",
+    "services/execution/demo_event_clock.py": "924f3b88c9092355bb4b4ada3114944848208ab5b44ab73ee5b45d5fc1a29bfb",
+    "services/execution/demo_tp_trigger_check.py": "f2a0cbac4fc33142fa63befb5aa38e1eb7a6ac2bb10018c0ea04290f7e310a6a",
+    "scripts/check_demo_tp_trigger.py": "e9a04c8b0dd877c8cdb1708ee2b75714984ab9c6837d873c067dc0a94e6c2baa",
+    "scripts/capture_demo_wss_hints.py": "a0c2ad6f8e853646a9cfd56fcbe3c068805937ee0254a63b56d78c2b19c2fa09",
+    "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a",
+    "services/risk/paper.py": "7afe00460abae04dda795ab0dba8b8ad84877fa25686342c1fbce3f12ac80832",
+    "MASTER_SPEC_V1_0.md": "d92d00e8a4bf87f53b9b012a273dffcc296cd47e27b9dd298f087b9dc5e70ced"
+  },
+  "observational_hooks": "Phase context wrappers return original results; historical parser hook only counts attempts. Production frame validation, event coalescing, risk and original full historical cleanup remain in place.",
+  "connection": "Local WSS using original Capture.supervise and original session with fake connector; HTTP source is synthetic fixture only. Replay is original code and emits no extra HTTP.",
+  "clock": "Test epoch from existing fixtures. SDK/store/server clocks advance one actual monotonic second per second; no accelerated300s claim or timestamp acceptance relaxation.",
+  "history_shape": "Synthetic two FILLED/CLOSED records without application exit plus4 unresolved request markers.13 signed GET per generic pre-entry snapshot matches the measured26 pair count, but this is not an account-wide inventory or a copy of user records.",
+  "capacity_model": "Simulated venue enforces per-minute GET weights. All non-GET IP costs set0 deliberately optimistically; independent order-count limits not proved.",
+  "windows_or_runtime_installation_entrypoint": false
+}

@@ -1,0 +1,38 @@
+{
+  "official_sdk_commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+  "official_source_references": {
+    "market_data_api.py": {
+      "url": "https://github.com/binance/binance-connector-python/blob/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/market_data_api.py",
+      "sha256": "d783bb54426876450e148c11c76d4f9784b45dd40d1026a7e81ceb0cc4268182"
+    },
+    "trade_api.py": {
+      "url": "https://github.com/binance/binance-connector-python/blob/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/trade_api.py",
+      "sha256": "0f482140acd6561cc02571110767e5c9dd363a671be0542a859536f014b1c603"
+    },
+    "account_api.py": {
+      "url": "https://github.com/binance/binance-connector-python/blob/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+      "sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39"
+    }
+  },
+  "get_costs": {
+    "accountConfig": 5,
+    "account": 5,
+    "symbolConfig": 5,
+    "positionRisk": 5,
+    "openOrders_without_symbol": 40,
+    "openAlgoOrders_without_symbol": 40,
+    "order": 1,
+    "algoOrder": 1,
+    "income_per_page": 30,
+    "time": 1,
+    "exchangeInfo": 1,
+    "bookTicker_single_symbol": 2,
+    "premiumIndex_single_symbol": 1,
+    "klines_limit2": 1
+  },
+  "windows_evidence": "Earlier read-only observations matched old mode30+30 and accountConfig5; published REQUEST_WEIGHT limit6000/minute. Shared-IP deltas are not endpoint cost bounds.",
+  "mutation_ip_cost_assumption": 0,
+  "mutation_cost_assumption_is_optimistic_not_upper_bound": true,
+  "user_window_readiness_last_observed": "READY_ENTRIES_STILL_PAUSED, period keys2026-11-09, exchange empty, signed GET20; readiness optimization is explicitly readiness-only.",
+  "interpretation": "Per-minute peaks decide model overflow. Five-minute episode totals must not be compared directly to a one-minute limit."
+}

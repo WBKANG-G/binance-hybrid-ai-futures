@@ -1,0 +1,831 @@
+diff --git a/tests/fixtures/installed_tp_budget_audit.py b/tests/fixtures/installed_tp_budget_audit.py
+new file mode 100644
+index 0000000..54d11fd
+--- /dev/null
++++ b/tests/fixtures/installed_tp_budget_audit.py
+@@ -0,0 +1,240 @@
++"""Test-only model/clock. No runtime import or admission behavior is added."""
++
++import json
++import threading
++import time
++from datetime import timedelta
++from decimal import Decimal
++from urllib.parse import parse_qs
++
++from integrations.binance_usdm.rest import RESTResponse
++from packages.domain.contracts import OrderState, PositionState
++from services.execution.models import PaperOrder
++from tests.integration.test_paper import signal, snapshot
++
++GET_COSTS = {
++    "/fapi/v1/accountConfig": 5,
++    "/fapi/v1/time": 1,
++    "/fapi/v1/exchangeInfo": 1,
++    "/fapi/v3/account": 5,
++    "/fapi/v1/symbolConfig": 5,
++    "/fapi/v3/positionRisk": 5,
++    "/fapi/v1/openOrders": 40,
++    "/fapi/v1/openAlgoOrders": 40,
++    "/fapi/v1/order": 1,
++    "/fapi/v1/algoOrder": 1,
++    "/fapi/v1/income": 30,
++    "/fapi/v1/ticker/bookTicker": 2,
++    "/fapi/v1/premiumIndex": 1,
++    "/fapi/v1/klines": 1,
++}
++WRITE_ROUTES = {
++    ("POST", "/fapi/v1/order"),
++    ("DELETE", "/fapi/v1/order"),
++    ("POST", "/fapi/v1/algoOrder"),
++    ("DELETE", "/fapi/v1/algoOrder"),
++    ("POST", "/fapi/v1/listenKey"),
++    ("PUT", "/fapi/v1/listenKey"),
++    ("DELETE", "/fapi/v1/listenKey"),
++}
++# Intentionally optimistic: exclude ALL mutation IP costs and separate order limits.
++# A passing scenario is not budget admission. A GET-only exhaustion remains a counterexample.
++COSTS = {("GET", p): v for p, v in GET_COSTS.items()} | {route: 0 for route in WRITE_ROUTES}
++
++
++def seed_closed_shape(store, c, fake):
++    history = {}
++    for index, ambiguous in enumerate([False, False]):
++        sig = signal(
++            environment="DEMO",
++            purpose="DEMO_VALIDATION",
++            strategy=None,
++            signal_closed_candle_at=store.now() - timedelta(days=2),
++            expires_at=store.now() - timedelta(days=2) + timedelta(seconds=10),
++        )
++        cid = f"DE-audit-old-{index}"
++        stop = f"DS-audit-old-{index}"
++        tp = f"DT-audit-old-{index}"
++        order = PaperOrder(
++            client_id=cid,
++            signal=sig,
++            snapshot=snapshot(),
++            group="BTC",
++            quantity="0.0007",
++            quantity_step="0.0001",
++            price_tick="0.1",
++            loss_per_unit="500",
++            budget="1",
++            state=OrderState.UNKNOWN if ambiguous else OrderState.FILLED,
++            position_state=PositionState.CLOSED,
++            filled="0" if ambiguous else "0.0007",
++            remaining="0",
++            open_quantity="0",
++            average_price="0",
++            server_order_id=None if ambiguous else str(200 + index),
++            algo_id=stop,
++            tp_algo_id=tp,
++            exit_id=None,
++            exit_state="NONE",
++        )
++        history[str(sig.signal_id)] = order
++        if not ambiguous:
++            fake.orders[cid] = dict(
++                symbol="BTCUSDT",
++                clientOrderId=cid,
++                orderId=str(200 + index),
++                side="BUY",
++                type="LIMIT",
++                status="FILLED",
++                origQty="0.0007",
++                executedQty="0.0007",
++                avgPrice="0",
++                price=str(sig.suggested_limit_price),
++                positionSide="BOTH",
++                reduceOnly=False,
++            )
++            for identifier, kind, trigger in [
++                (stop, "STOP_MARKET", sig.initial_stop_price),
++                (tp, "TAKE_PROFIT_MARKET", sig.target_price),
++            ]:
++                fake.algos[identifier] = dict(
++                    symbol="BTCUSDT",
++                    clientAlgoId=identifier,
++                    algoId=identifier + "1",
++                    side="SELL",
++                    orderType=kind,
++                    algoStatus="EXPIRED",
++                    triggerPrice=str(trigger),
++                    closePosition=True,
++                    positionSide="BOTH",
++                    workingType="MARK_PRICE",
++                    priceProtect=False,
++                    algoType="CONDITIONAL",
++                    actualOrderId="",
++                )
++
++    def seed(ledger):
++        ledger.orders.update(history)
++        ledger.requests.update({"synthetic-old-unresolved-" + str(n): "UNKNOWN" for n in range(4)})
++        ledger.paused = True
++
++    store.change(c.lease, "SYNTHETIC_INSTALLED_HISTORY_SHAPE", seed)
++    return history
++
++
++class Meter:
++    def __init__(
++        self,
++        sender,
++        fake,
++        *,
++        capacity=6000,
++        partial=False,
++        spike=False,
++        pages=1,
++        full=False,
++        when="finalization",
++        latency=0.0,
++    ):
++        self.sender, self.fake = sender, fake
++        self.capacity, self.partial, self.spike = capacity, partial, spike
++        self.pages, self.full, self.when = pages, full, when
++        self.latency = latency
++        self.finalizing = False
++        self.started = time.monotonic()
++        self.base = fake.at
++        self.lock = threading.Lock()
++        self.rows = []
++        self.peaks = {}
++        self.used = {}
++        self.spiked = False
++
++    def now(self):
++        self.fake.at = self.base + timedelta(seconds=time.monotonic() - self.started)
++        return self.fake.at
++
++    def clock_ms(self):
++        return int(self.now().timestamp() * 1000)
++
++    def __call__(self, method, path, query, key):
++        self.now()
++        params = {
++            k: v[0]
++            for k, v in parse_qs(query.get_secret_value()).items()
++            if k not in {"signature", "timestamp", "recvWindow"}
++        }
++        cost = COSTS.get((method, path))
++        if cost is None:
++            raise AssertionError("Unmodeled synthetic route")
++        if path in {"/fapi/v1/openOrders", "/fapi/v1/openAlgoOrders"}:
++            assert not params
++        if path in {"/fapi/v1/ticker/bookTicker", "/fapi/v1/premiumIndex"}:
++            assert params == {"symbol": "BTCUSDT"}
++        if path == "/fapi/v1/klines":
++            assert params == {"symbol": "BTCUSDT", "interval": "1m", "limit": "2"}
++        if self.latency:
++            time.sleep(self.latency / 2)
++            self.now()
++        protected = (
++            any(self.fake.positions.values())
++            and sum(a["algoStatus"] == "NEW" for a in tuple(self.fake.algos.values())) >= 2
++        )
++        bucket = int(self.now().timestamp()) // 60
++        with self.lock:
++            if (
++                self.spike
++                and not self.spiked
++                and protected
++                and method == "GET"
++                and path == "/fapi/v1/time"
++            ):
++                self.used[bucket] = self.capacity
++                self.spiked = True
++            used = self.used.get(bucket, 0) + cost
++            self.used[bucket] = used
++            self.peaks[bucket] = max(self.peaks.get(bucket, 0), used)
++            denied = used > self.capacity
++            row = {
++                "seq": len(self.rows) + 1,
++                "method": method,
++                "path": path,
++                "modeled_get_weight": cost,
++                "used_weight_1m_model": used,
++                "minute": bucket,
++                "elapsed_ms": int((time.monotonic() - self.started) * 1000),
++                "status": 429 if denied else None,
++            }
++            self.rows.append(row)
++        headers = {"x-mbx-used-weight-1m": str(used)}
++        if denied:
++            if self.latency:
++                time.sleep(self.latency / 2)
++            return RESTResponse(429, b"synthetic-not-json", headers | {"retry-after": "120"})
++        response = self.sender(method, path, query, key)
++        if (
++            self.partial
++            and method == "POST"
++            and path == "/fapi/v1/order"
++            and params.get("type") == "LIMIT"
++        ):
++            self.fake.fill(params["newClientOrderId"], Decimal("0.0003"), Decimal("80000.1"))
++        if method == "GET" and path == "/fapi/v1/income":
++            pages = self.pages if self.finalizing or self.when == "preparation" else 1
++            page = int(params["page"])
++            full = page < pages or self.full and page == pages
++            response = self.fake.response([{"incomeType": "COMMISSION"}] * 1000 if full else [])
++        if path == "/fapi/v1/exchangeInfo":
++            data = json.loads(response.body)
++            data["rateLimits"] = [
++                {
++                    "rateLimitType": "REQUEST_WEIGHT",
++                    "interval": "MINUTE",
++                    "intervalNum": 1,
++                    "limit": 6000,
++                }
++            ]
++            response = self.fake.response(data)
++        row["status"] = response.status
++        if self.latency:
++            time.sleep(self.latency / 2)
++        return RESTResponse(response.status, response.body, headers)
+diff --git a/tests/fixtures/installed_tp_phase_audit.py b/tests/fixtures/installed_tp_phase_audit.py
+new file mode 100644
+index 0000000..3144d69
+--- /dev/null
++++ b/tests/fixtures/installed_tp_phase_audit.py
+@@ -0,0 +1,142 @@
++"""Observational synthetic lifecycle cost audit; never logs query, keys or bodies.
++
++This fixture does not grant, reserve, wait, retry, or change any SDK response.
++It is not wired into a CLI or production execution path.
++"""
++
++import threading
++from collections.abc import Callable, Iterator, Mapping
++from contextlib import contextmanager
++from contextvars import ContextVar
++from typing import Any
++
++from pydantic import SecretStr
++
++from integrations.binance_usdm.demo import Transport
++from integrations.binance_usdm.rest import RESTResponse
++
++PHASES = frozenset(
++    {
++        "BOOTSTRAP",
++        "SESSION_OTHER",
++        "SESSION_READY",
++        "EARLY_CHECK",
++        "RESUME",
++        "PREPARATION",
++        "RESERVATION",
++        "SUBMISSION_PROTECTION",
++        "OBSERVATION",
++        "FINALIZATION",
++        "FLAT_CONFIRMATION",
++    }
++)
++
++
++class PhaseAudit:
++    def __init__(
++        self, sender: Transport, costs: Mapping[tuple[str, str], int], *, trace_cap: int = 5000
++    ):
++        if type(trace_cap) is not int or not 1 <= trace_cap <= 10000:
++            raise ValueError("Invalid synthetic trace cap")
++        if any(type(v) is not int or v < 0 for v in costs.values()):
++            raise ValueError("Explicit nonnegative modeled costs required")
++        self.sender = sender
++        self.costs = dict(costs)
++        self.trace_cap = trace_cap
++        self._stack: ContextVar[tuple[str, ...]] = ContextVar(
++            "synthetic_lifecycle_phase", default=()
++        )
++        self._lock = threading.Lock()
++        self._finalizing = False
++        self._rows: list[dict[str, Any]] = []
++        self._counts: dict[str, int] = {}
++        self._weights: dict[str, int] = {}
++        self._unmodeled = self._attempts = 0
++
++    @contextmanager
++    def span(self, phase: str) -> Iterator[None]:
++        if phase not in PHASES:
++            raise ValueError("Unknown audit phase")
++        token = self._stack.set((*self._stack.get(), phase))
++        try:
++            yield
++        finally:
++            self._stack.reset(token)
++
++    def instrument[**P, R](self, phase: str, function: Callable[P, R]) -> Callable[P, R]:
++        def wrapped(*args: P.args, **kwargs: P.kwargs) -> R:
++            with self.span(phase):
++                return function(*args, **kwargs)
++
++        return wrapped
++
++    def begin_finalization(self) -> None:
++        with self._lock:
++            self._finalizing = True
++
++    def _phase(self) -> str:
++        stack = self._stack.get()
++        if "FLAT_CONFIRMATION" in stack:
++            return "FLAT_CONFIRMATION"
++        if self._finalizing:
++            return "FINALIZATION"
++        if "OBSERVATION" in stack:
++            return "OBSERVATION"
++        return stack[-1] if stack else "SESSION_OTHER"
++
++    def _record(
++        self, method: str, path: str, status: int | None, *, phase: str | None = None
++    ) -> None:
++        with self._lock:
++            current = phase or self._phase()
++            cost = self.costs.get((method, path))
++            self._attempts += 1
++            self._counts[current] = self._counts.get(current, 0) + 1
++            if cost is None:
++                self._unmodeled += 1
++            else:
++                self._weights[current] = self._weights.get(current, 0) + cost
++            if len(self._rows) < self.trace_cap:
++                self._rows.append(
++                    {
++                        "attempt": self._attempts,
++                        "phase": current,
++                        "method": method if method in {"GET", "POST", "PUT", "DELETE"} else "OTHER",
++                        "path": path if cost is not None else "UNMODELED_ROUTE",
++                        "status": status,
++                        "assumed_weight": cost,
++                    }
++                )
++
++    def import_bootstrap(self, rows: list[dict[str, Any]]) -> None:
++        """Import only the allowlisted method/path/status from prior synthetic calls."""
++        for row in rows:
++            self._record(str(row["method"]), str(row["path"]), row.get("status"), phase="BOOTSTRAP")
++
++    def __call__(
++        self, method: str, path: str, query: SecretStr, api_key: SecretStr | None
++    ) -> RESTResponse:
++        status = None
++        with self._lock:
++            phase = self._phase()
++        try:
++            response = self.sender(method, path, query, api_key)
++            status = response.status
++            return response
++        finally:
++            self._record(method, path, status, phase=phase)
++
++    def report(self) -> dict[str, Any]:
++        with self._lock:
++            return {
++                "actual_venue_used": False,
++                "assumed_weights_are_not_proven_bounds": True,
++                "attempts": self._attempts,
++                "known_assumed_total_weight": sum(self._weights.values()),
++                "phase_attempts": dict(self._counts),
++                "phase_assumed_weights": dict(self._weights),
++                "unmodeled_attempts": self._unmodeled,
++                "complete_cost_model": self._unmodeled == 0,
++                "trace_truncated": len(self._rows) != self._attempts,
++                "trace": list(self._rows),
++            }
+diff --git a/tests/integration/test_installed_tp_budget_audit.py b/tests/integration/test_installed_tp_budget_audit.py
+new file mode 100644
+index 0000000..b6667ca
+--- /dev/null
++++ b/tests/integration/test_installed_tp_budget_audit.py
+@@ -0,0 +1,324 @@
++"""Installed runtime: synthetic HTTP/orders and local WSS only; no budget governor."""
++
++# ruff: noqa: F811
++import asyncio
++import json
++import os
++import time
++from contextlib import asynccontextmanager
++from pathlib import Path
++from uuid import uuid4
++
++import pytest
++from websockets.asyncio.client import connect
++from websockets.asyncio.server import serve
++
++from integrations.binance_usdm.demo_read_routing import TPReadRouting
++from scripts.capture_demo_wss_hints import Capture, replay
++from services.execution import demo as demo_module
++from services.execution import demo_tp_trigger_check as module
++from services.execution import demo_validation as validation
++from tests.fixtures.installed_tp_budget_audit import COSTS, Meter, seed_closed_shape
++from tests.fixtures.installed_tp_phase_audit import PhaseAudit
++from tests.integration.test_demo import posts
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_demo_opposite_tp import opposite_case  # noqa: F401
++from tests.integration.test_demo_preview import case as preview_case  # noqa: F401
++from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
++
++
++async def observe(scenario, monkeypatch, *, profile, duration, capture):
++    store, c, fake, options = scenario
++    operation = uuid4()
++    triggered = False
++    sent_initial = False
++
++    async def handler(socket):
++        nonlocal triggered, sent_initial
++        try:
++            while True:
++                if socket.close_code is not None:
++                    return
++                ledger = store.read("DEMO-test")
++                order = ledger.orders.get(str(operation))
++                just_triggered = False
++                if (
++                    not triggered
++                    and options["trigger"]
++                    and order
++                    and ledger.validation_evidence.get(str(operation), {}).get("target_verified")
++                ):
++                    fake.trigger(order.tp_algo_id)
++                    triggered = True
++                    just_triggered = True
++                if profile in {"burst", "pulse"} or not sent_initial or just_triggered:
++                    await socket.send(json.dumps({"e": "ACCOUNT_UPDATE", "E": c.client.clock_ms()}))
++                    sent_initial = True
++                await asyncio.sleep(
++                    0.02 if profile == "burst" else 0.25 if profile == "pulse" else 0.05
++                )
++        except Exception:
++            pass
++
++    async with serve(handler, "127.0.0.1", 0) as server:
++        port = server.sockets[0].getsockname()[1]
++
++        @asynccontextmanager
++        async def connector(url):
++            async with connect(f"ws://127.0.0.1:{port}") as socket:
++                yield socket
++
++        async def local_session(coordinator, *, on_ready):
++            await capture.supervise(coordinator, connector=connector, on_ready=on_ready)
++
++        monkeypatch.setattr(validation, "session", local_session)
++        if duration != 300:
++            monkeypatch.setattr(module, "OBSERVATION_SECONDS", duration)
++        else:
++            assert module.OBSERVATION_SECONDS == 300
++        return await module.run(c, operation, entry_style="OPPOSITE_QUOTE")
++
++
++def audit_case(
++    opposite_case,
++    monkeypatch,
++    capsys,
++    *,
++    mode,
++    profile,
++    duration,
++    pages=1,
++    when="finalization",
++    full=False,
++    spike=False,
++    latency=0.0,
++):
++    store, old, fake, options = opposite_case
++    if mode != "tp":
++        options["trigger"] = False
++    if mode in {"partial", "unfilled"}:
++        options["fill"] = False
++    history = seed_closed_shape(store, old, fake)
++    sender = old.client.send
++    meter = Meter(
++        sender,
++        fake,
++        partial=mode == "partial",
++        spike=spike,
++        pages=pages,
++        when=when,
++        full=full,
++        latency=latency,
++    )
++    store.now = meter.now
++    old.client.clock_ms = meter.clock_ms
++
++    class Pool:
++        def __call__(self, *a):
++            return meter(*a)
++
++        def close(self):
++            pass
++
++        def diagnostics(self):
++            return {}
++
++    route = TPReadRouting(meter, pool=Pool())
++    audit = PhaseAudit(route, COSTS)
++    old.client.send = audit
++    c = module.PooledReadTPTriggerCoordinator(store, old.lease, old.client)
++    for name, phase in [
++        ("connected", "SESSION_READY"),
++        ("event", "OBSERVATION"),
++        ("resume_entries", "RESUME"),
++        ("reserve", "RESERVATION"),
++        ("submit", "SUBMISSION_PROTECTION"),
++        ("confirm_flat", "FLAT_CONFIRMATION"),
++    ]:
++        monkeypatch.setattr(c, name, audit.instrument(phase, getattr(c, name)))
++    monkeypatch.setattr(validation, "prepare", audit.instrument("PREPARATION", validation.prepare))
++    original_begin = validation.pause_finalization_locally
++
++    def begin(coordinator):
++        meter.finalizing = True
++        audit.begin_finalization()
++        return original_begin(coordinator)
++
++    monkeypatch.setattr(validation, "pause_finalization_locally", begin)
++    proofs = []
++    historical = demo_module.historical_snapshot
++
++    def counted(*a, **k):
++        proofs.append(True)
++        return historical(*a, **k)
++
++    monkeypatch.setattr(demo_module, "historical_snapshot", counted)
++    try:
++        with audit.span("BOOTSTRAP"):
++            c.client.sync_clock()
++            c.refresh_metadata()
++            c.reconcile()
++        before = store.read("DEMO-test")
++        assert before.reconciled and before.risk_state.value == "NORMAL", (
++            before.reconciled,
++            before.risk_state,
++            before.reconciliation_failure_code,
++        )
++        capture = Capture()
++        report = asyncio.run(
++            observe(
++                (store, c, fake, options),
++                monkeypatch,
++                profile=profile,
++                duration=duration,
++                capture=capture,
++            )
++        )
++        n = len(meter.rows)
++        try:
++            replay_report = asyncio.run(replay(capture.hints))
++        except Exception:
++            replay_report = {"hint_replay": "NOT_VERIFIED_NO_AUTOMATIC_RETRY"}
++        assert len(meter.rows) == n
++    finally:
++        route.close()
++        c.client.send = sender
++    output = capsys.readouterr().out
++    completions = [
++        json.loads(s)
++        for s in output.splitlines()
++        if s.startswith("{") and "completion_stage" in json.loads(s)
++    ]
++    assert completions, json.dumps(report)
++    completion = completions[-1]
++    after = store.read("DEMO-test")
++    assert after.paused and report["history_and_baselines_preserved"]
++    assert all(after.orders[k] == o for k, o in history.items())
++    assert all(after.requests[k] == v for k, v in before.requests.items())
++    assert (
++        after.daily_base == before.daily_base
++        and after.weekly_base == before.weekly_base
++        and after.high_water == before.high_water
++    )
++    assert report["new_entry_post_count"] <= 1 and report["operator_exit_post_attempts"] <= 1
++    assert not any(p["type"] == "MARKET" and p.get("reduceOnly") != "true" for p in posts(fake))
++    assert not any(
++        r["path"] in {"/fapi/v1/positionSide/dual", "/fapi/v1/multiAssetsMargin"}
++        for r in meter.rows
++    )
++    result = audit.report()
++    assert result["complete_cost_model"] and not result["trace_truncated"]
++    assert result["attempts"] == len(meter.rows)
++    rate = [r for r in meter.rows if r["status"] == 429]
++    if rate:
++        assert rate[0]["seq"] == len(meter.rows)
++        assert (
++            report["tp_trigger_check"] == "NOT_ACCEPTED"
++            and c.client.cooldown_until > c.client.clock_ms()
++        )
++        if any(fake.positions.values()):
++            assert report["flat_confirmation"] == "UNKNOWN" and report["risk_state"] == "EMERGENCY"
++    elif full:
++        assert (
++            report["tp_trigger_check"] == "NOT_ACCEPTED"
++            and report["flat_confirmation"] == "UNKNOWN"
++        )
++        assert completion["completion_failure"] != "NONE"
++    else:
++        assert not any(fake.positions.values()) and len(proofs) == 5
++        if mode == "tp":
++            assert (
++                report["tp_trigger_check"] == "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED"
++            )
++    result.update(
++        {
++            "mode": mode,
++            "event_profile": profile,
++            "synthetic_http_latency_ms": int(latency * 1000),
++            "observation_seconds": duration,
++            "production_observation_seconds": 300,
++            "observation_shortened_for_case": duration != 300,
++            "elapsed_seconds": round(time.monotonic() - meter.started, 3),
++            "income_pages": pages,
++            "page10_full": full,
++            "pagination_starts": when,
++            "shared_ip_spike": spike,
++            "capacity_1m": 6000,
++            "per_minute_peaks": {str(k): v for k, v in meter.peaks.items()},
++            "request_trace": meter.rows,
++            "result": report,
++            "completion": completion,
++            "full_history_snapshot_count": len(proofs),
++            "position_nonzero_at_end": any(fake.positions.values()),
++            "captured_events": len(capture.hints),
++            "replay_result": replay_report,
++            "ip_model_mutation_costs_optimistically_zero": True,
++            "order_rate_limits_verified": False,
++            "shared_ip_capacity_reserved": False,
++            "active_tp_admission_proven": False,
++            "runtime_modified": False,
++        }
++    )
++    folder = Path(os.environ["INSTALLED_TP_AUDIT_REPORT_DIR"])
++    folder.mkdir(exist_ok=True, parents=True)
++    name = f"{mode}-{profile}-{duration}-pages{pages}-{when}-full{full}-spike{spike}-latency{int(latency * 1000)}.json"
++    (folder / name).write_text(json.dumps(result, indent=2) + "\n")
++    return result
++
++
++@pytest.mark.parametrize("mode", ["tp", "no_tp"])
++def test_real_300_second_quiet_observation(opposite_case, monkeypatch, capsys, mode):
++    r = audit_case(opposite_case, monkeypatch, capsys, mode=mode, profile="quiet", duration=300)
++    assert not r["observation_shortened_for_case"]
++    assert r["elapsed_seconds"] >= 300 and all(x <= 6000 for x in r["per_minute_peaks"].values())
++
++
++@pytest.mark.parametrize("mode", ["no_tp", "partial", "unfilled"])
++def test_full_duration_config_under_event_burst(opposite_case, monkeypatch, capsys, mode):
++    r = audit_case(opposite_case, monkeypatch, capsys, mode=mode, profile="burst", duration=300)
++    assert any(row["status"] == 429 for row in r["request_trace"])
++
++
++@pytest.mark.parametrize(
++    "pages,full,when",
++    [
++        (1, False, "finalization"),
++        (3, False, "finalization"),
++        (10, False, "finalization"),
++        (10, True, "finalization"),
++        (10, False, "preparation"),
++    ],
++)
++def test_shortened_pagination_cleanup_stress(opposite_case, monkeypatch, capsys, pages, full, when):
++    audit_case(
++        opposite_case,
++        monkeypatch,
++        capsys,
++        mode="no_tp",
++        profile="quiet",
++        duration=0.8,
++        pages=pages,
++        full=full,
++        when=when,
++    )
++
++
++def test_shared_ip_spike_keeps_unknown_exposure_and_no_retry(opposite_case, monkeypatch, capsys):
++    r = audit_case(
++        opposite_case, monkeypatch, capsys, mode="no_tp", profile="quiet", duration=300, spike=True
++    )
++    assert r["position_nonzero_at_end"] and r["result"]["flat_confirmation"] == "UNKNOWN"
++
++
++def test_modeled_50ms_http_and_four_hints_per_second(opposite_case, monkeypatch, capsys):
++    r = audit_case(
++        opposite_case,
++        monkeypatch,
++        capsys,
++        mode="no_tp",
++        profile="pulse",
++        duration=300,
++        latency=0.05,
++    )
++    assert r["synthetic_http_latency_ms"] == 50
++    assert any(row["status"] == 429 for row in r["request_trace"])
+diff --git a/tests/unit/test_installed_tp_budget_audit.py b/tests/unit/test_installed_tp_budget_audit.py
+new file mode 100644
+index 0000000..b4b794f
+--- /dev/null
++++ b/tests/unit/test_installed_tp_budget_audit.py
+@@ -0,0 +1,101 @@
++"""Audit integrity and explicit limitations; never an execution admission test."""
++
++import json
++from datetime import UTC, datetime, timedelta
++from types import SimpleNamespace
++
++import pytest
++from pydantic import SecretStr
++
++from integrations.binance_usdm.rest import RESTResponse
++from tests.fixtures.installed_tp_budget_audit import COSTS, Meter
++from tests.fixtures.installed_tp_phase_audit import PhaseAudit
++
++
++def meter(capacity=6000):
++    called = []
++    fake = SimpleNamespace(at=datetime(2026, 10, 19, 7, tzinfo=UTC), positions={}, algos={})
++
++    def send(*args):
++        called.append(args)
++        return RESTResponse(200, b"{}", {})
++
++    return Meter(send, fake, capacity=capacity), called
++
++
++def test_synthetic_capacity_is_get_only_and_stops_at_first_exceedance():
++    m, called = meter(capacity=6)
++    assert m("GET", "/fapi/v1/accountConfig", SecretStr(""), None).status == 200
++    assert m("GET", "/fapi/v1/accountConfig", SecretStr(""), None).status == 429
++    assert len(called) == 1 and m.rows[-1]["used_weight_1m_model"] == 10
++    assert all(COSTS[route] == 0 for route in COSTS if route[0] != "GET")
++
++
++def test_model_counter_resets_only_on_a_new_minute():
++    m, _ = meter()
++    m("GET", "/fapi/v1/accountConfig", SecretStr(""), None)
++    m.base += timedelta(minutes=1)
++    m("GET", "/fapi/v1/accountConfig", SecretStr(""), None)
++    assert list(m.peaks.values()) == [5, 5]
++
++
++@pytest.mark.parametrize(
++    "path,params",
++    [
++        ("/fapi/v1/unknown", ""),
++        ("/fapi/v1/openOrders", "symbol=BTCUSDT"),
++        ("/fapi/v1/openAlgoOrders", "symbol=BTCUSDT"),
++        ("/fapi/v1/klines", "symbol=BTCUSDT&interval=1m&limit=1000"),
++        ("/fapi/v1/ticker/bookTicker", ""),
++    ],
++)
++def test_unmodeled_route_or_query_scope_has_no_invented_cost(path, params):
++    m, called = meter()
++    with pytest.raises(AssertionError):
++        m("GET", path, SecretStr(params), None)
++    assert not called
++
++
++def test_observer_preserves_response_identity_and_redacts_private_inputs():
++    response = RESTResponse(200, b"private-body-probe", {})
++    audit = PhaseAudit(lambda *a: response, {("GET", "/fapi/v1/accountConfig"): 5})
++    with audit.span("OBSERVATION"):
++        result = audit(
++            "GET",
++            "/fapi/v1/accountConfig",
++            SecretStr("signature=private-signature-probe"),
++            SecretStr("private-key-probe"),
++        )
++    assert result is response
++    report = audit.report()
++    assert not any(
++        x in json.dumps(report)
++        for x in ("private-key-probe", "private-signature-probe", "private-body-probe")
++    )
++    assert report["phase_assumed_weights"] == {"OBSERVATION": 5}
++
++
++def test_full_history_proof_phase_has_priority_during_finalization():
++    audit = PhaseAudit(
++        lambda *a: RESTResponse(200, b"{}", {}), {("GET", "/fapi/v1/accountConfig"): 5}
++    )
++    audit.begin_finalization()
++    with audit.span("FLAT_CONFIRMATION"):
++        audit("GET", "/fapi/v1/accountConfig", SecretStr(""), None)
++    assert audit.report()["phase_attempts"] == {"FLAT_CONFIRMATION": 1}
++
++
++def test_truncated_or_unknown_trace_is_explicit_not_a_complete_proof():
++    audit = PhaseAudit(
++        lambda *a: RESTResponse(200, b"{}", {}), {("GET", "/fapi/v1/accountConfig"): 5}, trace_cap=1
++    )
++    audit("GET", "/fapi/v1/accountConfig", SecretStr(""), None)
++    audit("GET", "/fapi/v1/unknown", SecretStr(""), None)
++    r = audit.report()
++    assert r["trace_truncated"] and not r["complete_cost_model"] and r["unmodeled_attempts"] == 1
++
++
++@pytest.mark.parametrize("cost", [-1, True])
++def test_invalid_cost_assumptions_are_rejected(cost):
++    with pytest.raises(ValueError):
++        PhaseAudit(lambda *a: None, {("GET", "/path"): cost})

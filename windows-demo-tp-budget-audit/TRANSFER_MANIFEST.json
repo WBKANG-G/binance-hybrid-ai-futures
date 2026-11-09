@@ -1,0 +1,31 @@
+{
+  "package": "windows-demo-tp-budget-audit",
+  "files": {
+    "README_KO.md": "4ad6f91f4309794b65b271f2a9e5ade3f6a3ac7ec282fd6f7e5f1705ae31fe86",
+    "SOURCE_PROOF.json": "b9141e5c2c6ada734aacd449f2baef486b3be555196f2f47bef688923b8dd173",
+    "SUMMARY.json": "69a5a08be15a4c682dbb517c0847080a10abc66c28e277cd273cf95e228633b6",
+    "VALIDATION.json": "b1ae2370e931c6342796a09294047b39bd8e79dcfa22f297efebe9b8865d8607",
+    "WEIGHT_REFERENCE.json": "dd272a2abf5213e6ec85e75fd1da5d30cdfd2947480f3fd7ee3c4d4d9119c4f7",
+    "source/tests/fixtures/installed_tp_budget_audit.py": "c9a387c60dc366941d3ed3b6166062e8b74176432e28d314be8339fccd215911",
+    "source/tests/fixtures/installed_tp_phase_audit.py": "63d4831045b1cc9ece7c385e01e4ed00909a801e68991b022197ce699e197502",
+    "source/tests/integration/test_installed_tp_budget_audit.py": "2c2b718c8e5a44a0e635e73a41f0ff0f9f013c88fc8962b56f1a0fe01bb18044",
+    "source/tests/unit/test_installed_tp_budget_audit.py": "f54bfae1a09cc8a0e1eef4fe4563f77d9f19705b1ec7aaa76740552547f7f245",
+    "source.patch": "997cc8be9ad53a5805e6ddc12bda2dd49e544933a740c63b30dfdc808864e709",
+    "synthetic_reports/no_tp-burst-300-pages1-finalization-fullFalse-spikeFalse-latency0.json": "83bdbdcc1def96dacaee4a07c5b5f33d6a94b578d54eff683800d28c738ac28b",
+    "synthetic_reports/no_tp-pulse-300-pages1-finalization-fullFalse-spikeFalse-latency50.json": "32a921f13eff99d0ff9570476c9a493d456dd60ac3de41e5fd0554de8be63418",
+    "synthetic_reports/no_tp-quiet-0.8-pages1-finalization-fullFalse-spikeFalse-latency0.json": "d4daf1b5b88a43a3e0cfdbebe151c1dd81b6805f3176e2823fbb9c536cf8af01",
+    "synthetic_reports/no_tp-quiet-0.8-pages10-finalization-fullFalse-spikeFalse-latency0.json": "96eaee58715e2b5b200ca825b9f5cdcfad5c21f603941f9f758630b820e908eb",
+    "synthetic_reports/no_tp-quiet-0.8-pages10-finalization-fullTrue-spikeFalse-latency0.json": "c911bf810d5eec9964a70b04dad1a38298bb6e9cfbf77779970b8d24c39f329a",
+    "synthetic_reports/no_tp-quiet-0.8-pages10-preparation-fullFalse-spikeFalse-latency0.json": "cbd49589517ef9e5c9a08f4e85ac9bff4cc64fcf57a8cef7341a075ae72a8c01",
+    "synthetic_reports/no_tp-quiet-0.8-pages3-finalization-fullFalse-spikeFalse-latency0.json": "3ca69b6f8aece8c63914b61a576deae6a59d498ad02f80a995e42254a29389dc",
+    "synthetic_reports/no_tp-quiet-300-pages1-finalization-fullFalse-spikeFalse.json": "d0706309a815c54aa95cffa133a6c2fd40a42e76e7e53983798733a0ca21fc81",
+    "synthetic_reports/no_tp-quiet-300-pages1-finalization-fullFalse-spikeTrue-latency0.json": "0135f9beae0bfc7c09881869db5d54840663fe3f3080f03149dde609e9d59e89",
+    "synthetic_reports/partial-burst-300-pages1-finalization-fullFalse-spikeFalse-latency0.json": "23869ba2ec07551a2fab3f5159f7c623ec3242d059c8d6bb31e164d446a60958",
+    "synthetic_reports/tp-quiet-300-pages1-finalization-fullFalse-spikeFalse.json": "30274bf4763701d6dace0d51a4ce0db45fe6ca3a77f7c005f4e5f0872feaef0d",
+    "synthetic_reports/unfilled-burst-300-pages1-finalization-fullFalse-spikeFalse-latency0.json": "34db2ac63db8be3ba8d77b53bf4219287fe99694a69091afa989e846177bd286",
+    "test-results/audit-unit.xml": "ce3327477eab959f29e54450964b2555666e1fa594d1d6dc8b822271e94d4a40",
+    "test-results/quiet-no-tp-300s.xml": "c54a0f045ec3da73e499030b40e9b9fba3762fde0e1377b2c242b8267ccc92fd",
+    "test-results/quiet-tp-300s.xml": "23921cf1cde73d8ed7025c99d5e23ac18386e99477ca1d5c19117f74df8944be",
+    "test-results/stress.xml": "ee0cdc7a466e66ff4dec109f031c3ccc2f7dd63b0e3d6d7da309f5ddddd52b0b"
+  }
+}
