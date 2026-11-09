@@ -1,0 +1,5 @@
+scenario,wall_seconds,episode_weight,cleanup_weight,observed_minute_peak,adverse_phase_peak,flat_confirmation,sdk_failed_cancel_calls,uncertain_deferrals
+quiet_delayed_cancel,303.645,16160,5126,5539,6778,VERIFIED_FLAT,0,0
+quiet_failed_cancel,303.532,14450,3416,4013,5187,UNKNOWN,1,4
+quiet_tp,300.514,15154,3323,4657,5433,VERIFIED_FLAT,0,0
+quiet_uncertain_resolves,303.614,16500,5466,5879,7118,VERIFIED_FLAT,1,3

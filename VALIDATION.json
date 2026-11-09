@@ -1,0 +1,76 @@
+{
+  "total_passed": 100,
+  "suites": {
+    "short_regression": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "96",
+      "time": "152.445",
+      "timestamp": "2026-11-09T06:22:59.839911+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "natural_tp": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "301.310",
+      "timestamp": "2026-11-09T06:07:52.589340+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "natural_delayed_cancel": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "304.441",
+      "timestamp": "2026-11-09T06:07:52.601949+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "natural_failed_cancel": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "304.184",
+      "timestamp": "2026-11-09T06:17:26.008976+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "natural_uncertain_resolution": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "304.235",
+      "timestamp": "2026-11-09T06:18:31.261257+00:00",
+      "hostname": "3413dfa6286d"
+    }
+  },
+  "natural_300_second_cases": 4,
+  "short_pending_resolution_cases": 2,
+  "ticket_failure_and_budget_cases": 20,
+  "admission_matrix": 14,
+  "prior_first_confirmation_faults_with_new_component": 18,
+  "read_only_lock_and_invalid_ticket_contracts": 10,
+  "original_confirmation_context": 2,
+  "prior_budget_unit": 30,
+  "ruff": "PASS ten changed/new files",
+  "mypy": "PASS 139 production source files",
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_database_accessed": false,
+  "synthetic_http_local_wss_isolated_postgres": true,
+  "natural_observation_seconds": 300,
+  "clocks_accelerated": false,
+  "counterfactual_limit": 100000,
+  "review_limit": 6000,
+  "all_mutations_model_cost": 40,
+  "real_execution_default_disabled": true,
+  "published_6000_entry_still_blocked": true
+}

@@ -1,0 +1,62 @@
+{
+  "prior_failed_cancel_report_sha256": "01be22f8bfdcbbe13c854729ca217822624d4bf57e639602627ead92e4663756",
+  "source": "80f6edcbc8aafe3f1c8a2090c53f94f5a5194597",
+  "prior_source": "022b1ab001b58c1d84617a2071433c3ce8041764",
+  "rows": [
+    {
+      "scenario": "quiet_delayed_cancel",
+      "wall_seconds": 303.645,
+      "episode_weight": 16160,
+      "cleanup_weight": 5126,
+      "observed_minute_peak": 5539,
+      "adverse_phase_peak": 6778,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "sdk_failed_cancel_calls": 0,
+      "uncertain_deferrals": 0
+    },
+    {
+      "scenario": "quiet_failed_cancel",
+      "wall_seconds": 303.532,
+      "episode_weight": 14450,
+      "cleanup_weight": 3416,
+      "observed_minute_peak": 4013,
+      "adverse_phase_peak": 5187,
+      "flat_confirmation": "UNKNOWN",
+      "sdk_failed_cancel_calls": 1,
+      "uncertain_deferrals": 4
+    },
+    {
+      "scenario": "quiet_tp",
+      "wall_seconds": 300.514,
+      "episode_weight": 15154,
+      "cleanup_weight": 3323,
+      "observed_minute_peak": 4657,
+      "adverse_phase_peak": 5433,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "sdk_failed_cancel_calls": 0,
+      "uncertain_deferrals": 0
+    },
+    {
+      "scenario": "quiet_uncertain_resolves",
+      "wall_seconds": 303.614,
+      "episode_weight": 16500,
+      "cleanup_weight": 5466,
+      "observed_minute_peak": 5879,
+      "adverse_phase_peak": 7118,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "sdk_failed_cancel_calls": 1,
+      "uncertain_deferrals": 3
+    }
+  ],
+  "prior_failed_cancel_adverse_peak": 13419,
+  "new_failed_cancel_adverse_peak": 5187,
+  "failed_cancel_peak_reduction_percent": 61.35,
+  "delayed_cancel_peak_still_exceeds_6000": true,
+  "uncertain_resolution_peak_still_exceeds_6000": true,
+  "cost_upper_bounds_proven": false,
+  "shared_ip_reserved": false,
+  "order_count_limits_proven": false,
+  "runtime_admission_relaxed": false,
+  "actual_execution_approved": false,
+  "next_action": "KEEP_PAUSED_REVIEW_DELAYED_AND_RESOLVED_FULL_CONFIRMATION_COST_ENVELOPE"
+}
