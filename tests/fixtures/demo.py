@@ -52,6 +52,10 @@ class FakeDemo:
         if path == "/fapi/v1/listenKey":
             return self.response({"listenKey": "syntheticDemonstrationKey1234567890"})
         if method == "GET":
+            if path == "/fapi/v1/accountConfig":
+                return self.response(
+                    {"dualSidePosition": self.dual, "multiAssetsMargin": self.multi}
+                )
             if path == "/fapi/v1/positionSide/dual":
                 return self.response({"dualSidePosition": self.dual})
             if path == "/fapi/v1/multiAssetsMargin":

@@ -37,6 +37,7 @@ PUBLIC = frozenset(
 )
 SIGNED_GET = frozenset(
     {
+        "/fapi/v1/accountConfig",
         "/fapi/v3/account",
         "/fapi/v1/symbolConfig",
         "/fapi/v1/income",

@@ -78,13 +78,12 @@ def operational_snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) 
 def _snapshot(
     client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
 ) -> DemoSnapshot:
-    mode = client.request("GET", "/fapi/v1/positionSide/dual")
-    assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
+    # Fresh account-wide mode truth on every snapshot; no cache or fallback.
+    mode = client.request("GET", "/fapi/v1/accountConfig")
     if (
         not isinstance(mode, dict)
         or mode.get("dualSidePosition") is not False
-        or not isinstance(assets, dict)
-        or assets.get("multiAssetsMargin") is not False
+        or mode.get("multiAssetsMargin") is not False
     ):
         raise DemoFailure(
             "DEMO supports verified one-way/single-asset only; settings are never changed automatically"

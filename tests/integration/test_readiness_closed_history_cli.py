@@ -107,18 +107,18 @@ def installed(demo_system, basis, monkeypatch):  # noqa: F811
     return store, client, fake
 
 
-def test_actual_readiness_cli_reduces_pair_28_to_22_without_writes(installed, monkeypatch, capsys):
+def test_actual_readiness_cli_reduces_pair_26_to_20_without_writes(installed, monkeypatch, capsys):
     store, client, fake = installed
     before = rows(store)
     _, old_metrics = exchange_digest(store, client, store.read("DEMO-ready"))
-    assert old_metrics["signed_get_count"] == 28
+    assert old_metrics["signed_get_count"] == 26
     start = len(fake.calls)
     for method in ("create", "acquire", "change", "renew", "release"):
         monkeypatch.setattr(store, method, lambda *a, **k: pytest.fail("no mutation"))
     ready.main()
     r = json.loads(capsys.readouterr().out)
     assert r["session_ready"] == "READ_ONLY_READY_ENTRIES_STILL_PAUSED"
-    assert r["closed_history_omitted_count"] == 1 and r["read_diagnostic"]["signed_get_count"] == 22
+    assert r["closed_history_omitted_count"] == 1 and r["read_diagnostic"]["signed_get_count"] == 20
     assert rows(store) == before
     assert all(method == "GET" for method, _, _ in fake.calls[start:])
     assert sum(p.get("origClientOrderId") == "DE-unadopted" for _, _, p in fake.calls[start:]) == 2
@@ -156,7 +156,7 @@ def test_fresh_global_exposure_and_rate_limit_cannot_pass_readiness(installed, c
     assert r["session_ready"] == "BLOCKED" and rows(store) == before
 
 
-def test_receipt_corruption_uses_original_28_reads_instead_of_omission(installed, capsys):
+def test_receipt_corruption_uses_full_26_reads_instead_of_omission(installed, capsys):
     store, client, fake = installed
     lease = store.acquire("DEMO-ready", uuid4())
     store.change(
@@ -166,5 +166,5 @@ def test_receipt_corruption_uses_original_28_reads_instead_of_omission(installed
     before = rows(store)
     ready.main()
     r = json.loads(capsys.readouterr().out)
-    assert r["closed_history_omitted_count"] == 0 and r["read_diagnostic"]["signed_get_count"] == 28
+    assert r["closed_history_omitted_count"] == 0 and r["read_diagnostic"]["signed_get_count"] == 26
     assert rows(store) == before

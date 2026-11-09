@@ -2,8 +2,11 @@
 
 import asyncio
 import json
+import time as real_time
 from contextlib import asynccontextmanager
 from datetime import timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -32,6 +35,7 @@ def case(preview_case):  # noqa: F811
 
 async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
     _, c, fake = case
+    original_clock = c.client.sync_clock
     if accelerate:
         original = c.client.sync_clock
 
@@ -67,9 +71,52 @@ async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
             async with connect(f"ws://127.0.0.1:{port}") as socket:
                 yield socket
 
-        return await module.run(
-            c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
-        )
+        # The accelerated account clock still traverses the original25-minute
+        # renewal interval. Do not require150 sync calls to fit inside5 real
+        # seconds on every CI machine. Hold only this observer's duration clock
+        # below completion until a genuine renewal succeeds; a real30s outer
+        # watchdog still fails if renewal never happens. AsyncIO time is untouched.
+        first = []
+        created = []
+        renewal_elapsed = []
+        original_key = c.client.listen_key
+
+        def observe_clock():
+            now = real_time.monotonic()
+            if not first:
+                first.append(now)
+            return min(now, first[0] + duration - 0.001) if not c.client.key_renewals else now
+
+        def observe_key(method):
+            if method == "POST":
+                created.append(fake.at)
+            if method == "PUT" and created:
+                renewal_elapsed.append(int((fake.at - created[-1]).total_seconds() * 1000))
+            return original_key(method)
+
+        try:
+            if accelerate:
+                with (
+                    patch.object(module, "time", SimpleNamespace(monotonic=observe_clock)),
+                    patch.object(c.client, "listen_key", observe_key),
+                ):
+                    result = await asyncio.wait_for(
+                        module.run(
+                            c,
+                            uuid4(),
+                            connector=connector,
+                            observation_seconds=duration,
+                            progress_seconds=0.25,
+                        ),
+                        timeout=30,
+                    )
+                result["synthetic_renewal_elapsed_ms"] = renewal_elapsed
+                return result
+            return await module.run(
+                c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
+            )
+        finally:
+            c.client.sync_clock = original_clock
 
 
 def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # noqa: F811
@@ -80,6 +127,10 @@ def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # n
         json.dumps(report)
     )
     assert report["successful_key_renewals"] >= 1
+    assert (
+        report["synthetic_renewal_elapsed_ms"]
+        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
+    )
     assert report["key_create_success_count"] == report["key_close_success_count"] == 1
     assert report["observed_elapsed_ms"] >= 5000
     assert report["failure"] == report["completion_failure"] == "NONE"
@@ -140,6 +191,10 @@ def test_key_close_failure_prevents_acceptance_after_successful_renewal(case, mo
     report = asyncio.run(exercise(case, duration=5, accelerate=True))
     assert report["private_stability"] == "NOT_ACCEPTED"
     assert report["successful_key_renewals"] >= 1 and report["key_close_success_count"] == 0
+    assert (
+        report["synthetic_renewal_elapsed_ms"]
+        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
+    )
     assert report["failure"] == "KEY_CLOSE_NOT_VERIFIED"
 
 
