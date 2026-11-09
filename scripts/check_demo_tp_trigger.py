@@ -12,6 +12,9 @@ from sqlalchemy import create_engine
 
 from integrations.binance_usdm.demo import DemoClient, DemoSettings, transport
 from integrations.binance_usdm.demo_read_routing import TPReadRouting
+from integrations.binance_usdm.demo_tp_admission import TPModelProfile
+from integrations.binance_usdm.demo_tp_weight_model import MODELED_TP_ROUTE_COSTS
+from integrations.binance_usdm.demo_tp_window_budget import WindowTPBudget
 from packages.domain.config import UniqueKeyLoader, database_url
 from packages.persistence.demo import DemoStore
 from scripts.capture_demo_wss_hints import Capture, replay
@@ -19,13 +22,12 @@ from scripts.demo_key_session import credentials
 from scripts.observe_demo_private import ACCOUNT
 from services.execution import demo_validation
 from services.execution.demo_api_restart_check import empty
+from services.execution.demo_tp_budget_integration import BudgetedTPTriggerCoordinator
 from services.execution.demo_tp_trigger_check import (
-    OppositeQuoteTPTriggerCoordinator,
-    PooledReadTPTriggerCoordinator,
     TPTriggerClient,
-    TPTriggerCoordinator,
     run,
 )
+from services.execution.demo_tp_uncertain_cancel_candidate import UncertainCancellationClient
 from services.execution.demo_validation import safe_failure
 
 
@@ -45,6 +47,7 @@ def main() -> None:
     engine = store = lease = None
     client = None
     routed = None
+    budget = None
     report = {
         "tp_trigger_check": "BLOCKED",
         "failure": "CHECK_FAILED",
@@ -55,7 +58,7 @@ def main() -> None:
     try:
         if (
             os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
-            or os.getenv("TRADING_MODE", "PAPER") == "LIVE"
+            or os.getenv("TRADING_MODE", "PAPER").upper() == "LIVE"
         ):
             raise ValueError("LIVE context forbidden")
         key = credentials(prompt=False)
@@ -70,6 +73,15 @@ def main() -> None:
                 raise ValueError("Pooled TP reads require the standard SDK transport")
             routed = TPReadRouting(client.send)
             client.send = routed
+        # Every HTTP attempt, including initial clock discovery, passes the gate.
+        # History is bound from the read-only ledger before limit/admission binding.
+        budget = WindowTPBudget(
+            client.send,
+            TPModelProfile(0),
+            MODELED_TP_ROUTE_COSTS,
+            allow_synthetic_model_execution=False,
+        )
+        client.send = budget
         client.sync_clock()
         engine = create_engine(
             database_url().get_secret_value(), connect_args={"connect_timeout": 2}
@@ -81,14 +93,19 @@ def main() -> None:
             or str(uuid5(args.operation_id, "tp-trigger-observation")) in state.operations
         ):
             raise ValueError("Existing operation must not be submitted again")
-        lease = store.acquire(ACCOUNT, uuid4())
-        coordinator = (
-            PooledReadTPTriggerCoordinator(store, lease, client)
-            if args.enable_pooled_read_tp_observation
-            else OppositeQuoteTPTriggerCoordinator(store, lease, client)
-            if args.entry_style == "OPPOSITE_QUOTE"
-            else TPTriggerCoordinator(store, lease, client)
+        if args.entry_style != "OPPOSITE_QUOTE" or not args.enable_pooled_read_tp_observation:
+            raise ValueError("Integrated TP requires explicit opposite-quote pooled scope")
+        budget.profile = TPModelProfile(len(state.orders))
+        budget.configure(client.public("/fapi/v1/exchangeInfo"))
+        # Default refusal occurs before any lease write, marker or reservation.
+        # No command-line flag or environment variable enables model execution.
+        budget.preflight()
+        client = UncertainCancellationClient(
+            client.settings, key, send=budget, clock_ms=client.clock_ms
         )
+        client.sync_clock()
+        lease = store.acquire(ACCOUNT, uuid4())
+        coordinator = BudgetedTPTriggerCoordinator(store, lease, client, budget)
         empty(coordinator)
         coordinator.refresh_metadata()
         coordinator.reconcile()
@@ -147,6 +164,10 @@ def main() -> None:
                     finally:
                         if client is not None:
                             client.send = routed.original
+                elif budget is not None and client is not None:
+                    client.send = budget.sender
+    if budget is not None:
+        report["tp_budget_diagnostic"] = budget.diagnostics()
     if isinstance(client, DemoClient):
         report["demo_rate_limit_diagnostic"] = client.rate_limit_diagnostics()
     print(json.dumps(report), flush=True)
