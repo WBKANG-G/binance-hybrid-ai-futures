@@ -1,0 +1,88 @@
+{
+  "selected_core_and_unit_passed": 896,
+  "separate_six_integrated_lifecycles_passed": 6,
+  "additional_nonoverlapping_uncertain_integration_passed": 22,
+  "unique_selected_tests_passed": 924,
+  "suites": {
+    "core_and_unit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "896",
+      "time": "49.048",
+      "timestamp": "2026-11-09T09:44:38.774356+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "tp": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "301.254",
+      "timestamp": "2026-11-09T09:41:51.859988+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "delayed": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "332.665",
+      "timestamp": "2026-11-09T09:41:51.853558+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "failed": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "304.373",
+      "timestamp": "2026-11-09T09:41:51.865695+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "recovery": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "347.767",
+      "timestamp": "2026-11-09T09:41:51.853559+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "burst": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "62.252",
+      "timestamp": "2026-11-09T09:42:19.124940+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "partial": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "1",
+      "time": "62.747",
+      "timestamp": "2026-11-09T09:42:19.160709+00:00",
+      "hostname": "3413dfa6286d"
+    }
+  },
+  "focused_regression_total_including_overlap": 111,
+  "ruff": "PASS all added/changed Python files",
+  "mypy": "PASS 141 production Python files",
+  "synthetic_http_local_wss_isolated_postgres": true,
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_database_accessed": false,
+  "observation_seconds_natural": 300,
+  "clocks_accelerated": false,
+  "legacy_guard_baseline": "The same three source-pin-dependent unit cases failed on prior80f. Unit fixture now provides pinned synthetic files and tests real tamper rejection. Production pins unchanged."
+}

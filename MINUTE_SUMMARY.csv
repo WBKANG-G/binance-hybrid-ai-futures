@@ -1,0 +1,7 @@
+scenario,natural_300_seconds,elapsed_seconds,episode_weight,observed_fixed_minute_peak,adverse_minute_phase_peak,guarded_rolling_peak,wire_ceiling,result_flat,budgeted_flat,completed_confirmations,resource_wait_seconds,entry_posts,exit_posts
+tp,True,300.482,13097,4235,4235,4235,5700,VERIFIED_FLAT,VERIFIED_FLAT,1,0.0,1,0
+delayed,True,331.937,14179,4013,4013,4013,5700,VERIFIED_FLAT,VERIFIED_FLAT,4,28.033,1,1
+failed,True,303.595,12434,4013,4013,4013,5700,UNKNOWN,UNKNOWN,4,0.0,1,1
+recovery,True,347.136,14516,4013,4013,4013,5700,VERIFIED_FLAT,VERIFIED_FLAT,4,43.051,1,1
+burst,False,61.512,7889,5332,5332,5332,5700,UNKNOWN,VERIFIED_FLAT,1,60.063,1,1
+partial,False,62.007,5530,2972,2972,2972,5700,VERIFIED_FLAT,VERIFIED_FLAT,1,60.062,1,1

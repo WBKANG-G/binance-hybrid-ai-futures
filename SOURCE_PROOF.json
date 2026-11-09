@@ -1,0 +1,34 @@
+{
+  "source": "99ef51439f3f9f41b9d6f30367a65960387ddaf1",
+  "runtime_test_source": "623890a4bf946b14e25d0b54e21f1d7adbba0c8b",
+  "prior_source": "80f6edcbc8aafe3f1c8a2090c53f94f5a5194597",
+  "windows_installed_source_reference": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "existing_production_python_changes_from_prior": [
+    "services/execution/demo_validation.py"
+  ],
+  "validation_change": "Optional budgeted confirmation hook; old coordinators retain original branch",
+  "original_flatten_AST_unchanged_from_installed": true,
+  "original_full_confirmation_AST_unchanged_from_installed": true,
+  "canonical_TP_CLI_unchanged": true,
+  "production_install_guard_pins_unchanged": true,
+  "runtime_source_equal_to_frozen_natural_test_source": true,
+  "excluded_old_binary_archives": [
+    "windows-demo-tp-rate-mitigation.zip",
+    "infra/phase4-fault-test-dependencies.tar.gz"
+  ],
+  "only_later_change": "Legacy guard unit fixture isolation with new tamper tests",
+  "changed_files_from_prior": [
+    "docs/TP_BUDGET_INTEGRATION.md",
+    "integrations/binance_usdm/demo_tp_window_budget.py",
+    "services/execution/demo_tp_budget_integration.py",
+    "services/execution/demo_validation.py",
+    "tests/integration/test_tp_budget_integration.py",
+    "tests/integration/test_tp_budget_rescue.py",
+    "tests/unit/test_tp_read_pool_install_guard.py",
+    "tests/unit/test_tp_window_budget.py"
+  ],
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_installed": false,
+  "main_modified": false
+}
