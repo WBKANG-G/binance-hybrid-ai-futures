@@ -86,6 +86,12 @@ def pause_finalization_locally(coordinator: DemoCoordinator) -> None:
 
 async def confirm_exit(coordinator: DemoCoordinator) -> str:
     """Bounded observation after one flatten intent. No command/POST retries."""
+    budgeted = getattr(coordinator, "confirm_exit_budgeted", None)
+    if budgeted is not None:
+        budgeted_result = await budgeted()
+        if budgeted_result not in {"UNKNOWN", "VERIFIED_FLAT"}:
+            raise DemoFailure("Invalid budgeted confirmation result")
+        return str(budgeted_result)
     for attempt in range(FLAT_CONFIRMATION_ATTEMPTS):
         if attempt:
             await asyncio.sleep(FLAT_CONFIRMATION_INTERVAL_SECONDS)
