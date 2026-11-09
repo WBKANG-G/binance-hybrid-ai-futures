@@ -1,0 +1,52 @@
+{
+  "scope": "SYNTHETIC_COUNTERFACTUAL_100000_ONLY",
+  "assumed_limit": 100000,
+  "published_actual_limit_for_review": 6000,
+  "modeled_mutation_cost_each": 40,
+  "route_costs_are_certified_upper_bounds": false,
+  "shared_ip_reserved": false,
+  "order_count_limits_proven": false,
+  "same_delayed_cancel_fixture": true,
+  "rows": [
+    {
+      "component": "original",
+      "income_pages": 10,
+      "full_historical_snapshots": 20,
+      "confirmation_get_weight": 9422,
+      "confirmation_all_route_weight": 9582,
+      "cleanup_total_model": 12113,
+      "cleanup_before_confirmation_model": 2531,
+      "pending_deferrals": 0,
+      "confirmation_elapsed_ms": 3247,
+      "result_sequence": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ],
+      "full_proof_required_before_verified": true
+    },
+    {
+      "component": "staged",
+      "income_pages": 10,
+      "full_historical_snapshots": 10,
+      "confirmation_get_weight": 4544,
+      "confirmation_all_route_weight": 4624,
+      "cleanup_total_model": 7155,
+      "cleanup_before_confirmation_model": 2531,
+      "pending_deferrals": 2,
+      "confirmation_elapsed_ms": 3150,
+      "result_sequence": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ],
+      "full_proof_required_before_verified": true
+    }
+  ],
+  "confirmation_get_reduction_percent": 51.77,
+  "cleanup_model_still_exceeds_6000": true,
+  "next_bottleneck": "Pre-confirmation original command/reconciliation path:2531 modeled weight in this scenario",
+  "no_actual_tp_admission": true
+}
