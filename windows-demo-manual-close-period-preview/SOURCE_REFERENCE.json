@@ -1,0 +1,8 @@
+{
+  "installed_source_commit": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "installed_runtime_candidate_commit": "015fd209fc0e0d284aba33043b1367a56b08a5f1",
+  "source_hash_pins": 45,
+  "legacy_day_preview_reference": "tp-manual-close-day-preview-20261107/preview_manual_close_day.py",
+  "prior_day_apply_reference": "tp-manual-close-day-apply-20261107/adopt_manual_close_day.py",
+  "scope": "Standalone readonly preview only. No production module, installed guard or schema change. No baseline application entrypoint."
+}

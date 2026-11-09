@@ -1,0 +1,10 @@
+{
+  "source": "Explicit user answer in this conversation",
+  "attested_day_kst": "2026-11-09",
+  "since": "2026-11-06T06:52:53.987000+00:00",
+  "question_scope": "All symbols in this DEMO account: additional trades, deposits/withdrawals/transfers, bonus payments or account configuration changes since manual close",
+  "answer": "No such additional activity",
+  "prior_20261107_attestation_automatically_extended": false,
+  "statement_is_operator_evidence_not_account_wide_exchange_export": true,
+  "baseline_application_authorized_by_this_file": false
+}

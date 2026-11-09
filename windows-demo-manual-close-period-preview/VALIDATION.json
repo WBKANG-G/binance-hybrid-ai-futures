@@ -1,0 +1,31 @@
+{
+  "tests": {
+    "tests": "69",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "13.892"
+  },
+  "ruff": "PASS with installed project pyproject.toml",
+  "database": "Isolated synthetic PostgreSQL, no user account DB connection",
+  "exchange": "All HTTP test responses synthetic; no cloud calls to actual account",
+  "container": "PASS:45 installed-source hashes, network none/read-only root, no apply entrypoint, KST timezone available",
+  "runtime_source_changed": false,
+  "user_database_changed": false,
+  "order_writes": 0,
+  "tested_cases": [
+    "Prior day receipt and operation digest binding",
+    "Current-day operator attestation, no stale date reuse",
+    "Signed entry/close and exact BTC trade cohort",
+    "Post-anchor empty income checked twice",
+    "Current global flat/empty orders and strict accountConfig modes",
+    "Signed USDT balance equals original adoption valuation",
+    "Original day/week/drawdown caps before proposal",
+    "In-memory proposed day+week risk gate check",
+    "Owner/fence/ledger unchanged",
+    "History truncation, malformed data, late income and day changes",
+    "418/429 cooldown, no retries, time/HTTP/clock/weight budgets",
+    "Scoped read-only calls and no apply flag",
+    "Source mismatch before keys/DB, CLI cleanup and error redaction"
+  ]
+}

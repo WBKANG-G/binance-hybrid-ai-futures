@@ -1,0 +1,392 @@
+--- approved_day_preview_20261107.py
++++ readonly_period_preview_20261109.py
+@@ -1,4 +1,4 @@
+-"""Read-only, operator-attested day preview bound to the adopted external close."""
++"""Read-only day/week preview bound to the manual close and prior attested day receipt."""
+ 
+ import argparse
+ import hashlib
+@@ -42,10 +42,10 @@
+ 
+ NEW_PINS = {
+     "configs/demo-isolated.example.yaml": "d93e85c2e056ffbbc3dac5fab9f0e5bf28032fd16f41bbff1f3ae81fb00882ca",
+-    "integrations/binance_usdm/demo.py": "b052fd6a68b0ffcb358567e1fbf96fc529005a21e2467490207c205c41debb58",
++    "integrations/binance_usdm/demo.py": "767d3a29b59882035bdfbf61d3271b39bfece0bff4b359e636db62ad9a5e84eb",
+     "integrations/binance_usdm/demo_rate_limits.py": "d72af60f10a74baea689e11ef8f11b5003f2ab9f89e539290c45b93f2f3d4a4e",
+     "integrations/binance_usdm/demo_read_routing.py": "a6e96b21135882a272cb5c97f86ddc14c3a5f4fa79dd115e40397252c679a66d",
+-    "integrations/binance_usdm/demo_snapshot.py": "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a",
++    "integrations/binance_usdm/demo_snapshot.py": "f80f6e51505ab1095c25b6ee76af01c258cff911aabd02c201bfcddc636f2258",
+     "integrations/binance_usdm/filters.py": "0279613f1a17a2bc7ffd50e30be2b6fd1aed8ba240219e8e893b754a067d95ec",
+     "integrations/binance_usdm/orders.py": "2ab366265f7d35356ee9636c6aad4b594b518beeb636407515a57386b3e8441f",
+     "integrations/binance_usdm/recovery_transport.py": "7495c0436437070644627d5ee175d7a63332dc5dc2134574285a7870e8bbba77",
+@@ -70,6 +70,22 @@
+     "services/execution/models.py": "5d362e33788a304e6f2f63f22868454b3804b103277a6fe4a1297c7e50e10a5d",
+     "services/execution/paper.py": "1a847e50fc78d48846fadc9953fad07aed5bbdf83f1e30986d39fef0e0d9fc13",
+     "services/risk/paper.py": "7afe00460abae04dda795ab0dba8b8ad84877fa25686342c1fbce3f12ac80832",
++    "scripts/check_demo_session_ready.py": "18259376c0404f98bc0cb91afeb31e33789f581562e14939989816c2fa8754d9",
++    "services/execution/readiness_closed_history.py": "0c9cb90bc74402fdaed025f715a98a2e47169eee4d1f9990c75e8f5671e358da",
++    "services/execution/demo_preview.py": "58ba6376f61f8467d2b3c9e75923444105f5fe610f9bde4455a94b5fb5d6f267",
++    "services/execution/demo_api_restart_check.py": "b96ca788094995dafb7a69d9bbbd7f6a6dd16687d30bc9bd4271164c307ab239",
++    "services/execution/demo_empty_worker_recovery.py": "8e3cac8da89fb80ef9f3654ae8591ffea7be1db1c7dc60070da72b72851b2070",
++    "services/execution/demo_private_stability.py": "d3aee78f2da73c15c3eff5f89403fae666de5109ad3c2402585f2150df1a5123",
++    "scripts/check_demo_disconnect.py": "c85c013412053237eda7ed82a8948aa4b50f9da1951d173360a1ecfb46228a1e",
++    "alembic.ini": "e7955a0ffb9c32a9c5067d7885ee9197328f17a4a12fb4a5bb556c2b85763aa2",
++    "pyproject.toml": "54760a9fa52fc4cc877d2302c7952688ddd13e12f1efc8e44a0974aae8914019",
++    "uv.lock": "49bbe38dc3f559466c4666febe686926db6503413a45bd766088ed2454e01097",
++    "migrations/env.py": "4256345fc24dd52ba706aa9b712268b9df436d52bafa7238234272d754734086",
++    "migrations/script.py.mako": "67042994cfc495007c508ccae15e44d21057d90222461630f9bc04d3657f5f6d",
++    "migrations/versions/0001_public_market_data.py": "b62afcb18d6d6c42d710ca0cb0eb42001e174934f11678443dc5ac24d86932f7",
++    "migrations/versions/0002_paper.py": "91ffad2a439b9f47e2636939a5aba091490942db7a87bb0d87124a531870c77d",
++    "migrations/versions/0003_demo.py": "6b2a26ba34855a3dee6d3b2c67eb9b3ecac644b4e2e31ad6353e907a3c233762",
++    "migrations/versions/0004_demo_urgent_alerts.py": "da9e4de16f1f9d4c15d70293d3b252084648fbbcb060f8ec7740b9a85f83e8ad",
+ }
+ 
+ 
+@@ -171,7 +187,10 @@
+     def __call__(self, method, path, query, key):
+         if method != "GET" or path not in READ_PATHS:
+             raise ProbeStop("NON_READ_OR_UNKNOWN_ROUTE_FORBIDDEN")
+-        if self.limit is None and path not in {"/fapi/v1/time", "/fapi/v1/exchangeInfo"}:
++        if self.limit is None and path not in {
++            "/fapi/v1/time",
++            "/fapi/v1/exchangeInfo",
++        }:
+             raise ProbeStop("LIMIT_DISCOVERY_REQUIRED")
+         self.check()
+         if path == "/fapi/v1/time":
+@@ -196,7 +215,8 @@
+         )
+         bucket = self.server_ms() // 60000
+         previous = next(
+-            (r for r in reversed(self.records[:-1]) if r["used_weight_1m"] is not None), None
++            (r for r in reversed(self.records[:-1]) if r["used_weight_1m"] is not None),
++            None,
+         )
+         reset = bool(
+             previous
+@@ -261,8 +281,7 @@
+     {
+         "/fapi/v1/time",
+         "/fapi/v1/exchangeInfo",
+-        "/fapi/v1/positionSide/dual",
+-        "/fapi/v1/multiAssetsMargin",
++        "/fapi/v1/accountConfig",
+         "/fapi/v1/symbolConfig",
+         "/fapi/v3/account",
+         "/fapi/v3/positionRisk",
+@@ -282,7 +301,14 @@
+ QUANTITY = Decimal("0.0007")
+ EXPECTED_TRADES = {
+     "554837511": (ENTRY, "BUY", "75725.10", "0", "0.02120302", 1793947690123),
+-    "554838531": (CLOSE, "SELL", "75685.20", "-0.02793000", "0.02119185", 1793947973987),
++    "554838531": (
++        CLOSE,
++        "SELL",
++        "75685.20",
++        "-0.02793000",
++        "0.02119185",
++        1793947973987,
++    ),
+ }
+ TRADE_START = 1793947690122
+ CLOSE_MS = 1793947973987
+@@ -301,9 +327,69 @@
+     except (ValueError, TypeError):
+         raise Blocked("ADOPTION_TIME_INVALID") from None
+     require(
+-        result.tzinfo is not None and result.utcoffset() == timedelta(0), "ADOPTION_TIME_INVALID"
++        result.tzinfo is not None and result.utcoffset() == timedelta(0),
++        "ADOPTION_TIME_INVALID",
+     )
+     return result.astimezone(UTC)
++
++
++PRIOR_DAY_KEY = str(uuid5(UUID(INCIDENT), "operator-attested-external-close-day-2026-11-07-v1"))
++PRIOR_DAY_OPERATION = "ADOPT_EXTERNAL_CLOSE_ATTESTED_DAY_BASELINE_V1"
++
++
++def prior_preserved(ledger):
++    data = ledger.model_dump(mode="json")
++    for key in ("daily_key", "daily_base", "stream_ready", "reconciled"):
++        data.pop(key)
++    for key in ("operations", "attested_day_baselines"):
++        data[key].pop(PRIOR_DAY_KEY, None)
++    return digest(data)
++
++
++def prior_day_verified(ledger, anchor, now):
++    receipt = ledger.attested_day_baselines.get(PRIOR_DAY_KEY)
++    require(receipt is not None, "PRIOR_DAY_RECEIPT_REQUIRED")
++    try:
++        record = json.loads(ledger.operations.get(PRIOR_DAY_KEY, "{}"))
++    except (ValueError, TypeError):
++        raise Blocked("PRIOR_DAY_RECEIPT_INVALID") from None
++    require(
++        isinstance(record, dict) and isinstance(record.get("reviewed_values"), dict),
++        "PRIOR_DAY_RECEIPT_INVALID",
++    )
++    values = record["reviewed_values"]
++    require(
++        record.get("operation") == PRIOR_DAY_OPERATION
++        and record.get("evidence_source") == "OPERATOR_ATTESTED_SIGNED_EXTERNAL_CLOSE_FLAT_ANCHOR"
++        and record.get("exact_midnight_valuation_verified") is False
++        and record.get("account_wide_exchange_export_verified") is False
++        and record.get("typed_receipt_sha256") == digest(receipt.model_dump(mode="json"))
++        and record.get("preserved_ledger_sha256") == prior_preserved(ledger)
++        and receipt.review_token == digest(values),
++        "PRIOR_DAY_PROVENANCE_CHANGED",
++    )
++    require(
++        receipt.source == "OPERATOR_ATTESTED_FLAT_WITH_SIGNED_USDT_EVIDENCE"
++        and receipt.anchor_utc == anchor
++        and receipt.known_exit_utc == datetime.fromtimestamp(CLOSE_MS / 1000, UTC)
++        and receipt.boundary_utc.utcoffset() == timedelta(0)
++        and receipt.boundary_utc.astimezone(ZoneInfo("Asia/Seoul")).time() == daytime()
++        and receipt.boundary_utc.astimezone(ZoneInfo("Asia/Seoul")).date().isoformat()
++        == ledger.daily_key
++        == "2026-11-07"
++        and anchor < receipt.boundary_utc <= receipt.attested_until_utc <= now
++        and receipt.baseline_usdt == ledger.daily_base == ledger.value.equity
++        and values.get("old_day_kst") == receipt.old_daily_key
++        and values.get("proposed_day_kst") == ledger.daily_key
++        and values.get("current_week_kst") == ledger.weekly_key
++        and Decimal(str(values.get("old_daily_base_usdt"))) == receipt.old_daily_base
++        and Decimal(str(values.get("proposed_daily_base_usdt"))) == ledger.daily_base
++        and Decimal(str(values.get("weekly_base_usdt_preserved"))) == ledger.weekly_base
++        and Decimal(str(values.get("high_water_usdt_preserved"))) == ledger.high_water
++        and values.get("adoption_snapshot_anchor_utc") == anchor.isoformat(),
++        "PRIOR_DAY_VALUES_CHANGED",
++    )
++    return receipt
+ 
+ 
+ def context(store, ledger, client):
+@@ -322,18 +408,22 @@
+     now = store.now()
+     day, week = period_keys(now, ledger.policy.week_start_kst)
+     boundary = datetime.combine(
+-        now.astimezone(ZoneInfo("Asia/Seoul")).date(), daytime(), ZoneInfo("Asia/Seoul")
++        datetime.fromisoformat(day).date(), daytime(), ZoneInfo("Asia/Seoul")
+     ).astimezone(UTC)
+-    require(
+-        close < anchor <= adopted < boundary <= now
++    week_boundary = datetime.combine(
++        datetime.fromisoformat(week).date(), daytime(), ZoneInfo("Asia/Seoul")
++    ).astimezone(UTC)
++    require(
++        close < anchor <= adopted < week_boundary <= boundary <= now
+         and 0 <= (adopted - anchor).total_seconds() <= ledger.policy.max_snapshot_age_seconds
+         and 0 < (now - close).total_seconds() <= 7 * 86400,
+         "MANUAL_ANCHOR_WINDOW_UNSUPPORTED",
+     )
+-    require(
+-        ledger.daily_key == anchor.astimezone(ZoneInfo("Asia/Seoul")).date().isoformat()
++    prior = prior_day_verified(ledger, anchor, now)
++    require(
++        prior.boundary_utc < week_boundary
+         and ledger.daily_key < day
+-        and ledger.weekly_key == week,
++        and ledger.weekly_key == period_keys(anchor, ledger.policy.week_start_kst)[1] < week,
+         "DAY_OR_WEEK_CONTEXT_UNSUPPORTED",
+     )
+     require(
+@@ -356,7 +446,7 @@
+         ),
+         "MANUAL_RECEIPT_PROVENANCE_INVALID",
+     )
+-    return receipt, anchor, day, week, boundary
++    return receipt, anchor, day, week, boundary, week_boundary
+ 
+ 
+ class DayPreviewClient(DemoClient):
+@@ -384,7 +474,8 @@
+             )
+         elif path in {"/fapi/v1/income", "/fapi/v1/userTrades"}:
+             require(
+-                self.anchor_ms is not None and self.cutoff_ms is not None, "FIXED_WINDOW_REQUIRED"
++                self.anchor_ms is not None and self.cutoff_ms is not None,
++                "FIXED_WINDOW_REQUIRED",
+             )
+             expected = {
+                 "startTime": str(self.anchor_ms if path.endswith("income") else TRADE_START),
+@@ -404,13 +495,11 @@
+ 
+ def read_state(client, ledger):
+     client.sync_clock()
+-    mode = client.request("GET", "/fapi/v1/positionSide/dual")
+-    assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
++    mode = client.request("GET", "/fapi/v1/accountConfig")
+     require(
+         isinstance(mode, dict)
+         and mode.get("dualSidePosition") is False
+-        and isinstance(assets, dict)
+-        and assets.get("multiAssetsMargin") is False,
++        and mode.get("multiAssetsMargin") is False,
+         "ACCOUNT_MODE_UNSUPPORTED",
+     )
+     account = client.request("GET", "/fapi/v3/account")
+@@ -546,15 +635,19 @@
+             "limit": str(ROW_LIMIT),
+         },
+     )
+-    require(isinstance(incomes, list) and len(incomes) < ROW_LIMIT, "POST_ANCHOR_INCOME_INCOMPLETE")
++    require(
++        isinstance(incomes, list) and len(incomes) < ROW_LIMIT,
++        "POST_ANCHOR_INCOME_INCOMPLETE",
++    )
+     require(not incomes, "POST_ANCHOR_INCOME_PRESENT")
+ 
+ 
+-def preview(store, client, monitor, *, attest=False):
++def preview(store, client, monitor, *, attest=False, attested_day=None):
+     require(attest is True, "OPERATOR_ATTESTATION_REQUIRED")
+     before = local(store)
+     ledger = before[-1]
+-    receipt, anchor, day, week, boundary = context(store, ledger, client)
++    receipt, anchor, day, week, boundary, week_boundary = context(store, ledger, client)
++    require(attested_day == day, "CURRENT_DAY_ATTESTATION_REQUIRED")
+     try:
+         client.sync_clock()
+         limit = published_limit(client.public("/fapi/v1/exchangeInfo"))
+@@ -564,7 +657,8 @@
+         signed_close(client, ledger, receipt)
+         client.cutoff_ms = client.clock_ms() + client.offset
+         require(
+-            0 < client.cutoff_ms - TRADE_START <= 604800000, "SIGNED_HISTORY_WINDOW_UNSUPPORTED"
++            0 < client.cutoff_ms - TRADE_START <= 604800000,
++            "SIGNED_HISTORY_WINDOW_UNSUPPORTED",
+         )
+         history(client)
+         client.sync_clock()
+@@ -589,6 +683,7 @@
+         require(ledger.high_water >= wallet, "HIGH_WATER_REQUIRES_SEPARATE_REVIEW")
+         probe = ledger.model_copy(deep=True)
+         probe.daily_key, probe.daily_base = day, wallet
++        probe.weekly_key, probe.weekly_base = week, wallet
+         probe.value = AccountValue(
+             as_of=store.now(),
+             initial=ledger.value.initial,
+@@ -598,29 +693,38 @@
+         account_risk(probe, store.now())
+         require(
+             probe.risk_state == ledger.risk_state
+-            and probe.weekly_base == ledger.weekly_base
++            and probe.daily_key == day
++            and probe.weekly_key == week
++            and probe.daily_base == probe.weekly_base == wallet
+             and probe.high_water == ledger.high_water,
+             "PROPOSED_RISK_GATES_FAILED",
+         )
+         require(local(store) == before, "LOCAL_STATE_CHANGED")
+         return {
+-            "manual_close_day_preview": "OPERATOR_ATTESTED_PREVIEW_NO_DATABASE_CHANGE",
++            "manual_close_period_preview": "OPERATOR_ATTESTED_DAY_WEEK_PREVIEW_NO_DATABASE_CHANGE",
+             "source": "OPERATOR_ATTESTED_SIGNED_EXTERNAL_CLOSE_FLAT_ANCHOR",
+             "old_day_kst": ledger.daily_key,
+             "proposed_day_kst": day,
+-            "current_week_kst": week,
++            "old_week_kst": ledger.weekly_key,
++            "proposed_week_kst": week,
+             "old_daily_base_usdt": str(ledger.daily_base),
+             "proposed_daily_base_usdt": str(wallet),
+-            "weekly_base_usdt_preserved": str(ledger.weekly_base),
++            "old_weekly_base_usdt": str(ledger.weekly_base),
++            "proposed_weekly_base_usdt": str(wallet),
+             "high_water_usdt_preserved": str(ledger.high_water),
+-            "boundary_utc": boundary.isoformat(),
++            "day_boundary_utc": boundary.isoformat(),
++            "week_boundary_utc": week_boundary.isoformat(),
++            "prior_attested_day_operation_id": PRIOR_DAY_KEY,
++            "prior_attested_day_receipt_verified": True,
++            "operator_attested_day_kst": attested_day,
+             "adoption_snapshot_anchor_utc": anchor.isoformat(),
+             "attested_since_manual_close_utc": datetime.fromtimestamp(
+                 CLOSE_MS / 1000, UTC
+             ).isoformat(),
+             "signed_history_cutoff_ms": client.cutoff_ms,
+             "operator_attestation_used": True,
+-            "exact_midnight_valuation_verified": False,
++            "exact_day_midnight_valuation_verified": False,
++            "exact_week_midnight_valuation_verified": False,
+             "account_wide_trade_export_verified": False,
+             "signed_btc_trade_cohort_reverified": True,
+             "post_anchor_income_empty": True,
+@@ -650,7 +754,7 @@
+ 
+ def blocked(reason):
+     return {
+-        "manual_close_day_preview": "BLOCKED_KEEP_PAUSED_NO_RETRY",
++        "manual_close_period_preview": "BLOCKED_KEEP_PAUSED_NO_RETRY",
+         "stop_reason": reason,
+         "database_changed_by_preview": False,
+         "order_writes": 0,
+@@ -676,6 +780,7 @@
+     parser.add_argument(
+         "--attest-no-activity-since-manual-close", action="store_true", required=True
+     )
++    parser.add_argument("--attested-day-kst", required=True)
+     args = parser.parse_args()
+     engine = route = None
+     code = 2
+@@ -689,7 +794,8 @@
+         verify_sources()
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+-                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
++                Path("configs/demo-isolated.example.yaml").read_text(),
++                Loader=UniqueKeyLoader,
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+         engine = create_engine(
+@@ -705,7 +811,13 @@
+             raise Blocked("DEMO_CREDENTIAL_SESSION_UNAVAILABLE") from None
+         client = DayPreviewClient(cfg, key, send=monitor)
+         monitor.server_ms = lambda: client.clock_ms() + client.offset
+-        report = preview(store, client, monitor, attest=args.attest_no_activity_since_manual_close)
++        report = preview(
++            store,
++            client,
++            monitor,
++            attest=args.attest_no_activity_since_manual_close,
++            attested_day=args.attested_day_kst,
++        )
+         code = 0
+     except Exception as error:
+         report = blocked(safe_reason(error))
+@@ -735,8 +847,10 @@
+         "ACTIVE_OWNER_BLOCKED",
+         "ADOPTION_TIME_INVALID",
+         "ADOPTION_TIME_MISSING",
++        "CHECK_UNAVAILABLE",
+         "CLOCK_BUDGET_REACHED",
+         "CLOSE_IDENTITY_OR_TIME_MISMATCH",
++        "CURRENT_DAY_ATTESTATION_REQUIRED",
+         "CURRENT_EXPOSURE_OR_OPEN_ORDER",
+         "CURRENT_STATE_CHANGED",
+         "DAY_OR_WEEK_CONTEXT_UNSUPPORTED",
+@@ -770,6 +884,10 @@
+         "POSITION_SHAPE_INVALID",
+         "POST_ANCHOR_INCOME_INCOMPLETE",
+         "POST_ANCHOR_INCOME_PRESENT",
++        "PRIOR_DAY_PROVENANCE_CHANGED",
++        "PRIOR_DAY_RECEIPT_INVALID",
++        "PRIOR_DAY_RECEIPT_REQUIRED",
++        "PRIOR_DAY_VALUES_CHANGED",
+         "PROPOSED_RISK_GATES_FAILED",
+         "PUBLIC_SCOPE_FORBIDDEN",
+         "PUBLISHED_LIMIT_AMBIGUOUS_OR_INVALID",
+@@ -777,6 +895,7 @@
+         "PUBLISHED_LIMIT_UNAVAILABLE",
+         "RATE_LIMIT_ALREADY_OBSERVED",
+         "READ_ONLY_CONTEXT_REQUIRED",
++        "RESOURCE_CLEANUP_UNVERIFIED",
+         "SIGNED_HISTORY_WINDOW_UNSUPPORTED",
+         "SIGNED_ORDER_PROOF_MISMATCH",
+         "SIGNED_TRADE_PROOF_MISMATCH",
+@@ -790,6 +909,5 @@
+         "WEIGHT_HEADROOM_THRESHOLD",
+     ]
+ )
+-
+ if __name__ == "__main__":
+     main()

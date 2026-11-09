@@ -1,0 +1,18 @@
+{
+  "unchanged_reviewed_helpers_ast": [
+    "local",
+    "Monitor",
+    "published_limit",
+    "DayPreviewClient",
+    "signed_close",
+    "history",
+    "utc",
+    "digest"
+  ],
+  "new_read_state_mode_source": "One fresh signed accountConfig GET, both exact-False bool fields required",
+  "context_extension": "Verify prior20261107 typed day receipt, reviewed-values hash, full preserved-ledger hash and UTC boundary. Require old week equals anchor week and both new week/day after anchored close.",
+  "prior_day_operation_id": "da1b84ca-b551-522c-8eb3-a97253c8d97e",
+  "proposed_risk_gate": "Copy only; set both day/week values in the copy after all old loss caps pass. Preserve high water and risk state.",
+  "database_apply_or_lease_code_added": false,
+  "review_token_emitted": false
+}
