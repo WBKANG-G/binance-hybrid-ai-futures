@@ -1,0 +1,20 @@
+{
+  "scope": "UNINSTALLED_DISABLED_TP_ADMISSION_CANDIDATE_REVIEW",
+  "published_actual_limit_model": 6000,
+  "at_6000": "MODEL_LIFECYCLE_DOES_NOT_FIT before TP marker, private session, reservation, order POST or database change",
+  "default_at_100000": "UNPROVEN_MODEL_REAL_EXECUTION_DISABLED",
+  "counterfactual_synthetic_limit": 100000,
+  "history_model_count": 2,
+  "cleanup_assumption": 28352,
+  "preparation_assumption": 1872,
+  "entry_protection_assumption": 3744,
+  "headroom_assumption": 300,
+  "total_lifecycle_assumption": 34268,
+  "positive_synthetic_mutation_cost_assumption": 40,
+  "upper_bounds_proven": false,
+  "shared_ip_reserved": false,
+  "order_count_limit_proven": false,
+  "runtime_installation_approved": false,
+  "actual_tp_execution_approved": false,
+  "next_action": "REVIEW_CANDIDATE_KEEP_WINDOWS_PAUSED_NO_TP_RETRY"
+}

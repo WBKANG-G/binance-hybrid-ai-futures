@@ -1,0 +1,76 @@
+{
+  "suites": {
+    "focused": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "44",
+      "time": "12.973",
+      "timestamp": "2026-11-09T04:25:20.841149+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "unit_applicable": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "752",
+      "time": "10.662",
+      "timestamp": "2026-11-09T04:24:33.572437+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "original_runtime_integration": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "0",
+      "tests": "59",
+      "time": "57.651",
+      "timestamp": "2026-11-09T04:22:52.397336+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "unchanged_base_old_guard": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "3",
+      "skipped": "0",
+      "tests": "18",
+      "time": "0.325",
+      "timestamp": "2026-11-09T04:23:29.205103+00:00",
+      "hostname": "3413dfa6286d"
+    },
+    "initial_full_unit": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "3",
+      "skipped": "0",
+      "tests": "754",
+      "time": "13.325",
+      "timestamp": "2026-11-09T04:22:52.284499+00:00",
+      "hostname": "3413dfa6286d"
+    }
+  },
+  "focused_candidate_checks": 44,
+  "candidate_unit_checks": 30,
+  "candidate_integration_checks": 14,
+  "all_applicable_unit_checks": 752,
+  "original_runtime_integration_checks": 59,
+  "distinct_passing_checks": 825,
+  "ruff": "PASS on all changed/new files",
+  "mypy": "PASS 134 production source files",
+  "old_source_pinned_positive_checks": {
+    "count": 3,
+    "result": "SOURCE_HASH_MISMATCH on both unchanged approved base and candidate",
+    "action": "left unchanged; exact three node IDs deselected in final applicable unit run",
+    "initial_full_candidate_unit": "751 passed, 3 failed; before adding one more candidate unit check"
+  },
+  "actual_300_second_candidate_observation_run": false,
+  "synthetic_observation_seconds": [
+    0.8,
+    2.0
+  ],
+  "actual_exchange_requests": 0,
+  "actual_exchange_order_writes": 0,
+  "windows_database_accessed": false
+}
