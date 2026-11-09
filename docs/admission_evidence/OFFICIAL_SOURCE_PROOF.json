@@ -1,0 +1,43 @@
+{
+  "official_repository": "https://github.com/binance/binance-connector-python",
+  "commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+  "retrieved_utc_date": "2026-11-09",
+  "scope": "Official SDK source contract, not an actual DEMO response or endpoint availability proof",
+  "sources": {
+    "account": {
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+      "sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39"
+    },
+    "trade": {
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/trade_api.py",
+      "sha256": "0f482140acd6561cc02571110767e5c9dd363a671be0542a859536f014b1c603"
+    },
+    "count_model": {
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/models/query_user_rate_limit_response_inner.py",
+      "sha256": "80929b94caf38e13a25e1ac0dff69139bef8546cab66ab18a15554cfe3561918"
+    }
+  },
+  "query_limit_contract_excerpt": [
+    "GET /fapi/v1/rateLimit/order",
+    "Weight(IP): 1",
+    "Security Type: USER_DATA"
+  ],
+  "new_order_contract_excerpt": [
+    "Weight: 1 on 10s order rate limit(X-MBX-ORDER-COUNT-10S);",
+    "1 on 1min order rate limit(X-MBX-ORDER-COUNT-1M);",
+    "0 on IP rate limit(x-mbx-used-weight-1m)"
+  ],
+  "new_algo_order_contract_excerpt": [
+    "Weight: 1 on 10s order rate limit(X-MBX-ORDER-COUNT-10S);",
+    "1 on 1min order rate limit(X-MBX-ORDER-COUNT-1M);",
+    "0 on IP rate limit(x-mbx-used-weight-1m)"
+  ],
+  "documented_response_properties": [
+    "rateLimitType",
+    "interval",
+    "intervalNum",
+    "limit"
+  ],
+  "count_field_guaranteed_by_documented_model": false,
+  "optional_body_count_or_order_headers": "Use only when explicitly present; missing usage remains unknown"
+}
