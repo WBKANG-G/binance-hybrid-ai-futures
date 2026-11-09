@@ -229,6 +229,9 @@ async def validate_once(
         try:
             current = store.read(lease.account_id)
             if key not in current.orders:
+                precheck = getattr(coordinator, "before_entry_prepare", None)
+                if precheck is not None:
+                    precheck()
                 validation_stage = "RESUME_ENTRIES"
                 coordinator.resume_entries(uuid5(operation_id, "resume"))
                 validation_stage = "PREPARE_ENTRY"
@@ -310,6 +313,9 @@ async def validate_once(
     completion_failure = "NONE"
     completion_database_failure = "NONE"
     try:
+        begin = getattr(coordinator, "begin_finalization", None)
+        if begin is not None:
+            await asyncio.to_thread(begin)
         await asyncio.to_thread(pause_finalization_locally, coordinator)
         if coordinator.client.clock_ms() < coordinator.client.cooldown_until:
             raise DemoRateLimited("DEMO cooldown active; manual exchange verification required")
