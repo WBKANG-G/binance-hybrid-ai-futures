@@ -53,25 +53,28 @@ class FirstConfirmationTPTriggerCoordinator(FencedHandoffTPTriggerCoordinator):
 
     def confirm_flat(self) -> str:
         with self._handoff_lock:
-            first = not self._confirmation_started
-            self._confirmation_started = True
-            if first:
-                if not isinstance(self.client, StagedConfirmationTPClient):
-                    raise ValueError("Explicit first-confirmation source required")
-                self._first_confirmation_source = self.client
-            try:
-                return super().confirm_flat()
-            except _FirstCleanupPending:
-                # Original QUERY pair and cleanup have already committed under
-                # fencing. Do not execute the three full VERIFY snapshots while
-                # the known successful cancellation is still reported NEW.
-                self.first_pending_deferrals += 1
-                self._pending_after_full = True
-                self.flat_confirmation_stage = "CANDIDATE_FIRST_CLEANUP_PENDING"
-                self.flat_confirmation_diagnostic["candidate_first_cleanup_pending"] = 1
-                return "UNKNOWN"
-            finally:
-                self._first_confirmation_source = None
+            return self._candidate_confirmation_attempt()
+
+    def _candidate_confirmation_attempt(self) -> str:
+        first = not self._confirmation_started
+        self._confirmation_started = True
+        if first:
+            if not isinstance(self.client, StagedConfirmationTPClient):
+                raise ValueError("Explicit first-confirmation source required")
+            self._first_confirmation_source = self.client
+        try:
+            return super().confirm_flat()
+        except _FirstCleanupPending:
+            # Original QUERY pair and cleanup have already committed under
+            # fencing. Do not execute the three full VERIFY snapshots while
+            # the known successful cancellation is still reported NEW.
+            self.first_pending_deferrals += 1
+            self._pending_after_full = True
+            self.flat_confirmation_stage = "CANDIDATE_FIRST_CLEANUP_PENDING"
+            self.flat_confirmation_diagnostic["candidate_first_cleanup_pending"] = 1
+            return "UNKNOWN"
+        finally:
+            self._first_confirmation_source = None
 
     def first_confirmation_diagnostics(self) -> dict[str, str | int | bool]:
         return {
