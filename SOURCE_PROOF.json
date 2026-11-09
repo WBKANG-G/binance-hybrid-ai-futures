@@ -1,0 +1,34 @@
+{
+  "source": "5abc9f6c27f330136e318abf9f9bd4f958398763",
+  "prior_integration_source": "99ef51439f3f9f41b9d6f30367a65960387ddaf1",
+  "installed_windows_reference": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "runtime_coordinator_budget_snapshot_risk_and_persistence_unchanged_from_prior": true,
+  "canonical_cli_changed": true,
+  "production_old_install_guards_unchanged": true,
+  "new_guard_old_pins": 45,
+  "new_guard_new_pins": 55,
+  "source_changes_from_prior": [
+    "docs/TP_BUDGET_INTEGRATION.md",
+    "guard_tp_budget_install.py",
+    "integrations/binance_usdm/demo_tp_weight_model.py",
+    "scripts/check_demo_tp_trigger.py",
+    "tests/integration/test_tp_budget_cli_lifecycle.py",
+    "tests/integration/test_tp_budget_install_guard.py",
+    "tests/integration/test_tp_budget_runtime_cli.py",
+    "tests/unit/test_tp_budget_install_sources.py"
+  ],
+  "packaged_runtime_cohort_and_default_gate_verified": true,
+  "excluded_old_binary_archives": [
+    "windows-demo-tp-rate-mitigation.zip",
+    "infra/phase4-fault-test-dependencies.tar.gz"
+  ],
+  "packaging_metadata_overrides": [
+    "README_KO.md",
+    "TRANSFER_MANIFEST.json",
+    "SUMMARY.json",
+    "VALIDATION.json",
+    "SOURCE_PROOF.json"
+  ],
+  "main_modified": false,
+  "windows_installed": false
+}

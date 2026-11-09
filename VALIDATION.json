@@ -1,0 +1,16 @@
+{
+  "unique_selected_passed": 971,
+  "core_unit_guard_cli_regression": 970,
+  "canonical_cli_natural_time_test": 1,
+  "post_source_and_default_gate_verified_in_image": true,
+  "pre_source_verified_in_installed_reference_image": true,
+  "docker_api_ready_http": 200,
+  "docker_image_type": "verified installed base plus source overlay; not a fresh dependency build",
+  "ruff": "PASS all changed/added Python files",
+  "mypy": "PASS142 standard production Python files",
+  "synthetic_HTTP_local_WSS_isolated_PG": true,
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_accessed": false,
+  "clock_accelerated": false
+}

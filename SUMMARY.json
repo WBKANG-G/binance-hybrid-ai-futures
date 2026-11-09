@@ -1,0 +1,20 @@
+{
+  "source": "5abc9f6c27f330136e318abf9f9bd4f958398763",
+  "installation_scope": "CODE_ONLY_KEEP_PAUSED_NO_TP_RETRY",
+  "tests_passed": 971,
+  "canonical_cli_natural_seconds": 300,
+  "canonical_cli_guarded_60s_model_peak": 4227,
+  "published_synthetic_limit": 6000,
+  "wire_model_ceiling": 5700,
+  "production_default_execution_refused_before_lease": true,
+  "new_order_activation_flag": false,
+  "paired_install_guard": "45-file installed cohort -> 55-file new runtime cohort; same account/exchange digests and read count",
+  "docker_overlay_and_api_smoke_passed": true,
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_installed_by_cloud": false,
+  "windows_database_accessed": false,
+  "baseline_changes_authorized": false,
+  "shared_ip_reservation_proven": false,
+  "actual_route_weight_upper_bounds_proven": false
+}
