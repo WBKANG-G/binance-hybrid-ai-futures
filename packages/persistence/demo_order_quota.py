@@ -96,10 +96,12 @@ class DurableOrderQuota:
         *,
         monotonic: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+        read_only: bool = False,
     ):
         self.directory = directory
         self.account, self.journal_id, self.policy = account, journal_id, policy
         self.monotonic, self.wall_clock = monotonic, wall_clock
+        self.read_only = read_only
         self.pid = os.getpid()
         self.lock = threading.RLock()
         self.fd = -1
@@ -116,13 +118,16 @@ class DurableOrderQuota:
             quota_require(self.path.is_file(), "QUOTA_JOURNAL_MISSING")
             self.db_inode = self._file_identity(self.path)
             self.connection = sqlite3.connect(
-                self.path.resolve().as_uri() + "?mode=rw",
+                self.path.resolve().as_uri() + ("?mode=ro" if read_only else "?mode=rw"),
                 uri=True,
                 timeout=2,
                 isolation_level=None,
                 check_same_thread=False,
             )
-            self.connection.execute("PRAGMA synchronous=FULL")
+            if read_only:
+                self.connection.execute("PRAGMA query_only=ON")
+            else:
+                self.connection.execute("PRAGMA synchronous=FULL")
             quota_require(
                 self.connection.execute("PRAGMA integrity_check").fetchone() == ("ok",),
                 "QUOTA_JOURNAL_CORRUPT",
@@ -168,12 +173,14 @@ class DurableOrderQuota:
         return s.st_dev, s.st_ino
 
     def _acquire(self) -> None:
+        flags = os.O_RDONLY if self.read_only else os.O_RDWR | os.O_CREAT
         self.fd = os.open(
-            self.lock_path, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600
+            self.lock_path, flags | os.O_CLOEXEC | os.O_NOFOLLOW, 0o600
         )
         self.lock_inode = self._file_identity(self.lock_path)
         try:
-            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            mode = fcntl.LOCK_SH if self.read_only else fcntl.LOCK_EX
+            fcntl.flock(self.fd, mode | fcntl.LOCK_NB)
         except BlockingIOError:
             raise LocalQuotaStopped("QUOTA_MANAGED_WRITER_BUSY") from None
 
@@ -188,6 +195,7 @@ class DurableOrderQuota:
     ) -> "DurableOrderQuota":
         # Explicit bootstrap only. The coordinator writes the ID to PostgreSQL
         # after this synced file exists; it must refuse a second bootstrap.
+        quota_require(not kwargs.get("read_only"), "QUOTA_READ_ONLY_CANNOT_CREATE")
         obj = object.__new__(cls)
         obj.directory, obj.account = directory, account
         obj._paths()
@@ -249,6 +257,7 @@ class DurableOrderQuota:
         try:
             return (
                 os.getpid() == self.pid
+                and not self.read_only
                 and self.fd >= 0
                 and self._file_identity(self.lock_path) == self.lock_inode
             )
@@ -300,6 +309,7 @@ class DurableOrderQuota:
         return result
 
     def _append(self, kind: str, key: str, data: dict[str, Any]) -> dict[str, Any]:
+        quota_require(not self.read_only, "QUOTA_READ_ONLY")
         c = self._identity()
         c.execute("BEGIN IMMEDIATE")
         try:
@@ -326,6 +336,7 @@ class DurableOrderQuota:
             raise
 
     def start_session(self, owner: UUID, fence: int) -> None:
+        quota_require(not self.read_only, "QUOTA_READ_ONLY")
         quota_require(os.getpid() == self.pid, "QUOTA_PROCESS_OWNERSHIP_INVALID")
         with self.lock:
             quota_require(

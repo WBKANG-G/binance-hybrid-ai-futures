@@ -87,6 +87,52 @@ class ManagedEffect:
 CURRENT_EFFECT: ContextVar[ManagedEffect | None] = ContextVar("managed_quota_effect", default=None)
 
 
+def validate_journal_bindings(
+    ledger: DemoLedger, journal: DurableOrderQuota, *, pending: UUID | None = None
+) -> None:
+    expected = canonical(
+        {
+            "journal": str(journal.journal_id),
+            "policy": journal.policy.digest,
+            "scope": "MANAGED_WRITERS_ONLY",
+            "external_usage": "UNKNOWN",
+        }
+    )
+    quota_require(
+        ledger.operations.get(STORAGE_KEY) == expected, "QUOTA_STORAGE_BINDING_MISMATCH"
+    )
+    flows = journal.flow_records()
+    pg_flows = {
+        k[len(RESERVE_PREFIX) :] for k in ledger.operations if k.startswith(RESERVE_PREFIX)
+    }
+    quota_require(
+        pg_flows == set(flows) - ({str(pending)} if pending is not None else set()),
+        "QUOTA_PG_JOURNAL_FLOW_MISMATCH",
+    )
+    for flow, state in flows.items():
+        if pending is not None and flow == str(pending):
+            continue
+        quota_require(
+            ledger.operations.get(RESERVE_PREFIX + flow)
+            == canonical(record_ref(state["reserve"])),
+            "QUOTA_PG_JOURNAL_FLOW_MISMATCH",
+        )
+        seal = state["seal"]
+        quota_require(
+            ledger.operations.get(SEAL_PREFIX + flow)
+            == (canonical(record_ref(seal)) if seal else None),
+            "QUOTA_PG_JOURNAL_SEAL_MISMATCH",
+        )
+    quota_require(
+        all(
+            k[len(SEAL_PREFIX) :] in pg_flows
+            for k in ledger.operations
+            if k.startswith(SEAL_PREFIX)
+        ),
+        "QUOTA_PG_JOURNAL_SEAL_MISMATCH",
+    )
+
+
 class ManagedQuotaBridge:
     def __init__(self, store: DemoStore, lease: Lease, journal: DurableOrderQuota):
         self.store, self.lease, self.journal = store, lease, journal
@@ -151,47 +197,7 @@ class ManagedQuotaBridge:
             raise
 
     def validate_bindings(self, ledger: DemoLedger, *, pending: UUID | None = None) -> None:
-        expected = canonical(
-            {
-                "journal": str(self.journal.journal_id),
-                "policy": self.journal.policy.digest,
-                "scope": "MANAGED_WRITERS_ONLY",
-                "external_usage": "UNKNOWN",
-            }
-        )
-        quota_require(
-            ledger.operations.get(STORAGE_KEY) == expected, "QUOTA_STORAGE_BINDING_MISMATCH"
-        )
-        flows = self.journal.flow_records()
-        pg_flows = {
-            k[len(RESERVE_PREFIX) :] for k in ledger.operations if k.startswith(RESERVE_PREFIX)
-        }
-        quota_require(
-            pg_flows == set(flows) - ({str(pending)} if pending is not None else set()),
-            "QUOTA_PG_JOURNAL_FLOW_MISMATCH",
-        )
-        for flow, state in flows.items():
-            if pending is not None and flow == str(pending):
-                continue
-            quota_require(
-                ledger.operations.get(RESERVE_PREFIX + flow)
-                == canonical(record_ref(state["reserve"])),
-                "QUOTA_PG_JOURNAL_FLOW_MISMATCH",
-            )
-            seal = state["seal"]
-            quota_require(
-                ledger.operations.get(SEAL_PREFIX + flow)
-                == (canonical(record_ref(seal)) if seal else None),
-                "QUOTA_PG_JOURNAL_SEAL_MISMATCH",
-            )
-        quota_require(
-            all(
-                k[len(SEAL_PREFIX) :] in pg_flows
-                for k in ledger.operations
-                if k.startswith(SEAL_PREFIX)
-            ),
-            "QUOTA_PG_JOURNAL_SEAL_MISMATCH",
-        )
+        validate_journal_bindings(ledger, self.journal, pending=pending)
 
     def reserve(self, flow: UUID) -> None:
         quota_require(not self.degraded, "QUOTA_BRIDGE_DEGRADED")
