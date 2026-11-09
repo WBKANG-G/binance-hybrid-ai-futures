@@ -1,0 +1,127 @@
+{
+  "$defs": {
+    "AlgoState": {
+      "enum": [
+        "UNKNOWN",
+        "SUBMITTING",
+        "ACKNOWLEDGED",
+        "TRIGGERED",
+        "FINISHED",
+        "CANCELED",
+        "REJECTED",
+        "EXPIRED",
+        "RECONCILING"
+      ],
+      "title": "AlgoState",
+      "type": "string"
+    },
+    "TradingMode": {
+      "enum": [
+        "BACKTEST",
+        "PAPER",
+        "DEMO",
+        "LIVE"
+      ],
+      "title": "TradingMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "client_algo_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Client Algo Id",
+      "type": "string"
+    },
+    "algo_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Algo Id"
+    },
+    "position_id": {
+      "format": "uuid",
+      "title": "Position Id",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/TradingMode"
+    },
+    "account_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Account Id",
+      "type": "string"
+    },
+    "symbol": {
+      "pattern": "^[A-Z0-9]{5,30}$",
+      "title": "Symbol",
+      "type": "string"
+    },
+    "side": {
+      "enum": [
+        "BUY",
+        "SELL"
+      ],
+      "title": "Side",
+      "type": "string"
+    },
+    "algo_type": {
+      "const": "CONDITIONAL",
+      "default": "CONDITIONAL",
+      "title": "Algo Type",
+      "type": "string"
+    },
+    "order_type": {
+      "enum": [
+        "STOP_MARKET",
+        "TAKE_PROFIT_MARKET"
+      ],
+      "title": "Order Type",
+      "type": "string"
+    },
+    "trigger_price": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "gt": 0,
+      "title": "Trigger Price"
+    },
+    "close_position": {
+      "const": true,
+      "default": true,
+      "title": "Close Position",
+      "type": "boolean"
+    },
+    "state": {
+      "$ref": "#/$defs/AlgoState",
+      "default": "UNKNOWN"
+    }
+  },
+  "required": [
+    "client_algo_id",
+    "position_id",
+    "environment",
+    "account_id",
+    "symbol",
+    "side",
+    "order_type",
+    "trigger_price"
+  ],
+  "title": "AlgoOrder",
+  "type": "object"
+}

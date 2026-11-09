@@ -1,0 +1,317 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "mode": {
+      "const": "BACKTEST",
+      "default": "BACKTEST",
+      "title": "Mode",
+      "type": "string"
+    },
+    "research_only": {
+      "const": true,
+      "default": true,
+      "title": "Research Only",
+      "type": "boolean"
+    },
+    "version": {
+      "default": "research-v1",
+      "title": "Version",
+      "type": "string"
+    },
+    "cost_filter": {
+      "const": "POSITIVE_TARGET_AFTER_FIXED_COSTS",
+      "default": "POSITIVE_TARGET_AFTER_FIXED_COSTS",
+      "title": "Cost Filter",
+      "type": "string"
+    },
+    "availability": {
+      "default": "historical_close",
+      "enum": [
+        "historical_close",
+        "captured"
+      ],
+      "title": "Availability",
+      "type": "string"
+    },
+    "latency_ms": {
+      "default": 0,
+      "maximum": 60000,
+      "minimum": 0,
+      "title": "Latency Ms",
+      "type": "integer"
+    },
+    "ema_fast": {
+      "default": 50,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Ema Fast",
+      "type": "integer"
+    },
+    "ema_slow": {
+      "default": 200,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Ema Slow",
+      "type": "integer"
+    },
+    "adx_period": {
+      "default": 14,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Adx Period",
+      "type": "integer"
+    },
+    "adx_threshold": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "23",
+      "ge": 0,
+      "title": "Adx Threshold"
+    },
+    "ema_pullback": {
+      "default": 20,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Ema Pullback",
+      "type": "integer"
+    },
+    "atr_period": {
+      "default": 14,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Atr Period",
+      "type": "integer"
+    },
+    "breakout_lookback": {
+      "default": 20,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Breakout Lookback",
+      "type": "integer"
+    },
+    "volume_multiplier": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "1.5",
+      "gt": 0,
+      "title": "Volume Multiplier"
+    },
+    "execution_lookback": {
+      "default": 3,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Execution Lookback",
+      "type": "integer"
+    },
+    "pullback_bars": {
+      "default": 4,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Pullback Bars",
+      "type": "integer"
+    },
+    "pullback_atr_distance": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "0.5",
+      "gt": 0,
+      "title": "Pullback Atr Distance"
+    },
+    "min_atr_ratio": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "0.001",
+      "gt": 0,
+      "title": "Min Atr Ratio"
+    },
+    "max_atr_ratio": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "0.05",
+      "gt": 0,
+      "title": "Max Atr Ratio"
+    },
+    "stop_atr_multiple": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "1.5",
+      "gt": 0,
+      "title": "Stop Atr Multiple"
+    },
+    "trend_reward_r": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "2",
+      "gt": 0,
+      "title": "Trend Reward R"
+    },
+    "breakout_reward_r": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "1.5",
+      "gt": 0,
+      "title": "Breakout Reward R"
+    },
+    "pivot_left": {
+      "default": 2,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Pivot Left",
+      "type": "integer"
+    },
+    "pivot_right": {
+      "default": 2,
+      "maximum": 2000,
+      "minimum": 2,
+      "title": "Pivot Right",
+      "type": "integer"
+    },
+    "entry_ttl_seconds": {
+      "default": 300,
+      "maximum": 3600,
+      "minimum": 60,
+      "multipleOf": 60,
+      "title": "Entry Ttl Seconds",
+      "type": "integer"
+    },
+    "trend_hold_seconds": {
+      "default": 14400,
+      "minimum": 60,
+      "multipleOf": 60,
+      "title": "Trend Hold Seconds",
+      "type": "integer"
+    },
+    "breakout_hold_seconds": {
+      "default": 7200,
+      "minimum": 60,
+      "multipleOf": 60,
+      "title": "Breakout Hold Seconds",
+      "type": "integer"
+    },
+    "initial_capital": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "10000",
+      "gt": 0,
+      "title": "Initial Capital"
+    },
+    "quantity": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "1",
+      "gt": 0,
+      "title": "Quantity"
+    },
+    "entry_fee_bps": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "6",
+      "ge": 0,
+      "le": 1000,
+      "title": "Entry Fee Bps"
+    },
+    "exit_fee_bps": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "6",
+      "ge": 0,
+      "le": 1000,
+      "title": "Exit Fee Bps"
+    },
+    "slippage_bps": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "default": "5",
+      "ge": 0,
+      "le": 1000,
+      "title": "Slippage Bps"
+    },
+    "penetration_ticks": {
+      "default": 1,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Penetration Ticks",
+      "type": "integer"
+    }
+  },
+  "title": "ResearchProfile",
+  "type": "object"
+}

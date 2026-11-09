@@ -1,0 +1,35 @@
+{
+  "reused_helpers_ast_identical": [
+    "local",
+    "Monitor",
+    "ReadClient",
+    "receipt_bound",
+    "require_empty",
+    "same_fields",
+    "baseline_terminal",
+    "published_limit"
+  ],
+  "budget_seconds": 75,
+  "http_cap": 64,
+  "clock_cap": 6,
+  "request_timeout_seconds": 5,
+  "headroom_percent": 60,
+  "additional_weight_reserve_max": 100,
+  "source_pre": "strict original45 hashes only",
+  "source_post": "strict candidate45 hashes only",
+  "source_differences": [
+    "integrations/binance_usdm/demo.py",
+    "integrations/binance_usdm/demo_snapshot.py"
+  ],
+  "source_check_before_database_and_credentials": true,
+  "pre_post_binding": [
+    "full local account state owner fence lease ledger hash",
+    "entire remote snapshot hash except as_of",
+    "signed read count minus2"
+  ],
+  "install_time_pre_recheck_supports_same_binding": true,
+  "mutation_and_listen_key_forbidden": true,
+  "db_transactions_read_only": true,
+  "period_mismatch_policy": "Report only for paused flat code installation; no baseline reset, risk-state reset or trading readiness approval.",
+  "automatic_retries_or_rollback": false
+}

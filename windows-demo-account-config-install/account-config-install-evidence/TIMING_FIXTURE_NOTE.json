@@ -1,0 +1,16 @@
+{
+  "initial_expanded_run": {
+    "tests": "1252",
+    "failures": "1",
+    "seconds": "247.147",
+    "failed_test": "test_key_close_failure_prevents_acceptance_after_successful_renewal",
+    "observed": "No successful renewal before5s observation end"
+  },
+  "same_failure_reproduced_on_approved_base": true,
+  "same_failure_reproduced_on_candidate": true,
+  "production_25minute_renewal_interval_changed": false,
+  "fixture_change": "Hold only observer duration below completion until genuine renewal, with30s real watchdog. Fake account clock still advances10s per original sync. Assert PUT timing>=25minutes. Asyncio clock and production code unchanged.",
+  "corrected_stability_file_cases_passed": 10,
+  "fix_does_not_accept_missing_renewal_or_key_close": true,
+  "production_stability_sha256": "d3aee78f2da73c15c3eff5f89403fae666de5109ad3c2402585f2150df1a5123"
+}

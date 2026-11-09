@@ -1,0 +1,23 @@
+{
+  "post_image": "sha256:bf2967bf6d03a2ceebf32d35072fecc31f680c644fc110e79a8b5002223155e2",
+  "dockerfile_unchanged": true,
+  "locked_dependencies_installed": true,
+  "build_network_note": "Cloud DNS required host network and resolved proxy-host mapping plus optional cloud CA secret. Windows Dockerfile/Compose and dependency pins unchanged.",
+  "pre_smoke_note": "Derived only for synthetic pre-source smoke by restoring the exact two approved70a854c runtime files in the successfully built image. Not a second clean dependency build.",
+  "smoke": {
+    "post": {
+      "source_pins_verified": 45,
+      "phase": "post",
+      "network": "none",
+      "read_only_root": true,
+      "api_imported": true
+    },
+    "pre": {
+      "source_pins_verified": 45,
+      "phase": "pre",
+      "network": "none",
+      "read_only_root": true,
+      "api_imported": true
+    }
+  }
+}

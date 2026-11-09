@@ -1,0 +1,64 @@
+{
+  "install_source_commit": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "tested_runtime_commit": "015fd209fc0e0d284aba33043b1367a56b08a5f1",
+  "base_installed_commit": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "runtime_production_changes": [
+    "integrations/binance_usdm/demo.py",
+    "integrations/binance_usdm/demo_snapshot.py"
+  ],
+  "runtime_1612_result_reused_because_runtime_source_unchanged": true,
+  "focused_83_current_run_includes_48_guard_and_35_existing_candidate_readiness_cases": true,
+  "approved_guards_52_result_reused_from_previous_candidate_step": true,
+  "results": {
+    "install-focused-83.xml": {
+      "tests": "83",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "11.627"
+    },
+    "runtime-1612.xml": {
+      "tests": "1612",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "389.503"
+    },
+    "approved-guards-52.xml": {
+      "tests": "52",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "25.641"
+    }
+  },
+  "ruff": "PASS",
+  "mypy": "PASS:132 source files",
+  "compose_config": "PASS",
+  "docker_build": "PASS:unchanged pinned API Dockerfile with frozen dependencies",
+  "container_source_pins": 45,
+  "container_smoke": "PASS pre and post versions, network none, read-only root, API import",
+  "omitted_non_runtime_inputs": [
+    "windows-demo-tp-rate-mitigation.zip",
+    "infra/phase4-fault-test-dependencies.tar.gz",
+    "SHA256SUMS.txt"
+  ],
+  "windows_installed": false,
+  "actual_exchange_order_writes": 0,
+  "long_natural_lease_sigkill_files_not_rerun": [
+    "tests/integration/test_demo_protected_worker_sigkill.py",
+    "tests/integration/test_demo_protected_execution.py",
+    "tests/integration/test_demo_protected_execution_failures.py",
+    "tests/integration/test_demo_protected_worker_serialization.py",
+    "tests/integration/test_demo_protected_leader_probe.py"
+  ],
+  "version_bound_suites_run_at_approved_base": [
+    "tests/unit/test_tp_read_pool_install_guard.py",
+    "tests/integration/test_tp_rate_install_guard.py",
+    "tests/integration/test_tp_pool_normal_install_audit.py",
+    "tests/integration/test_readiness_history_install.py"
+  ],
+  "full_trading_readiness_checked": false,
+  "period_baselines_updated": false,
+  "active_tp_budget_admission_proven": false
+}

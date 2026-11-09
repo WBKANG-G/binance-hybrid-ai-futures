@@ -1,0 +1,27 @@
+{
+  "source": "User-provided screenshot of compare_account_config.py execution; manually transcribed summary, not a cloud exchange query.",
+  "review_status": "TWO_MODE_FIELDS_MATCH_READ_ONLY_NO_RUNTIME_SWITCH",
+  "probe_sha256": "3b4409c83aa3f9c2090177b59a63e9cc733789161ea7e42b3ea844c9e110da1e",
+  "sequence": "OLD_PAIR_NEW_NEW_OLD_PAIR",
+  "dualSidePosition": false,
+  "multiAssetsMargin": false,
+  "signed_queries": 6,
+  "http_attempts": 8,
+  "published_weight_limit_1m": 6000,
+  "observed_counter_deltas": [
+    30,
+    30,
+    5,
+    5,
+    30,
+    30
+  ],
+  "counter_reset_or_window_change": false,
+  "database_accessed": false,
+  "order_writes": 0,
+  "runtime_installed": false,
+  "endpoint_weight_upper_bound_proven": false,
+  "active_tp_budget_admission_proven": false,
+  "positions_or_orders_checked": false,
+  "note": "No claim about current day/week baseline, exchange flatness or TP readiness; last readiness evidence is older."
+}

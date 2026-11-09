@@ -1,0 +1,49 @@
+# Phase 2 파일 목록
+
+Phase 1 종료 상태를 기준으로 한 목록. 기존 작업과 기준 명세·AGENTS는 보존했다.
+
+| 파일 | 작업 |
+|---|---|
+| [.github/workflows/ci.yml](../.github/workflows/ci.yml) | 수정 |
+| [Makefile](../Makefile) | 수정 |
+| [README.md](../README.md) | 수정 |
+| [apps/api/main.py](../apps/api/main.py) | 수정 |
+| [apps/web/src/App.test.tsx](../apps/web/src/App.test.tsx) | 수정 |
+| [apps/web/src/App.tsx](../apps/web/src/App.tsx) | 수정 |
+| [backtest/README.md](../backtest/README.md) | 수정 |
+| [backtest/__init__.py](../backtest/__init__.py) | 추가 |
+| [backtest/data.py](../backtest/data.py) | 추가 |
+| [backtest/engine.py](../backtest/engine.py) | 추가 |
+| [backtest/evaluation.py](../backtest/evaluation.py) | 추가 |
+| [backtest/io.py](../backtest/io.py) | 추가 |
+| [backtest/models.py](../backtest/models.py) | 추가 |
+| [backtest/report.py](../backtest/report.py) | 추가 |
+| [backtest/synthetic.py](../backtest/synthetic.py) | 추가 |
+| [configs/research.example.yaml](../configs/research.example.yaml) | 추가 |
+| [configs/research.schema.json](../configs/research.schema.json) | 추가 |
+| [docs/api.md](../docs/api.md) | 수정 |
+| [docs/decisions.md](../docs/decisions.md) | 수정 |
+| [docs/phase2-acceptance.md](../docs/phase2-acceptance.md) | 추가 |
+| [docs/phase2-connectivity.md](../docs/phase2-connectivity.md) | 추가 |
+| [docs/phase2-files.md](../docs/phase2-files.md) | 추가 |
+| [docs/phase2-research-protocol.md](../docs/phase2-research-protocol.md) | 추가 |
+| [docs/runbook.md](../docs/runbook.md) | 수정 |
+| [docs/threat-model.md](../docs/threat-model.md) | 수정 |
+| [infra/api.Dockerfile](../infra/api.Dockerfile) | 수정 |
+| [packages/domain/config.py](../packages/domain/config.py) | 수정 |
+| [pyproject.toml](../pyproject.toml) | 수정 |
+| [scripts/generate_schemas.py](../scripts/generate_schemas.py) | 수정 |
+| [scripts/run_backtest.py](../scripts/run_backtest.py) | 추가 |
+| [scripts/smoke.py](../scripts/smoke.py) | 수정 |
+| [services/strategies/README.md](../services/strategies/README.md) | 수정 |
+| [services/strategies/__init__.py](../services/strategies/__init__.py) | 추가 |
+| [services/strategies/indicators.py](../services/strategies/indicators.py) | 추가 |
+| [services/strategies/rules.py](../services/strategies/rules.py) | 추가 |
+| [tests/contract/test_schema.py](../tests/contract/test_schema.py) | 수정 |
+| [tests/fixtures/research.py](../tests/fixtures/research.py) | 추가 |
+| [tests/integration/test_api.py](../tests/integration/test_api.py) | 수정 |
+| [tests/integration/test_research_cli.py](../tests/integration/test_research_cli.py) | 추가 |
+| [tests/unit/test_backtest_execution.py](../tests/unit/test_backtest_execution.py) | 추가 |
+| [tests/unit/test_research_causality.py](../tests/unit/test_research_causality.py) | 추가 |
+| [tests/unit/test_research_evaluation.py](../tests/unit/test_research_evaluation.py) | 추가 |
+| [uv.lock](../uv.lock) | 수정 |
