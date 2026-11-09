@@ -1,0 +1,122 @@
+{
+  "scope": "PAIRED_SYNTHETIC_100000_LIMIT_TEN_INCOME_PAGES",
+  "rows": [
+    {
+      "component": "prior_handoff",
+      "verify_on_attempt": 1,
+      "cleanup_model": 4255,
+      "confirmation_model": 2538,
+      "full_episode_model": 7442,
+      "confirmation_historical_snapshots": 5,
+      "attempt_results": [
+        "VERIFIED_FLAT"
+      ],
+      "first_diagnostics": null
+    },
+    {
+      "component": "first_candidate",
+      "verify_on_attempt": 1,
+      "cleanup_model": 4267,
+      "confirmation_model": 2550,
+      "full_episode_model": 7454,
+      "confirmation_historical_snapshots": 5,
+      "attempt_results": [
+        "VERIFIED_FLAT"
+      ],
+      "first_diagnostics": {
+        "candidate_first_confirmation": "PENDING_CAN_ONLY_DEFER_UNKNOWN",
+        "checks_after_original_cleanup": 1,
+        "first_pending_deferrals": 0,
+        "subsequent_pending_deferrals": 0,
+        "original_full_confirmation_required_for_success": true,
+        "actual_execution_approved": false
+      }
+    },
+    {
+      "component": "prior_handoff",
+      "verify_on_attempt": 4,
+      "cleanup_model": 6341,
+      "confirmation_model": 4624,
+      "full_episode_model": 9528,
+      "confirmation_historical_snapshots": 10,
+      "attempt_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ],
+      "first_diagnostics": null
+    },
+    {
+      "component": "first_candidate",
+      "verify_on_attempt": 4,
+      "cleanup_model": 5126,
+      "confirmation_model": 3409,
+      "full_episode_model": 8313,
+      "confirmation_historical_snapshots": 7,
+      "attempt_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ],
+      "first_diagnostics": {
+        "candidate_first_confirmation": "PENDING_CAN_ONLY_DEFER_UNKNOWN",
+        "checks_after_original_cleanup": 1,
+        "first_pending_deferrals": 1,
+        "subsequent_pending_deferrals": 2,
+        "original_full_confirmation_required_for_success": true,
+        "actual_execution_approved": false
+      }
+    },
+    {
+      "component": "prior_handoff",
+      "verify_on_attempt": 5,
+      "cleanup_model": 4291,
+      "confirmation_model": 2574,
+      "full_episode_model": 7478,
+      "confirmation_historical_snapshots": 5,
+      "attempt_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "first_diagnostics": null
+    },
+    {
+      "component": "first_candidate",
+      "verify_on_attempt": 5,
+      "cleanup_model": 3076,
+      "confirmation_model": 1359,
+      "full_episode_model": 6263,
+      "confirmation_historical_snapshots": 2,
+      "attempt_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN"
+      ],
+      "first_diagnostics": {
+        "candidate_first_confirmation": "PENDING_CAN_ONLY_DEFER_UNKNOWN",
+        "checks_after_original_cleanup": 1,
+        "first_pending_deferrals": 1,
+        "subsequent_pending_deferrals": 3,
+        "original_full_confirmation_required_for_success": true,
+        "actual_execution_approved": false
+      }
+    }
+  ],
+  "delayed_cleanup_reduction": 1215,
+  "delayed_cleanup_reduction_percent": 19.16,
+  "immediate_cancel_overhead": 12,
+  "published_actual_limit_for_review": 6000,
+  "measured_delayed_cleanup_below_6000": true,
+  "measured_full_episode_above_6000": true,
+  "not_a_per_minute_capacity_reservation": true,
+  "proven_upper_bound": false,
+  "shared_ip_reserved": false,
+  "order_count_limits_proven": false,
+  "all_mutations_modeled_at": 40,
+  "actual_execution_approved": false
+}
