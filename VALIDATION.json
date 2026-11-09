@@ -1,0 +1,16 @@
+{
+  "unique_unit_tests_passed": 956,
+  "focused_subset_included_not_added": 81,
+  "ruff": "PASS added Python source/tests",
+  "mypy": "PASS145 standard production Python sources",
+  "docker_network_none_smoke_modes": [
+    "body count",
+    "header count",
+    "missing counters"
+  ],
+  "standalone_main_without_credentials": "Stops before network after verifying source and importing installed SDK",
+  "actual_DEMO_requests": 0,
+  "actual_orders": 0,
+  "actual_Windows_access": false,
+  "production_activation_enabled": false
+}

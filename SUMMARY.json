@@ -1,0 +1,18 @@
+{
+  "source": "5c47faf8fe071c029caffbdae6dd450f2b96255b",
+  "installed_reference": "5abc9f6c27f330136e318abf9f9bd4f958398763",
+  "scope": "READ_ONLY_ORDER_QUOTA_EVIDENCE_NO_INSTALL_OR_EXECUTION",
+  "unit_tests_passed": 956,
+  "focused_tests_included_in_total": 81,
+  "max_GET_attempts": 4,
+  "supported_signed_query": "/fapi/v1/rateLimit/order",
+  "required_modeled_order_slots": 6,
+  "missing_counter_is_unknown_not_zero": true,
+  "SDK_generic_route_allowlists_unchanged": true,
+  "installed_runtime_changed": false,
+  "database_accessed": false,
+  "actual_exchange_requests_in_cloud": 0,
+  "actual_exchange_orders": 0,
+  "execution_approved": false,
+  "Windows_accessed": false
+}
