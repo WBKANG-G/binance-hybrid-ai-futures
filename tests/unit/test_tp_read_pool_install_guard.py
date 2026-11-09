@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib.util
 from pathlib import Path
 
@@ -24,10 +25,33 @@ SAFE = {
 }
 
 
+@pytest.fixture
+def frozen_source_tree(tmp_path, monkeypatch):
+    """Exercise the old guard against a pinned fixture, not a newer checkout.
+
+    Production pins remain immutable. Otherwise unrelated runtime development
+    makes both safe and unsafe review tests stop at the same hash check, hiding
+    whether the actual review predicates still work.
+    """
+    pins = {}
+    for name in m.UNCHANGED:
+        body = ("SYNTHETIC_FROZEN_SOURCE:" + name).encode()
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(body)
+        pins[name] = hashlib.sha256(body).hexdigest()
+    pool = tmp_path / "integrations/binance_usdm/demo_read_routing.py"
+    pool.write_bytes(b"SYNTHETIC_FROZEN_POOL")
+    monkeypatch.setattr(m, "UNCHANGED", pins)
+    monkeypatch.setattr(m, "POOL_SHA", hashlib.sha256(pool.read_bytes()).hexdigest())
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
 @pytest.mark.parametrize(
     "phase,digest", [("pre", m.OLD_SHA), ("pre", m.NEW_SHA), ("post", m.NEW_SHA)]
 )
-def test_only_read_review_is_called_and_token_never_returned(phase, digest):
+def test_only_read_review_is_called_and_token_never_returned(phase, digest, frozen_source_tree):
     calls = []
 
     def local(engine):
@@ -59,8 +83,8 @@ def test_only_read_review_is_called_and_token_never_returned(phase, digest):
         {"unresolved_count": True},
     ],
 )
-def test_unsafe_review_blocks_without_apply(change):
-    with pytest.raises(ValueError):
+def test_unsafe_review_blocks_without_apply(change, frozen_source_tree):
+    with pytest.raises(m.GuardBlocked, match="INSTALL_GUARD_BLOCKED"):
         m.run(
             None,
             "pre",
@@ -70,9 +94,9 @@ def test_unsafe_review_blocks_without_apply(change):
         )
 
 
-def test_changed_account_blocks_after_review():
+def test_changed_account_blocks_after_review(frozen_source_tree):
     rows = iter([("BEFORE",), ("CHANGED",)])
-    with pytest.raises(ValueError):
+    with pytest.raises(m.GuardBlocked, match="ACCOUNT_CHANGED_DURING_REVIEW"):
         m.run(
             None, "pre", read_local=lambda e: next(rows), read_review=lambda: SAFE, digest=m.OLD_SHA
         )
@@ -122,3 +146,20 @@ def test_production_unresolved_refs_match_original_independent_report():
     )
     assert m.UNRESOLVED_REFS == set(original["request_refs"])
     assert len(m.UNRESOLVED_REFS) == 4
+
+
+@pytest.mark.parametrize("changed", ["unchanged", "pool"])
+def test_tampered_pinned_fixture_stops_before_database(frozen_source_tree, changed):
+    name = (
+        next(iter(m.UNCHANGED))
+        if changed == "unchanged"
+        else "integrations/binance_usdm/demo_read_routing.py"
+    )
+    (frozen_source_tree / name).write_bytes(b"SYNTHETIC_TAMPER")
+    with pytest.raises(m.GuardBlocked, match="SOURCE_HASH_MISMATCH"):
+        m.run(
+            None,
+            "post",
+            digest=m.NEW_SHA,
+            read_local=lambda e: pytest.fail("No database access for changed source"),
+        )
