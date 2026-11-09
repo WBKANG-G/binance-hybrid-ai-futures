@@ -1,0 +1,79 @@
+{
+  "source": "022b1ab001b58c1d84617a2071433c3ce8041764",
+  "runtime_source_unchanged_from": "fc986129bc99663533a2ea3be8335932454e78c7",
+  "rows": [
+    {
+      "mode": "quiet_tp",
+      "requested_observation_seconds": 300,
+      "actual_wall_seconds": 300.642,
+      "episode_weight": 15150,
+      "observed_fixed_minute_peak": 4653,
+      "adverse_phase_60s_peak": 5433,
+      "guarded_peak": 5433,
+      "witness_offset_ms": 58806,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "tp_check": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED",
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY"
+    },
+    {
+      "mode": "quiet_delayed_cancel",
+      "requested_observation_seconds": 300,
+      "actual_wall_seconds": 303.778,
+      "episode_weight": 16160,
+      "observed_fixed_minute_peak": 5539,
+      "adverse_phase_60s_peak": 6778,
+      "guarded_peak": 6778,
+      "witness_offset_ms": 43717,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "tp_check": "NOT_ACCEPTED",
+      "conclusion": "MEASURED_START_PHASE_CAN_EXCEED_LIMIT"
+    },
+    {
+      "mode": "quiet_failed_cancel",
+      "requested_observation_seconds": 300,
+      "actual_wall_seconds": 303.977,
+      "episode_weight": 22801,
+      "observed_fixed_minute_peak": 12180,
+      "adverse_phase_60s_peak": 13419,
+      "guarded_peak": 13419,
+      "witness_offset_ms": 43765,
+      "flat_confirmation": "UNKNOWN",
+      "tp_check": "NOT_ACCEPTED",
+      "conclusion": "MEASURED_START_PHASE_CAN_EXCEED_LIMIT"
+    },
+    {
+      "mode": "pulse_50ms",
+      "requested_observation_seconds": 20,
+      "actual_wall_seconds": 55.735,
+      "episode_weight": 11616,
+      "observed_fixed_minute_peak": 11616,
+      "adverse_phase_60s_peak": 11616,
+      "guarded_peak": 11616,
+      "witness_offset_ms": 59967,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "tp_check": "NOT_ACCEPTED",
+      "conclusion": "MEASURED_START_PHASE_CAN_EXCEED_LIMIT"
+    },
+    {
+      "mode": "pulse_50ms_cap",
+      "requested_observation_seconds": 45,
+      "actual_wall_seconds": 60.249,
+      "episode_weight": 12442,
+      "observed_fixed_minute_peak": 12292,
+      "adverse_phase_60s_peak": 12430,
+      "guarded_peak": 12430,
+      "witness_offset_ms": 59763,
+      "flat_confirmation": "UNKNOWN",
+      "tp_check": "NOT_ACCEPTED",
+      "conclusion": "MEASURED_START_PHASE_CAN_EXCEED_LIMIT"
+    }
+  ],
+  "assumed_limit": 6000,
+  "assumed_reserve": 300,
+  "cleanup_only_measurement_does_not_prove_minute_admission": true,
+  "adverse_start_phase_and_failure_paths_exceed_limit": true,
+  "actual_execution_approved": false,
+  "runtime_admission_changed": false,
+  "trace_scope": "run_admission_candidate after isolated fixture initialization; external and other-IP work excluded",
+  "next_action": "KEEP_PAUSED_REVIEW_FAILURE_PATH_COST_BOUND_AND_RESERVE_BEFORE_ADMISSION"
+}
