@@ -1,0 +1,16 @@
+{
+  "old_day_kst": "2026-11-07",
+  "proposed_day_kst": "2026-11-09",
+  "old_week_kst": "2026-11-02",
+  "proposed_week_kst": "2026-11-09",
+  "old_daily_base_usdt": "4998.74183608",
+  "proposed_daily_base_usdt": "4998.74183608",
+  "old_weekly_base_usdt": "4998.99761493",
+  "proposed_weekly_base_usdt": "4998.74183608",
+  "high_water_usdt_preserved": "5000.00000000",
+  "day_boundary_utc": "2026-11-08T15:00:00+00:00",
+  "week_boundary_utc": "2026-11-08T15:00:00+00:00",
+  "adoption_snapshot_anchor_utc": "2026-11-06T07:25:25.109073+00:00",
+  "prior_attested_day_operation_id": "da1b84ca-b551-522c-8eb3-a97253c8d97e",
+  "operator_attested_day_kst": "2026-11-09"
+}

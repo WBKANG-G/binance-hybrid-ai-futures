@@ -1,0 +1,2 @@
+cd /d "%USERPROFILE%\Desktop\windows-demo-manual-close-period-apply"
+powershell -NoProfile -Command "$ErrorActionPreference='Stop'; if((Get-FileHash -Algorithm SHA256 -LiteralPath 'adopt_manual_close_periods.py').Hash.ToLower() -ne 'f1e328935fcfd96f5cb44de4bbd7592dd9e61e4a5ca9d2e0502188b3c8c5cafd'){throw 'PERIOD_ADOPTION_HASH_MISMATCH'}" && docker exec -i hybrid-windows-api-1 python - --apply --accept-operator-evidence --attest-no-activity-since-manual-close --attested-day-kst 2026-11-09 < adopt_manual_close_periods.py

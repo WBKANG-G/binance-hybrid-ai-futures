@@ -1,0 +1,11 @@
+{
+  "installed_commit": "4e967dc6751c6f04786ba63cdcc97e7eb1c80a39",
+  "source_hash_pins": 45,
+  "reviewed_preview_artifact_commit": "320554c491db6aca9db9480a48adb0f408f051d8",
+  "operator_no_activity_attestation_kst": "2026-11-09",
+  "scope": "Standalone single-operation manual-source day/week adoption. Uses existing AttestedPeriodBaseline model and DemoStore fencing; no production file/schema/old recovery guard modifications.",
+  "new_event": "DEMO_EXTERNAL_CLOSE_ATTESTED_PERIOD_BASELINES",
+  "manual_source": "OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE",
+  "actual_midnight_equity_verified": false,
+  "account_wide_exchange_export_verified": false
+}

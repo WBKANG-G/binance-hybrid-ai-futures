@@ -1,0 +1,559 @@
+--- readonly_period_preview.py
++++ reviewed_period_apply.py
+@@ -1,4 +1,4 @@
+-"""Read-only day/week preview bound to the manual close and prior attested day receipt."""
++"""Explicit, reviewed day/week adoption; entries paused and all exchange calls GET only."""
+ 
+ import argparse
+ import hashlib
+@@ -10,7 +10,7 @@
+ from datetime import time as daytime
+ from decimal import Decimal, InvalidOperation
+ from pathlib import Path
+-from uuid import UUID, uuid5
++from uuid import UUID, uuid4, uuid5
+ from zoneinfo import ZoneInfo
+ 
+ import yaml
+@@ -30,7 +30,7 @@
+ from packages.persistence.demo import DemoStore, accounts
+ from scripts.demo_key_session import credentials
+ from services.execution.demo_empty_db_restart import empty
+-from services.execution.demo_models import DemoLedger
++from services.execution.demo_models import AttestedPeriodBaseline, DemoLedger
+ from services.execution.paper import account_risk
+ from services.risk.paper import AccountValue, period_keys
+ 
+@@ -98,7 +98,7 @@
+         raise Blocked(code)
+ 
+ 
+-def local(store):
++def local(store, lease=None):
+     with store.engine.connect() as conn:
+         conn.exec_driver_sql("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+         conn.exec_driver_sql("SET LOCAL statement_timeout='3s'")
+@@ -106,7 +106,16 @@
+             conn.execute(select(accounts).where(accounts.c.account_id == ACCOUNT)).mappings().one()
+         )
+     state = DemoLedger.model_validate(row["state"])
+-    require(row["owner"] is None, "ACTIVE_OWNER_BLOCKED")
++    if lease is None:
++        require(row["owner"] is None, "ACTIVE_OWNER_BLOCKED")
++    else:
++        require(
++            row["owner"] == str(lease.owner)
++            and row["fence"] == lease.fence
++            and row["lease_until"] is not None
++            and row["lease_until"] > store.now(),
++            "LEASE_OR_FENCE_CHANGED",
++        )
+     empty(state)
+     require(state.income_since_ms is not None, "INITIALIZED_LEDGER_REQUIRED")
+     order = state.orders.get(INCIDENT)
+@@ -292,7 +301,7 @@
+         "/fapi/v1/income",
+     }
+ )
+-MAX_SECONDS = 75.0
++MAX_SECONDS = 45.0
+ MAX_HTTP_ATTEMPTS = 48
+ MAX_CLOCK_ATTEMPTS = 10
+ ROW_LIMIT = 1000
+@@ -642,9 +651,9 @@
+     require(not incomes, "POST_ANCHOR_INCOME_PRESENT")
+ 
+ 
+-def preview(store, client, monitor, *, attest=False, attested_day=None):
++def preview(store, client, monitor, *, attest=False, attested_day=None, lease=None):
+     require(attest is True, "OPERATOR_ATTESTATION_REQUIRED")
+-    before = local(store)
++    before = local(store, lease)
+     ledger = before[-1]
+     receipt, anchor, day, week, boundary, week_boundary = context(store, ledger, client)
+     require(attested_day == day, "CURRENT_DAY_ATTESTATION_REQUIRED")
+@@ -664,6 +673,7 @@
+         client.sync_clock()
+         client.cutoff_ms = client.clock_ms() + client.offset
+         history(client)
++        final_started = store.now()
+         final = read_state(client, ledger)
+         require(first == final, "CURRENT_STATE_CHANGED")
+         require(
+@@ -699,7 +709,7 @@
+             and probe.high_water == ledger.high_water,
+             "PROPOSED_RISK_GATES_FAILED",
+         )
+-        require(local(store) == before, "LOCAL_STATE_CHANGED")
++        require(local(store, lease) == before, "LOCAL_STATE_CHANGED")
+         return {
+             "manual_close_period_preview": "OPERATOR_ATTESTED_DAY_WEEK_PREVIEW_NO_DATABASE_CHANGE",
+             "source": "OPERATOR_ATTESTED_SIGNED_EXTERNAL_CLOSE_FLAT_ANCHOR",
+@@ -746,22 +756,326 @@
+             "review_token_printed": False,
+             "http_attempts": len(monitor.records),
+             "clock_attempts": monitor.clock_attempts,
++            "final_state_started_at_utc": final_started.isoformat(),
+             "next_action": "REVIEW_VALUES_NO_APPLY_OR_RESUME",
+         }
+     finally:
+-        require(local(store) == before, "LOCAL_STATE_CHANGED")
+-
+-
+-def blocked(reason):
++        require(local(store, lease) == before, "LOCAL_STATE_CHANGED")
++
++
++EXPECTED = {
++    "old_day_kst": "2026-11-07",
++    "proposed_day_kst": "2026-11-09",
++    "old_week_kst": "2026-11-02",
++    "proposed_week_kst": "2026-11-09",
++    "old_daily_base_usdt": "4998.74183608",
++    "proposed_daily_base_usdt": "4998.74183608",
++    "old_weekly_base_usdt": "4998.99761493",
++    "proposed_weekly_base_usdt": "4998.74183608",
++    "high_water_usdt_preserved": "5000.00000000",
++    "day_boundary_utc": "2026-11-08T15:00:00+00:00",
++    "week_boundary_utc": "2026-11-08T15:00:00+00:00",
++    "adoption_snapshot_anchor_utc": "2026-11-06T07:25:25.109073+00:00",
++    "prior_attested_day_operation_id": PRIOR_DAY_KEY,
++    "operator_attested_day_kst": "2026-11-09",
++}
++APPLY_KEY = str(uuid5(UUID(INCIDENT), "operator-attested-external-close-periods-2026-11-09-v1"))
++OPERATION = "ADOPT_EXTERNAL_CLOSE_ATTESTED_PERIOD_BASELINES_V1"
++SOURCE = "OPERATOR_ATTESTED_FLAT_PERIODS_WITH_SIGNED_USDT_EVIDENCE"
++
++
++def reviewed(report, *, evidence=True):
++    for key, value in EXPECTED.items():
++        actual = report.get(key)
++        if key.endswith("usdt") or key == "high_water_usdt_preserved":
++            require(Decimal(str(actual)) == Decimal(value), "REVIEWED_VALUES_CHANGED")
++        else:
++            require(actual == value, "REVIEWED_VALUES_CHANGED")
++    if evidence:
++        require(
++            all(
++                report.get(k) is True
++                for k in (
++                    "operator_attestation_used",
++                    "prior_attested_day_receipt_verified",
++                    "signed_btc_trade_cohort_reverified",
++                    "post_anchor_income_empty",
++                    "current_exchange_empty_at_read_checks",
++                    "old_valuation_timestamp_preserved",
++                    "request_history_preserved",
++                    "manual_close_receipt_preserved",
++                )
++            )
++            and all(
++                report.get(k) is False
++                for k in (
++                    "exact_day_midnight_valuation_verified",
++                    "exact_week_midnight_valuation_verified",
++                    "account_wide_trade_export_verified",
++                    "database_changed_by_preview",
++                    "baseline_adoption_approved",
++                )
++            ),
++            "REVIEWED_EVIDENCE_CHANGED",
++        )
++
++
++def preserved(ledger):
++    data = ledger.model_dump(mode="json")
++    for key in (
++        "daily_key",
++        "daily_base",
++        "weekly_key",
++        "weekly_base",
++        "stream_ready",
++        "reconciled",
++    ):
++        data.pop(key)
++    for key in ("operations", "attested_period_baselines"):
++        data[key].pop(APPLY_KEY, None)
++    return digest(data)
++
++
++def recorded(ledger):
++    raw = ledger.operations.get(APPLY_KEY)
++    receipt = ledger.attested_period_baselines.get(APPLY_KEY)
++    if raw is None and receipt is None:
++        require(
++            not any(
++                APPLY_KEY in x
++                for x in (
++                    ledger.recovery_receipts,
++                    ledger.cancelled_exposure_corrections,
++                    ledger.attested_day_baselines,
++                    ledger.exit_anchored_day_baselines,
++                )
++            ),
++            "PERIOD_OPERATION_CONFLICT",
++        )
++        return False
++    require(raw is not None and receipt is not None, "PERIOD_OPERATION_CONFLICT")
++    try:
++        record = json.loads(raw)
++    except (ValueError, TypeError):
++        raise Blocked("PERIOD_OPERATION_CONFLICT") from None
++    require(
++        isinstance(record, dict)
++        and record.get("operation") == OPERATION
++        and record.get("reviewed_values") == EXPECTED
++        and record.get("preserved_ledger_sha256") == preserved(ledger)
++        and record.get("typed_receipt_sha256") == digest(receipt.model_dump(mode="json"))
++        and record.get("exact_day_midnight_valuation_verified") is False
++        and record.get("exact_week_midnight_valuation_verified") is False
++        and record.get("account_wide_exchange_export_verified") is False,
++        "PERIOD_OPERATION_CONFLICT",
++    )
++    require(
++        receipt.review_token == digest(EXPECTED)
++        and receipt.source == SOURCE
++        and receipt.old_daily_key == EXPECTED["old_day_kst"]
++        and receipt.old_weekly_key == EXPECTED["old_week_kst"]
++        and receipt.old_daily_base == Decimal(EXPECTED["old_daily_base_usdt"])
++        and receipt.old_weekly_base == Decimal(EXPECTED["old_weekly_base_usdt"])
++        and receipt.day_boundary_utc == datetime.fromisoformat(EXPECTED["day_boundary_utc"])
++        and receipt.week_boundary_utc == datetime.fromisoformat(EXPECTED["week_boundary_utc"])
++        and receipt.anchor_utc
++        == ledger.value.as_of
++        == datetime.fromisoformat(EXPECTED["adoption_snapshot_anchor_utc"])
++        and ledger.daily_key == EXPECTED["proposed_day_kst"]
++        and ledger.weekly_key == EXPECTED["proposed_week_kst"]
++        and ledger.daily_base
++        == ledger.weekly_base
++        == receipt.baseline_usdt
++        == Decimal(EXPECTED["proposed_daily_base_usdt"])
++        and ledger.high_water == Decimal(EXPECTED["high_water_usdt_preserved"])
++        and ledger.paused
++        and ledger.risk_state.value == "NORMAL"
++        and not ledger.reconciled
++        and not ledger.stream_ready,
++        "PERIOD_OPERATION_CONFLICT",
++    )
++    require(
++        all(
++            re.fullmatch("[0-9a-f]{64}", x)
++            for x in (receipt.signed_evidence_hash, receipt.exchange_fingerprint)
++        )
++        and receipt.anchor_utc
++        < receipt.week_boundary_utc
++        <= receipt.day_boundary_utc
++        <= receipt.signed_evidence_until_utc
++        <= receipt.attested_until_utc,
++        "PERIOD_OPERATION_CONFLICT",
++    )
++    return True
++
++
++def result(ledger, *, changed, released):
+     return {
+-        "manual_close_period_preview": "BLOCKED_KEEP_PAUSED_NO_RETRY",
+-        "stop_reason": reason,
+-        "database_changed_by_preview": False,
++        "manual_close_period_adoption": "OPERATOR_ATTESTED_DAY_WEEK_ADOPTED_ENTRIES_STILL_PAUSED"
++        if changed
++        else "ALREADY_RECORDED_NO_ACTION",
++        "operation_id": APPLY_KEY,
++        "source": "OPERATOR_ATTESTED_SIGNED_EXTERNAL_CLOSE_FLAT_ANCHOR",
++        "day_kst": ledger.daily_key,
++        "week_kst": ledger.weekly_key,
++        "daily_base_usdt": str(ledger.daily_base),
++        "weekly_base_usdt": str(ledger.weekly_base),
++        "high_water_usdt_preserved": str(ledger.high_water),
++        "risk_state": ledger.risk_state.value,
++        "paused": ledger.paused,
++        "database_changed": changed,
++        "leader_released": released,
++        "history_prior_day_and_manual_close_receipts_preserved": True,
++        "old_valuation_timestamp_preserved": True,
++        "exact_day_midnight_valuation_verified": False,
++        "exact_week_midnight_valuation_verified": False,
++        "account_wide_exchange_export_verified": False,
+         "order_writes": 0,
+         "orders_enabled": False,
+         "live_trading_enabled": False,
+-        "baseline_adoption_approved": False,
+-        "next_action": "SHARE_CODE_NO_BASELINE_CHANGE",
++        "next_action": "KEEP_PAUSED_CHECK_READINESS_NO_TP_RETRY",
++    }
++
++
++def adopt(
++    store,
++    client,
++    monitor,
++    *,
++    attest=False,
++    attested_day=None,
++    accept_operator_evidence=False,
++    progress=None,
++):
++    require(attest is True, "OPERATOR_ATTESTATION_REQUIRED")
++    require(accept_operator_evidence is True, "MANUAL_SOURCE_ACCEPTANCE_REQUIRED")
++    progress = progress if progress is not None else {}
++    before = local(store)[-1]
++    if recorded(before):
++        return result(before, changed=False, released=True)
++    _, anchor, day, week, boundary, week_boundary = context(store, before, client)
++    require(
++        attested_day == day == EXPECTED["operator_attested_day_kst"],
++        "CURRENT_DAY_ATTESTATION_REQUIRED",
++    )
++    reviewed(
++        {
++            "old_day_kst": before.daily_key,
++            "proposed_day_kst": day,
++            "old_week_kst": before.weekly_key,
++            "proposed_week_kst": week,
++            "old_daily_base_usdt": str(before.daily_base),
++            "proposed_daily_base_usdt": str(before.value.equity),
++            "old_weekly_base_usdt": str(before.weekly_base),
++            "proposed_weekly_base_usdt": str(before.value.equity),
++            "high_water_usdt_preserved": str(before.high_water),
++            "day_boundary_utc": boundary.isoformat(),
++            "week_boundary_utc": week_boundary.isoformat(),
++            "adoption_snapshot_anchor_utc": anchor.isoformat(),
++            "prior_attested_day_operation_id": PRIOR_DAY_KEY,
++            "operator_attested_day_kst": attested_day,
++        },
++        evidence=False,
++    )
++    progress["lease_change_possible"] = True
++    lease = store.acquire(ACCOUNT, uuid4())
++    try:
++        current = local(store, lease)[-1]
++        require(
++            current
++            == before.model_copy(deep=True, update={"reconciled": False, "stream_ready": False}),
++            "LOCAL_STATE_CHANGED",
++        )
++
++        def write(ledger):
++            require(ledger == current and not recorded(ledger), "LOCAL_STATE_CHANGED")
++            report = preview(
++                store, client, monitor, attest=True, attested_day=attested_day, lease=lease
++            )
++            reviewed(report)
++            monitor.check()
++            require(
++                0
++                <= (
++                    store.now() - datetime.fromisoformat(report["final_state_started_at_utc"])
++                ).total_seconds()
++                <= ledger.policy.max_snapshot_age_seconds,
++                "FINAL_STATE_PROOF_STALE",
++            )
++            require(
++                period_keys(store.now(), ledger.policy.week_start_kst)
++                == (EXPECTED["proposed_day_kst"], EXPECTED["proposed_week_kst"]),
++                "PERIOD_CHANGED_DURING_PREVIEW",
++            )
++            original = preserved(ledger)
++            proof_hash = digest({"report": report, "reviewed_values": EXPECTED})
++            receipt = AttestedPeriodBaseline(
++                review_token=digest(EXPECTED),
++                source=SOURCE,
++                day_boundary_utc=datetime.fromisoformat(EXPECTED["day_boundary_utc"]),
++                week_boundary_utc=datetime.fromisoformat(EXPECTED["week_boundary_utc"]),
++                baseline_usdt=Decimal(EXPECTED["proposed_daily_base_usdt"]),
++                old_daily_key=ledger.daily_key,
++                old_daily_base=ledger.daily_base,
++                old_weekly_key=ledger.weekly_key,
++                old_weekly_base=ledger.weekly_base,
++                anchor_utc=ledger.value.as_of,
++                signed_evidence_until_utc=datetime.fromtimestamp(
++                    report["signed_history_cutoff_ms"] / 1000, UTC
++                ),
++                attested_until_utc=store.now(),
++                signed_evidence_hash=proof_hash,
++                exchange_fingerprint=digest(
++                    {
++                        "scope": "GLOBAL_CURRENT_FLAT_USDT",
++                        "wallet": EXPECTED["proposed_daily_base_usdt"],
++                        "cutoff_ms": report["signed_history_cutoff_ms"],
++                    }
++                ),
++            )
++            ledger.daily_key, ledger.weekly_key = (
++                EXPECTED["proposed_day_kst"],
++                EXPECTED["proposed_week_kst"],
++            )
++            ledger.daily_base = ledger.weekly_base = receipt.baseline_usdt
++            ledger.attested_period_baselines[APPLY_KEY] = receipt
++            ledger.operations[APPLY_KEY] = json.dumps(
++                {
++                    "operation": OPERATION,
++                    "reviewed_values": EXPECTED,
++                    "evidence_source": "OPERATOR_ATTESTED_SIGNED_EXTERNAL_CLOSE_FLAT_ANCHOR",
++                    "preserved_ledger_sha256": original,
++                    "typed_receipt_sha256": digest(receipt.model_dump(mode="json")),
++                    "signed_history_cutoff_ms": report["signed_history_cutoff_ms"],
++                    "exact_day_midnight_valuation_verified": False,
++                    "exact_week_midnight_valuation_verified": False,
++                    "account_wide_exchange_export_verified": False,
++                },
++                sort_keys=True,
++            )
++            require(preserved(ledger) == original and recorded(ledger), "UNRELATED_LEDGER_CHANGE")
++
++        progress["application_may_have_completed"] = True
++        store.change(lease, "DEMO_EXTERNAL_CLOSE_ATTESTED_PERIOD_BASELINES", write)
++    finally:
++        store.release(lease)
++    after = local(store)[-1]
++    require(recorded(after), "POSTCHECK_FAILED")
++    return result(after, changed=True, released=True)
++
++
++def blocked(reason, progress=None):
++    return {
++        "manual_close_period_adoption": "BLOCKED_KEEP_PAUSED_NO_AUTOMATIC_RETRY",
++        "stop_reason": reason,
++        "application_may_have_completed": bool(
++            (progress or {}).get("application_may_have_completed")
++        ),
++        "lease_change_possible": bool((progress or {}).get("lease_change_possible")),
++        "order_writes": 0,
++        "orders_enabled": False,
++        "live_trading_enabled": False,
++        "next_action": "SHARE_CODE_KEEP_PAUSED_NO_RETRY",
+     }
+ 
+ 
+@@ -777,6 +1091,8 @@
+ 
+ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--apply", action="store_true", required=True)
++    parser.add_argument("--accept-operator-evidence", action="store_true", required=True)
+     parser.add_argument(
+         "--attest-no-activity-since-manual-close", action="store_true", required=True
+     )
+@@ -784,6 +1100,7 @@
+     args = parser.parse_args()
+     engine = route = None
+     code = 2
++    progress = {}
+     report = blocked("CHECK_UNAVAILABLE")
+     try:
+         require(
+@@ -794,33 +1111,37 @@
+         verify_sources()
+         cfg = DemoSettings.model_validate(
+             yaml.load(
+-                Path("configs/demo-isolated.example.yaml").read_text(),
+-                Loader=UniqueKeyLoader,
++                Path("configs/demo-isolated.example.yaml").read_text(), Loader=UniqueKeyLoader
+             )
+         ).model_copy(update={"demo_trading_enabled": False})
+         engine = create_engine(
+             database_url().get_secret_value(), connect_args={"connect_timeout": 2}
+         )
+         store = DemoStore(engine)
+-        local(store)
+-        route = TPReadRouting(transport)
+-        monitor = Monitor(route)
+-        try:
+-            key = credentials(prompt=False)
+-        except Exception:
+-            raise Blocked("DEMO_CREDENTIAL_SESSION_UNAVAILABLE") from None
+-        client = DayPreviewClient(cfg, key, send=monitor)
+-        monitor.server_ms = lambda: client.clock_ms() + client.offset
+-        report = preview(
+-            store,
+-            client,
+-            monitor,
+-            attest=args.attest_no_activity_since_manual_close,
+-            attested_day=args.attested_day_kst,
+-        )
++        initial = local(store)[-1]
++        if recorded(initial):
++            report = result(initial, changed=False, released=True)
++        else:
++            route = TPReadRouting(transport)
++            monitor = Monitor(route)
++            try:
++                key = credentials(prompt=False)
++            except Exception:
++                raise Blocked("DEMO_CREDENTIAL_SESSION_UNAVAILABLE") from None
++            client = DayPreviewClient(cfg, key, send=monitor)
++            monitor.server_ms = lambda: client.clock_ms() + client.offset
++            report = adopt(
++                store,
++                client,
++                monitor,
++                attest=args.attest_no_activity_since_manual_close,
++                attested_day=args.attested_day_kst,
++                accept_operator_evidence=args.accept_operator_evidence,
++                progress=progress,
++            )
+         code = 0
+     except Exception as error:
+-        report = blocked(safe_reason(error))
++        report = blocked(safe_reason(error), progress)
+     finally:
+         failed = False
+         if route is not None:
+@@ -834,7 +1155,7 @@
+             except Exception:
+                 failed = True
+         if failed:
+-            report = blocked("RESOURCE_CLEANUP_UNVERIFIED")
++            report = blocked("RESOURCE_CLEANUP_UNVERIFIED", progress)
+             code = 2
+     print(json.dumps(report), flush=True)
+     raise SystemExit(code)
+@@ -859,6 +1180,7 @@
+         "EXISTING_LOSS_LIMIT_REACHED",
+         "EXTRA_OR_CHANGED_BTC_TRADES",
+         "FAILED_TRIAL_MARKER_CHANGED",
++        "FINAL_STATE_PROOF_STALE",
+         "FIXED_WINDOW_REQUIRED",
+         "HIGH_WATER_REQUIRES_SEPARATE_REVIEW",
+         "HISTORY_QUERY_SCOPE_FORBIDDEN",
+@@ -866,6 +1188,7 @@
+         "INITIALIZED_LEDGER_REQUIRED",
+         "INSTALLED_SOURCE_HASH_MISMATCH",
+         "ISOLATED_SETTINGS_CHANGED",
++        "LEASE_OR_FENCE_CHANGED",
+         "LIMIT_DISCOVERY_REQUIRED",
+         "LISTEN_KEY_FORBIDDEN",
+         "LIVE_CONTEXT_FORBIDDEN",
+@@ -875,13 +1198,16 @@
+         "MANUAL_CLOSE_RECEIPT_MISMATCH",
+         "MANUAL_RECEIPT_INVALID",
+         "MANUAL_RECEIPT_PROVENANCE_INVALID",
++        "MANUAL_SOURCE_ACCEPTANCE_REQUIRED",
+         "MUTATION_OR_ROUTE_FORBIDDEN",
+         "NONZERO_OR_UNKNOWN_TRANSFER_BASIS",
+         "NON_READ_OR_UNKNOWN_ROUTE_FORBIDDEN",
+         "OPERATOR_ATTESTATION_REQUIRED",
+         "ORDER_SCOPE_FORBIDDEN",
+         "PERIOD_CHANGED_DURING_PREVIEW",
++        "PERIOD_OPERATION_CONFLICT",
+         "POSITION_SHAPE_INVALID",
++        "POSTCHECK_FAILED",
+         "POST_ANCHOR_INCOME_INCOMPLETE",
+         "POST_ANCHOR_INCOME_PRESENT",
+         "PRIOR_DAY_PROVENANCE_CHANGED",
+@@ -896,12 +1222,15 @@
+         "RATE_LIMIT_ALREADY_OBSERVED",
+         "READ_ONLY_CONTEXT_REQUIRED",
+         "RESOURCE_CLEANUP_UNVERIFIED",
++        "REVIEWED_EVIDENCE_CHANGED",
++        "REVIEWED_VALUES_CHANGED",
+         "SIGNED_HISTORY_WINDOW_UNSUPPORTED",
+         "SIGNED_ORDER_PROOF_MISMATCH",
+         "SIGNED_TRADE_PROOF_MISMATCH",
+         "TIME_BUDGET_REACHED",
+         "TRADE_HISTORY_INCOMPLETE",
+         "UNEXPECTED_QUERY_PARAMETERS",
++        "UNRELATED_LEDGER_CHANGE",
+         "USDT_ASSET_SCOPE_INVALID",
+         "USDT_BALANCE_OR_MARGIN_MISMATCH",
+         "WALLET_CHANGED_FROM_ADOPTION",

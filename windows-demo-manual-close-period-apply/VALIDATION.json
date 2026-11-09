@@ -1,0 +1,30 @@
+{
+  "tests": {
+    "tests": "119",
+    "failures": "0",
+    "errors": "0",
+    "skipped": "0",
+    "time": "22.795"
+  },
+  "apply_cases": 50,
+  "unchanged_readonly_preview_cases": 69,
+  "ruff": "PASS with installed project configuration",
+  "container": "PASS:45 installed source hashes, network none/read-only root, no DB apply executed",
+  "database_tests": "Isolated synthetic PostgreSQL; row locks/fencing and real transactions used. No user DB access.",
+  "signed_http": "Synthetic responses only, no actual exchange account requests",
+  "critical_cases": [
+    "Exact reviewed amounts/dates and explicit manual-source acceptance before lease",
+    "Fresh full signed evidence under fenced row lock",
+    "Original day/week/drawdown caps and fresh final state before commit",
+    "Atomic baseline rollback on failed proofs/expired lease",
+    "Lost commit response is identifiable; replay has no writes/network",
+    "Missing/inconsistent receipt or changed history blocks replay",
+    "Day/week values, one typed receipt and operation only; high water/value timestamp/request/exit/prior day preserved",
+    "Source mismatch and missing CLI flags before resources",
+    "Credential failure and postcommit cleanup uncertainty flags"
+  ],
+  "source_runtime_changed": false,
+  "user_database_applied_by_cloud": false,
+  "actual_exchange_order_writes": 0,
+  "deployment_required": false
+}

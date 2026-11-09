@@ -1,0 +1,18 @@
+{
+  "package": "windows-demo-manual-close-period-apply",
+  "files": {
+    "APPLY_CHANGES.patch": "f616047582c6494dd812a89c7fbbecb187adb6e5a60a00a3e23efae745b4d40d",
+    "CONTAINER_SMOKE.json": "35b01fcae3efa6dfb5abf7bbd068e3506c2b1bd819a1c4091e2d6d8a7bb93a2b",
+    "README_KO.md": "24faaedd74db68ff6f27525e3c46b1d318fafe2adb283bb94dcefa5fe29bfd69",
+    "REVIEWED_VALUES.json": "1c9f20de427b55d2bed955821ab0a88852fd171ed7d406782cf30b4047afcfa0",
+    "RUN_COMMAND.txt": "245c0c6e19fba4833cee6fbcade017dfbb3a9bda004d3d5e76159873a7c1ce52",
+    "SOURCE_REFERENCE.json": "cbdb34c9549f8f25dc9334bd76b5389d3c01a8945405390bee5bec5fa2942744",
+    "STRUCTURE_PROOF.json": "3350c88aa6eb8f11177408dd1cb64222c6000770015a1f1dbeb9803f38700006",
+    "VALIDATION.json": "6444921380f904940ca9473c5f8ffe7caf719885f38fc01b5616c0f41f541968",
+    "adopt_manual_close_periods.py": "f1e328935fcfd96f5cb44de4bbd7592dd9e61e4a5ca9d2e0502188b3c8c5cafd",
+    "preview_manual_close_periods.py": "f12d05bd7001dac5881c882573f40e0bd81746497b48c4d5a77eae273f32a05d",
+    "test-results/apply-and-preview.xml": "6203cdd456187ec51f887b585ab92eaa8ea17f70be91c0967f1fb29660a726bd",
+    "test_manual_close_period_apply.py": "ba7f070e18c87fce5166ca2d0c5c9de57bd04206164aa596eaacad30c6ba3042",
+    "test_manual_close_period_preview.py": "75dee2bd755c8bee67280ea2578ad4d3f9caa67e77abc0fe760bc3dac8792ad4"
+  }
+}

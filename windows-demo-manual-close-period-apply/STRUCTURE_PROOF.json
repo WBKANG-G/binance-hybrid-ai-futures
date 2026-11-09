@@ -1,0 +1,22 @@
+{
+  "unchanged_readonly_helpers_ast": [
+    "Monitor",
+    "published_limit",
+    "DayPreviewClient",
+    "signed_close",
+    "history",
+    "utc",
+    "digest",
+    "context",
+    "prior_day_verified",
+    "prior_preserved",
+    "read_state",
+    "verify_sources"
+  ],
+  "owned_preview_matches_reviewed_readonly_preview_after_lease_and_final_timestamp_adaptations": true,
+  "owned_readonly_local_calls": 3,
+  "new_write_path": "Reviewed constants; explicit apply and operator evidence acceptance; acquired60s fenced lease;45s monotonic request budget; fresh final global state proof; DemoStore.change row lock and policy invariant; apply only day/week keys and bases plus one typed receipt and operation; release; verify preserved ledger hash.",
+  "no_automatic_repeat_after_ambiguous_commit": true,
+  "idempotent_record_recognition_no_keys_or_network": true,
+  "runtime_source_modules_changed": false
+}
