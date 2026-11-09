@@ -1,0 +1,22 @@
+{
+  "package": "windows-demo-account-config-candidate-review",
+  "files": {
+    "OFFICIAL_SDK_REFERENCE.json": "1b331f696aeae92da89b2444c13de5426b6bdbc700b7fc4c3d9c8db68143a6a9",
+    "README.md": "f6653eca6f3c157e44e04eb3b00d6dbb68e883604f24c8867576574169eac081",
+    "REPRODUCE.txt": "b3b07d80828824585306a49fad1afb9d9854028d0a5d440b906755ba4eab7e8f",
+    "STRUCTURE_PROOF.json": "f6d84c321c02b17659bb50ef34d4a0c8ff697d3cc7e61ef7f58d37334858e074",
+    "TIMING_FIXTURE_NOTE.json": "c63fcf69da246fcbdd1a19b5b8130e770c52c174628b96195c94053fa3bfa22e",
+    "VALIDATION.json": "20a59b424d8638525878df5caa57f6675a04a714514d0d8714df3c48b34cd7e1",
+    "WINDOWS_READ_ONLY_EVIDENCE.json": "68b0e270f1f8dc66aeaf7caba686f72a0c9f27dc9bf3e03aac07be9e047d9012",
+    "candidate-source/integrations/binance_usdm/demo.py": "767d3a29b59882035bdfbf61d3271b39bfece0bff4b359e636db62ad9a5e84eb",
+    "candidate-source/integrations/binance_usdm/demo_snapshot.py": "f80f6e51505ab1095c25b6ee76af01c258cff911aabd02c201bfcddc636f2258",
+    "candidate-source/tests/fixtures/approved_snapshot_v1.py": "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a",
+    "candidate-source/tests/fixtures/demo.py": "496fef84be4ca2a33b785df1121502e6ea6c9e720bd6371245c8706c96a10180",
+    "candidate-source/tests/integration/test_account_config_candidate.py": "81c5df287447c6750a71ed763e4710001f4c0aad26f0683a1171e87f8071f4f5",
+    "candidate-source/tests/integration/test_demo_private_stability.py": "01c68779cc3c85a4d4cc98569bb620dbd09c6b7297d1e922c90594dfa9801079",
+    "candidate-source/tests/integration/test_readiness_closed_history_cli.py": "eeed2fe2317303033244887be8f0ea4497607db746f4c0c540adfd88dcea2904",
+    "source.patch": "9c3faafa349a20f99aaf602acaad14915297dcd647b06caafa75edec2e18d9f9",
+    "test-results/approved-guards.xml": "7c3bb87387f5e0f1508ee9f9cf57da5f3c5a61d327b911409e53a2ec215766ac",
+    "test-results/runtime.xml": "62c6a3cade36c153e87dee0c1bcfa5d8bccf2de4d8f3c054c19d6fc6ae0fe1f1"
+  }
+}

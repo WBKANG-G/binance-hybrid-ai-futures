@@ -1,0 +1,678 @@
+diff --git a/integrations/binance_usdm/demo.py b/integrations/binance_usdm/demo.py
+index f1f3f7d..a021396 100644
+--- a/integrations/binance_usdm/demo.py
++++ b/integrations/binance_usdm/demo.py
+@@ -37,6 +37,7 @@ PUBLIC = frozenset(
+ )
+ SIGNED_GET = frozenset(
+     {
++        "/fapi/v1/accountConfig",
+         "/fapi/v3/account",
+         "/fapi/v1/symbolConfig",
+         "/fapi/v1/income",
+diff --git a/integrations/binance_usdm/demo_snapshot.py b/integrations/binance_usdm/demo_snapshot.py
+index 568e068..c4f84a7 100644
+--- a/integrations/binance_usdm/demo_snapshot.py
++++ b/integrations/binance_usdm/demo_snapshot.py
+@@ -78,13 +78,12 @@ def operational_snapshot(client: DemoClient, ledger: DemoLedger, now: datetime)
+ def _snapshot(
+     client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
+ ) -> DemoSnapshot:
+-    mode = client.request("GET", "/fapi/v1/positionSide/dual")
+-    assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
++    # Fresh account-wide mode truth on every snapshot; no cache or fallback.
++    mode = client.request("GET", "/fapi/v1/accountConfig")
+     if (
+         not isinstance(mode, dict)
+         or mode.get("dualSidePosition") is not False
+-        or not isinstance(assets, dict)
+-        or assets.get("multiAssetsMargin") is not False
++        or mode.get("multiAssetsMargin") is not False
+     ):
+         raise DemoFailure(
+             "DEMO supports verified one-way/single-asset only; settings are never changed automatically"
+diff --git a/tests/fixtures/approved_snapshot_v1.py b/tests/fixtures/approved_snapshot_v1.py
+new file mode 100644
+index 0000000..568e068
+--- /dev/null
++++ b/tests/fixtures/approved_snapshot_v1.py
+@@ -0,0 +1,286 @@
++"""Strict REST snapshot used after startup, reconnect, fills and uncertain writes."""
++
++import hashlib
++import json
++from datetime import datetime
++from decimal import Decimal, InvalidOperation
++from typing import Any
++
++from integrations.binance_usdm.demo import DemoClient, DemoFailure, DemoNotFound
++from integrations.binance_usdm.filters import number
++from packages.domain.contracts import OrderState, PositionState
++from services.execution.demo_models import DemoLedger, DemoSnapshot
++
++
++def signed_number(value: object) -> Decimal:
++    if isinstance(value, (float, bool)) or not isinstance(value, (str, int, Decimal)):
++        raise DemoFailure("Invalid DEMO financial number")
++    result = Decimal(value)
++    if not result.is_finite():
++        raise DemoFailure("Non-finite DEMO financial number")
++    return result
++
++
++def pick(raw: Any, keys: tuple[str, ...]) -> dict[str, str]:
++    if not isinstance(raw, dict) or any(key not in raw for key in keys):
++        raise DemoFailure("Incomplete DEMO order snapshot")
++    return {
++        key: str(raw[key]).lower() if isinstance(raw[key], bool) else str(raw[key]) for key in keys
++    }
++
++
++ORDER_KEYS = (
++    "symbol",
++    "clientOrderId",
++    "orderId",
++    "side",
++    "type",
++    "status",
++    "origQty",
++    "executedQty",
++    "avgPrice",
++    "price",
++    "positionSide",
++    "reduceOnly",
++)
++ALGO_KEYS = (
++    "symbol",
++    "clientAlgoId",
++    "algoId",
++    "side",
++    "orderType",
++    "algoStatus",
++    "triggerPrice",
++    "closePosition",
++    "positionSide",
++    "workingType",
++    "priceProtect",
++    "algoType",
++)
++
++
++def snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
++    try:
++        return _snapshot(client, ledger, now, include_closed_history=include_closed_history)
++    except (KeyError, TypeError, ValueError, InvalidOperation, OverflowError):
++        # Keep malformed financial responses inside the coordinator's existing
++        # fail-closed/minimal-position emergency reconciliation path.
++        raise DemoFailure("Invalid/incomplete DEMO snapshot") from None
++
++
++def operational_snapshot(client: DemoClient, ledger: DemoLedger, now: datetime) -> DemoSnapshot:
++    """Current exchange truth plus unresolved intents; full historical review stays explicit."""
++    return snapshot(client, ledger, now, include_closed_history=False)
++
++
++def _snapshot(
++    client: DemoClient, ledger: DemoLedger, now: datetime, *, include_closed_history: bool = True
++) -> DemoSnapshot:
++    mode = client.request("GET", "/fapi/v1/positionSide/dual")
++    assets = client.request("GET", "/fapi/v1/multiAssetsMargin")
++    if (
++        not isinstance(mode, dict)
++        or mode.get("dualSidePosition") is not False
++        or not isinstance(assets, dict)
++        or assets.get("multiAssetsMargin") is not False
++    ):
++        raise DemoFailure(
++            "DEMO supports verified one-way/single-asset only; settings are never changed automatically"
++        )
++    account = client.request("GET", "/fapi/v3/account")
++    configs = client.request("GET", "/fapi/v1/symbolConfig")
++    positions_raw = client.request("GET", "/fapi/v3/positionRisk")
++    regular = client.request("GET", "/fapi/v1/openOrders")
++    algos_raw = client.request("GET", "/fapi/v1/openAlgoOrders")
++    if not isinstance(account, dict) or not all(
++        isinstance(x, list) for x in (positions_raw, regular, algos_raw, configs)
++    ):
++        raise DemoFailure("Invalid DEMO account/open-order response")
++    wallet = signed_number(account["totalWalletBalance"])
++    unrealized = signed_number(account["totalUnrealizedProfit"])
++    available = number(account["availableBalance"], allow_zero=True)
++    margin = number(account["totalInitialMargin"], allow_zero=True)
++    positions: dict[str, Decimal] = {}
++    entry_prices: dict[str, Decimal] = {}
++    leverage: dict[str, Decimal] = {}
++    margin_types: dict[str, str] = {}
++    isolated_wallets: dict[str, Decimal] = {}
++    isolated_margins: dict[str, Decimal] = {}
++    liquidation_prices: dict[str, Decimal] = {}
++    scope = set(client.settings.symbols)
++    for item in configs:
++        symbol = item["symbol"]
++        if symbol in margin_types:
++            raise DemoFailure("Duplicate DEMO symbol configuration")
++        actual_mode = item.get("marginType")
++        if actual_mode not in {"CROSSED", "ISOLATED"}:
++            raise DemoFailure("Unknown DEMO margin mode")
++        margin_types[symbol] = actual_mode
++        if not scope or symbol in scope:
++            if actual_mode != client.settings.margin_mode:
++                raise DemoFailure("DEMO margin mode does not match explicit configuration")
++            auto_add = item.get("isAutoAddMargin")
++            if actual_mode == "ISOLATED" and auto_add is not False and auto_add != "false":
++                raise DemoFailure("ISOLATED requires verified automatic margin addition disabled")
++        leverage[symbol] = number(item["leverage"])
++        if (
++            client.settings.margin_mode == "ISOLATED"
++            and symbol in scope
++            and leverage[symbol] > ledger.policy.limit("max_leverage")
++        ):
++            raise DemoFailure("ISOLATED configured leverage exceeds DEMO policy")
++    if scope - margin_types.keys():
++        raise DemoFailure("Missing configured DEMO symbol settings")
++    for row in positions_raw:
++        if row.get("positionSide") != "BOTH":
++            raise DemoFailure("Unsupported DEMO position mode")
++        symbol = row["symbol"]
++        if symbol in positions:
++            raise DemoFailure("Ambiguous DEMO positions")
++        positions[symbol] = signed_number(row["positionAmt"])
++        entry_prices[symbol] = number(row["entryPrice"], allow_zero=True)
++        if positions[symbol]:
++            if scope and symbol not in scope:
++                raise DemoFailure("DEMO position outside configured symbol scope")
++            expected = client.settings.margin_mode
++            if margin_types.get(symbol) != expected:
++                raise DemoFailure("DEMO position margin settings unavailable or mismatched")
++            if "marginType" in row and row["marginType"] != (
++                "isolated" if expected == "ISOLATED" else "cross"
++            ):
++                raise DemoFailure("DEMO position/config margin mismatch")
++            if expected == "ISOLATED":
++                isolated_wallets[symbol] = number(row["isolatedWallet"])
++                isolated_margins[symbol] = number(row["isolatedMargin"], allow_zero=True)
++                liquidation_prices[symbol] = number(row["liquidationPrice"])
++                # A locked isolated wallet cannot fund another entry. Do not add it
++                # to availableBalance or totalWalletBalance (already account totals).
++                margin = max(margin, sum(isolated_wallets.values(), Decimal(0)))
++        # V3 omits leverage: account configuration is queried separately per symbol.
++
++    orders = {str(row["clientOrderId"]): pick(row, ORDER_KEYS) for row in regular}
++    algos = {
++        str(row["clientAlgoId"]): pick(row, ALGO_KEYS)
++        | {"actualOrderId": str(row.get("actualOrderId", ""))}
++        for row in algos_raw
++    }
++    if len(orders) != len(regular) or len(algos) != len(algos_raw):
++        raise DemoFailure("Duplicate remote IDs")
++    if scope and any(row["symbol"] not in scope for row in [*orders.values(), *algos.values()]):
++        raise DemoFailure("DEMO open order outside configured symbol scope")
++    for order in ledger.orders.values():
++        if (
++            not include_closed_history
++            and order.state
++            in {OrderState.FILLED, OrderState.CANCELED, OrderState.REJECTED, OrderState.EXPIRED}
++            and order.position_state == PositionState.CLOSED
++            and not (order.remaining or order.open_quantity or order.actual_risk or order.protected)
++            and (
++                (order.filled > 0 and order.exit_state == "FILLED")
++                or (not order.filled and order.exit_id is None and order.exit_state == "NONE")
++            )
++            and not any(identifier in orders for identifier in (order.client_id, order.exit_id))
++            and not any(identifier in algos for identifier in (order.algo_id, order.tp_algo_id))
++        ):
++            # Only previously proven closed records absent from BOTH fresh open
++            # lists are omitted. Pending/unknown/partial/protected entries and
++            # anything reappearing remotely still use the original-ID queries.
++            continue
++        if order.client_id not in orders:
++            try:
++                raw = client.request(
++                    "GET",
++                    "/fapi/v1/order",
++                    {"symbol": order.signal.symbol, "origClientOrderId": order.client_id},
++                )
++                orders[order.client_id] = pick(raw, ORDER_KEYS)
++            except DemoNotFound:
++                pass  # Preserve SUBMITTING/UNKNOWN and its reservation; absence is not rejection.
++        for algo_id in [order.algo_id, order.tp_algo_id]:
++            if algo_id and algo_id not in algos:
++                try:
++                    raw = client.request("GET", "/fapi/v1/algoOrder", {"clientAlgoId": algo_id})
++                    algos[algo_id] = pick(raw, ALGO_KEYS) | {
++                        "actualOrderId": str(raw.get("actualOrderId", ""))
++                    }
++                except DemoNotFound:
++                    pass
++        if order.exit_id and order.exit_id not in orders:
++            try:
++                raw = client.request(
++                    "GET",
++                    "/fapi/v1/order",
++                    {"symbol": order.signal.symbol, "origClientOrderId": order.exit_id},
++                )
++                orders[order.exit_id] = pick(raw, ORDER_KEYS)
++            except DemoNotFound:
++                pass
++    for algo in algos.values():
++        actual = algo.get("actualOrderId")
++        if algo["algoStatus"] == "FINISHED" and actual and actual != "0":
++            raw = client.request(
++                "GET", "/fapi/v1/order", {"symbol": algo["symbol"], "orderId": actual}
++            )
++            orders["ALGO_EXEC:" + actual] = pick(raw, ORDER_KEYS)
++    data = dict(
++        positions={s: str(q) for s, q in positions.items()},
++        orders=orders,
++        algos=algos,
++        wallet=str(wallet),
++        unrealized=str(unrealized),
++        available=str(available),
++        margin=str(margin),
++        margin_types=margin_types,
++        leverage={s: str(q) for s, q in leverage.items()},
++        entry_prices={s: str(q) for s, q in entry_prices.items()},
++        isolated_wallets={s: str(q) for s, q in isolated_wallets.items()},
++        isolated_margins={s: str(q) for s, q in isolated_margins.items()},
++        liquidation_prices={s: str(q) for s, q in liquidation_prices.items()},
++    )
++    transfers: dict[str, str] = {}
++    if ledger.income_since_ms is not None:
++        for page in range(1, 11):
++            incomes = client.request(
++                "GET",
++                "/fapi/v1/income",
++                {
++                    "startTime": str(ledger.income_since_ms),
++                    "endTime": str(int(now.timestamp() * 1000)),
++                    "limit": "1000",
++                    "page": str(page),
++                },
++            )
++            if not isinstance(incomes, list):
++                raise DemoFailure("Invalid DEMO income response")
++            for item in incomes:
++                if item["incomeType"] in {"TRANSFER", "WELCOME_BONUS"}:
++                    if item.get("asset") != "USDT":
++                        raise DemoFailure("Unexpected account transfer asset")
++                    transfers[item["incomeType"] + ":" + str(item["tranId"])] = str(
++                        signed_number(item["income"])
++                    )
++            if len(incomes) < 1000:
++                break
++        else:
++            raise DemoFailure("DEMO income pagination incomplete; refuse new entries")
++    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
++    return DemoSnapshot(
++        as_of=now,
++        equity=wallet + unrealized,
++        wallet_balance=wallet,
++        available_balance=available,
++        margin_used=margin,
++        positions=positions,
++        entry_prices=entry_prices,
++        leverage=leverage,
++        orders=orders,
++        algos=algos,
++        fingerprint=fingerprint,
++        transfers=transfers,
++        margin_types=margin_types,
++        isolated_wallets=isolated_wallets,
++        isolated_margins=isolated_margins,
++        liquidation_prices=liquidation_prices,
++    )
+diff --git a/tests/fixtures/demo.py b/tests/fixtures/demo.py
+index b9d1841..1898345 100644
+--- a/tests/fixtures/demo.py
++++ b/tests/fixtures/demo.py
+@@ -52,6 +52,10 @@ class FakeDemo:
+         if path == "/fapi/v1/listenKey":
+             return self.response({"listenKey": "syntheticDemonstrationKey1234567890"})
+         if method == "GET":
++            if path == "/fapi/v1/accountConfig":
++                return self.response(
++                    {"dualSidePosition": self.dual, "multiAssetsMargin": self.multi}
++                )
+             if path == "/fapi/v1/positionSide/dual":
+                 return self.response({"dualSidePosition": self.dual})
+             if path == "/fapi/v1/multiAssetsMargin":
+diff --git a/tests/integration/test_account_config_candidate.py b/tests/integration/test_account_config_candidate.py
+new file mode 100644
+index 0000000..37785cd
+--- /dev/null
++++ b/tests/integration/test_account_config_candidate.py
+@@ -0,0 +1,188 @@
++"""Canonical installed-path account configuration; all HTTP responses synthetic."""
++# ruff: noqa: F811
++
++import hashlib
++import importlib.util
++import json
++from pathlib import Path
++
++import pytest
++
++from integrations.binance_usdm import demo_snapshot
++from integrations.binance_usdm.demo import DemoFailure, DemoRateLimited, DemoUnknown
++from integrations.binance_usdm.rest import RESTResponse
++from scripts import check_demo_disconnect
++from services.execution import (
++    demo,
++    demo_api_restart_check,
++    demo_empty_db_restart,
++    demo_empty_worker_recovery,
++    demo_preview,
++)
++from tests.fixtures import approved_snapshot_v1 as approved
++from tests.integration.test_demo import system as demo_system  # noqa: F401
++from tests.integration.test_readiness_closed_history_cli import installed  # noqa: F401
++from tests.unit.test_demo_transport import client
++from tests.unit.test_readiness_closed_history import basis  # noqa: F401
++
++NEW = "/fapi/v1/accountConfig"
++OLD = {"/fapi/v1/positionSide/dual", "/fapi/v1/multiAssetsMargin"}
++
++
++def test_all_seven_operational_bindings():
++    assert (
++        demo.snapshot
++        is demo_preview.snapshot
++        is demo_api_restart_check.operational_snapshot
++        is demo_empty_db_restart.operational_snapshot
++        is demo_empty_worker_recovery.operational_snapshot
++        is check_demo_disconnect.operational_snapshot
++        is demo_snapshot.operational_snapshot
++    )
++    assert demo.historical_snapshot is demo_snapshot.snapshot
++
++
++def test_approved_parser_bytes():
++    assert (
++        hashlib.sha256(Path(approved.__file__).read_bytes()).hexdigest()
++        == "02e5d789280f3ed8aa2667319248982d5cd4eedd2fb8b72e70aef8785e57ed6a"
++    )
++
++
++@pytest.mark.parametrize("full", [True, False])
++def test_real_full_snapshot_equivalence_one_read_removed_no_financial_or_history_change(
++    installed, full
++):
++    store, c, fake = installed
++    ledger = store.read("DEMO-ready")
++    before = ledger.model_dump_json()
++    start = len(fake.calls)
++    old = approved.snapshot(c, ledger, store.now(), include_closed_history=full)
++    old_calls = fake.calls[start:]
++    start = len(fake.calls)
++    new = demo_snapshot.snapshot(c, ledger, store.now(), include_closed_history=full)
++    new_calls = fake.calls[start:]
++    assert old.model_dump() == new.model_dump()
++    assert before == ledger.model_dump_json()
++    assert len(old_calls) == len(new_calls) + 1
++    assert sum(p == NEW for m, p, v in new_calls) == 1
++    assert not any(p in OLD for m, p, v in new_calls)
++    assert [(m, p, v) for m, p, v in old_calls if p not in OLD] == [
++        (m, p, v) for m, p, v in new_calls if p != NEW
++    ]
++    assert all(m == "GET" for m, p, v in old_calls + new_calls)
++
++
++@pytest.mark.parametrize(
++    "response",
++    [
++        {},
++        [],
++        None,
++        {"dualSidePosition": False},
++        {"multiAssetsMargin": False},
++        {"dualSidePosition": "false", "multiAssetsMargin": False},
++        {"dualSidePosition": 0, "multiAssetsMargin": False},
++        {"dualSidePosition": False, "multiAssetsMargin": "false"},
++        {"dualSidePosition": False, "multiAssetsMargin": 0},
++        {"dualSidePosition": True, "multiAssetsMargin": False},
++        {"dualSidePosition": False, "multiAssetsMargin": True},
++    ],
++)
++def test_invalid_or_unsupported_modes_block_before_financial_reads(installed, response):
++    store, c, fake = installed
++    original = c.send
++    start = len(fake.calls)
++
++    def bad(m, p, q, k):
++        if p == NEW:
++            fake.calls.append((m, p, {}))
++            return RESTResponse(200, json.dumps(response).encode(), {})
++        return original(m, p, q, k)
++
++    c.send = bad
++    with pytest.raises(DemoFailure):
++        demo_snapshot.operational_snapshot(c, store.read("DEMO-ready"), store.now())
++    assert [p for m, p, v in fake.calls[start:]] == [NEW]
++
++
++@pytest.mark.parametrize(
++    "status,body",
++    [
++        (404, b'{"code":-404}'),
++        (500, b"private-body"),
++        (429, b"not-json"),
++        (418, b"not-json"),
++        (200, b"not-json"),
++    ],
++)
++def test_new_route_failure_never_falls_back_or_retries(installed, status, body):
++    store, c, fake = installed
++    original = c.send
++    attempts = []
++
++    def fail(m, p, q, k):
++        attempts.append(p)
++        if p == NEW:
++            return RESTResponse(status, body, {"retry-after": "60"})
++        return original(m, p, q, k)
++
++    c.send = fail
++    with pytest.raises(DemoRateLimited if status in {418, 429} else DemoUnknown):
++        demo_snapshot.operational_snapshot(c, store.read("DEMO-ready"), store.now())
++    assert attempts == [NEW]
++    if status in {418, 429}:
++        assert c.cooldown_until > c.clock_ms()
++
++
++def test_each_snapshot_reads_fresh_modes(installed):
++    store, c, fake = installed
++    demo_snapshot.operational_snapshot(c, store.read("DEMO-ready"), store.now())
++    fake.dual = True
++    start = len(fake.calls)
++    with pytest.raises(DemoFailure):
++        demo_snapshot.operational_snapshot(c, store.read("DEMO-ready"), store.now())
++    assert [p for m, p, v in fake.calls[start:]] == [NEW]
++
++
++@pytest.mark.parametrize("method", ["POST", "PUT", "DELETE"])
++def test_no_configuration_mutations(method):
++    c, fake = client()
++    before = len(fake.calls)
++    with pytest.raises(ValueError):
++        c.request(method, NEW, {})
++    assert len(fake.calls) == before
++
++
++def test_new_get_uses_approved_signing_and_clock_checks():
++    c, fake = client(False)
++    assert c.request("GET", NEW) == {"dualSidePosition": False, "multiAssetsMargin": False}
++    before = len(fake.calls)
++    c.synced_at = None
++    with pytest.raises(DemoFailure):
++        c.request("GET", NEW)
++    assert len(fake.calls) == before
++
++
++@pytest.mark.parametrize(
++    "guard_path",
++    [
++        "guard_readiness_history_install.py",
++        "guard_tp_rate_install.py",
++    ],
++)
++def test_old_install_guards_reject_source_before_access(guard_path, monkeypatch, capsys):
++    spec = importlib.util.spec_from_file_location("guard_for_config", Path(guard_path))
++    guard = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(guard)
++    monkeypatch.setattr("sys.argv", ["guard", "--phase", "pre"])
++    for name in ("credentials", "create_engine"):
++        if hasattr(guard, name):
++            monkeypatch.setattr(
++                guard, name, lambda *a, **k: pytest.fail("no credentials or DB access")
++            )
++    with pytest.raises(SystemExit) as e:
++        guard.main()
++    assert e.value.code == 2
++    output = json.loads(capsys.readouterr().out)
++    assert "HASH" in json.dumps(output) or "SOURCE" in json.dumps(output)
+diff --git a/tests/integration/test_demo_private_stability.py b/tests/integration/test_demo_private_stability.py
+index ba97b15..38a1efb 100644
+--- a/tests/integration/test_demo_private_stability.py
++++ b/tests/integration/test_demo_private_stability.py
+@@ -2,8 +2,11 @@
+ 
+ import asyncio
+ import json
++import time as real_time
+ from contextlib import asynccontextmanager
+ from datetime import timedelta
++from types import SimpleNamespace
++from unittest.mock import patch
+ from uuid import uuid4
+ 
+ import pytest
+@@ -32,6 +35,7 @@ def case(preview_case):  # noqa: F811
+ 
+ async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
+     _, c, fake = case
++    original_clock = c.client.sync_clock
+     if accelerate:
+         original = c.client.sync_clock
+ 
+@@ -67,9 +71,52 @@ async def exercise(case, *, duration=0.03, accelerate=False, bad_frame=False):
+             async with connect(f"ws://127.0.0.1:{port}") as socket:
+                 yield socket
+ 
+-        return await module.run(
+-            c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
+-        )
++        # The accelerated account clock still traverses the original25-minute
++        # renewal interval. Do not require150 sync calls to fit inside5 real
++        # seconds on every CI machine. Hold only this observer's duration clock
++        # below completion until a genuine renewal succeeds; a real30s outer
++        # watchdog still fails if renewal never happens. AsyncIO time is untouched.
++        first = []
++        created = []
++        renewal_elapsed = []
++        original_key = c.client.listen_key
++
++        def observe_clock():
++            now = real_time.monotonic()
++            if not first:
++                first.append(now)
++            return min(now, first[0] + duration - 0.001) if not c.client.key_renewals else now
++
++        def observe_key(method):
++            if method == "POST":
++                created.append(fake.at)
++            if method == "PUT" and created:
++                renewal_elapsed.append(int((fake.at - created[-1]).total_seconds() * 1000))
++            return original_key(method)
++
++        try:
++            if accelerate:
++                with (
++                    patch.object(module, "time", SimpleNamespace(monotonic=observe_clock)),
++                    patch.object(c.client, "listen_key", observe_key),
++                ):
++                    result = await asyncio.wait_for(
++                        module.run(
++                            c,
++                            uuid4(),
++                            connector=connector,
++                            observation_seconds=duration,
++                            progress_seconds=0.25,
++                        ),
++                        timeout=30,
++                    )
++                result["synthetic_renewal_elapsed_ms"] = renewal_elapsed
++                return result
++            return await module.run(
++                c, uuid4(), connector=connector, observation_seconds=duration, progress_seconds=0.25
++            )
++        finally:
++            c.client.sync_clock = original_clock
+ 
+ 
+ def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # noqa: F811
+@@ -80,6 +127,10 @@ def test_original_25_minute_renewal_path_one_session_and_final_close(case):  # n
+         json.dumps(report)
+     )
+     assert report["successful_key_renewals"] >= 1
++    assert (
++        report["synthetic_renewal_elapsed_ms"]
++        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
++    )
+     assert report["key_create_success_count"] == report["key_close_success_count"] == 1
+     assert report["observed_elapsed_ms"] >= 5000
+     assert report["failure"] == report["completion_failure"] == "NONE"
+@@ -140,6 +191,10 @@ def test_key_close_failure_prevents_acceptance_after_successful_renewal(case, mo
+     report = asyncio.run(exercise(case, duration=5, accelerate=True))
+     assert report["private_stability"] == "NOT_ACCEPTED"
+     assert report["successful_key_renewals"] >= 1 and report["key_close_success_count"] == 0
++    assert (
++        report["synthetic_renewal_elapsed_ms"]
++        and min(report["synthetic_renewal_elapsed_ms"]) >= 25 * 60 * 1000
++    )
+     assert report["failure"] == "KEY_CLOSE_NOT_VERIFIED"
+ 
+ 
+diff --git a/tests/integration/test_readiness_closed_history_cli.py b/tests/integration/test_readiness_closed_history_cli.py
+index 987c5a0..56715e6 100644
+--- a/tests/integration/test_readiness_closed_history_cli.py
++++ b/tests/integration/test_readiness_closed_history_cli.py
+@@ -107,18 +107,18 @@ def installed(demo_system, basis, monkeypatch):  # noqa: F811
+     return store, client, fake
+ 
+ 
+-def test_actual_readiness_cli_reduces_pair_28_to_22_without_writes(installed, monkeypatch, capsys):
++def test_actual_readiness_cli_reduces_pair_26_to_20_without_writes(installed, monkeypatch, capsys):
+     store, client, fake = installed
+     before = rows(store)
+     _, old_metrics = exchange_digest(store, client, store.read("DEMO-ready"))
+-    assert old_metrics["signed_get_count"] == 28
++    assert old_metrics["signed_get_count"] == 26
+     start = len(fake.calls)
+     for method in ("create", "acquire", "change", "renew", "release"):
+         monkeypatch.setattr(store, method, lambda *a, **k: pytest.fail("no mutation"))
+     ready.main()
+     r = json.loads(capsys.readouterr().out)
+     assert r["session_ready"] == "READ_ONLY_READY_ENTRIES_STILL_PAUSED"
+-    assert r["closed_history_omitted_count"] == 1 and r["read_diagnostic"]["signed_get_count"] == 22
++    assert r["closed_history_omitted_count"] == 1 and r["read_diagnostic"]["signed_get_count"] == 20
+     assert rows(store) == before
+     assert all(method == "GET" for method, _, _ in fake.calls[start:])
+     assert sum(p.get("origClientOrderId") == "DE-unadopted" for _, _, p in fake.calls[start:]) == 2
+@@ -156,7 +156,7 @@ def test_fresh_global_exposure_and_rate_limit_cannot_pass_readiness(installed, c
+     assert r["session_ready"] == "BLOCKED" and rows(store) == before
+ 
+ 
+-def test_receipt_corruption_uses_original_28_reads_instead_of_omission(installed, capsys):
++def test_receipt_corruption_uses_full_26_reads_instead_of_omission(installed, capsys):
+     store, client, fake = installed
+     lease = store.acquire("DEMO-ready", uuid4())
+     store.change(
+@@ -166,5 +166,5 @@ def test_receipt_corruption_uses_original_28_reads_instead_of_omission(installed
+     before = rows(store)
+     ready.main()
+     r = json.loads(capsys.readouterr().out)
+-    assert r["closed_history_omitted_count"] == 0 and r["read_diagnostic"]["signed_get_count"] == 28
++    assert r["closed_history_omitted_count"] == 0 and r["read_diagnostic"]["signed_get_count"] == 26
+     assert rows(store) == before

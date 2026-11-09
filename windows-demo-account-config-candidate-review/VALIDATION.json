@@ -1,0 +1,54 @@
+{
+  "candidate_commit": "015fd209fc0e0d284aba33043b1367a56b08a5f1",
+  "base_commit": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "source_patch_applies_to_base": true,
+  "source_patch_changes": [
+    "integrations/binance_usdm/demo.py",
+    "integrations/binance_usdm/demo_snapshot.py",
+    "tests/fixtures/approved_snapshot_v1.py",
+    "tests/fixtures/demo.py",
+    "tests/integration/test_account_config_candidate.py",
+    "tests/integration/test_demo_private_stability.py",
+    "tests/integration/test_readiness_closed_history_cli.py"
+  ],
+  "tests": {
+    "runtime": {
+      "tests": "1612",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "389.503"
+    },
+    "approved-guards": {
+      "tests": "52",
+      "failures": "0",
+      "errors": "0",
+      "skipped": "0",
+      "time": "25.641"
+    }
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS:132 source files",
+    "git_diff_check": "PASS"
+  },
+  "version_bound_suites_run_unchanged_at_approved_base": [
+    "tests/unit/test_tp_read_pool_install_guard.py",
+    "tests/integration/test_tp_rate_install_guard.py",
+    "tests/integration/test_tp_pool_normal_install_audit.py",
+    "tests/integration/test_readiness_history_install.py"
+  ],
+  "long_natural_lease_suites_not_rerun": [
+    "tests/integration/test_demo_protected_worker_sigkill.py",
+    "tests/integration/test_demo_protected_execution.py",
+    "tests/integration/test_demo_protected_execution_failures.py",
+    "tests/integration/test_demo_protected_worker_serialization.py",
+    "tests/integration/test_demo_protected_leader_probe.py"
+  ],
+  "test_timing_fixture": "Reused previously independently reproduced fixture fix. Original production25minute renewal unchanged; test requires actual renewal and30second real watchdog. See TIMING_FIXTURE_NOTE.json.",
+  "windows_installed": false,
+  "cloud_tests_use_synthetic_exchange": true,
+  "actual_exchange_orders": 0,
+  "active_tp_budget_admission_proven": false,
+  "source_deployment": "Review artifact only, no install entrypoint or commands."
+}

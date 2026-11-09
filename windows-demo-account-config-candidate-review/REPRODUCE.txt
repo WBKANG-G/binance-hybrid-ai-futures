@@ -1,0 +1,8 @@
+Run at candidate source commit 015fd209fc0e0d284aba33043b1367a56b08a5f1 with development dependencies. No credentials or exchange connection required.
+TEST_DATABASE_URL=<isolated synthetic test PostgreSQL> PYTHONPATH=. pytest -q -x --junitxml=/tmp/account-config-candidate-runtime.xml tests/unit tests/integration --ignore=tests/unit/test_tp_read_pool_install_guard.py --ignore=tests/integration/test_tp_rate_install_guard.py --ignore=tests/integration/test_tp_pool_normal_install_audit.py --ignore=tests/integration/test_readiness_history_install.py --ignore=tests/integration/test_demo_protected_worker_sigkill.py --ignore=tests/integration/test_demo_protected_execution.py --ignore=tests/integration/test_demo_protected_execution_failures.py --ignore=tests/integration/test_demo_protected_worker_serialization.py --ignore=tests/integration/test_demo_protected_leader_probe.py
+
+Run version-bound positive suites at approved 70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5:
+TEST_DATABASE_URL=<isolated synthetic test PostgreSQL> PYTHONPATH=. pytest -q tests/unit/test_tp_read_pool_install_guard.py tests/integration/test_tp_rate_install_guard.py tests/integration/test_tp_pool_normal_install_audit.py tests/integration/test_readiness_history_install.py
+
+ruff check .
+mypy

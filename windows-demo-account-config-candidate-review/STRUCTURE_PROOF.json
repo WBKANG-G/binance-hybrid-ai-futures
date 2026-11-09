@@ -1,0 +1,33 @@
+{
+  "base": "70a854ca677b0a8e3355b7f99ac0e0cce3bc6ba5",
+  "runtime_production_changes": [
+    "integrations/binance_usdm/demo.py",
+    "integrations/binance_usdm/demo_snapshot.py"
+  ],
+  "sdk_change": "Add only accountConfig to signed GET allowlist; all signer, decoder, cooldown, host, transport and mutation permission AST unchanged.",
+  "parser_change": "Replace two fresh mode GETs with one fresh accountConfig GET. Exact-False validation retained for both fields. Rest of snapshot AST identical. No cache, no automatic fallback/retry.",
+  "unchanged_sources": {
+    "MASTER_SPEC_V1_0.md": "d92d00e8a4bf87f53b9b012a273dffcc296cd47e27b9dd298f087b9dc5e70ced",
+    "integrations/binance_usdm/rest.py": "9a14edc40fa6365a50fe57c9ddeff4e866044e00287e7c5b680d8bb3dbd0ad52",
+    "integrations/binance_usdm/demo_rate_limits.py": "d72af60f10a74baea689e11ef8f11b5003f2ab9f89e539290c45b93f2f3d4a4e",
+    "services/execution/demo.py": "deb90dd8ddd9df627054a11c76f8dd8b09e364f2aaaca8f82b7fd0c237c444ab",
+    "services/execution/demo_preview.py": "58ba6376f61f8467d2b3c9e75923444105f5fe610f9bde4455a94b5fb5d6f267",
+    "services/execution/demo_tp_trigger_check.py": "f2a0cbac4fc33142fa63befb5aa38e1eb7a6ac2bb10018c0ea04290f7e310a6a",
+    "services/execution/demo_private_stability.py": "d3aee78f2da73c15c3eff5f89403fae666de5109ad3c2402585f2150df1a5123",
+    "services/execution/demo_stream.py": "770b0783287dcd607c35dad96b8882acd2bcb6a205928046b9831f9920a6a29f",
+    "services/execution/readiness_closed_history.py": "0c9cb90bc74402fdaed025f715a98a2e47169eee4d1f9990c75e8f5671e358da",
+    "services/execution/demo_empty_db_restart.py": "6adcc8284b43050bc4a115f2796c001d424ba7e0261654c099075fb3d950e39f",
+    "services/execution/demo_empty_worker_recovery.py": "8e3cac8da89fb80ef9f3654ae8591ffea7be1db1c7dc60070da72b72851b2070",
+    "services/execution/demo_api_restart_check.py": "b96ca788094995dafb7a69d9bbbd7f6a6dd16687d30bc9bd4271164c307ab239",
+    "services/risk/paper.py": "7afe00460abae04dda795ab0dba8b8ad84877fa25686342c1fbce3f12ac80832",
+    "packages/persistence/demo.py": "40f9a33b8eeda28c96f36de35656e4667a2d2461ce9de79dc4b19a687cd5cd5a",
+    "infra/docker-compose.yml": "a9ab3c69e4c145b40d54747a19a81e35e44729bf113d6b656789ebe0641567a6",
+    "infra/api.Dockerfile": "10077a4b2a37508dc9849cc872c9c1e2bfdd14021fc25d5fbabe30befeca959f",
+    "guard_readiness_history_install.py": "8f0b11cd5f71a8ba8d42f031d26ba8813482ba978a62ea116a6ab779c881b3c2",
+    "guard_tp_rate_install.py": "a9613f5af59a0090c3f3764171f6a8e2ae287daa5419efeb0bf6bfa2f032eb79",
+    "guard_tp_read_pool_install.py": "74b94d15b174b8d49c78d7b6889c9cafc1518711c691143e5d73e553e463fb51"
+  },
+  "excluded_uninstalled_candidate": "Operational history parser extension 0e12bf8 is not combined. Generic full history and readiness-only history omission remain approved70a854c behavior.",
+  "windows_installed": false,
+  "order_writes": 0
+}
