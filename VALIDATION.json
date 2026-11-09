@@ -1,0 +1,89 @@
+{
+  "status": "PASSED_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1070,
+  "junit_reports": [
+    {
+      "report": "managed-quota-core.xml",
+      "tests": 1061
+    },
+    {
+      "report": "managed-quota-pg-final.xml",
+      "tests": 11
+    },
+    {
+      "report": "managed-quota-final-tp.xml",
+      "tests": 1
+    },
+    {
+      "report": "managed-quota-final-exit.xml",
+      "tests": 1
+    },
+    {
+      "report": "managed-quota-final-short.xml",
+      "tests": 3
+    }
+  ],
+  "unique_test_count_method": "union of testcase classname and name across all reports; overlapping PG tests counted once",
+  "mypy_production_files": 147,
+  "ruff": "PASS",
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "real_exchange_requests": 0,
+    "storage_reopen_record_preserved": true,
+    "account_usage": "UNKNOWN"
+  },
+  "lifecycle": [
+    {
+      "mode": "exit",
+      "warmup_accelerated": false,
+      "observation_seconds": 300.0,
+      "guarded_60001ms_peak": 4319,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1
+    },
+    {
+      "mode": "tp",
+      "warmup_accelerated": false,
+      "observation_seconds": 300.0,
+      "guarded_60001ms_peak": 4648,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0
+    },
+    {
+      "mode": "cancel_failure",
+      "warmup_accelerated": true,
+      "observation_seconds": 0.8,
+      "guarded_60001ms_peak": 2932,
+      "flat_confirmation": "UNKNOWN",
+      "entry_posts": 1,
+      "exit_posts": 1
+    },
+    {
+      "mode": "partial",
+      "warmup_accelerated": true,
+      "observation_seconds": 0.8,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1
+    },
+    {
+      "mode": "sl_journal_failure",
+      "warmup_accelerated": true,
+      "observation_seconds": 0.8,
+      "guarded_60001ms_peak": 2158,
+      "flat_confirmation": "UNKNOWN",
+      "entry_posts": 1,
+      "exit_posts": 1
+    }
+  ],
+  "external_account_usage": "UNKNOWN",
+  "account_capacity_reserved": false,
+  "shared_ip_capacity_reserved": false,
+  "endpoint_cost_upper_bounds_proven": false,
+  "production_admission_approved": false,
+  "actual_exchange_requests": 0
+}
