@@ -5,12 +5,13 @@ selects this coordinator; admission remains disabled outside synthetic tests.
 """
 
 from collections.abc import Mapping
+from contextlib import nullcontext
 from typing import Any
 
 from integrations.binance_usdm.demo_snapshot import signed_number
 from integrations.binance_usdm.demo_tp_admission import TPAdmissionBudget
 from packages.persistence.demo import DemoStore
-from services.execution.demo_flat_transport import confirmation_context
+from services.execution.demo_flat_transport import ConfirmationClient, confirmation_context
 from services.execution.demo_models import DemoLedger
 from services.execution.demo_tp_admission_candidate import AdmissionTPTriggerCoordinator
 from services.execution.demo_tp_trigger_check import TPTriggerClient
@@ -63,11 +64,19 @@ class StagedConfirmationTPTriggerCoordinator(AdmissionTPTriggerCoordinator):
             )
         )
 
-    def _pending_protection(self) -> bool:
-        source = self.client
-        if not isinstance(source, StagedConfirmationTPClient):
+    def _pending_protection(
+        self,
+        source: StagedConfirmationTPClient | None = None,
+        *,
+        observer: ConfirmationClient | None = None,
+    ) -> bool:
+        source_client = self.client if source is None else source
+        if not isinstance(source_client, StagedConfirmationTPClient):
             raise ValueError("Staged candidate source client required")
-        with confirmation_context(source) as bounded:
+        if observer is not None and observer.source is not source_client:
+            raise ValueError("Pending probe observer/source mismatch")
+        context = confirmation_context(source_client) if observer is None else nullcontext(observer)
+        with context as bounded:
             # A bounded, fenced read may defer an expensive retry. It never sends
             # DELETE, writes financial state, merges snapshots or establishes flat.
             def probe(ledger: DemoLedger) -> bool:
@@ -108,7 +117,7 @@ class StagedConfirmationTPTriggerCoordinator(AdmissionTPTriggerCoordinator):
                             return False
                         if (
                             row["algoStatus"] == "NEW"
-                            and identifier not in source.acknowledged_cleanup_ids
+                            and identifier not in source_client.acknowledged_cleanup_ids
                         ):
                             return False  # A failed/unattempted DELETE must retain full cleanup retries.
                         pending = pending or row["algoStatus"] == "NEW"
