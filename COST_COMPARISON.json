@@ -1,0 +1,58 @@
+{
+  "scope": "SYNTHETIC_100000_LIMIT_AND_TEN_PAGE_DELAYED_CANCEL",
+  "rows": [
+    {
+      "component": "original",
+      "cleanup_total_model": 12113,
+      "cleanup_before_confirmation_model": 2531,
+      "confirmation_all_requests_model": 9582,
+      "confirmation_get_model": 9422,
+      "confirmation_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ]
+    },
+    {
+      "component": "staged_prior",
+      "cleanup_total_model": 7155,
+      "cleanup_before_confirmation_model": 2531,
+      "confirmation_all_requests_model": 4624,
+      "confirmation_get_model": 4544,
+      "confirmation_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ]
+    },
+    {
+      "component": "fenced_handoff",
+      "cleanup_total_model": 6341,
+      "cleanup_before_confirmation_model": 1717,
+      "confirmation_all_requests_model": 4624,
+      "confirmation_get_model": 4544,
+      "confirmation_results": [
+        "UNKNOWN",
+        "UNKNOWN",
+        "UNKNOWN",
+        "VERIFIED_FLAT"
+      ]
+    }
+  ],
+  "prior_source": "2ea564f4c146edc836161a2b873d07b6a8ea129a",
+  "prior_report_sha256": "b6de6cb16e8eaee3065e59266640328092810bb76960961742971eaf1cb958f8",
+  "prior_report_is_previous_published_measurement": true,
+  "new_component_uses_same_original_cost_test_function": true,
+  "cleanup_reduction": 814,
+  "cleanup_reduction_percent": 11.38,
+  "published_actual_limit": 6000,
+  "still_exceeds_6000": true,
+  "model_mutation_cost_each": 40,
+  "proven_upper_bound": false,
+  "fallback_can_cost_more_than_original": true,
+  "shared_ip_capacity_reserved": false,
+  "order_count_limits_proven": false,
+  "actual_execution_approved": false
+}

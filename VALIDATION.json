@@ -1,0 +1,33 @@
+{
+  "final_suite": {
+    "name": "pytest",
+    "errors": "0",
+    "failures": "0",
+    "skipped": "0",
+    "tests": "107",
+    "time": "76.042",
+    "timestamp": "2026-11-09T05:02:44.758573+00:00",
+    "hostname": "3413dfa6286d"
+  },
+  "total_passed": 107,
+  "cost_matrix_integration": 10,
+  "handoff_failure_pipeline_integration": 14,
+  "eligibility_and_concurrent_command_integration": 15,
+  "entry_admission_matrix_with_new_component": 14,
+  "prior_staged_safety_integration": 24,
+  "prior_budget_unit": 30,
+  "ruff": "PASS six new files",
+  "mypy": "PASS 136 production source files",
+  "actual_exchange_requests": 0,
+  "actual_exchange_orders": 0,
+  "windows_database_accessed": false,
+  "synthetic_http_local_wss_isolated_postgres": true,
+  "test_observation_seconds": [
+    0.8,
+    2
+  ],
+  "production_observation_constant_unchanged": 300,
+  "full_300_second_candidate_run": false,
+  "actual_execution_default_disabled": true,
+  "published_6000_entry_still_blocked": true
+}
