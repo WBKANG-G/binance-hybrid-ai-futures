@@ -1,0 +1,90 @@
+{
+  "status": "PASSED_LOCAL_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1256,
+  "junit_reports": [
+    {
+      "report": "query-contract-regression.xml",
+      "tests": 1254
+    },
+    {
+      "report": "query-contract-lifecycle.xml",
+      "tests": 2
+    }
+  ],
+  "mypy_production_files": 156,
+  "ruff": "PASS",
+  "six_baseline_parameter_shape_reproductions_fixed": true,
+  "checks_before_sdk_implicit_lookup_and_shared_reservation": true,
+  "duplicate_and_malformed_queries_rejected": true,
+  "original_entry_exit_and_full_proof_forms_preserved": true,
+  "sdk_source": {
+    "official_repository": "https://github.com/binance/binance-connector-python",
+    "commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+    "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/market_data_api.py",
+    "sha256": "d783bb54426876450e148c11c76d4f9784b45dd40d1026a7e81ceb0cc4268182",
+    "observations": [
+      {
+        "method": "kline_candlestick_data",
+        "line": 667,
+        "weight_depends_on_limit": true,
+        "limit_2_documented_weight": 1,
+        "limit_1500_documented_weight": 10
+      },
+      {
+        "method": "mark_price",
+        "line": 805,
+        "with_symbol_weight": 1,
+        "without_symbol_weight": 10
+      },
+      {
+        "method": "symbol_order_book_ticker",
+        "line": 1431,
+        "with_symbol_weight": 2,
+        "without_symbol_weight": 5,
+        "weight_header_authoritative": false
+      }
+    ],
+    "venue_weight_upper_bound_proven": false,
+    "execution_approved": false
+  },
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "nonmodeled_forms_rejected": 3,
+    "duplicate_wire_keys_rejected": true,
+    "shape_acceptance_approves_execution": false,
+    "default_execution_refused": true,
+    "actual_exchange_requests": 0
+  },
+  "lifecycle": [
+    {
+      "mode": "partial",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121620,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1,
+      "closed_runtime": true
+    },
+    {
+      "mode": "tp",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 116501,
+      "guarded_60001ms_peak": 3069,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0,
+      "closed_runtime": true
+    }
+  ],
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "request_cost_upper_bounds_proven": false,
+  "book_ticker_header_authority_fixed": false,
+  "production_admission_approved": false
+}
