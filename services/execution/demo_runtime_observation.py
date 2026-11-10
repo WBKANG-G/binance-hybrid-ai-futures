@@ -21,8 +21,13 @@ class RuntimeObservationCoordinator(RuntimeConfirmationCoordinator):
         self._observation_clock: Callable[[], float] = time.monotonic
         self._observation_sleep: Callable[[float], None] = time.sleep
 
-    def _require_owned_flat_observation(self) -> None:
+    def _require_observation_session(self) -> None:
         self._require_confirmation_bindings()
+        if self.session_failed:
+            raise DemoFailure("Observation session failed; ordinary reconciliation blocked")
+
+    def _require_owned_flat_observation(self) -> None:
+        self._require_observation_session()
         ledger = self.store.read(self.lease.account_id)
         own = ledger.orders.get(str(self._own_operation))
         if (
@@ -55,6 +60,8 @@ class RuntimeObservationCoordinator(RuntimeConfirmationCoordinator):
                 try:
                     budget.require_proof(cost)
                     window.remaining()
+                    self._require_owned_flat_observation()
+                    window.remaining()
                     return
                 except ProofDeferred:
                     deferred += 1
@@ -84,9 +91,10 @@ class RuntimeObservationCoordinator(RuntimeConfirmationCoordinator):
             raise DemoFailure("Observation resource start deadline reached") from None
 
     def connected(self) -> None:
-        self._require_confirmation_bindings()
+        self._require_observation_session()
         if self._own_operation is not None and self.admission_budget.flat_observed:
             self._wait_for_observation_credit()
+        self._require_observation_session()
         super().connected()
 
     def confirmation_diagnostics(self) -> dict[str, Any]:

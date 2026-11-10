@@ -12,6 +12,7 @@ from uuid import uuid4
 import pytest
 
 from integrations.binance_usdm.demo import DemoClient
+from integrations.binance_usdm.demo_tp_window_budget import ProofDeferred
 from integrations.binance_usdm.rest import RESTResponse
 from scripts.capture_demo_wss_hints import Capture
 from scripts.review_tp_minute_budget import review
@@ -22,6 +23,7 @@ from services.execution.demo_managed_runtime import (
     assemble_managed_runtime,
 )
 from tests.fixtures import tp_candidate_session
+from tests.fixtures.observation_socket_failure import observe_with_receiver_hook
 from tests.fixtures.shared_weight_anchor import provision_anchor
 from tests.fixtures.tp_candidate_session import observe
 from tests.integration.test_demo import system as demo_system  # noqa: F401
@@ -31,10 +33,12 @@ from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
 from tests.integration.test_tp_admission_candidate import scenario
 
 
-@pytest.mark.parametrize("mode", ["tp", "partial", "seal_failure"])
+@pytest.mark.parametrize("mode", ["tp", "partial", "seal_failure", "receiver_failure"])
 def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode):
     duration = float(os.environ.get("RUNTIME_ASSEMBLY_DURATION", ".8"))
     assert 0.8 <= duration <= 300
+    if mode == "receiver_failure":
+        duration = max(duration, 10)
     is_tp = mode != "partial"
     opposite_case[3]["trigger"] = is_tp
     if mode == "partial":
@@ -112,6 +116,36 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
             raise OSError("synthetic quota seal failure")
 
         monkeypatch.setattr(c.quota_bridge, "seal_verified", fail_seal)
+    receiver_fault = {"deferred": False, "closed": False}
+    if mode == "receiver_failure":
+        socket_state = {}
+
+        def remember_socket(socket):
+            socket_state.update(socket=socket, loop=asyncio.get_running_loop())
+
+        options["on_socket"] = remember_socket
+        options["wake_flat_wait"] = True
+        native_credit = scope.budget.require_proof
+
+        def defer_once(cost):
+            if cost == scope.budget.profile.preparation + 512 and not receiver_fault["deferred"]:
+                receiver_fault["deferred"] = True
+                raise ProofDeferred
+            return native_credit(cost)
+
+        def disconnect_during_wait(delay):
+            future = asyncio.run_coroutine_threadsafe(
+                socket_state["socket"].close(), socket_state["loop"]
+            )
+            future.result(timeout=5)
+            end = time.monotonic() + 5
+            while not c.session_failed and time.monotonic() < end:
+                time.sleep(0.005)
+            assert c.session_failed
+            receiver_fault["closed"] = True
+
+        monkeypatch.setattr(scope.budget, "require_proof", defer_once)
+        c._observation_sleep = disconnect_during_wait
     native = c.begin_finalization
 
     def finalize():
@@ -128,7 +162,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     before = store.read("DEMO-test")
     try:
         result = asyncio.run(
-            observe(
+            (observe_with_receiver_hook if mode == "receiver_failure" else observe)(
                 (store, c, fake, options),
                 monkeypatch,
                 profile="quiet",
@@ -174,6 +208,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         result=result,
         trace=meter.rows,
         closed_runtime=True,
+        receiver_fault=receiver_fault,
         runtime_budget_reason=scope.budget.reason,
         runtime_budget_untrusted=scope.budget.untrusted,
         runtime_budget_stopped=scope.budget.stopped,
@@ -184,7 +219,17 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     (output / (mode + ".json")).write_text(json.dumps(raw, indent=2) + "\n")
     (output / (mode + "-minute.json")).write_text(json.dumps(measured, indent=2) + "\n")
     assert measured["guarded_peak"]["weight"] <= 5700
-    assert result["new_entry_post_count"] == 1 and result["flat_confirmation"] == "VERIFIED_FLAT"
+    assert result["new_entry_post_count"] == 1
+    if mode == "receiver_failure":
+        assert receiver_fault == {"deferred": True, "closed": True}
+        assert (
+            result["flat_confirmation"] == "UNKNOWN"
+            and result["tp_trigger_check"] == "NOT_ACCEPTED"
+        )
+        assert c.session_failed and report["reported_outcome"] == "PROOF_VERIFIED_SESSION_FAILED"
+        assert not scope.budget.untrusted
+    else:
+        assert result["flat_confirmation"] == "VERIFIED_FLAT"
     assert result["operator_exit_post_attempts"] == (0 if is_tp else 1)
     assert result["history_and_baselines_preserved"] and after.paused
     assert all(after.orders[k] == v for k, v in before.orders.items())
