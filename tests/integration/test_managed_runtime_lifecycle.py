@@ -127,6 +127,10 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
                 capture=Capture(),
             )
         )
+        sent = len(meter.rows)
+        assert asyncio.run(c.confirm_exit_budgeted()) == "UNKNOWN"
+        assert len(meter.rows) == sent
+        assert c.budgeted_flat_confirmation == "VERIFIED_FLAT"
     finally:
         scope.close()
         route.close()

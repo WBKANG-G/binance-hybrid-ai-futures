@@ -2,6 +2,7 @@
 
 import asyncio
 import math
+import threading
 import time
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -44,11 +45,42 @@ class ConfirmationWindow:
         return remaining
 
 
+class ConfirmationClaim:
+    """Atomic ownership across threads/event loops; completion never resets it."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._started = self._active = False
+        self._rejected = 0
+
+    def claim(self) -> bool:
+        with self._lock:
+            if self._started:
+                self._rejected += 1
+                return False
+            self._started = self._active = True
+            return True
+
+    def finish(self) -> None:
+        with self._lock:
+            self._active = False
+
+    def diagnostics(self) -> dict[str, Any]:
+        with self._lock:
+            return dict(
+                confirmation_started=self._started,
+                confirmation_call_active=self._active,
+                repeated_calls_refused=self._rejected,
+                start_scope="ONE_CALL_PER_OWNED_COORDINATOR",
+            )
+
+
 class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self._confirmation_clock: Callable[[], float] = time.monotonic
         self._confirmation_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+        self._confirmation_claim = ConfirmationClaim()
         self.confirmation_stop_reason = "NOT_STARTED"
         self.confirmation_deferrals = 0
 
@@ -62,6 +94,16 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
             self.proof_resource_wait_seconds += after - before
 
     async def confirm_exit_budgeted(self) -> str:
+        if not self._confirmation_claim.claim():
+            return "UNKNOWN"
+        try:
+            return await self._confirm_exit_owned()
+        finally:
+            # Cancellation does not prove a worker has stopped. Never allow a
+            # replacement confirmation loop after any owner outcome.
+            self._confirmation_claim.finish()
+
+    async def _confirm_exit_owned(self) -> str:
         budget = self.admission_budget
         completed, last_watch, full_deferred = 0, 0.0, False
         self.confirmation_stop_reason = "RUNNING"
@@ -127,6 +169,7 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
 
     def confirmation_diagnostics(self) -> dict[str, Any]:
         return dict(
+            **self._confirmation_claim.diagnostics(),
             start_deadline_seconds=120,
             completed_attempt_limit=4,
             deferral_limit=120,
