@@ -4,6 +4,8 @@ import argparse
 import hashlib
 import json
 import math
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -17,6 +19,21 @@ MAX_RECEIPT_BYTES = 64 * 1024
 
 class ConfirmationReportInvalid(ValueError):
     pass
+
+
+class ReceiptStorageInvalid(ConfirmationReportInvalid):
+    def __init__(
+        self,
+        code: str,
+        *,
+        publication_attempted: bool = False,
+        publication_confirmed: bool = False,
+        cleanup_incomplete: bool = False,
+    ):
+        super().__init__(code)
+        self.publication_attempted = publication_attempted
+        self.publication_confirmed = publication_confirmed
+        self.cleanup_incomplete = cleanup_incomplete
 
 
 class ReportArgumentParser(argparse.ArgumentParser):
@@ -340,22 +357,108 @@ def verify_receipt(raw: bytes, receipt_raw: bytes) -> dict[str, Any]:
     )
 
 
+def save_receipt(raw: bytes, destination: Path) -> dict[str, Any]:
+    """Publish a complete new receipt without replacing any existing directory entry.
+
+    A private temporary file is synced before an exclusive hard-link publication.
+    No direct-write or replacing-rename fallback is allowed. Parent-directory or
+    hardware crash durability is not certified by this operation.
+    """
+    receipt = review_bytes(raw)
+    encoded = (json.dumps(receipt) + "\n").encode()
+    require(len(encoded) <= MAX_RECEIPT_BYTES, "RECEIPT_FILE_TOO_LARGE")
+    temporary: str | None = None
+    fd: int | None = None
+    attempted = confirmed = False
+    failure: ReceiptStorageInvalid | None = None
+    try:
+        fd, temporary = tempfile.mkstemp(
+            prefix=".runtime-review-", suffix=".tmp", dir=destination.parent
+        )
+        with os.fdopen(fd, "wb") as stream:
+            fd = None  # The stream owns and closes it even on write/sync failure.
+            written = stream.write(encoded)
+            if written != len(encoded):
+                raise OSError("incomplete receipt write")
+            stream.flush()
+            os.fsync(stream.fileno())
+        attempted = True
+        os.link(temporary, destination)  # Atomic no-replace publication, including symlink targets.
+        confirmed = True
+    except FileExistsError:
+        failure = ReceiptStorageInvalid(
+            "OUTPUT_ALREADY_EXISTS" if attempted else "OUTPUT_SAVE_FAILED",
+            publication_attempted=attempted,
+        )
+    except OSError:
+        failure = ReceiptStorageInvalid(
+            "OUTPUT_SAVE_FAILED", publication_attempted=attempted, publication_confirmed=confirmed
+        )
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                failure = ReceiptStorageInvalid(
+                    "OUTPUT_SAVE_FAILED",
+                    publication_attempted=attempted,
+                    publication_confirmed=confirmed,
+                )
+        if temporary is not None:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                failure = ReceiptStorageInvalid(
+                    "OUTPUT_TEMP_CLEANUP_FAILED",
+                    publication_attempted=attempted,
+                    publication_confirmed=confirmed,
+                    cleanup_incomplete=True,
+                )
+    if failure is not None:
+        # A publication syscall may have taken effect before reporting failure.
+        # Never remove/rewrite the final destination to guess or roll it back.
+        raise failure from None
+    return receipt
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = ReportArgumentParser(
         description="Offline synthetic report consistency; never execution approval"
     )
     parser.add_argument("report", type=Path)
-    parser.add_argument("--verify-receipt", type=Path)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--verify-receipt", type=Path)
+    modes.add_argument("--save-receipt", type=Path)
     try:
         args = parser.parse_args(argv)
+        if args.save_receipt is not None and (
+            os.path.normcase(os.path.abspath(args.save_receipt))
+            == os.path.normcase(os.path.abspath(args.report))
+        ):
+            raise ReceiptStorageInvalid("OUTPUT_IS_INPUT")
         with args.report.open("rb") as stream:
             raw = stream.read(MAX_BYTES + 1)
-        if args.verify_receipt is None:
+        if args.save_receipt is not None:
+            report = save_receipt(raw, args.save_receipt)
+        elif args.verify_receipt is None:
             report = review_bytes(raw)
         else:
             with args.verify_receipt.open("rb") as stream:
                 receipt_raw = stream.read(MAX_RECEIPT_BYTES + 1)
             report = verify_receipt(raw, receipt_raw)
+    except ReceiptStorageInvalid as error:
+        report = dict(
+            review="RECEIPT_SAVE_FAILED",
+            code=str(error),
+            storage_publication_attempted=error.publication_attempted,
+            storage_publication_confirmed=error.publication_confirmed,
+            temporary_cleanup_incomplete=error.cleanup_incomplete,
+            execution_approved=False,
+            next_action="KEEP_PAUSED_REVIEW_ONLY",
+        )
+        status = 2
     except ConfirmationReportInvalid as error:
         report = dict(
             review="INVALID_REPORT",
