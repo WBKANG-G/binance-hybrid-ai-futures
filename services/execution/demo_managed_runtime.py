@@ -77,6 +77,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         self.ignored_quote_observations = 0
         self.proof_metadata_deferrals = 0
         self.clock_refresh_failures = 0
+        self.hard_stop_early_rejections = 0
         super().__init__(*args, **kwargs)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
@@ -120,6 +121,11 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             quota_require(not self.revoked, "RUNTIME_CLOSED")
             self._check_provider()
             require_wire_query(method, path, query, key)
+            if self.untrusted:
+                # The original wire gate refuses every lane in this state.
+                # Refuse before committing another shared charge/order claim.
+                self.hard_stop_early_rejections += 1
+                self._deny("TRANSPORT_STOPPED")
             observation = QuoteObservation() if not self._observes_weight(method, path) else None
             context = self._quote_observation.set(observation)
             try:
@@ -193,6 +199,12 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     def diagnostics(self) -> dict[str, Any]:
         result = super().diagnostics()
         result["query_contract"] = contract_report()
+        result["hard_stop_policy"] = dict(
+            rejections_before_reservation=self.hard_stop_early_rejections,
+            existing_records_preserved=True,
+            capacity_stop_rescue_policy_unchanged=True,
+            execution_approved=False,
+        )
         result["proof_metadata_policy"] = dict(
             authoritative_observation_max_age_seconds=5,
             stale_batch_deferrals=self.proof_metadata_deferrals,
