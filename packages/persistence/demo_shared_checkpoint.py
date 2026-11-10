@@ -242,6 +242,23 @@ class AnchoredSharedWeightJournal(SharedWeightJournal):
             finally:
                 self.checkpoint.reset(token)
 
+    def read_only_snapshot(self) -> dict[str, Any]:
+        require(
+            self._identity(self.path) == self.db_inode
+            and self._identity(self.lock_path) == self.lock_inode,
+            "SHARED_FILE_REPLACED",
+        )
+        return AnchoredSharedWeightJournal(
+            self.directory,
+            self.scope,
+            self.identity,
+            anchors=self.anchors,
+            monotonic=self.monotonic,
+            wall_clock=self.wall_clock,
+            boot=self.boot,
+            read_only=True,
+        ).view()
+
     def _verify_checkpoint(self, connection: sqlite3.Connection) -> None:
         state = self.checkpoint.get()
         require(

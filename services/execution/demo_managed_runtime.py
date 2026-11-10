@@ -34,6 +34,11 @@ from services.execution.demo_managed_order_quota import (
     run_managed_quota_candidate,
     validate_journal_bindings,
 )
+from services.execution.demo_runtime_guards import (
+    RuntimeBoundClient,
+    require_start_context,
+    require_start_ledger,
+)
 from services.execution.demo_runtime_storage import (
     RUNTIME_STORAGE_KEY,
     runtime_storage_binding,
@@ -48,7 +53,6 @@ from services.execution.demo_runtime_storage import (
     current_runtime_ledger as _current_ledger,
 )
 from services.execution.demo_shared_weight_budget import SharedManagedOrderWindowBudget
-from services.execution.demo_tp_uncertain_cancel_candidate import UncertainCancellationClient
 from services.execution.models import Lease
 from services.risk.paper import period_keys
 
@@ -58,6 +62,11 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         self.lifetime = threading.RLock()
         self.revoked = False
         super().__init__(*args, **kwargs)
+        self._configured_profile = self.profile
+        self._configured_costs = dict(self.costs)
+        self._configured_sender = self.sender
+        self._configured_raw_sender = self.raw_sender
+        self._configured_bridge = self.bridge
         self._configured_shared = self.shared
         self._configured_provider = (
             self.shared.scope,
@@ -66,6 +75,17 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         )
 
     def _check_provider(self) -> None:
+        quota_require(
+            self.profile == self._configured_profile and self.costs == self._configured_costs,
+            "RUNTIME_MODEL_BINDING_CHANGED",
+        )
+        quota_require(
+            self.sender is self._configured_sender
+            and self.raw_sender is self._configured_raw_sender
+            and self.bridge is self._configured_bridge
+            and self.synthetic is True,
+            "RUNTIME_TRANSPORT_BINDING_CHANGED",
+        )
         quota_require(
             self.shared is self._configured_shared
             and (self.shared.scope, self.shared.identity, getattr(self.shared, "anchors", None))
@@ -103,8 +123,74 @@ class ManagedRuntimeSession:
     ):
         self.journal, self.coordinator, self.budget = journal, coordinator, budget
         self._storage, self._binding = storage, binding
+        self._owned_client = coordinator.client
+        self._owned_coordinator, self._owned_budget = coordinator, budget
+        self._owned_bridge, self._owned_store = coordinator.quota_bridge, coordinator.store
+        self._owned_base_store, self._owned_lease = (
+            coordinator.quota_bridge.store,
+            coordinator.lease,
+        )
+        self._owned_journal = journal
+        self._owned_credentials = coordinator.client.credentials
+        self._disabled_settings = coordinator.client.settings
         self._state_lock = threading.Lock()
         self._started = self._running = self._closing = self._closed = False
+
+    def _check_start(self) -> None:
+        require_start_context()
+        c, b, bridge = self._owned_coordinator, self._owned_budget, self._owned_bridge
+        client = self._owned_client
+        quota_require(
+            self.coordinator is c
+            and self.budget is b
+            and self.journal is self._owned_journal
+            and c.client is client
+            and c.admission_budget is b
+            and c.quota_bridge is bridge
+            and c.store is self._owned_store
+            and c.lease == self._owned_lease
+            and bridge.store is self._owned_base_store
+            and bridge.lease == self._owned_lease
+            and bridge.journal is self.journal
+            and b.bridge is bridge
+            and client.send is b
+            and client.credentials is self._owned_credentials,
+            "RUNTIME_START_WIRING_CHANGED",
+        )
+        quota_require(client.settings == self._disabled_settings, "RUNTIME_START_CLIENT_CHANGED")
+        quota_require(
+            not b.revoked
+            and b.phase == "BOOTSTRAP"
+            and not b.stopped
+            and not b.admitted
+            and not b.entry_sent
+            and b.forwarded == 0,
+            "RUNTIME_START_BUDGET_CHANGED",
+        )
+        b._check_provider()
+        quota_require(self.journal.owns_process_lock(), "RUNTIME_ORDER_LOCK_REQUIRED")
+        current = _current_ledger(bridge.store, bridge.lease)
+        require_start_ledger(
+            current, self._disabled_settings, b.profile.historical_orders, bridge.store.now()
+        )
+        quota_require(
+            current.operations.get(RUNTIME_STORAGE_KEY) == self._binding
+            and runtime_storage_binding(self._storage) == self._binding,
+            "RUNTIME_STORAGE_BINDING_MISMATCH",
+        )
+        validate_journal_bindings(current, self.journal)
+        quota_require(
+            all(f["seal"] is not None for f in self.journal.flow_records().values()),
+            "RUNTIME_PENDING_ORDER_FLOW",
+        )
+        quota_require(
+            isinstance(b.shared, AnchoredSharedWeightJournal), "RUNTIME_START_WIRING_CHANGED"
+        )
+        assert isinstance(b.shared, AnchoredSharedWeightJournal)
+        quota_require(
+            b.shared.read_only_snapshot()["pending_attempts"] == 0,
+            "RUNTIME_PENDING_SHARED_REQUESTS",
+        )
 
     async def run(self, operation: UUID) -> dict[str, Any]:
         with self._state_lock:
@@ -113,34 +199,17 @@ class ManagedRuntimeSession:
                 "RUNTIME_SINGLE_USE_REQUIRED",
             )
             self._started = self._running = True
-        client = self.coordinator.client
-        disabled = client.settings.model_copy(update={"demo_trading_enabled": False})
+        client = self._owned_client
         try:
-            await self.coordinator.quota_bridge.wait_ready()
-            bridge = self.coordinator.quota_bridge
-            quota_require(self.journal.owns_process_lock(), "RUNTIME_ORDER_LOCK_REQUIRED")
-            current = _current_ledger(bridge.store, bridge.lease)
-            quota_require(
-                current.operations.get(RUNTIME_STORAGE_KEY) == self._binding
-                and runtime_storage_binding(self._storage) == self._binding,
-                "RUNTIME_STORAGE_BINDING_MISMATCH",
+            self._check_start()
+            await self._owned_bridge.wait_ready()
+            self._check_start()
+            client.settings = self._disabled_settings.model_copy(
+                update={"demo_trading_enabled": True}
             )
-            self.budget._check_provider()
-            validate_journal_bindings(current, self.journal)
-            quota_require(
-                period_keys(bridge.store.now(), current.policy.week_start_kst)
-                == (current.daily_key, current.weekly_key),
-                "RUNTIME_PERIOD_KEYS_MISMATCH",
-            )
-            quota_require(
-                self.budget.shared.view()["pending_attempts"] == 0,
-                "RUNTIME_PENDING_SHARED_REQUESTS",
-            )
-            # Only the explicit synthetic constructor can create this object.
-            client.settings = disabled.model_copy(update={"demo_trading_enabled": True})
-            return await run_managed_quota_candidate(self.coordinator, operation)
+            return await run_managed_quota_candidate(self._owned_coordinator, operation)
         finally:
-            client.settings = disabled
+            client.settings = self._disabled_settings
             with self._state_lock:
                 self._running = False
 
@@ -150,9 +219,9 @@ class ManagedRuntimeSession:
             if self._closed:
                 return
             self._closing = True
-            self.budget.revoke()
+            self._owned_budget.revoke()
             # Failure leaves run revoked but permits retry of local cleanup only.
-            self.journal.close()
+            self._owned_journal.close()
             self._closed = True
 
     def __enter__(self) -> "ManagedRuntimeSession":
@@ -288,7 +357,7 @@ def assemble_managed_runtime(
             shared=shared,
             allow_synthetic_model_execution=True,
         )
-        client = UncertainCancellationClient(
+        client = RuntimeBoundClient(
             source.settings, source.credentials, send=budget, clock_ms=source.clock_ms
         )
         client.offset, client.synced_at = source.offset, source.synced_at
