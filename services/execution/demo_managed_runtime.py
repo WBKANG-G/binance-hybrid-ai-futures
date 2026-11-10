@@ -463,6 +463,7 @@ def assemble_managed_runtime(
             send=budget,
             clock_ms=source.clock_ms,
             on_clock_failure=budget.invalidate_clock_observation,
+            clock_guard=budget.lifetime,
         )
         client.offset, client.synced_at = source.offset, source.synced_at
         coordinator = ManagedQuotaTPTriggerCoordinator(store, lease, client, budget)

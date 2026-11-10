@@ -181,3 +181,51 @@ def test_confirmation_refresh_failure_stops_without_reaching_or_retrying_proof(
                 b.shared.read_only_snapshot()
     finally:
         session.close()
+
+
+def test_proof_cannot_enter_while_clock_response_validation_is_pending(assembly):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+
+    validation_pending, release_validation, proof_started = Event(), Event(), Event()
+
+    def send(method, path, query, key):
+        return RESTResponse(200, b'{"serverTime":true}', {"x-mbx-used-weight-1m": "600"})
+
+    session, b = prepared(assembly, send)
+    client = session.coordinator.client
+    reads = 0
+
+    def clock_ms():
+        nonlocal reads
+        reads += 1
+        if reads == 3:
+            validation_pending.set()
+            assert release_validation.wait(5)
+        return 1_000_000
+
+    client.clock_ms = clock_ms
+
+    def proof():
+        proof_started.set()
+        b.require_proof(session.coordinator.proof_batch)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as workers:
+            refreshing = workers.submit(client.sync_clock)
+            try:
+                assert validation_pending.wait(5)
+                checking = workers.submit(proof)
+                assert proof_started.wait(5)
+                with pytest.raises(TimeoutError):
+                    checking.result(timeout=0.2)
+            finally:
+                release_validation.set()
+            with pytest.raises(DemoFailure):
+                refreshing.result(timeout=5)
+            with pytest.raises(TPAdmissionStopped):
+                checking.result(timeout=5)
+        assert b.untrusted and b.stopped
+    finally:
+        release_validation.set()
+        session.close()
