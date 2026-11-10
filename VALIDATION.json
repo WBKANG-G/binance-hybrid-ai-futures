@@ -1,0 +1,139 @@
+{
+  "current_regression": {
+    "cases": 1671,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "focused": {
+    "cases": 149,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "baseline_expected_failures": {
+    "cases": 2,
+    "failures": 2,
+    "errors": 0,
+    "skipped": 0
+  },
+  "long_observation": {
+    "cases": 1,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "fresh_saved_reports": [
+    {
+      "scope": "short",
+      "mode": "partial",
+      "observation_seconds": 0.8,
+      "trace_elapsed_ms": 121841,
+      "guarded_peak": 2962,
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY",
+      "result_flat": "VERIFIED_FLAT",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "observation_deferrals": 0,
+      "actual_exchange_requests": 0
+    },
+    {
+      "scope": "short",
+      "mode": "seal_failure",
+      "observation_seconds": 0.8,
+      "trace_elapsed_ms": 118342,
+      "guarded_peak": 3061,
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY",
+      "result_flat": "VERIFIED_FLAT",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_QUOTA_SEAL_FAILED",
+      "observation_deferrals": 0,
+      "actual_exchange_requests": 0
+    },
+    {
+      "scope": "short",
+      "mode": "tp",
+      "observation_seconds": 0.8,
+      "trace_elapsed_ms": 118352,
+      "guarded_peak": 3061,
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY",
+      "result_flat": "VERIFIED_FLAT",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "observation_deferrals": 0,
+      "actual_exchange_requests": 0
+    },
+    {
+      "scope": "natural",
+      "mode": "tp",
+      "observation_seconds": 300.0,
+      "trace_elapsed_ms": 350098,
+      "guarded_peak": 3423,
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY",
+      "result_flat": "VERIFIED_FLAT",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "observation_deferrals": 89,
+      "actual_exchange_requests": 0
+    }
+  ],
+  "short_lifecycles": {
+    "tp": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "partial": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "seal_failure": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "failed_natural_before": {
+    "cases": 1,
+    "failures": 1,
+    "errors": 0,
+    "skipped": 0
+  },
+  "old_junit_reused": false,
+  "mypy_production_files": 160,
+  "ruff": "PASS",
+  "docker": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "SYNTHETIC_EMPTY_WINDOW_FEASIBILITY_AND_DEFAULT_REFUSAL",
+    "history_profiles_checked": 129,
+    "six_history": {
+      "policy": "SYNTHETIC_SINGLE_WINDOW_FEASIBILITY_V1",
+      "historical_orders": 6,
+      "published_limit_assumption": 6000,
+      "effective_ceiling": 5700,
+      "proof_batch_weight": 5902,
+      "proof_reserve": 128,
+      "proof_required": 6030,
+      "proof_slack": -330,
+      "proof_fits_empty_window": false,
+      "entry_required": 4576,
+      "entry_fits_empty_window": true,
+      "current_pressure_checked": false,
+      "request_cost_upper_bounds_proven": false,
+      "execution_approved": false
+    },
+    "actual_exchange_requests": 0,
+    "execution_approved": false
+  },
+  "production_execution_approved": false,
+  "current_report_receipt_roundtrips": 4,
+  "actual_exchange_requests": 0,
+  "actual_order_usage": "UNKNOWN",
+  "external_ip_capacity_reserved": false,
+  "venue_request_cost_upper_bounds_proven": false
+}
