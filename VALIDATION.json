@@ -1,0 +1,65 @@
+{
+  "status": "PASSED_LOCAL_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1206,
+  "junit_reports": [
+    {
+      "report": "start-guard-regression.xml",
+      "tests": 1204
+    },
+    {
+      "report": "start-guard-lifecycle.xml",
+      "tests": 2
+    }
+  ],
+  "mypy_production_files": 155,
+  "ruff": "PASS",
+  "late_context_and_transport_reproductions_fixed": true,
+  "startup_checks_before_and_after_hold": true,
+  "read_only_pending_snapshot": true,
+  "client_public_signed_and_listen_key_wiring_checked": true,
+  "budget_transport_profile_and_costs_pinned": true,
+  "original_disabled_settings_restored_on_failure": true,
+  "only_captured_owned_resources_closed": true,
+  "safety_deadlines_unchanged": true,
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "default_execution_refused": true,
+    "live_start_refused": true,
+    "changed_client_transport_refused": true,
+    "sender_calls": 0,
+    "postgresql_protocol_tested_in_this_smoke": false,
+    "actual_exchange_requests": 0
+  },
+  "lifecycle": [
+    {
+      "mode": "partial",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121157,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1,
+      "closed_runtime": true
+    },
+    {
+      "mode": "tp",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121064,
+      "guarded_60001ms_peak": 3069,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0,
+      "closed_runtime": true
+    }
+  ],
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "production_admission_approved": false,
+  "snapshots_freeze_all_concurrent_state_changes": false,
+  "hostile_python_or_direct_admin_metadata_changes_covered": false
+}
