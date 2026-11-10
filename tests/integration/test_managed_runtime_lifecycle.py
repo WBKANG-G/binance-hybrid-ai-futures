@@ -68,6 +68,10 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
 
     def send(method, path, query, key):
         response = sender(method, path, query, key)
+        if path == "/fapi/v1/ticker/bookTicker":
+            # Preserve the independent trace meter; corrupt only the observed header.
+            headers = {} if mode == "tp" else {"x-mbx-used-weight-1m": "999999"}
+            return RESTResponse(response.status, response.body, headers)
         if path == "/fapi/v1/exchangeInfo":
             body = json.loads(response.body)
             body["rateLimits"] += [

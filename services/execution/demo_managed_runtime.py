@@ -8,6 +8,8 @@ journal lock. Neither close nor construction seals, repairs, or refunds a flow.
 import json
 import os
 import threading
+from contextvars import ContextVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import Any
 from uuid import UUID
@@ -58,10 +60,20 @@ from services.execution.models import Lease
 from services.risk.paper import period_keys
 
 
+@dataclass
+class QuoteObservation:
+    saved: tuple[int, int, float | None, int, bool] | None = None
+    status: int | None = None
+
+
 class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     def __init__(self, *args: Any, **kwargs: Any):
         self.lifetime = threading.RLock()
         self.revoked = False
+        self._quote_observation: ContextVar[QuoteObservation | None] = ContextVar(
+            "quote_observation", default=None
+        )
+        self.ignored_quote_observations = 0
         super().__init__(*args, **kwargs)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
@@ -105,7 +117,53 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             quota_require(not self.revoked, "RUNTIME_CLOSED")
             self._check_provider()
             require_wire_query(method, path, query, key)
-            return super().__call__(method, path, query, key)
+            observation = QuoteObservation() if not self._observes_weight(method, path) else None
+            context = self._quote_observation.set(observation)
+            try:
+                return super().__call__(method, path, query, key)
+            finally:
+                if observation is not None and observation.saved is not None:
+                    # Keep the modeled cost and all faults. Restore only metadata,
+                    # captured after transport so nested trustworthy reads survive.
+                    (
+                        self.header_weight,
+                        self.header_charge,
+                        self.header_at,
+                        self.header_sequence,
+                    ) = observation.saved[:4]
+                    self.ignored_quote_observations += 1
+                self._quote_observation.reset(context)
+
+    def _observes_weight(self, method: str, path: str) -> bool:
+        return (method, path) != ("GET", "/fapi/v1/ticker/bookTicker")
+
+    def _send_shared(
+        self, method: str, path: str, query: SecretStr, key: SecretStr | None
+    ) -> RESTResponse:
+        response = super()._send_shared(method, path, query, key)
+        observation = self._quote_observation.get()
+        if observation is not None:
+            observation.saved = (
+                self.header_weight,
+                self.header_charge,
+                self.header_at,
+                self.header_sequence,
+                self.untrusted,
+            )
+            observation.status = response.status
+        return response
+
+    def _mark(self, reason: str) -> None:
+        observation = self._quote_observation.get()
+        if (
+            reason == "WEIGHT_HEADER_MISSING"
+            and observation is not None
+            and observation.saved is not None
+            and observation.status not in {418, 429}
+        ):
+            self.untrusted = observation.saved[4]
+            return
+        super()._mark(reason)
 
     def require_proof(self, cost: int) -> None:
         with self.lifetime:
@@ -116,6 +174,13 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     def diagnostics(self) -> dict[str, Any]:
         result = super().diagnostics()
         result["query_contract"] = contract_report()
+        result["quote_header_policy"] = dict(
+            weight_observation_authoritative=False,
+            observations_ignored=self.ignored_quote_observations,
+            modeled_cost_retained=True,
+            freshness_refreshed=False,
+            execution_approved=False,
+        )
         return result
 
 

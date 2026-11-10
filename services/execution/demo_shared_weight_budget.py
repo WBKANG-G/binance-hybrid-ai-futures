@@ -47,6 +47,9 @@ class SharedManagedOrderWindowBudget(ManagedOrderWindowBudget):
             self.deferrals += 1
             raise ProofDeferred
 
+    def _observes_weight(self, method: str, path: str) -> bool:
+        return True
+
     def _send_shared(
         self, method: str, path: str, query: SecretStr, key: SecretStr | None
     ) -> RESTResponse:
@@ -59,10 +62,15 @@ class SharedManagedOrderWindowBudget(ManagedOrderWindowBudget):
         except Exception:
             self.shared.stop_unknown()
             raise
-        raw = rate_headers(response.headers).get("x-mbx-used-weight-1m")
-        self.shared.finish(
-            attempt.token, used_weight=int(raw) if raw is not None else None, status=response.status
-        )
+        if self._observes_weight(method, path):
+            raw = rate_headers(response.headers).get("x-mbx-used-weight-1m")
+            self.shared.finish(
+                attempt.token,
+                used_weight=int(raw) if raw is not None else None,
+                status=response.status,
+            )
+        else:
+            self.shared.finish_unobserved(attempt.token, status=response.status)
         return response
 
     def __call__(

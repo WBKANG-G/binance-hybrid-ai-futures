@@ -296,13 +296,27 @@ class SharedWeightJournal:
     def finish(
         self, token: str, *, used_weight: int | None, status: int | None, sent: bool = True
     ) -> None:
+        self._finish(token, used_weight=used_weight, status=status, sent=sent, observe_weight=True)
+
+    def finish_unobserved(self, token: str, *, status: int) -> None:
+        """Complete a known response, retaining cost without claiming a weight observation."""
+        self._finish(token, used_weight=None, status=status, sent=True, observe_weight=False)
+
+    def _finish(
+        self,
+        token: str,
+        *,
+        used_weight: int | None,
+        status: int | None,
+        sent: bool,
+        observe_weight: bool,
+    ) -> None:
         require(not self.read_only, "SHARED_READ_ONLY")
         with self._transaction() as (c, meta, now):
             row = c.execute("SELECT * FROM attempts WHERE id=?", (token,)).fetchone()
             require(row is not None and row["done"] is None, "SHARED_ATTEMPT_NOT_PENDING")
             if sent and (
-                type(used_weight) is not int
-                or used_weight < 0
+                (observe_weight and (type(used_weight) is not int or used_weight < 0))
                 or type(status) is not int
                 or not 100 <= status <= 599
                 or status in {418, 429}
@@ -310,11 +324,10 @@ class SharedWeightJournal:
                 c.execute("UPDATE meta SET stopped=1")
                 # Keep pending and commit poison for all cooperating processes.
                 return
-            floor = (
-                None
-                if not sent
-                else used_weight + meta["total"] - row["total_at"] + row["earlier_pending"]
-            )
+            floor = None
+            if sent and observe_weight:
+                assert isinstance(used_weight, int)
+                floor = used_weight + meta["total"] - row["total_at"] + row["earlier_pending"]
             c.execute(
                 "UPDATE attempts SET done=?,floor=?,floor_total=? WHERE id=?",
                 (now, floor, meta["total"], token),
