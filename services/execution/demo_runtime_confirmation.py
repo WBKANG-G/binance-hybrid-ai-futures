@@ -9,6 +9,7 @@ from typing import Any
 
 from integrations.binance_usdm.demo_tp_window_budget import ProofDeferred, weight_scope
 from services.execution.demo_managed_order_quota import ManagedQuotaTPTriggerCoordinator
+from services.execution.demo_stream import settled_call
 
 
 class ConfirmationWindowClosed(Exception):
@@ -52,9 +53,14 @@ class ConfirmationClaim:
         self._lock = threading.Lock()
         self._started = self._active = False
         self._rejected = 0
+        self._closed = False
+        self._closed_rejected = 0
 
     def claim(self) -> bool:
         with self._lock:
+            if self._closed:
+                self._closed_rejected += 1
+                return False
             if self._started:
                 self._rejected += 1
                 return False
@@ -65,12 +71,21 @@ class ConfirmationClaim:
         with self._lock:
             self._active = False
 
+    def close(self) -> bool:
+        with self._lock:
+            if self._active:
+                return False
+            self._closed = True
+            return True
+
     def diagnostics(self) -> dict[str, Any]:
         with self._lock:
             return dict(
                 confirmation_started=self._started,
                 confirmation_call_active=self._active,
                 repeated_calls_refused=self._rejected,
+                confirmation_closed=self._closed,
+                closed_calls_refused=self._closed_rejected,
                 start_scope="ONE_CALL_PER_OWNED_COORDINATOR",
             )
 
@@ -83,6 +98,9 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
         self._confirmation_claim = ConfirmationClaim()
         self.confirmation_stop_reason = "NOT_STARTED"
         self.confirmation_deferrals = 0
+
+    def close_confirmation_admission(self) -> bool:
+        return self._confirmation_claim.close()
 
     async def _confirmation_pause(self, window: ConfirmationWindow, *, resource: bool) -> None:
         delay = min(1.0, window.remaining())
@@ -99,8 +117,8 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
         try:
             return await self._confirm_exit_owned()
         finally:
-            # Cancellation does not prove a worker has stopped. Never allow a
-            # replacement confirmation loop after any owner outcome.
+            # Thread stages drain through settled_call before cancellation can
+            # leave the owner. Completion still never returns start permission.
             self._confirmation_claim.finish()
 
     async def _confirm_exit_owned(self) -> str:
@@ -112,16 +130,16 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
             window = ConfirmationWindow(self._confirmation_clock)
             while completed < 4:
                 window.remaining()
-                await asyncio.to_thread(self.store.renew, self.lease)
+                await settled_call(self.store.renew, self.lease)
                 window.remaining()
                 if not budget._fresh(budget.clock()):
                     with weight_scope("WATCH"):
-                        await asyncio.to_thread(self.client.sync_clock)
+                        await settled_call(self.client.sync_clock)
                 window.remaining()
                 assert window.last is not None
                 if window.last - last_watch >= 10 or not budget.flat_observed:
                     with weight_scope("WATCH"):
-                        amount, _ = await asyncio.to_thread(self._physical_position)
+                        amount, _ = await settled_call(self._physical_position)
                     last_watch = window.sample()
                     if amount:
                         self.confirmation_stop_reason = "EXPOSURE_REMAINS"
@@ -134,7 +152,7 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
                         ):
                             budget.require_proof(self.proof_batch)
                         window.remaining()
-                        result = await asyncio.to_thread(self.confirm_flat)
+                        result = await settled_call(self.confirm_flat)
                 except ProofDeferred:
                     full_deferred = True
                     self.confirmation_deferrals += 1

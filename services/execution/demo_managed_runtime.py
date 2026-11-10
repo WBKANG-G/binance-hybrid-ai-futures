@@ -33,7 +33,6 @@ from packages.persistence.demo_shared_checkpoint import (
 from services.execution.demo_managed_order_quota import (
     STORAGE_KEY,
     ManagedQuotaBridge,
-    ManagedQuotaTPTriggerCoordinator,
     run_managed_quota_candidate,
     validate_journal_bindings,
 )
@@ -229,7 +228,7 @@ class ManagedRuntimeSession:
     def __init__(
         self,
         journal: DurableOrderQuota,
-        coordinator: ManagedQuotaTPTriggerCoordinator,
+        coordinator: RuntimeConfirmationCoordinator,
         budget: OwnedSharedBudget,
         storage: RuntimeStorage,
         binding: str,
@@ -331,6 +330,10 @@ class ManagedRuntimeSession:
             quota_require(not self._running, "RUNTIME_STILL_RUNNING")
             if self._closed:
                 return
+            quota_require(
+                self._owned_coordinator.close_confirmation_admission(),
+                "RUNTIME_CONFIRMATION_RUNNING",
+            )
             self._closing = True
             self._owned_budget.revoke()
             # Failure leaves run revoked but permits retry of local cleanup only.
