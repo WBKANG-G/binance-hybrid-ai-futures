@@ -5,11 +5,18 @@ import math
 import threading
 import time
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from integrations.binance_usdm.demo_tp_window_budget import ProofDeferred, weight_scope
-from services.execution.demo_managed_order_quota import ManagedQuotaTPTriggerCoordinator
+from packages.persistence.demo_order_quota import quota_require
+from services.execution.demo_managed_order_quota import (
+    ManagedQuotaStore,
+    ManagedQuotaTPTriggerCoordinator,
+)
+from services.execution.demo_runtime_guards import RuntimeBoundClient
 from services.execution.demo_stream import settled_call
+
+T = TypeVar("T")
 
 
 class ConfirmationWindowClosed(Exception):
@@ -91,13 +98,58 @@ class ConfirmationClaim:
 
 
 class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, *args: Any, check_confirmation_budget: Callable[[], None], **kwargs: Any):
         super().__init__(*args, **kwargs)
+        quota_require(
+            isinstance(self.store, ManagedQuotaStore)
+            and isinstance(self.client, RuntimeBoundClient),
+            "RUNTIME_CONFIRMATION_CONTEXT_REQUIRED",
+        )
+        assert isinstance(self.store, ManagedQuotaStore)
+        assert isinstance(self.client, RuntimeBoundClient)
+        self._confirmation_store, self._confirmation_client = self.store, self.client
+        self._confirmation_budget, self._confirmation_bridge = (
+            self.admission_budget,
+            self.quota_bridge,
+        )
+        self._confirmation_lease, self._confirmation_journal = self.lease, self.quota_bridge.journal
+        self._confirmation_base, self._confirmation_engine = (
+            self.quota_bridge.store,
+            self.store.engine,
+        )
+        self._confirmation_check_budget = check_confirmation_budget
+        self.confirmation_binding_rejections = 0
         self._confirmation_clock: Callable[[], float] = time.monotonic
         self._confirmation_sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
         self._confirmation_claim = ConfirmationClaim()
         self.confirmation_stop_reason = "NOT_STARTED"
         self.confirmation_deferrals = 0
+
+    def _require_confirmation_bindings(self) -> None:
+        try:
+            quota_require(
+                self.store is self._confirmation_store
+                and self.client is self._confirmation_client
+                and self.admission_budget is self._confirmation_budget
+                and self.quota_bridge is self._confirmation_bridge
+                and self.lease == self._confirmation_lease
+                and self._confirmation_store.bridge is self._confirmation_bridge
+                and self._confirmation_store.engine is self._confirmation_engine
+                and self._confirmation_base.engine is self._confirmation_engine
+                and self._confirmation_bridge.store is self._confirmation_base
+                and self._confirmation_bridge.lease == self._confirmation_lease
+                and self._confirmation_bridge.journal is self._confirmation_journal,
+                "RUNTIME_CONFIRMATION_WIRING_CHANGED",
+            )
+            self._confirmation_client._require_binding()
+            self._confirmation_check_budget()
+        except Exception:
+            self.confirmation_binding_rejections += 1
+            raise
+
+    def _confirmation_step(self, function: Callable[..., T], *args: Any) -> T:
+        self._require_confirmation_bindings()
+        return function(*args)
 
     def close_confirmation_admission(self) -> bool:
         return self._confirmation_claim.close()
@@ -115,44 +167,63 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
         if not self._confirmation_claim.claim():
             return "UNKNOWN"
         try:
+            self._require_confirmation_bindings()
             return await self._confirm_exit_owned()
+        except Exception:
+            self.confirmation_stop_reason = "ORIGINAL_OPERATION_FAILED"
+            raise
         finally:
             # Thread stages drain through settled_call before cancellation can
             # leave the owner. Completion still never returns start permission.
             self._confirmation_claim.finish()
 
     async def _confirm_exit_owned(self) -> str:
-        budget = self.admission_budget
+        budget = self._confirmation_budget
         completed, last_watch, full_deferred = 0, 0.0, False
         self.confirmation_stop_reason = "RUNNING"
         self.confirmation_deferrals = 0
         try:
             window = ConfirmationWindow(self._confirmation_clock)
             while completed < 4:
+                self._require_confirmation_bindings()
                 window.remaining()
-                await settled_call(self.store.renew, self.lease)
+                await settled_call(
+                    self._confirmation_step,
+                    self._confirmation_store.renew,
+                    self._confirmation_lease,
+                )
+                self._require_confirmation_bindings()
                 window.remaining()
                 if not budget._fresh(budget.clock()):
                     with weight_scope("WATCH"):
-                        await settled_call(self.client.sync_clock)
+                        await settled_call(
+                            self._confirmation_step, self._confirmation_client.sync_clock
+                        )
+                self._require_confirmation_bindings()
                 window.remaining()
                 assert window.last is not None
                 if window.last - last_watch >= 10 or not budget.flat_observed:
                     with weight_scope("WATCH"):
-                        amount, _ = await settled_call(self._physical_position)
+                        amount, _ = await settled_call(
+                            self._confirmation_step, self._physical_position
+                        )
+                    self._require_confirmation_bindings()
                     last_watch = window.sample()
                     if amount:
                         self.confirmation_stop_reason = "EXPOSURE_REMAINS"
                         return "UNKNOWN"
                 try:
+                    self._require_confirmation_bindings()
                     window.remaining()
                     with weight_scope("PROOF"):
                         if full_deferred or (
                             self._uncertain_ticket is None and not self._pending_after_full
                         ):
                             budget.require_proof(self.proof_batch)
+                        self._require_confirmation_bindings()
                         window.remaining()
-                        result = await settled_call(self.confirm_flat)
+                        result: str = await settled_call(self._confirmation_step, self.confirm_flat)
+                        self._require_confirmation_bindings()
                 except ProofDeferred:
                     full_deferred = True
                     self.confirmation_deferrals += 1
@@ -188,6 +259,7 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
     def confirmation_diagnostics(self) -> dict[str, Any]:
         return dict(
             **self._confirmation_claim.diagnostics(),
+            binding_rejections=self.confirmation_binding_rejections,
             start_deadline_seconds=120,
             completed_attempt_limit=4,
             deferral_limit=120,

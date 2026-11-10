@@ -110,6 +110,13 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             "RUNTIME_SHARED_PROVIDER_CHANGED",
         )
 
+    def check_confirmation_context(self) -> None:
+        with self.lifetime:
+            quota_require(not self.revoked, "RUNTIME_CLOSED")
+            self._check_provider()
+            if self.untrusted:
+                self._deny("TRANSPORT_STOPPED")
+
     def revoke(self) -> None:
         with self.lifetime:
             self.revoked = True
@@ -482,7 +489,13 @@ def assemble_managed_runtime(
             clock_guard=budget.lifetime,
         )
         client.offset, client.synced_at = source.offset, source.synced_at
-        coordinator = RuntimeConfirmationCoordinator(store, lease, client, budget)
+        coordinator = RuntimeConfirmationCoordinator(
+            store,
+            lease,
+            client,
+            budget,
+            check_confirmation_budget=budget.check_confirmation_context,
+        )
         return ManagedRuntimeSession(journal, coordinator, budget, storage, binding)
     except Exception as error:
         if journal is not None:
