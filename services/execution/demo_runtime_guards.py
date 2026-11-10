@@ -1,7 +1,7 @@
 """Startup snapshots and per-request client wiring for the synthetic runtime."""
 
 import os
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, Literal
 
@@ -53,8 +53,9 @@ def require_start_ledger(
 class RuntimeBoundClient(UncertainCancellationClient):
     """A mutated sender/credential/scope cannot bypass the owned budget later."""
 
-    def __init__(self, *args: Any, **kwargs: Any):
+    def __init__(self, *args: Any, on_clock_failure: Callable[[], None], **kwargs: Any):
         super().__init__(*args, **kwargs)
+        self._on_clock_failure = on_clock_failure
         self._runtime_sender = self.send
         self._runtime_credentials = self.credentials
         self._runtime_settings = self.settings.model_copy(update={"demo_trading_enabled": False})
@@ -70,6 +71,18 @@ class RuntimeBoundClient(UncertainCancellationClient):
             == self._runtime_settings,
             "RUNTIME_CLIENT_SETTINGS_CHANGED",
         )
+
+    def sync_clock(self) -> None:
+        self._require_binding()
+        try:
+            super().sync_clock()
+        except Exception:
+            # Decode failures can occur before the original SDK clears an old
+            # clock sample. No rejected refresh may leave this session admissible.
+            self.synced_at = None
+            self.clock_sample = None
+            self._on_clock_failure()
+            raise
 
     def public(self, path: str, params: Mapping[str, str] | None = None) -> Any:
         self._require_binding()

@@ -76,6 +76,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         )
         self.ignored_quote_observations = 0
         self.proof_metadata_deferrals = 0
+        self.clock_refresh_failures = 0
         super().__init__(*args, **kwargs)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
@@ -167,6 +168,13 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             return
         super()._mark(reason)
 
+    def invalidate_clock_observation(self) -> None:
+        """Latch only this session; transport uncertainty is already journaled."""
+        with self.lifetime:
+            self.clock_refresh_failures += 1
+            self.untrusted = True
+            self._mark("RUNTIME_CLOCK_REFRESH_FAILED")
+
     def require_proof(self, cost: int) -> None:
         with self.lifetime:
             quota_require(not self.revoked, "RUNTIME_CLOSED")
@@ -188,6 +196,8 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         result["proof_metadata_policy"] = dict(
             authoritative_observation_max_age_seconds=5,
             stale_batch_deferrals=self.proof_metadata_deferrals,
+            clock_refresh_failures=self.clock_refresh_failures,
+            rejected_clock_action="STOP_OWNED_SESSION_NO_RETRY",
             stale_action="DEFER_TO_EXISTING_SCOPED_CLOCK_READ",
             implicit_transport_attempts=0,
             execution_approved=False,
@@ -448,7 +458,11 @@ def assemble_managed_runtime(
             allow_synthetic_model_execution=True,
         )
         client = RuntimeBoundClient(
-            source.settings, source.credentials, send=budget, clock_ms=source.clock_ms
+            source.settings,
+            source.credentials,
+            send=budget,
+            clock_ms=source.clock_ms,
+            on_clock_failure=budget.invalidate_clock_observation,
         )
         client.offset, client.synced_at = source.offset, source.synced_at
         coordinator = ManagedQuotaTPTriggerCoordinator(store, lease, client, budget)
