@@ -260,9 +260,46 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
         self.confirmation_stop_reason = "ATTEMPT_LIMIT_REACHED"
         return "UNKNOWN"
 
+    def _reported_confirmation_outcome(self, claim: dict[str, Any]) -> str:
+        if claim["confirmation_call_active"]:
+            return "IN_PROGRESS"
+        if not claim["confirmation_started"]:
+            return "NOT_STARTED"
+        if self.budgeted_flat_confirmation == "VERIFIED_FLAT":
+            if self.quota_seal_failed:
+                return "PROOF_VERIFIED_QUOTA_SEAL_FAILED"
+            if self.session_failed:
+                return "PROOF_VERIFIED_SESSION_FAILED"
+            if self._confirmation_bridge.degraded:
+                return "PROOF_VERIFIED_RUNTIME_DEGRADED"
+            return "PROOF_VERIFIED_REVIEW_ONLY"
+        if self.confirmation_stop_reason == "CALLER_CANCELLED":
+            return "CALLER_CANCELLED_PROOF_UNCONFIRMED"
+        if self.confirmation_stop_reason == "START_DEADLINE_REACHED":
+            return "START_DEADLINE_PROOF_UNCONFIRMED"
+        if self.confirmation_stop_reason in {"ATTEMPT_LIMIT_REACHED", "DEFERRAL_LIMIT_REACHED"}:
+            return "LIMIT_REACHED_PROOF_UNCONFIRMED"
+        if self.confirmation_binding_rejections:
+            return "CONTEXT_REJECTED_PROOF_UNCONFIRMED"
+        if self.confirmation_stop_reason == "ORIGINAL_OPERATION_FAILED":
+            return "OPERATION_FAILED_PROOF_UNCONFIRMED"
+        return "PROOF_UNCONFIRMED"
+
     def confirmation_diagnostics(self) -> dict[str, Any]:
+        claim = self._confirmation_claim.diagnostics()
         return dict(
-            **self._confirmation_claim.diagnostics(),
+            **claim,
+            reported_outcome=self._reported_confirmation_outcome(claim),
+            returned_flat_confirmation=(
+                "VERIFIED_FLAT" if self.budgeted_flat_confirmation == "VERIFIED_FLAT" else "UNKNOWN"
+            ),
+            quota_seal_failed=self.quota_seal_failed,
+            session_failed=self.session_failed,
+            bridge_degraded=self._confirmation_bridge.degraded,
+            completed_confirmation_attempts=self.confirmation_attempts_completed,
+            quota_seal_verified_from_records=False,
+            financial_database_rechecked=False,
+            next_action="KEEP_PAUSED_REVIEW_ONLY",
             binding_rejections=self.confirmation_binding_rejections,
             start_deadline_seconds=120,
             completed_attempt_limit=4,

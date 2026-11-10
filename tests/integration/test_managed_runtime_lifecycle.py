@@ -31,9 +31,10 @@ from tests.integration.test_demo_tp_trigger_check import case  # noqa: F401
 from tests.integration.test_tp_admission_candidate import scenario
 
 
-@pytest.mark.parametrize("mode", ["tp", "partial"])
+@pytest.mark.parametrize("mode", ["tp", "partial", "seal_failure"])
 def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode):
-    opposite_case[3]["trigger"] = mode == "tp"
+    is_tp = mode != "partial"
+    opposite_case[3]["trigger"] = is_tp
     if mode == "partial":
         opposite_case[3]["fill"] = False
     s, oldbudget, meter, route, old, history = scenario(
@@ -70,7 +71,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         response = sender(method, path, query, key)
         if path == "/fapi/v1/ticker/bookTicker":
             # Preserve the independent trace meter; corrupt only the observed header.
-            headers = {} if mode == "tp" else {"x-mbx-used-weight-1m": "999999"}
+            headers = {} if is_tp else {"x-mbx-used-weight-1m": "999999"}
             return RESTResponse(response.status, response.body, headers)
         if path == "/fapi/v1/exchangeInfo":
             body = json.loads(response.body)
@@ -103,6 +104,12 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     )
     offset[0] += 70.01
     c = scope.coordinator
+    if mode == "seal_failure":
+
+        def fail_seal(ledger):
+            raise OSError("synthetic quota seal failure")
+
+        monkeypatch.setattr(c.quota_bridge, "seal_verified", fail_seal)
     native = c.begin_finalization
 
     def finalize():
@@ -131,6 +138,24 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         assert asyncio.run(c.confirm_exit_budgeted()) == "UNKNOWN"
         assert len(meter.rows) == sent
         assert c.budgeted_flat_confirmation == "VERIFIED_FLAT"
+        flows = scope.journal.flow_records()
+        report = c.confirmation_diagnostics()
+        assert report["execution_approved"] is False
+        assert report["next_action"] == "KEEP_PAUSED_REVIEW_ONLY"
+        if mode == "seal_failure":
+            assert c.quota_seal_failed and c.session_failed and c.quota_bridge.degraded
+            assert report["reported_outcome"] == "PROOF_VERIFIED_QUOTA_SEAL_FAILED"
+            assert any(flow["seal"] is None for flow in flows.values())
+        else:
+            assert not c.quota_seal_failed
+            assert not c.quota_bridge.degraded
+            expected = (
+                "PROOF_VERIFIED_SESSION_FAILED"
+                if c.session_failed
+                else "PROOF_VERIFIED_REVIEW_ONLY"
+            )
+            assert report["reported_outcome"] == expected
+            assert all(flow["seal"] is not None for flow in flows.values())
     finally:
         scope.close()
         route.close()
@@ -138,7 +163,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     capsys.readouterr()
     after = store.read("DEMO-test")
     assert result["new_entry_post_count"] == 1 and result["flat_confirmation"] == "VERIFIED_FLAT"
-    assert result["operator_exit_post_attempts"] == (0 if mode == "tp" else 1)
+    assert result["operator_exit_post_attempts"] == (0 if is_tp else 1)
     assert result["history_and_baselines_preserved"] and after.paused
     assert all(after.orders[k] == v for k, v in before.orders.items())
     assert not any(fake.positions.values()) and not source.settings.demo_trading_enabled
@@ -146,6 +171,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     raw = dict(
         synthetic_only=True,
         confirmation_scheduler=c.confirmation_diagnostics(),
+        unsealed_flow_count=sum(flow["seal"] is None for flow in flows.values()),
         mode=mode,
         observation_seconds=0.8,
         startup_holds_accelerated=True,
