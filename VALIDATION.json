@@ -1,0 +1,101 @@
+{
+  "status": "PASSED_LOCAL_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1375,
+  "junit_reports": [
+    {
+      "report": "confirmation-drain-regression.xml",
+      "tests": 1373
+    },
+    {
+      "report": "confirmation-drain-lifecycle.xml",
+      "tests": 2
+    }
+  ],
+  "mypy_production_files": 157,
+  "ruff": "PASS",
+  "baseline_failures_fixed": 6,
+  "owned_thread_stages_drained_before_cancel_returns": true,
+  "close_refuses_active_confirmation": true,
+  "closed_runtime_refuses_first_confirmation": true,
+  "whole_function_wall_time_limit_proven": false,
+  "in_flight_work_force_canceled": false,
+  "original_response_preserved": true,
+  "book_ticker_header_used_for_weight_or_freshness": false,
+  "modeled_cost_retained": true,
+  "throttle_and_transport_failures_still_stop": true,
+  "nested_trustworthy_observations_preserved": true,
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "BLOCKED_FAKE_WORKER_AND_CLAIM_NO_DATABASE_OR_ORDER_BRIDGE",
+    "cancel_waited_for_worker": true,
+    "close_refused_until_worker_settled": true,
+    "closed_claim_cannot_start": true,
+    "default_execution_refused": true,
+    "actual_exchange_requests": 0
+  },
+  "lifecycle": [
+    {
+      "confirmation_scheduler": {
+        "confirmation_started": true,
+        "confirmation_call_active": false,
+        "repeated_calls_refused": 1,
+        "confirmation_closed": true,
+        "closed_calls_refused": 0,
+        "start_scope": "ONE_CALL_PER_OWNED_COORDINATOR",
+        "start_deadline_seconds": 120,
+        "completed_attempt_limit": 4,
+        "deferral_limit": 120,
+        "deferrals": 114,
+        "stop_reason": "ORIGINAL_PROOF_VERIFIED",
+        "in_flight_work_force_canceled": false,
+        "whole_function_wall_time_limit_proven": false,
+        "execution_approved": false
+      },
+      "mode": "partial",
+      "quote_header_injected": "999999",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121157,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1,
+      "closed_runtime": true
+    },
+    {
+      "confirmation_scheduler": {
+        "confirmation_started": true,
+        "confirmation_call_active": false,
+        "repeated_calls_refused": 1,
+        "confirmation_closed": true,
+        "closed_calls_refused": 0,
+        "start_scope": "ONE_CALL_PER_OWNED_COORDINATOR",
+        "start_deadline_seconds": 120,
+        "completed_attempt_limit": 4,
+        "deferral_limit": 120,
+        "deferrals": 114,
+        "stop_reason": "ORIGINAL_PROOF_VERIFIED",
+        "in_flight_work_force_canceled": false,
+        "whole_function_wall_time_limit_proven": false,
+        "execution_approved": false
+      },
+      "mode": "tp",
+      "quote_header_injected": "MISSING",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121111,
+      "guarded_60001ms_peak": 3069,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0,
+      "closed_runtime": true
+    }
+  ],
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "request_cost_upper_bounds_proven": false,
+  "production_admission_approved": false
+}
