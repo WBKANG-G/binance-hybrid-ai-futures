@@ -37,12 +37,14 @@ from services.execution.demo_managed_order_quota import (
     validate_journal_bindings,
 )
 from services.execution.demo_query_contract import contract_report, require_wire_query
+from services.execution.demo_runtime_capacity import capacity_plan, require_runtime_capacity
 from services.execution.demo_runtime_confirmation import RuntimeConfirmationCoordinator
 from services.execution.demo_runtime_guards import (
     RuntimeBoundClient,
     require_start_context,
     require_start_ledger,
 )
+from services.execution.demo_runtime_observation import RuntimeObservationCoordinator
 from services.execution.demo_runtime_storage import (
     RUNTIME_STORAGE_KEY,
     runtime_storage_binding,
@@ -79,6 +81,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         self.clock_refresh_failures = 0
         self.hard_stop_early_rejections = 0
         super().__init__(*args, **kwargs)
+        require_runtime_capacity(self.profile)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
         self._configured_sender = self.sender
@@ -206,6 +209,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     def diagnostics(self) -> dict[str, Any]:
         result = super().diagnostics()
         result["query_contract"] = contract_report()
+        result["capacity_feasibility"] = capacity_plan(self.profile)
         result["hard_stop_policy"] = dict(
             rejections_before_reservation=self.hard_stop_early_rejections,
             existing_records_preserved=True,
@@ -425,6 +429,9 @@ def assemble_managed_runtime(
             "RUNTIME_PERIOD_KEYS_MISMATCH",
         )
         profile = TPModelProfile(len(ledger.orders))
+        # A batch larger than an empty window can never be fixed by waiting.
+        # Refuse before either local journal is opened or a writer session exists.
+        require_runtime_capacity(profile)
         raw = json.loads(ledger.operations.get(STORAGE_KEY, "{}"))
         quota_require(
             isinstance(raw, dict) and isinstance(raw.get("journal"), str),
@@ -489,7 +496,7 @@ def assemble_managed_runtime(
             clock_guard=budget.lifetime,
         )
         client.offset, client.synced_at = source.offset, source.synced_at
-        coordinator = RuntimeConfirmationCoordinator(
+        coordinator = RuntimeObservationCoordinator(
             store,
             lease,
             client,

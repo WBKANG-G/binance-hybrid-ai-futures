@@ -33,6 +33,8 @@ from tests.integration.test_tp_admission_candidate import scenario
 
 @pytest.mark.parametrize("mode", ["tp", "partial", "seal_failure"])
 def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode):
+    duration = float(os.environ.get("RUNTIME_ASSEMBLY_DURATION", ".8"))
+    assert 0.8 <= duration <= 300
     is_tp = mode != "partial"
     opposite_case[3]["trigger"] = is_tp
     if mode == "partial":
@@ -130,7 +132,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
                 (store, c, fake, options),
                 monkeypatch,
                 profile="quiet",
-                duration=0.8,
+                duration=duration,
                 capture=Capture(),
             )
         )
@@ -162,26 +164,29 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         anchor.engine.dispose()
     capsys.readouterr()
     after = store.read("DEMO-test")
+    raw = dict(
+        synthetic_only=True,
+        confirmation_scheduler=c.confirmation_diagnostics(),
+        unsealed_flow_count=sum(flow["seal"] is None for flow in flows.values()),
+        mode=mode,
+        observation_seconds=duration,
+        startup_holds_accelerated=True,
+        result=result,
+        trace=meter.rows,
+        closed_runtime=True,
+        runtime_budget_reason=scope.budget.reason,
+        runtime_budget_untrusted=scope.budget.untrusted,
+        runtime_budget_stopped=scope.budget.stopped,
+    )
+    measured = review(raw)
+    output = Path(os.environ.get("RUNTIME_ASSEMBLY_REPORT_DIR", "/tmp/runtime-assembly-lifecycle"))
+    output.mkdir(parents=True, exist_ok=True)
+    (output / (mode + ".json")).write_text(json.dumps(raw, indent=2) + "\n")
+    (output / (mode + "-minute.json")).write_text(json.dumps(measured, indent=2) + "\n")
+    assert measured["guarded_peak"]["weight"] <= 5700
     assert result["new_entry_post_count"] == 1 and result["flat_confirmation"] == "VERIFIED_FLAT"
     assert result["operator_exit_post_attempts"] == (0 if is_tp else 1)
     assert result["history_and_baselines_preserved"] and after.paused
     assert all(after.orders[k] == v for k, v in before.orders.items())
     assert not any(fake.positions.values()) and not source.settings.demo_trading_enabled
     assert not c.client.settings.demo_trading_enabled and scope.budget.revoked
-    raw = dict(
-        synthetic_only=True,
-        confirmation_scheduler=c.confirmation_diagnostics(),
-        unsealed_flow_count=sum(flow["seal"] is None for flow in flows.values()),
-        mode=mode,
-        observation_seconds=0.8,
-        startup_holds_accelerated=True,
-        result=result,
-        trace=meter.rows,
-        closed_runtime=True,
-    )
-    measured = review(raw)
-    assert measured["guarded_peak"]["weight"] <= 5700
-    output = Path(os.environ.get("RUNTIME_ASSEMBLY_REPORT_DIR", "/tmp/runtime-assembly-lifecycle"))
-    output.mkdir(parents=True, exist_ok=True)
-    (output / (mode + ".json")).write_text(json.dumps(raw, indent=2) + "\n")
-    (output / (mode + "-minute.json")).write_text(json.dumps(measured, indent=2) + "\n")

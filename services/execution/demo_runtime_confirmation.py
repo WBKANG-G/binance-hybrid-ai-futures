@@ -13,6 +13,7 @@ from services.execution.demo_managed_order_quota import (
     ManagedQuotaStore,
     ManagedQuotaTPTriggerCoordinator,
 )
+from services.execution.demo_runtime_capacity import proof_batch_weight
 from services.execution.demo_runtime_guards import RuntimeBoundClient
 from services.execution.demo_stream import settled_call
 
@@ -98,6 +99,10 @@ class ConfirmationClaim:
 
 
 class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
+    @property
+    def proof_batch(self) -> int:
+        return proof_batch_weight(self.admission_budget.profile)
+
     def __init__(self, *args: Any, check_confirmation_budget: Callable[[], None], **kwargs: Any):
         super().__init__(*args, **kwargs)
         quota_require(
