@@ -1,0 +1,77 @@
+{
+  "status": "PASSED_CURRENT_REGRESSION_AND_OFFLINE_REPLAY_ONLY",
+  "current_source_regression_tests": 1522,
+  "current_reader_and_receipt_focused_tests": 103,
+  "new_receipt_save_tests": 20,
+  "historical_lifecycle_cases_reused_not_rerun": 3,
+  "historical_lifecycle_source_commit": "9283140d588a523a2ee030888bfeba8c77284ec1",
+  "new_financial_lifecycle_execution_performed": false,
+  "offline_saved_reports_revalidated": 3,
+  "existing_receipt_and_same_input_rejections": 6,
+  "exclusive_save_added": true,
+  "mypy_production_files": 158,
+  "ruff": "PASS",
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "OFFLINE_EXCLUSIVE_RECEIPT_SAVE_ONLY",
+    "saved_report_roundtrips": 3,
+    "existing_receipts_and_sources_preserved": true,
+    "fresh_financial_lifecycle_run": false,
+    "actual_exchange_requests": 0,
+    "execution_approved": false
+  },
+  "saved_report_provenance": {
+    "status": "PASSED_OFFLINE_EXCLUSIVE_SAVE_REPLAY_ONLY",
+    "input_artifact_commit": "d2307352d739d172dba02b4842c6cbfafd61d3f0",
+    "input_archive_sha256": "771ca65fb981014864414be954ae30e13e90f130c45eac4e1405716d576887d3",
+    "input_source_commit": "e136c1a89ac3f8ebdc7a3629ed956228527a8aad",
+    "financial_lifecycle_source_commit": "9283140d588a523a2ee030888bfeba8c77284ec1",
+    "records": [
+      {
+        "mode": "tp",
+        "input_sha256": "90b9b753c169e1b67baf9147df08cd29982f3ec7513dd1466d0e59d31d2dfd8c",
+        "input_bytes": 116299,
+        "save_exit_status": 0,
+        "verification_exit_status": 0,
+        "receipt_matches_input": true,
+        "existing_receipt_preserved": true,
+        "input_preserved": true,
+        "execution_approved": false
+      },
+      {
+        "mode": "partial",
+        "input_sha256": "6ac7e4b33babe105a196cf7eb203b9958420ce15b2983fe52b6cafbc9cad27b7",
+        "input_bytes": 121395,
+        "save_exit_status": 0,
+        "verification_exit_status": 0,
+        "receipt_matches_input": true,
+        "existing_receipt_preserved": true,
+        "input_preserved": true,
+        "execution_approved": false
+      },
+      {
+        "mode": "seal_failure",
+        "input_sha256": "a42564b55c7e5b00e7c8a2f0f4a15a7fb2f726fb2be405d14c2393b4d1e5684a",
+        "input_bytes": 116340,
+        "save_exit_status": 3,
+        "verification_exit_status": 3,
+        "receipt_matches_input": true,
+        "existing_receipt_preserved": true,
+        "input_preserved": true,
+        "execution_approved": false
+      }
+    ],
+    "previous_lifecycle_junit_reused_not_rerun": true,
+    "fresh_financial_lifecycle_execution_performed": false,
+    "actual_exchange_requests": 0
+  },
+  "report_authenticity_verified": false,
+  "current_exchange_state_verified": false,
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "request_cost_upper_bounds_proven": false,
+  "production_admission_approved": false
+}
