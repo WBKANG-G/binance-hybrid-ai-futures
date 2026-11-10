@@ -53,9 +53,11 @@ class SharedWeightJournal:
         monotonic: Callable[[], float] = time.monotonic,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC),
         boot: Callable[[], str] = boot_id,
+        read_only: bool = False,
     ):
         self.directory, self.scope, self.identity = directory, scope, identity
         self.monotonic, self.wall_clock, self.boot = monotonic, wall_clock, boot
+        self.read_only = read_only
         self._paths()
         self.db_inode = self._identity(self.path)
         self.lock_inode = self._identity(self.lock_path)
@@ -91,6 +93,7 @@ class SharedWeightJournal:
     def create(
         cls, directory: Path, scope: str, identity: UUID, **kwargs: Any
     ) -> "SharedWeightJournal":
+        require(not kwargs.get("read_only"), "SHARED_READ_ONLY_CANNOT_CREATE")
         obj = object.__new__(cls)
         obj.directory, obj.scope = directory, scope
         obj._paths()
@@ -151,7 +154,8 @@ class SharedWeightJournal:
             "SHARED_FILE_REPLACED",
         )
         require(self.path.stat().st_size <= 16 * 1024 * 1024, "SHARED_STORAGE_SIZE_LIMIT")
-        fd = os.open(self.lock_path, os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC)
+        flags = os.O_RDONLY if self.read_only else os.O_RDWR
+        fd = os.open(self.lock_path, flags | os.O_NOFOLLOW | os.O_CLOEXEC)
         c = None
         try:
             require(
@@ -159,15 +163,19 @@ class SharedWeightJournal:
                 "SHARED_FILE_REPLACED",
             )
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                mode = fcntl.LOCK_SH if self.read_only else fcntl.LOCK_EX
+                fcntl.flock(fd, mode | fcntl.LOCK_NB)
             except BlockingIOError:
                 raise SharedWeightStopped("SHARED_WRITER_BUSY") from None
             c = sqlite3.connect(
-                self.path.resolve().as_uri() + "?mode=rw", uri=True, isolation_level=None, timeout=2
+                self.path.resolve().as_uri() + ("?mode=ro" if self.read_only else "?mode=rw"),
+                uri=True,
+                isolation_level=None,
+                timeout=2,
             )
             c.row_factory = sqlite3.Row
-            c.execute("PRAGMA synchronous=FULL")
-            c.execute("BEGIN IMMEDIATE")
+            c.execute("PRAGMA query_only=ON" if self.read_only else "PRAGMA synchronous=FULL")
+            c.execute("BEGIN" if self.read_only else "BEGIN IMMEDIATE")
             rows = c.execute("SELECT * FROM meta").fetchall()
             require(len(rows) == 1, "SHARED_STORAGE_INVALID")
             meta = dict(rows[0])
@@ -200,10 +208,12 @@ class SharedWeightJournal:
                 and abs((wall.timestamp() - meta["wall"]) - (now - meta["start"])) <= 1
             )
             if not valid:
-                c.execute("UPDATE meta SET stopped=1")
-                c.execute("COMMIT")
+                if not self.read_only:
+                    c.execute("UPDATE meta SET stopped=1")
+                    c.execute("COMMIT")
                 raise SharedWeightStopped("SHARED_CLOCK_OR_BOOT_CHANGED")
-            c.execute("UPDATE meta SET last=?", (now,))
+            if not self.read_only:
+                c.execute("UPDATE meta SET last=?", (now,))
             invalid = c.execute(
                 "SELECT COUNT(*) FROM attempts WHERE typeof(weight)!='integer' OR weight<1 OR weight>5700 "
                 "OR typeof(total_at)!='integer' OR total_at<weight OR total_at>? "
@@ -216,7 +226,10 @@ class SharedWeightJournal:
             ).fetchone()[0]
             require(not invalid, "SHARED_STORAGE_INVALID")
             # Never prune pending sends, even after process death or hours.
-            c.execute("DELETE FROM attempts WHERE done IS NOT NULL AND done <= ?", (now - WINDOW,))
+            if not self.read_only:
+                c.execute(
+                    "DELETE FROM attempts WHERE done IS NOT NULL AND done <= ?", (now - WINDOW,)
+                )
             yield c, meta, now
             c.execute("COMMIT")
         except Exception:
@@ -229,17 +242,24 @@ class SharedWeightJournal:
             os.close(fd)
 
     @staticmethod
-    def _pressure(c: sqlite3.Connection, total: int) -> int:
-        own = int(c.execute("SELECT COALESCE(SUM(weight),0) FROM attempts").fetchone()[0])
+    def _pressure(c: sqlite3.Connection, total: int, now: float | None = None) -> int:
+        cutoff = now - WINDOW if now is not None else -1e300
+        own = int(
+            c.execute(
+                "SELECT COALESCE(SUM(weight),0) FROM attempts WHERE done IS NULL OR done>?",
+                (cutoff,),
+            ).fetchone()[0]
+        )
         observed = int(
             c.execute(
-                "SELECT COALESCE(MAX(floor + ? - floor_total),0) FROM attempts WHERE floor IS NOT NULL",
-                (total,),
+                "SELECT COALESCE(MAX(floor + ? - floor_total),0) FROM attempts WHERE floor IS NOT NULL AND done>?",
+                (total, cutoff),
             ).fetchone()[0]
         )
         return max(own, observed)
 
     def reserve(self, weight: int, lane: str) -> str:
+        require(not self.read_only, "SHARED_READ_ONLY")
         require(
             type(weight) is int and 0 < weight <= CEILING and lane in RESERVES,
             "SHARED_REQUEST_SCOPE_INVALID",
@@ -267,6 +287,7 @@ class SharedWeightJournal:
     def finish(
         self, token: str, *, used_weight: int | None, status: int | None, sent: bool = True
     ) -> None:
+        require(not self.read_only, "SHARED_READ_ONLY")
         with self._transaction() as (c, meta, now):
             row = c.execute("SELECT * FROM attempts WHERE id=?", (token,)).fetchone()
             require(row is not None and row["done"] is None, "SHARED_ATTEMPT_NOT_PENDING")
@@ -291,6 +312,7 @@ class SharedWeightJournal:
             )
 
     def stop_unknown(self) -> None:
+        require(not self.read_only, "SHARED_READ_ONLY")
         with self._transaction() as (c, meta, now):
             c.execute("UPDATE meta SET stopped=1")
 
@@ -301,7 +323,7 @@ class SharedWeightJournal:
             ).fetchone()
             return dict(
                 scope="COOPERATING_WRITERS_WITH_SHARED_STORE_ONLY",
-                pressure=self._pressure(c, meta["total"]),
+                pressure=self._pressure(c, meta["total"], now),
                 pending_attempts=pending[0],
                 pending_weight=pending[1],
                 ceiling=CEILING,
