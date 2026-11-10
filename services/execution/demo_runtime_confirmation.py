@@ -141,6 +141,10 @@ class RuntimeConfirmationCoordinator(ManagedQuotaTPTriggerCoordinator):
                 and self._confirmation_bridge.journal is self._confirmation_journal,
                 "RUNTIME_CONFIRMATION_WIRING_CHANGED",
             )
+            quota_require(
+                self._confirmation_journal.owns_process_lock(),
+                "RUNTIME_CONFIRMATION_ORDER_LOCK_REQUIRED",
+            )
             self._confirmation_client._require_binding()
             self._confirmation_check_budget()
         except Exception:
