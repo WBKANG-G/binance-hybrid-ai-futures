@@ -141,6 +141,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     assert not c.client.settings.demo_trading_enabled and scope.budget.revoked
     raw = dict(
         synthetic_only=True,
+        confirmation_scheduler=c.confirmation_diagnostics(),
         mode=mode,
         observation_seconds=0.8,
         startup_holds_accelerated=True,

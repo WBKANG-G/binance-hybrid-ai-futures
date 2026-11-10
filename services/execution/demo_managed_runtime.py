@@ -38,6 +38,7 @@ from services.execution.demo_managed_order_quota import (
     validate_journal_bindings,
 )
 from services.execution.demo_query_contract import contract_report, require_wire_query
+from services.execution.demo_runtime_confirmation import RuntimeConfirmationCoordinator
 from services.execution.demo_runtime_guards import (
     RuntimeBoundClient,
     require_start_context,
@@ -478,7 +479,7 @@ def assemble_managed_runtime(
             clock_guard=budget.lifetime,
         )
         client.offset, client.synced_at = source.offset, source.synced_at
-        coordinator = ManagedQuotaTPTriggerCoordinator(store, lease, client, budget)
+        coordinator = RuntimeConfirmationCoordinator(store, lease, client, budget)
         return ManagedRuntimeSession(journal, coordinator, budget, storage, binding)
     except Exception as error:
         if journal is not None:
