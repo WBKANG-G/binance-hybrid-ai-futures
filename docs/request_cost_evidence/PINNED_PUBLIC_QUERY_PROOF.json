@@ -1,0 +1,30 @@
+{
+  "official_repository": "https://github.com/binance/binance-connector-python",
+  "commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+  "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/market_data_api.py",
+  "sha256": "d783bb54426876450e148c11c76d4f9784b45dd40d1026a7e81ceb0cc4268182",
+  "observations": [
+    {
+      "method": "kline_candlestick_data",
+      "line": 667,
+      "weight_depends_on_limit": true,
+      "limit_2_documented_weight": 1,
+      "limit_1500_documented_weight": 10
+    },
+    {
+      "method": "mark_price",
+      "line": 805,
+      "with_symbol_weight": 1,
+      "without_symbol_weight": 10
+    },
+    {
+      "method": "symbol_order_book_ticker",
+      "line": 1431,
+      "with_symbol_weight": 2,
+      "without_symbol_weight": 5,
+      "weight_header_authoritative": false
+    }
+  ],
+  "venue_weight_upper_bound_proven": false,
+  "execution_approved": false
+}

@@ -10,6 +10,7 @@ from pydantic import SecretStr
 from integrations.binance_usdm.demo import DemoSettings
 from packages.persistence.demo_order_quota import quota_require
 from services.execution.demo_models import DemoLedger
+from services.execution.demo_query_contract import require_public_query, require_signed_query
 from services.execution.demo_tp_uncertain_cancel_candidate import UncertainCancellationClient
 from services.risk.paper import period_keys
 
@@ -72,10 +73,12 @@ class RuntimeBoundClient(UncertainCancellationClient):
 
     def public(self, path: str, params: Mapping[str, str] | None = None) -> Any:
         self._require_binding()
+        require_public_query(path, params)
         return super().public(path, params)
 
     def request(self, method: str, path: str, params: Mapping[str, str] | None = None) -> Any:
         self._require_binding()
+        require_signed_query(method, path, params)
         return super().request(method, path, params)
 
     def listen_key(self, method: Literal["POST", "PUT", "DELETE"]) -> SecretStr | None:

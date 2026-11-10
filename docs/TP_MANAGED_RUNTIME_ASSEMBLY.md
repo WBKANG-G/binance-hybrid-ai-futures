@@ -4,6 +4,8 @@ The current assembly additionally requires an independent checkpoint provider an
 a dedicated engine pool, plus an explicitly bound account configuration; see
 `TP_SHARED_WEIGHT_CHECKPOINTS.md` and `TP_RUNTIME_STORAGE_BINDING.md`. Startup
 and per-request wiring are additionally pinned by `TP_RUNTIME_START_GUARDS.md`.
+Approved request shapes are enforced by `TP_RUNTIME_QUERY_CONTRACT.md`; shape
+acceptance is not execution permission.
 
 This adds one explicit owner for the existing order journal, shared request-weight
 budget, cloned client, and original coordinator. It does not activate trading,

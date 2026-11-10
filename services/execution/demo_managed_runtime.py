@@ -34,6 +34,7 @@ from services.execution.demo_managed_order_quota import (
     run_managed_quota_candidate,
     validate_journal_bindings,
 )
+from services.execution.demo_query_contract import contract_report, require_wire_query
 from services.execution.demo_runtime_guards import (
     RuntimeBoundClient,
     require_start_context,
@@ -103,6 +104,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         with self.lifetime:
             quota_require(not self.revoked, "RUNTIME_CLOSED")
             self._check_provider()
+            require_wire_query(method, path, query, key)
             return super().__call__(method, path, query, key)
 
     def require_proof(self, cost: int) -> None:
@@ -110,6 +112,11 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             quota_require(not self.revoked, "RUNTIME_CLOSED")
             self._check_provider()
             super().require_proof(cost)
+
+    def diagnostics(self) -> dict[str, Any]:
+        result = super().diagnostics()
+        result["query_contract"] = contract_report()
+        return result
 
 
 class ManagedRuntimeSession:
