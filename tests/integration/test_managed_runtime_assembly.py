@@ -53,6 +53,9 @@ def assembly(managed):
 
     storage = runtime.RuntimeStorage(path, folder, "DEMO-weight", identity, anchor)
     clocks = runtime.RuntimeClocks(clock.mono, clock.utc, lambda: "test-boot")
+    from services.execution.demo_runtime_storage import bind_runtime_storage
+
+    bind_runtime_storage(store, c.lease, storage, clocks=clocks)
     yield store, c, q, clock, w, source, sender, calls, storage, clocks
     anchor.engine.dispose()
 

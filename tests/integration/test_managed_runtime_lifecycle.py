@@ -84,12 +84,16 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         clock_ms=prior.client.clock_ms,
     )
     source.offset, source.synced_at = prior.client.offset, prior.client.synced_at
+    from services.execution.demo_runtime_storage import bind_runtime_storage
+
+    storage = RuntimeStorage(order_dir, pressure_dir, "DEMO-assembly", identity, anchor)
+    bind_runtime_storage(store, prior.lease, storage, clocks=clocks)
     scope = assemble_managed_runtime(
         store,
         prior.lease,
         source,
         send,
-        RuntimeStorage(order_dir, pressure_dir, "DEMO-assembly", identity, anchor),
+        storage,
         allow_synthetic_model_execution=True,
         clocks=clocks,
     )

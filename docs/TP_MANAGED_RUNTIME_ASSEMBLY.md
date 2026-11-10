@@ -1,7 +1,8 @@
 # Managed runtime assembly — Phase 4 synthetic candidate
 
 The current assembly additionally requires an independent checkpoint provider and
-a dedicated engine pool; see `TP_SHARED_WEIGHT_CHECKPOINTS.md`.
+a dedicated engine pool, plus an explicitly bound account configuration; see
+`TP_SHARED_WEIGHT_CHECKPOINTS.md` and `TP_RUNTIME_STORAGE_BINDING.md`.
 
 This adds one explicit owner for the existing order journal, shared request-weight
 budget, cloned client, and original coordinator. It does not activate trading,

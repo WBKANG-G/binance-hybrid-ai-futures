@@ -5,7 +5,9 @@ process could accept a valid old copy with the same UUID and lose reservations.
 `AnchoredSharedWeightJournal` now compares the entire logical SQLite state with
 an independently committed, append-only PostgreSQL checkpoint before any update,
 pruning, or new reservation. The managed runtime assembly requires this provider;
-missing checkpoint configuration is refused before state access.
+missing checkpoint configuration is refused before state access. The current
+provider also uses an immutable installation identity and account configuration
+binding; see `TP_RUNTIME_STORAGE_BINDING.md`.
 
 ## Bound state and locking
 

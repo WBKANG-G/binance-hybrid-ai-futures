@@ -8,23 +8,17 @@ journal lock. Neither close nor construction seals, repairs, or refunds a flow.
 import json
 import os
 import threading
-import time
-from collections.abc import Callable
-from dataclasses import dataclass
-from datetime import UTC, datetime
-from pathlib import Path
 from types import TracebackType
 from typing import Any
 from uuid import UUID
 
 from pydantic import SecretStr
-from sqlalchemy import select, text
 
 from integrations.binance_usdm.demo import DemoClient, Transport, transport
 from integrations.binance_usdm.demo_tp_admission import TPModelProfile
 from integrations.binance_usdm.demo_tp_weight_model import MODELED_TP_ROUTE_COSTS
 from integrations.binance_usdm.rest import RESTResponse
-from packages.persistence.demo import DemoStore, accounts
+from packages.persistence.demo import DemoStore
 from packages.persistence.demo_order_quota import (
     DurableOrderQuota,
     LocalQuotaStopped,
@@ -32,9 +26,7 @@ from packages.persistence.demo_order_quota import (
 )
 from packages.persistence.demo_shared_checkpoint import (
     AnchoredSharedWeightJournal,
-    SharedWeightAnchorStore,
 )
-from packages.persistence.demo_shared_weight import boot_id
 from services.execution.demo_managed_order_quota import (
     STORAGE_KEY,
     ManagedQuotaBridge,
@@ -42,27 +34,23 @@ from services.execution.demo_managed_order_quota import (
     run_managed_quota_candidate,
     validate_journal_bindings,
 )
-from services.execution.demo_models import DemoLedger
+from services.execution.demo_runtime_storage import (
+    RUNTIME_STORAGE_KEY,
+    runtime_storage_binding,
+)
+from services.execution.demo_runtime_storage import (
+    RuntimeClocks as RuntimeClocks,
+)
+from services.execution.demo_runtime_storage import (
+    RuntimeStorage as RuntimeStorage,
+)
+from services.execution.demo_runtime_storage import (
+    current_runtime_ledger as _current_ledger,
+)
 from services.execution.demo_shared_weight_budget import SharedManagedOrderWindowBudget
 from services.execution.demo_tp_uncertain_cancel_candidate import UncertainCancellationClient
 from services.execution.models import Lease
 from services.risk.paper import period_keys
-
-
-@dataclass(frozen=True)
-class RuntimeStorage:
-    order_directory: Path
-    shared_directory: Path
-    shared_scope: str
-    shared_identity: UUID
-    shared_anchor: SharedWeightAnchorStore | None = None
-
-
-@dataclass(frozen=True)
-class RuntimeClocks:
-    monotonic: Callable[[], float] = time.monotonic
-    wall_clock: Callable[[], datetime] = lambda: datetime.now(UTC)
-    boot: Callable[[], str] = boot_id
 
 
 class OwnedSharedBudget(SharedManagedOrderWindowBudget):
@@ -70,6 +58,20 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         self.lifetime = threading.RLock()
         self.revoked = False
         super().__init__(*args, **kwargs)
+        self._configured_shared = self.shared
+        self._configured_provider = (
+            self.shared.scope,
+            self.shared.identity,
+            getattr(self.shared, "anchors", None),
+        )
+
+    def _check_provider(self) -> None:
+        quota_require(
+            self.shared is self._configured_shared
+            and (self.shared.scope, self.shared.identity, getattr(self.shared, "anchors", None))
+            == self._configured_provider,
+            "RUNTIME_SHARED_PROVIDER_CHANGED",
+        )
 
     def revoke(self) -> None:
         with self.lifetime:
@@ -80,11 +82,13 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     ) -> RESTResponse:
         with self.lifetime:
             quota_require(not self.revoked, "RUNTIME_CLOSED")
+            self._check_provider()
             return super().__call__(method, path, query, key)
 
     def require_proof(self, cost: int) -> None:
         with self.lifetime:
             quota_require(not self.revoked, "RUNTIME_CLOSED")
+            self._check_provider()
             super().require_proof(cost)
 
 
@@ -94,8 +98,11 @@ class ManagedRuntimeSession:
         journal: DurableOrderQuota,
         coordinator: ManagedQuotaTPTriggerCoordinator,
         budget: OwnedSharedBudget,
+        storage: RuntimeStorage,
+        binding: str,
     ):
         self.journal, self.coordinator, self.budget = journal, coordinator, budget
+        self._storage, self._binding = storage, binding
         self._state_lock = threading.Lock()
         self._started = self._running = self._closing = self._closed = False
 
@@ -113,6 +120,12 @@ class ManagedRuntimeSession:
             bridge = self.coordinator.quota_bridge
             quota_require(self.journal.owns_process_lock(), "RUNTIME_ORDER_LOCK_REQUIRED")
             current = _current_ledger(bridge.store, bridge.lease)
+            quota_require(
+                current.operations.get(RUNTIME_STORAGE_KEY) == self._binding
+                and runtime_storage_binding(self._storage) == self._binding,
+                "RUNTIME_STORAGE_BINDING_MISMATCH",
+            )
+            self.budget._check_provider()
             validate_journal_bindings(current, self.journal)
             quota_require(
                 period_keys(bridge.store.now(), current.policy.week_start_kst)
@@ -156,25 +169,6 @@ class ManagedRuntimeSession:
         self.close()
 
 
-def _current_ledger(store: DemoStore, lease: Lease) -> DemoLedger:
-    with store.engine.connect() as connection, connection.begin():
-        connection.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
-        connection.execute(text("SET LOCAL statement_timeout = '2s'"))
-        row = (
-            connection.execute(select(accounts).where(accounts.c.account_id == lease.account_id))
-            .mappings()
-            .one()
-        )
-        quota_require(
-            row["owner"] == str(lease.owner)
-            and row["fence"] == lease.fence
-            and row["lease_until"] is not None
-            and row["lease_until"] > store.now(),
-            "RUNTIME_CURRENT_LEASE_REQUIRED",
-        )
-        return DemoLedger.model_validate(row["state"])
-
-
 def assemble_managed_runtime(
     store: DemoStore,
     lease: Lease,
@@ -212,6 +206,11 @@ def assemble_managed_runtime(
     journal = None
     try:
         ledger = _current_ledger(store, lease)
+        binding = runtime_storage_binding(storage)
+        quota_require(
+            ledger.operations.get(RUNTIME_STORAGE_KEY) == binding,
+            "RUNTIME_STORAGE_BINDING_MISMATCH",
+        )
         quota_require(
             ledger.policy == source.settings.policy
             and ledger.margin_mode == source.settings.margin_mode
@@ -294,7 +293,7 @@ def assemble_managed_runtime(
         )
         client.offset, client.synced_at = source.offset, source.synced_at
         coordinator = ManagedQuotaTPTriggerCoordinator(store, lease, client, budget)
-        return ManagedRuntimeSession(journal, coordinator, budget)
+        return ManagedRuntimeSession(journal, coordinator, budget, storage, binding)
     except Exception as error:
         if journal is not None:
             try:

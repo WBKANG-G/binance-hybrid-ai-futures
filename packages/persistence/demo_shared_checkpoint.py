@@ -13,7 +13,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import (
     BigInteger,
@@ -33,6 +33,13 @@ from packages.persistence.demo_order_quota import canonical
 from packages.persistence.demo_shared_weight import POLICY, SharedWeightJournal, require
 
 metadata = MetaData()
+INSTALLATION_KEY = "DEMO_SHARED_CHECKPOINT_V1"
+installations = Table(
+    "demo_shared_weight_installation",
+    metadata,
+    Column("name", String(40), primary_key=True),
+    Column("identity", String(36), nullable=False, unique=True),
+)
 bindings = Table(
     "demo_shared_weight_bindings",
     metadata,
@@ -78,22 +85,49 @@ class SharedWeightAnchorStore:
     def __init__(self, engine: Engine):
         require(engine.dialect.name == "postgresql", "SHARED_CHECKPOINT_POSTGRESQL_REQUIRED")
         self.engine = engine  # Caller owns this dedicated engine/pool.
+        self._installation: UUID | None = None
 
     def provision(self) -> None:
         """Explicit auxiliary schema provisioning, never called by runtime/open."""
         with self.engine.begin() as c:
+            installations.create(c, checkfirst=False)
+            c.execute(insert(installations).values(name=INSTALLATION_KEY, identity=str(uuid4())))
             bindings.create(c, checkfirst=False)
             checkpoints.create(c, checkfirst=False)
             c.execute(
                 text("""CREATE FUNCTION demo_shared_weight_immutable() RETURNS trigger
                 LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'shared_weight_append_only'; END $$""")
             )
-            for table in (bindings, checkpoints):
+            for table in (installations, bindings, checkpoints):
                 c.execute(
                     text(
                         f"CREATE TRIGGER shared_weight_immutable BEFORE UPDATE OR DELETE ON {table.name} FOR EACH ROW EXECUTE FUNCTION demo_shared_weight_immutable()"
                     )
                 )
+
+    def _installation_on(self, connection: Connection) -> UUID:
+        rows = connection.execute(select(installations)).mappings().all()
+        require(
+            len(rows) == 1 and rows[0]["name"] == INSTALLATION_KEY,
+            "SHARED_CHECKPOINT_INSTALLATION_INVALID",
+        )
+        try:
+            identity = UUID(rows[0]["identity"])
+        except (ValueError, TypeError, AttributeError):
+            require(False, "SHARED_CHECKPOINT_INSTALLATION_INVALID")
+            raise AssertionError("unreachable") from None
+        require(
+            self._installation is None or self._installation == identity,
+            "SHARED_CHECKPOINT_INSTALLATION_CHANGED",
+        )
+        self._installation = identity
+        return identity
+
+    def installation_id(self) -> UUID:
+        with self.engine.connect() as c, c.begin():
+            c.execute(text("SET TRANSACTION READ ONLY"))
+            c.execute(text("SET LOCAL statement_timeout = '2s'"))
+            return self._installation_on(c)
 
     @contextmanager
     def scope(
@@ -110,6 +144,7 @@ class SharedWeightAnchorStore:
                 c.execute(text("SET TRANSACTION ISOLATION LEVEL READ COMMITTED, READ ONLY"))
             c.execute(text("SET LOCAL lock_timeout = '2s'"))
             c.execute(text("SET LOCAL statement_timeout = '2s'"))
+            self._installation_on(c)
             lock = "pg_advisory_xact_lock_shared" if read_only else "pg_advisory_xact_lock"
             c.execute(text(f"SELECT {lock}(:key)"), dict(key=key))
             row = (
