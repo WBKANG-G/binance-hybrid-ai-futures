@@ -176,6 +176,7 @@ class SharedWeightJournal:
             c.row_factory = sqlite3.Row
             c.execute("PRAGMA query_only=ON" if self.read_only else "PRAGMA synchronous=FULL")
             c.execute("BEGIN" if self.read_only else "BEGIN IMMEDIATE")
+            self._verify_checkpoint(c)
             rows = c.execute("SELECT * FROM meta").fetchall()
             require(len(rows) == 1, "SHARED_STORAGE_INVALID")
             meta = dict(rows[0])
@@ -231,6 +232,8 @@ class SharedWeightJournal:
                     "DELETE FROM attempts WHERE done IS NOT NULL AND done <= ?", (now - WINDOW,)
                 )
             yield c, meta, now
+            if not self.read_only:
+                self._stage_checkpoint(c)
             c.execute("COMMIT")
         except Exception:
             if c is not None and c.in_transaction:
@@ -240,6 +243,12 @@ class SharedWeightJournal:
             if c is not None:
                 c.close()
             os.close(fd)
+
+    def _verify_checkpoint(self, connection: sqlite3.Connection) -> None:
+        """Extension boundary: verify independent state before any mutation."""
+
+    def _stage_checkpoint(self, connection: sqlite3.Connection) -> None:
+        """Stage independent state; the outer owner commits after SQLite."""
 
     @staticmethod
     def _pressure(c: sqlite3.Connection, total: int, now: float | None = None) -> int:

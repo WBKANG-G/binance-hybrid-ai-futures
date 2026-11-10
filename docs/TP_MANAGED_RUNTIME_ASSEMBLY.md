@@ -1,5 +1,8 @@
 # Managed runtime assembly — Phase 4 synthetic candidate
 
+The current assembly additionally requires an independent checkpoint provider and
+a dedicated engine pool; see `TP_SHARED_WEIGHT_CHECKPOINTS.md`.
+
 This adds one explicit owner for the existing order journal, shared request-weight
 budget, cloned client, and original coordinator. It does not activate trading,
 provision storage, acquire/release a leader, or replace the installed CLI.
@@ -80,7 +83,8 @@ observation is short; request-weight timing remains real. They are not new
 300-second natural observations or exchange trials.
 
 Account-wide ORDERS usage, external/shared-IP traffic, endpoint cost upper bounds,
-and the shared file's external anti-rollback anchor remain unresolved. Existing
+and coordinated rollback of both stores remain unresolved. Independent single-store
+rollback checks are described in `TP_SHARED_WEIGHT_CHECKPOINTS.md`. Existing
 source defaults, financial models, SDK, coordinator, risk policy, and installed
 Windows state stay unchanged. There is no Windows deployment, actual exchange
 request, or actual order from this development work. The review ZIP requires no

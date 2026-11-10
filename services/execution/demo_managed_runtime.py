@@ -30,7 +30,11 @@ from packages.persistence.demo_order_quota import (
     LocalQuotaStopped,
     quota_require,
 )
-from packages.persistence.demo_shared_weight import SharedWeightJournal, boot_id
+from packages.persistence.demo_shared_checkpoint import (
+    AnchoredSharedWeightJournal,
+    SharedWeightAnchorStore,
+)
+from packages.persistence.demo_shared_weight import boot_id
 from services.execution.demo_managed_order_quota import (
     STORAGE_KEY,
     ManagedQuotaBridge,
@@ -51,6 +55,7 @@ class RuntimeStorage:
     shared_directory: Path
     shared_scope: str
     shared_identity: UUID
+    shared_anchor: SharedWeightAnchorStore | None = None
 
 
 @dataclass(frozen=True)
@@ -196,6 +201,13 @@ def assemble_managed_runtime(
         and lease.account_id.startswith("DEMO-"),
         "RUNTIME_ISOLATED_DISABLED_CLIENT_REQUIRED",
     )
+    anchors = storage.shared_anchor
+    quota_require(anchors is not None, "RUNTIME_SHARED_ANCHOR_REQUIRED")
+    assert anchors is not None
+    quota_require(
+        anchors.engine.pool is not store.engine.pool,
+        "RUNTIME_DEDICATED_ANCHOR_POOL_REQUIRED",
+    )
     clocks = clocks or RuntimeClocks()
     journal = None
     try:
@@ -241,10 +253,11 @@ def assemble_managed_runtime(
             )
         finally:
             reader.close()
-        pressure_reader = SharedWeightJournal(
+        pressure_reader = AnchoredSharedWeightJournal(
             storage.shared_directory,
             storage.shared_scope,
             storage.shared_identity,
+            anchors=anchors,
             read_only=True,
             boot=clocks.boot,
             **options,
@@ -258,10 +271,11 @@ def assemble_managed_runtime(
             all(f["seal"] is not None for f in journal.flow_records().values()),
             "RUNTIME_PENDING_ORDER_FLOW",
         )
-        shared = SharedWeightJournal(
+        shared = AnchoredSharedWeightJournal(
             storage.shared_directory,
             storage.shared_scope,
             storage.shared_identity,
+            anchors=anchors,
             boot=clocks.boot,
             **options,
         )

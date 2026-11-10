@@ -13,7 +13,6 @@ import pytest
 
 from integrations.binance_usdm.demo import DemoClient
 from integrations.binance_usdm.rest import RESTResponse
-from packages.persistence.demo_shared_weight import SharedWeightJournal
 from scripts.capture_demo_wss_hints import Capture
 from scripts.review_tp_minute_budget import review
 from services.execution.demo_managed_order_quota import ManagedQuotaBridge
@@ -23,6 +22,7 @@ from services.execution.demo_managed_runtime import (
     assemble_managed_runtime,
 )
 from tests.fixtures import tp_candidate_session
+from tests.fixtures.shared_weight_anchor import provision_anchor
 from tests.fixtures.tp_candidate_session import observe
 from tests.integration.test_demo import system as demo_system  # noqa: F401
 from tests.integration.test_demo_opposite_tp import opposite_case  # noqa: F401
@@ -55,7 +55,8 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         lambda: datetime.now(UTC) + timedelta(seconds=offset[0]),
     )
     identity = uuid4()
-    SharedWeightJournal.create(
+    anchor = provision_anchor(store)
+    anchor.bootstrap(
         pressure_dir,
         "DEMO-assembly",
         identity,
@@ -88,7 +89,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
         prior.lease,
         source,
         send,
-        RuntimeStorage(order_dir, pressure_dir, "DEMO-assembly", identity),
+        RuntimeStorage(order_dir, pressure_dir, "DEMO-assembly", identity, anchor),
         allow_synthetic_model_execution=True,
         clocks=clocks,
     )
@@ -121,6 +122,7 @@ def test_assembled_lifecycle(opposite_case, monkeypatch, capsys, tmp_path, mode)
     finally:
         scope.close()
         route.close()
+        anchor.engine.dispose()
     capsys.readouterr()
     after = store.read("DEMO-test")
     assert result["new_entry_post_count"] == 1 and result["flat_confirmation"] == "VERIFIED_FLAT"

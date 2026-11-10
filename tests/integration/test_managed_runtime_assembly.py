@@ -9,8 +9,8 @@ import pytest
 from integrations.binance_usdm.demo import DemoClient, transport
 from integrations.binance_usdm.rest import RESTResponse
 from packages.persistence.demo_order_quota import DurableOrderQuota, LocalQuotaStopped
-from packages.persistence.demo_shared_weight import SharedWeightJournal
 from services.execution import demo_managed_runtime as runtime
+from tests.fixtures.shared_weight_anchor import provision_anchor
 from tests.integration.test_demo import system as demo_system  # noqa: F401
 from tests.integration.test_managed_order_quota import managed  # noqa: F401
 from tests.integration.test_quota_startup_review import snapshot
@@ -30,7 +30,8 @@ def assembly(managed):
     folder = path / "shared"
     folder.mkdir(mode=0o700)
     identity = uuid4()
-    w = SharedWeightJournal.create(
+    anchor = provision_anchor(store)
+    w = anchor.bootstrap(
         folder,
         "DEMO-weight",
         identity,
@@ -50,9 +51,10 @@ def assembly(managed):
         calls.append((method, path))
         return RESTResponse(200, b"{}", {"x-mbx-used-weight-1m": "1"})
 
-    storage = runtime.RuntimeStorage(path, folder, "DEMO-weight", identity)
+    storage = runtime.RuntimeStorage(path, folder, "DEMO-weight", identity, anchor)
     clocks = runtime.RuntimeClocks(clock.mono, clock.utc, lambda: "test-boot")
-    return store, c, q, clock, w, source, sender, calls, storage, clocks
+    yield store, c, q, clock, w, source, sender, calls, storage, clocks
+    anchor.engine.dispose()
 
 
 def open_session(a, **kwargs):
@@ -124,7 +126,11 @@ def test_refusal_preserves_both_stores_and_database(assembly, kind, monkeypatch)
     if kind == "wrong_uuid":
         assembly = list(assembly)
         assembly[8] = runtime.RuntimeStorage(
-            storage.order_directory, storage.shared_directory, storage.shared_scope, uuid4()
+            storage.order_directory,
+            storage.shared_directory,
+            storage.shared_scope,
+            uuid4(),
+            storage.shared_anchor,
         )
     if kind == "wrong_fence":
         import copy
@@ -265,3 +271,25 @@ def test_period_change_after_assembly_stops_before_http(assembly):
         asyncio.run(session.run(uuid4()))
     assert not calls and snapshot(store) == before and files(storage.order_directory) == disk
     session.close()
+
+
+@pytest.mark.parametrize("mode", ["missing", "shared_pool"])
+def test_independent_anchor_required_before_startup_writes(assembly, mode):
+    from packages.persistence.demo_shared_checkpoint import SharedWeightAnchorStore
+
+    store, c, q, clock, w, source, sender, calls, storage, clocks = assembly
+    a = list(assembly)
+    anchor = None if mode == "missing" else SharedWeightAnchorStore(store.engine)
+    a[8] = runtime.RuntimeStorage(
+        storage.order_directory,
+        storage.shared_directory,
+        storage.shared_scope,
+        storage.shared_identity,
+        anchor,
+    )
+    before, disk = snapshot(store), files(storage.order_directory)
+    with pytest.raises(
+        LocalQuotaStopped, match="ANCHOR_REQUIRED" if mode == "missing" else "DEDICATED_ANCHOR_POOL"
+    ):
+        open_session(a, allow_synthetic_model_execution=True)
+    assert snapshot(store) == before and files(storage.order_directory) == disk and not calls
