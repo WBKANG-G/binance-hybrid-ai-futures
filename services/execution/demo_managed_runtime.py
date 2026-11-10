@@ -39,6 +39,10 @@ from services.execution.demo_managed_order_quota import (
 from services.execution.demo_query_contract import contract_report, require_wire_query
 from services.execution.demo_runtime_capacity import capacity_plan, require_runtime_capacity
 from services.execution.demo_runtime_confirmation import RuntimeConfirmationCoordinator
+from services.execution.demo_runtime_cost_contract import (
+    cost_contract_report,
+    require_runtime_cost_contract,
+)
 from services.execution.demo_runtime_guards import (
     RuntimeBoundClient,
     require_start_context,
@@ -81,6 +85,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         self.clock_refresh_failures = 0
         self.hard_stop_early_rejections = 0
         super().__init__(*args, **kwargs)
+        require_runtime_cost_contract(self.costs)
         require_runtime_capacity(self.profile)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
@@ -99,6 +104,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             self.profile == self._configured_profile and self.costs == self._configured_costs,
             "RUNTIME_MODEL_BINDING_CHANGED",
         )
+        require_runtime_cost_contract(self.costs)
         quota_require(
             self.sender is self._configured_sender
             and self.raw_sender is self._configured_raw_sender
@@ -209,6 +215,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
     def diagnostics(self) -> dict[str, Any]:
         result = super().diagnostics()
         result["query_contract"] = contract_report()
+        result["request_cost_contract"] = cost_contract_report(self.costs)
         result["capacity_feasibility"] = capacity_plan(self.profile)
         result["hard_stop_policy"] = dict(
             rejections_before_reservation=self.hard_stop_early_rejections,
@@ -391,6 +398,7 @@ def assemble_managed_runtime(
         and lease.account_id.startswith("DEMO-"),
         "RUNTIME_ISOLATED_DISABLED_CLIENT_REQUIRED",
     )
+    require_runtime_cost_contract(MODELED_TP_ROUTE_COSTS)
     anchors = storage.shared_anchor
     quota_require(anchors is not None, "RUNTIME_SHARED_ANCHOR_REQUIRED")
     assert anchors is not None
