@@ -19,6 +19,7 @@ from pydantic import SecretStr
 from integrations.binance_usdm.demo import DemoClient, Transport, transport
 from integrations.binance_usdm.demo_tp_admission import TPModelProfile
 from integrations.binance_usdm.demo_tp_weight_model import MODELED_TP_ROUTE_COSTS
+from integrations.binance_usdm.demo_tp_window_budget import ProofDeferred
 from integrations.binance_usdm.rest import RESTResponse
 from packages.persistence.demo import DemoStore
 from packages.persistence.demo_order_quota import (
@@ -74,6 +75,7 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
             "quote_observation", default=None
         )
         self.ignored_quote_observations = 0
+        self.proof_metadata_deferrals = 0
         super().__init__(*args, **kwargs)
         self._configured_profile = self.profile
         self._configured_costs = dict(self.costs)
@@ -169,11 +171,27 @@ class OwnedSharedBudget(SharedManagedOrderWindowBudget):
         with self.lifetime:
             quota_require(not self.revoked, "RUNTIME_CLOSED")
             self._check_provider()
+            now = self._time()
+            if self.untrusted:
+                self._deny("PROOF_METADATA_UNTRUSTED")
+            if not self._fresh(now):
+                # The coordinator already refreshes through its scoped clock
+                # read. Defer without a send, reservation, or fabricated freshness.
+                self.deferrals += 1
+                self.proof_metadata_deferrals += 1
+                raise ProofDeferred
             super().require_proof(cost)
 
     def diagnostics(self) -> dict[str, Any]:
         result = super().diagnostics()
         result["query_contract"] = contract_report()
+        result["proof_metadata_policy"] = dict(
+            authoritative_observation_max_age_seconds=5,
+            stale_batch_deferrals=self.proof_metadata_deferrals,
+            stale_action="DEFER_TO_EXISTING_SCOPED_CLOCK_READ",
+            implicit_transport_attempts=0,
+            execution_approved=False,
+        )
         result["quote_header_policy"] = dict(
             weight_observation_authoritative=False,
             observations_ignored=self.ignored_quote_observations,
