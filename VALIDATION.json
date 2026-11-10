@@ -1,0 +1,142 @@
+{
+  "current_regression": {
+    "cases": 1790,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "focused": {
+    "cases": 119,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "baseline_expected_failures": {
+    "cases": 5,
+    "failures": 5,
+    "errors": 0,
+    "skipped": 0
+  },
+  "short_lifecycles": {
+    "tp": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "partial": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "seal_failure": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "fresh_lifecycle_reports": [
+    {
+      "mode": "partial",
+      "observation_seconds": 0.8,
+      "guarded_peak": 2970,
+      "result_flat": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "actual_exchange_requests": 0
+    },
+    {
+      "mode": "seal_failure",
+      "observation_seconds": 0.8,
+      "guarded_peak": 3061,
+      "result_flat": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_QUOTA_SEAL_FAILED",
+      "actual_exchange_requests": 0
+    },
+    {
+      "mode": "tp",
+      "observation_seconds": 0.8,
+      "guarded_peak": 3061,
+      "result_flat": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "actual_exchange_requests": 0
+    }
+  ],
+  "previous_natural_observation": {
+    "reused_not_rerun": true,
+    "source_commit": "d11cbf9b5c4f3f7578fb565693ca1850f7cef3e8",
+    "artifact_commit": "b9a5b3833a14a53acafd3d5f33661a62836242d1",
+    "archive_sha256": "a57fd15e6390d24c8b7424aa53675a6e967ca45fb04832e9b147a8a80165f935",
+    "result": {
+      "scope": "natural",
+      "mode": "tp",
+      "observation_seconds": 300.0,
+      "trace_elapsed_ms": 350098,
+      "guarded_peak": 3423,
+      "conclusion": "MEASURED_REQUESTS_FIT_ASSUMPTIONS_ONLY",
+      "result_flat": "VERIFIED_FLAT",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "observation_deferrals": 89,
+      "actual_exchange_requests": 0
+    },
+    "junit": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "fresh_300s_execution_performed": false,
+  "mypy_production_files": 161,
+  "ruff": "PASS",
+  "sdk_evidence": {
+    "status": "VERIFIED_PINNED_PUBLIC_SDK_DOCUMENTATION_ONLY",
+    "sdk_commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179",
+    "files": {
+      "trade_api.py": {
+        "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/trade_api.py",
+        "http_status": 200,
+        "sha256": "0f482140acd6561cc02571110767e5c9dd363a671be0542a859536f014b1c603",
+        "bytes": 90147
+      },
+      "account_api.py": {
+        "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+        "http_status": 200,
+        "sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39",
+        "bytes": 36121
+      },
+      "user_data_streams_api.py": {
+        "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/user_data_streams_api.py",
+        "http_status": 200,
+        "sha256": "6d75e69c8b894f2a84a92cfaab49089d7a9bdb6a03cc4ad0aa900c6ef6053646",
+        "bytes": 4462
+      },
+      "market_data_api.py": {
+        "url": "https://raw.githubusercontent.com/binance/binance-connector-python/f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/market_data_api.py",
+        "http_status": 200,
+        "sha256": "d783bb54426876450e148c11c76d4f9784b45dd40d1026a7e81ceb0cc4268182",
+        "bytes": 65093
+      }
+    },
+    "route_excerpts_verified": 21,
+    "actual_exchange_requests": 0,
+    "current_venue_cost_bounds_verified": false,
+    "execution_approved": false
+  },
+  "docker": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "PINNED_DOCUMENTED_COST_GUARD_AND_DEFAULT_REFUSAL",
+    "routes_checked": 21,
+    "changed_costs_refused": 21,
+    "actual_exchange_requests": 0,
+    "execution_approved": false
+  },
+  "production_execution_approved": false,
+  "actual_exchange_requests": 0,
+  "actual_order_usage": "UNKNOWN",
+  "external_ip_capacity_reserved": false,
+  "venue_request_cost_upper_bounds_proven": false
+}
