@@ -1,6 +1,7 @@
 """Offline consistency review of saved synthetic runtime reports, never admission."""
 
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -8,6 +9,10 @@ from typing import Any, NoReturn
 
 from scripts.review_tp_minute_budget import MAX_BYTES, TraceReviewInvalid
 from scripts.review_tp_minute_budget import review as review_trace
+
+READER_POLICY = "SYNTHETIC_CONFIRMATION_CONSISTENCY_V1"
+RECEIPT_VERSION = 1
+MAX_RECEIPT_BYTES = 64 * 1024
 
 
 class ConfirmationReportInvalid(ValueError):
@@ -267,16 +272,90 @@ def load(raw: bytes) -> Any:
         raise ConfirmationReportInvalid("JSON_INVALID") from None
 
 
+def review_bytes(raw: bytes) -> dict[str, Any]:
+    """Bind the same bounded buffer that was parsed/reviewed; no second file read."""
+    result = review(load(raw))
+    result.update(
+        receipt_version=RECEIPT_VERSION,
+        reader_policy=READER_POLICY,
+        input_sha256=hashlib.sha256(raw).hexdigest(),
+        input_bytes=len(raw),
+        binding_kind="RAW_INPUT_BYTES_SHA256",
+        receipt_authenticity_verified=False,
+    )
+    return result
+
+
+def verify_receipt(raw: bytes, receipt_raw: bytes) -> dict[str, Any]:
+    require(len(receipt_raw) <= MAX_RECEIPT_BYTES, "RECEIPT_FILE_TOO_LARGE")
+    try:
+        receipt = load(receipt_raw)
+    except ConfirmationReportInvalid as error:
+        raise ConfirmationReportInvalid("RECEIPT_" + str(error)) from None
+    require(isinstance(receipt, dict), "RECEIPT_OBJECT_REQUIRED")
+    assert isinstance(receipt, dict)
+    require(
+        type(receipt.get("receipt_version")) is int
+        and receipt["receipt_version"] == RECEIPT_VERSION,
+        "RECEIPT_VERSION_INVALID",
+    )
+    require(receipt.get("reader_policy") == READER_POLICY, "RECEIPT_POLICY_MISMATCH")
+    require(
+        type(receipt.get("input_bytes")) is int
+        and 0 <= receipt["input_bytes"] <= MAX_BYTES
+        and isinstance(receipt.get("input_sha256"), str)
+        and len(receipt["input_sha256"]) == 64
+        and all(c in "0123456789abcdef" for c in receipt["input_sha256"]),
+        "RECEIPT_BINDING_INVALID",
+    )
+    expected = review_bytes(raw)
+    require(
+        receipt["input_bytes"] == expected["input_bytes"]
+        and receipt["input_sha256"] == expected["input_sha256"],
+        "RECEIPT_INPUT_MISMATCH",
+    )
+    # Canonical JSON permits receipt key/whitespace changes, but does not equate
+    # false with 0, or integer 1 with float 1.0, as Python dict equality would.
+    require(
+        json.dumps(receipt, sort_keys=True, separators=(",", ":"))
+        == json.dumps(expected, sort_keys=True, separators=(",", ":")),
+        "RECEIPT_RESULT_MISMATCH",
+    )
+    return dict(
+        review="OFFLINE_SYNTHETIC_RECEIPT_COMPARISON_ONLY",
+        receipt_matches_input=True,
+        receipt_version=RECEIPT_VERSION,
+        reader_policy=READER_POLICY,
+        input_sha256=expected["input_sha256"],
+        input_bytes=expected["input_bytes"],
+        disposition=expected["disposition"],
+        attention_required=expected["attention_required"],
+        input_authenticity_verified=False,
+        receipt_authenticity_verified=False,
+        current_exchange_state_verified=False,
+        financial_proof_reverified=False,
+        runtime_admission_changed=False,
+        execution_approved=False,
+        next_action="KEEP_PAUSED_REVIEW_ONLY",
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = ReportArgumentParser(
         description="Offline synthetic report consistency; never execution approval"
     )
     parser.add_argument("report", type=Path)
+    parser.add_argument("--verify-receipt", type=Path)
     try:
         args = parser.parse_args(argv)
         with args.report.open("rb") as stream:
-            data = load(stream.read(MAX_BYTES + 1))
-        report = review(data)
+            raw = stream.read(MAX_BYTES + 1)
+        if args.verify_receipt is None:
+            report = review_bytes(raw)
+        else:
+            with args.verify_receipt.open("rb") as stream:
+                receipt_raw = stream.read(MAX_RECEIPT_BYTES + 1)
+            report = verify_receipt(raw, receipt_raw)
     except ConfirmationReportInvalid as error:
         report = dict(
             review="INVALID_REPORT",
