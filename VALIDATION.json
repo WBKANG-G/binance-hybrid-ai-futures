@@ -1,0 +1,66 @@
+{
+  "status": "PASSED_LOCAL_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1288,
+  "junit_reports": [
+    {
+      "report": "proof-freshness-regression.xml",
+      "tests": 1286
+    },
+    {
+      "report": "proof-freshness-lifecycle.xml",
+      "tests": 2
+    }
+  ],
+  "mypy_production_files": 156,
+  "ruff": "PASS",
+  "baseline_failures_fixed": 3,
+  "stale_proof_defers_without_new_effects": true,
+  "explicit_clock_read_required_for_recovery": true,
+  "original_response_preserved": true,
+  "book_ticker_header_used_for_weight_or_freshness": false,
+  "modeled_cost_retained": true,
+  "throttle_and_transport_failures_still_stop": true,
+  "nested_trustworthy_observations_preserved": true,
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "GATE_ONLY_SQLITE_NO_ORDER_BRIDGE",
+    "missing_and_stale_observation_deferred": true,
+    "explicit_read_recovers": true,
+    "implicit_reads": 0,
+    "default_execution_refused": true,
+    "actual_exchange_requests": 0
+  },
+  "lifecycle": [
+    {
+      "mode": "partial",
+      "quote_header_injected": "999999",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121573,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1,
+      "closed_runtime": true
+    },
+    {
+      "mode": "tp",
+      "quote_header_injected": "MISSING",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 121246,
+      "guarded_60001ms_peak": 3069,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0,
+      "closed_runtime": true
+    }
+  ],
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "request_cost_upper_bounds_proven": false,
+  "production_admission_approved": false
+}
