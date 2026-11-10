@@ -1,0 +1,67 @@
+{
+  "status": "PASSED_LOCAL_SYNTHETIC_REVIEW_ONLY",
+  "unique_tests": 1328,
+  "junit_reports": [
+    {
+      "report": "stopped-admission-regression.xml",
+      "tests": 1326
+    },
+    {
+      "report": "stopped-admission-lifecycle.xml",
+      "tests": 2
+    }
+  ],
+  "mypy_production_files": 156,
+  "ruff": "PASS",
+  "baseline_failures_fixed": 20,
+  "latched_stop_precedes_shared_reservation_and_role_authorization": true,
+  "capacity_stop_rescue_policy_preserved": true,
+  "prior_pending_attempts_preserved": true,
+  "original_response_preserved": true,
+  "book_ticker_header_used_for_weight_or_freshness": false,
+  "modeled_cost_retained": true,
+  "throttle_and_transport_failures_still_stop": true,
+  "nested_trustworthy_observations_preserved": true,
+  "docker_smoke": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "CLIENT_AND_GATE_ONLY_SQLITE_NO_ORDER_BRIDGE",
+    "latched_stop_refused_before_new_reservations": true,
+    "existing_record_hash_unchanged": true,
+    "transport_retries": 0,
+    "default_execution_refused": true,
+    "actual_exchange_requests": 0
+  },
+  "lifecycle": [
+    {
+      "mode": "partial",
+      "quote_header_injected": "999999",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 120757,
+      "guarded_60001ms_peak": 2972,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 1,
+      "closed_runtime": true
+    },
+    {
+      "mode": "tp",
+      "quote_header_injected": "MISSING",
+      "startup_holds_accelerated": true,
+      "observation_seconds": 0.8,
+      "elapsed_ms": 120757,
+      "guarded_60001ms_peak": 3069,
+      "flat_confirmation": "VERIFIED_FLAT",
+      "entry_posts": 1,
+      "exit_posts": 0,
+      "closed_runtime": true
+    }
+  ],
+  "actual_exchange_requests": 0,
+  "actual_windows_database_changes": 0,
+  "external_account_usage": "UNKNOWN",
+  "actual_ip_capacity_reserved": false,
+  "request_cost_upper_bounds_proven": false,
+  "production_admission_approved": false
+}
