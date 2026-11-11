@@ -1,0 +1,16 @@
+{
+  "files": {
+    "CHECK_READY.cmd": "e35cad9c6962dc19590a90fea54ed901ee1bfdb400ba8b1d5a821773ca98771d",
+    "DOCKER_SMOKE.json": "0421cf0c13dd750d3b88ba8a4a7bbff764b2202b2811070cf2bfeac8e430566f",
+    "README.md": "fbdb05e123df09fe57e5925b406fe78efd0addd90012cf672e406593d7d6146b",
+    "REVIEWED_VALUES.json": "5f55b107f29c95f8e261ad1f9053f08765ee32c1025901e7fb35ce3358179f51",
+    "RUFF.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "RUN_APPLY.cmd": "2e6aa5cae6b4d9ba37cbb1e4883b512df128823ecc23560aece4695b11bd1d0d",
+    "SOURCE_REFERENCE.json": "2fb4fa47cdbbc5288a5e7238301dcfd3705749525de9904d4ea157e661d1b663",
+    "TEST_RESULTS.txt": "7afdac916ee29ce08eee425b20e1adf86ff68001b860bbbe4e65abb51c832ec4",
+    "TEST_RESULTS.xml": "c35343c02b7a3000aa55a1ece0e70e2f2703760e3c0f12bc78d3ba8d42174e40",
+    "VALIDATION.json": "957dcdd61bfce47c46f736ae6ccacaaf840fa3cb4643eea61ef5e00596222b47",
+    "adopt_manual_close_day_20261111.py": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4",
+    "test_manual_close_day_apply_20261111.py": "257b57acb8782417302624eef87701ed61cb663031b2dff59587278fb545e9c9"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "tests_passed": 101,
+  "read_path_tests": 71,
+  "apply_path_tests": 30,
+  "ruff": "passed",
+  "installed_pins_verified": 55,
+  "store_mutation_methods": [
+    "acquire",
+    "change",
+    "release"
+  ],
+  "real_exchange_calls_in_cloud": 0,
+  "windows_apply_executed": false,
+  "product_source_changed": false,
+  "helper_sha256": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4"
+}

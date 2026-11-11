@@ -1,0 +1,13 @@
+{
+  "old_day_kst": "2026-11-09",
+  "proposed_day_kst": "2026-11-11",
+  "daily_base_usdt": "4998.74183608",
+  "week_kst_preserved": "2026-11-09",
+  "weekly_base_usdt_preserved": "4998.74183608",
+  "high_water_usdt_preserved": "5000.00000000",
+  "prior_attested_period_operation_id": "2d6a6170-7270-5fd4-bb58-a59301b43a93",
+  "operator_preview_signed_history_cutoff_ms": 1794358609000,
+  "operator_no_activity_attestation_day_kst": "2026-11-11",
+  "exact_midnight_valuation_verified": false,
+  "account_wide_exchange_export_verified": false
+}
