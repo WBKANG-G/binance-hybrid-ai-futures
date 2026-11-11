@@ -1,0 +1,129 @@
+{
+  "current_regression": {
+    "cases": 1872,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "focused": {
+    "cases": 38,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "new_lease_boundary_cases": 6,
+  "new_global_watch_cases": 8,
+  "baseline_expected_failures": {
+    "cases": 6,
+    "failures": 6,
+    "errors": 0,
+    "skipped": 0
+  },
+  "new_lifecycles": {
+    "tp": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "partial": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "seal_failure": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "receiver_failure": {
+      "cases": 1,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "fresh_lifecycle_reports": [
+    {
+      "mode": "partial",
+      "observation_seconds": 0.8,
+      "guarded_peak": 2962,
+      "result_flat": "VERIFIED_FLAT",
+      "result_accepted": "NOT_ACCEPTED",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "new_entry_posts": 1,
+      "operator_exit_posts": 1,
+      "actual_exchange_requests": 0,
+      "v1_exit_status": 0,
+      "v2_issue_and_verify_status": 3,
+      "execution_approved": false
+    },
+    {
+      "mode": "receiver_failure",
+      "observation_seconds": 10,
+      "guarded_peak": 3068,
+      "result_flat": "UNKNOWN",
+      "result_accepted": "NOT_ACCEPTED",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_SESSION_FAILED",
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "actual_exchange_requests": 0,
+      "v1_exit_status": 2,
+      "v2_issue_and_verify_status": 3,
+      "execution_approved": false
+    },
+    {
+      "mode": "seal_failure",
+      "observation_seconds": 0.8,
+      "guarded_peak": 3061,
+      "result_flat": "VERIFIED_FLAT",
+      "result_accepted": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_QUOTA_SEAL_FAILED",
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "actual_exchange_requests": 0,
+      "v1_exit_status": 3,
+      "v2_issue_and_verify_status": 3,
+      "execution_approved": false
+    },
+    {
+      "mode": "tp",
+      "observation_seconds": 0.8,
+      "guarded_peak": 3061,
+      "result_flat": "VERIFIED_FLAT",
+      "result_accepted": "TP_FILLED_THEN_REMAINING_SL_CANCELED_FLAT_VERIFIED",
+      "returned_proof": "VERIFIED_FLAT",
+      "reported_outcome": "PROOF_VERIFIED_REVIEW_ONLY",
+      "new_entry_posts": 1,
+      "operator_exit_posts": 0,
+      "actual_exchange_requests": 0,
+      "v1_exit_status": 0,
+      "v2_issue_and_verify_status": 0,
+      "execution_approved": false
+    }
+  ],
+  "old_junit_reused": false,
+  "fresh_300s_execution_performed": false,
+  "v2_receipt_roundtrips": 4,
+  "v1_receiver_rejection_preserved": true,
+  "mypy_production_files": 162,
+  "ruff": "PASS",
+  "docker": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "CURRENT_LEASE_GUARD_WITH_STUBBED_BINDING_AND_DEFAULT_REFUSAL",
+    "real_postgresql_checked_here": false,
+    "actual_exchange_requests": 0,
+    "execution_approved": false
+  },
+  "production_execution_approved": false,
+  "actual_exchange_requests": 0,
+  "actual_order_usage": "UNKNOWN",
+  "external_ip_capacity_reserved": false,
+  "venue_request_cost_upper_bounds_proven": false
+}
