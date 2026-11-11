@@ -1,0 +1,99 @@
+{
+  "current_regression": {
+    "cases": 1858,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "focused_including_v1": {
+    "cases": 160,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "new_v2_tests": 57,
+  "v1_existing_tests_preserved": 103,
+  "offline_v2_saved_report_roundtrips": 4,
+  "v1_historical_receipts_verified": 3,
+  "v1_receiver_rejection_preserved": true,
+  "cross_policy_receipts_rejected": true,
+  "historical_tp_lifecycle_cases_reused_not_rerun": 4,
+  "dedicated_reported_lifecycle_execution_performed": false,
+  "fresh_300s_execution_performed": false,
+  "report_provenance": {
+    "input_artifact_commit": "843825f41eef618cf6318329d3bb8b377bf4564d",
+    "input_archive_sha256": "eef51d240ca7555a9c03f0309bf840b3136dda3ac68e1c6b0a82d8cd3f06a259",
+    "input_source_commit": "94c47d86568e785c04a82dd95aeb5f05736e9da0",
+    "offline_reports_revalidated": 4,
+    "records": [
+      {
+        "mode": "tp",
+        "input_sha256": "e2ae07c39ac5ca062a870dca47b5340879b880884840f65ff629463fcb25c58f",
+        "v1_exit_status": 0,
+        "v2_issue_status": 0,
+        "v2_verify_status": 0,
+        "original_trial_flat": "VERIFIED_FLAT",
+        "later_reported_flat": "VERIFIED_FLAT",
+        "original_trial_reported_accepted": true,
+        "attention_required": false,
+        "execution_approved": false
+      },
+      {
+        "mode": "partial",
+        "input_sha256": "e106224bd6c12ae9d0010cd2d8296b2a0989591529a89389a37d437f3129aa55",
+        "v1_exit_status": 0,
+        "v2_issue_status": 3,
+        "v2_verify_status": 3,
+        "original_trial_flat": "VERIFIED_FLAT",
+        "later_reported_flat": "VERIFIED_FLAT",
+        "original_trial_reported_accepted": false,
+        "attention_required": true,
+        "execution_approved": false
+      },
+      {
+        "mode": "seal_failure",
+        "input_sha256": "b2eb44ae9fdb823eeca231f5c68060ee2e6af5f697262344ccccb5ae4927f0ed",
+        "v1_exit_status": 3,
+        "v2_issue_status": 3,
+        "v2_verify_status": 3,
+        "original_trial_flat": "VERIFIED_FLAT",
+        "later_reported_flat": "VERIFIED_FLAT",
+        "original_trial_reported_accepted": true,
+        "attention_required": true,
+        "execution_approved": false
+      },
+      {
+        "mode": "receiver_failure",
+        "input_sha256": "b27eea3061b418f4489fb8ea683b4ec8c1c0db235fd45dc404ff752ff99e9852",
+        "v1_exit_status": 2,
+        "v2_issue_status": 3,
+        "v2_verify_status": 3,
+        "original_trial_flat": "UNKNOWN",
+        "later_reported_flat": "VERIFIED_FLAT",
+        "original_trial_reported_accepted": false,
+        "attention_required": true,
+        "execution_approved": false
+      }
+    ],
+    "previous_junit_reused_not_rerun": true,
+    "fresh_financial_lifecycle_execution_performed": false,
+    "actual_exchange_requests": 0
+  },
+  "mypy_production_files": 162,
+  "ruff": "PASS",
+  "docker": {
+    "smoke": "PASSED",
+    "network": "NONE",
+    "scope": "OFFLINE_V2_OUTCOME_AND_RECEIPT_ROUNDTRIPS_ONLY",
+    "saved_reports": 4,
+    "v1_rejection_and_cross_policy_separation_preserved": true,
+    "fresh_financial_lifecycle_execution_performed": false,
+    "actual_exchange_requests": 0,
+    "execution_approved": false
+  },
+  "production_execution_approved": false,
+  "actual_exchange_requests": 0,
+  "actual_order_usage": "UNKNOWN",
+  "external_ip_capacity_reserved": false,
+  "venue_request_cost_upper_bounds_proven": false
+}
