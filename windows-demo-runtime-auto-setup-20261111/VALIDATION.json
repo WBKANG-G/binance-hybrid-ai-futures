@@ -1,0 +1,29 @@
+{
+  "tests_passed": 41,
+  "storage_postgres_sqlite_docker_tests": 29,
+  "native_powershell_pipeline_tests": 12,
+  "native_powershell_engine": "7.4.6_ON_LINUX",
+  "legacy_json_array_shape_simulated": true,
+  "natural_startup_hold_test_seconds": 84.715,
+  "natural_hold_not_shortened_or_mocked_in_docker_test": true,
+  "real_docker_persistent_volume_across_processes": true,
+  "docker_user": "10001",
+  "external_exchange_requests": 0,
+  "actual_order_writes": 0,
+  "financial_ledger_hash_preserved": true,
+  "partial_failure_does_not_reset_or_adopt_unknown_storage": true,
+  "data_mutations_when_user_runs": [
+    "additional_code_image_if_required",
+    "dedicated_sqlite_files",
+    "three_auxiliary_postgres_tables_and_immutable_function",
+    "setup_binding_operations_and_audit_events"
+  ],
+  "execution_approved": false,
+  "live_trading_enabled": false,
+  "windows_execution_performed_in_cloud": false,
+  "embedded_installer_reference": "91add565ef5a99bacee919f4504cf8c2d41742e5",
+  "embedded_installer_bytes_unchanged": true,
+  "embedded_installer_previous_tests_not_added_to_current_total": 66,
+  "product_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "ruff": "passed"
+}

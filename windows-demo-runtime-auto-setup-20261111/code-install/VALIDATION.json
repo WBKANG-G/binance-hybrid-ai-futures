@@ -1,0 +1,41 @@
+{
+  "tests_passed": 66,
+  "postgres_and_docker_tests": 20,
+  "native_powershell_tests": 46,
+  "native_powershell_engine": "7.4.6_ON_LINUX",
+  "native_powershell_metadata_cases": 38,
+  "native_powershell_orchestration_with_mock_docker_cases": 8,
+  "legacy_json_array_shape_simulated": true,
+  "before_fix_expected_failure_cases": 5,
+  "ruff": "passed",
+  "payload_files": 66,
+  "new_files_vs_baseline": 15,
+  "existing_payload_files_unchanged": 51,
+  "installed_core_pins": 55,
+  "docker_image_build": "PASS_NETWORK_NONE_NO_DEPENDENCY_INSTALL",
+  "docker_pre_post_guard_against_real_postgres": "PASS_SYNTHETIC_ACCOUNT_ONLY",
+  "database_snapshot_preserved": [
+    "account",
+    "events",
+    "outbox"
+  ],
+  "default_execution_refusal_verified": true,
+  "guard_forbidden_calls": [],
+  "guard_sql": [
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+    "SET LOCAL statement_timeout='3s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+    "SET LOCAL statement_timeout='3s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SELECT CURRENT_TIMESTAMP",
+    "SELECT CURRENT_TIMESTAMP"
+  ],
+  "native_windows_powershell_orchestration_tested": false,
+  "powershell_validation": "NATIVE_POWERSHELL_7_ON_LINUX_WITH_MOCK_DOCKER_NOT_NATIVE_WINDOWS_5_1",
+  "user_windows_install_executed_in_cloud": false,
+  "actual_exchange_requests": 0,
+  "orders": 0,
+  "storage_provisioned": false,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325"
+}
