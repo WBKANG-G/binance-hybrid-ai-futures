@@ -1,0 +1,14 @@
+{
+  "files": {
+    "DOCKER_SMOKE.json": "0421cf0c13dd750d3b88ba8a4a7bbff764b2202b2811070cf2bfeac8e430566f",
+    "README.md": "faa81f64234824b829b743b5f3c394e9444131ff88c12287cda58412b1c0bc6e",
+    "RUFF.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "RUN_PREVIEW.cmd": "35f8fc18d41447fd75530964fc92837e7320b05a0de4f75a0859e06f1c88018a",
+    "SOURCE_REFERENCE.json": "b5478498a27a5208d2c79974fec3cadff2c1a2d9eaece44486e52a398fde893d",
+    "TEST_RESULTS.txt": "7bc0d538ec171aca505734c4c85bffe48a2f654c723f13469a2ec629cdb47b33",
+    "TEST_RESULTS.xml": "3274f2cb59b4a97ff6f264359cb29b8408335be5b9720dcc3a11fb3edb6d6f26",
+    "VALIDATION.json": "ed515d3941e23ba9b59b7c8cb38c646aa9e2d29962714900fdd44f538d25a6aa",
+    "preview_manual_close_day_20261111.py": "e309978bd8bec2dbc408ec018cc3faed88bd5b0f7bf947318366e868b6ef23c0",
+    "test_manual_close_day_preview_20261111.py": "46eb6e27298a4e3c94bbd3c08fd49e6f798c0cfcebd49e133b890d463dd7cb58"
+  }
+}

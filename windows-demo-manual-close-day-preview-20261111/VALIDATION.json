@@ -1,0 +1,16 @@
+{
+  "tests_passed": 71,
+  "ruff": "passed",
+  "installed_source_pins": 55,
+  "store_mutation_calls": [],
+  "database_calls": [
+    "conn.exec_driver_sql('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY')",
+    "conn.exec_driver_sql(\"SET LOCAL statement_timeout='3s'\")",
+    "conn.execute(select(accounts).where(accounts.c.account_id == ACCOUNT))"
+  ],
+  "real_exchange_calls_in_cloud": 0,
+  "windows_execution_verified": false,
+  "baseline_adoption_approved": false,
+  "weekly_baseline_adoption_requested": false,
+  "helper_sha256": "e309978bd8bec2dbc408ec018cc3faed88bd5b0f7bf947318366e868b6ef23c0"
+}
