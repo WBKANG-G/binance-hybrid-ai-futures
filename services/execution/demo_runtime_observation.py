@@ -12,6 +12,7 @@ from services.execution.demo_runtime_confirmation import (
     ConfirmationWindowClosed,
     RuntimeConfirmationCoordinator,
 )
+from services.execution.demo_runtime_storage import current_runtime_ledger
 
 
 class RuntimeObservationCoordinator(RuntimeConfirmationCoordinator):
@@ -28,7 +29,7 @@ class RuntimeObservationCoordinator(RuntimeConfirmationCoordinator):
 
     def _require_owned_flat_observation(self) -> None:
         self._require_observation_session()
-        ledger = self.store.read(self.lease.account_id)
+        ledger = current_runtime_ledger(self._confirmation_base, self._confirmation_lease)
         own = ledger.orders.get(str(self._own_operation))
         if (
             self._own_operation is None
