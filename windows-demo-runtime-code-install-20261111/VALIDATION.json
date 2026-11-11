@@ -1,0 +1,34 @@
+{
+  "tests_passed": 20,
+  "ruff": "passed",
+  "payload_files": 66,
+  "new_files_vs_baseline": 15,
+  "existing_payload_files_unchanged": 51,
+  "installed_core_pins": 55,
+  "docker_image_build": "PASS_NETWORK_NONE_NO_DEPENDENCY_INSTALL",
+  "docker_pre_post_guard_against_real_postgres": "PASS_SYNTHETIC_ACCOUNT_ONLY",
+  "database_snapshot_preserved": [
+    "account",
+    "events",
+    "outbox"
+  ],
+  "default_execution_refusal_verified": true,
+  "guard_forbidden_calls": [],
+  "guard_sql": [
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+    "SET LOCAL statement_timeout='3s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+    "SET LOCAL statement_timeout='3s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SELECT CURRENT_TIMESTAMP",
+    "SELECT CURRENT_TIMESTAMP"
+  ],
+  "native_windows_powershell_orchestration_tested": false,
+  "powershell_validation": "STATIC_CONTRACT_ONLY",
+  "user_windows_install_executed_in_cloud": false,
+  "actual_exchange_requests": 0,
+  "orders": 0,
+  "storage_provisioned": false,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325"
+}
