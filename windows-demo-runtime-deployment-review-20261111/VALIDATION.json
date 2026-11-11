@@ -1,0 +1,34 @@
+{
+  "tests_passed": 21,
+  "ruff": "passed",
+  "static_forbidden_call_names": [
+    "acquire",
+    "bind_runtime_storage",
+    "change",
+    "commit",
+    "create",
+    "credentials",
+    "listen_key",
+    "provision",
+    "release",
+    "renew",
+    "request",
+    "transport"
+  ],
+  "forbidden_calls_found": [],
+  "sql_statements": [
+    "SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY",
+    "SET LOCAL statement_timeout='3s'",
+    "SET LOCAL lock_timeout='2s'",
+    "SELECT CURRENT_TIMESTAMP"
+  ],
+  "installed_core_pins": 55,
+  "candidate_critical_files": 11,
+  "candidate_scope": "CRITICAL_FILES_ONLY_NOT_FULL_DEPENDENCY_VERIFICATION",
+  "actual_exchange_calls_in_cloud": 0,
+  "windows_execution_verified": false,
+  "database_changed_by_tool": false,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "day_receipt_reference": "e4266a46d99b93d624be292678965359de540ccc",
+  "helper_sha256": "df0645fee23ae7e9ccc896e8443fe517d6c5463c56ad9d2dc2aa06dc286d8859"
+}

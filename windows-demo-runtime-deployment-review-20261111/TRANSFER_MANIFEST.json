@@ -1,0 +1,16 @@
+{
+  "files": {
+    "README_KO.md": "063d3637dad639abe8a37fe7bc3b7202e2abd3adaea1b0d141863d88a2962eb8",
+    "RUN_REVIEW.cmd": "548c693de898ce7fbed623da3e97e33553ec2838e9816b2160630f65a0cd49b6",
+    "VALIDATION.json": "2e271fe6f0f683334fef5cb5655b6bc53aeca2bb2790208953f2fd4a6da0ebdc",
+    "evidence/DOCKER_SMOKE.json": "3554e7c085db53a4b375bb8a4493a47ade60f36d51e942ff68aaea420ce84c25",
+    "evidence/RUFF.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "evidence/TEST_RESULTS.txt": "a24974d9f7ae7e4618731935412e3c6283615f8e9753e9a9ffa805dab52bb18e",
+    "evidence/TEST_RESULTS.xml": "b07fd67a2601913276b7a61ed98cba904bb1edcf7ddf13a5e2cc35cc77be4380",
+    "evidence/manual-close-day-apply-20261111/adopt_manual_close_day_20261111.py": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4",
+    "evidence/manual-close-day-apply-20261111/test_manual_close_day_apply_20261111.py": "257b57acb8782417302624eef87701ed61cb663031b2dff59587278fb545e9c9",
+    "evidence/runtime-deployment-preflight-20261111/review_runtime_deployment.py": "df0645fee23ae7e9ccc896e8443fe517d6c5463c56ad9d2dc2aa06dc286d8859",
+    "evidence/runtime-deployment-preflight-20261111/test_runtime_deployment.py": "da6aa0a00c725e2ccbee5dfd18bbdcebc2b54d079c55f774fd49cb64cae7be4f",
+    "review_runtime_deployment.py": "df0645fee23ae7e9ccc896e8443fe517d6c5463c56ad9d2dc2aa06dc286d8859"
+  }
+}
