@@ -364,7 +364,11 @@ def save_receipt(raw: bytes, destination: Path) -> dict[str, Any]:
     No direct-write or replacing-rename fallback is allowed. Parent-directory or
     hardware crash durability is not certified by this operation.
     """
-    receipt = review_bytes(raw)
+    return publish_receipt(review_bytes(raw), destination)
+
+
+def publish_receipt(receipt: dict[str, Any], destination: Path) -> dict[str, Any]:
+    """Generic exclusive storage for a trusted in-process review result, not attestation."""
     encoded = (json.dumps(receipt) + "\n").encode()
     require(len(encoded) <= MAX_RECEIPT_BYTES, "RECEIPT_FILE_TOO_LARGE")
     temporary: str | None = None
