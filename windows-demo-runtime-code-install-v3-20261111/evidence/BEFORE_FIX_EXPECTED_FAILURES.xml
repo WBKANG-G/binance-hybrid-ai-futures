@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="5" skipped="0" tests="5" time="2.167" timestamp="2026-11-11T05:17:39.192149+00:00" hostname="3413dfa6286d"><testcase classname="test_install_inspection_powershell" name="test_native_powershell_single_container_array_and_private_path_are_supported[array_preserved]" time="0.388"><failure message="AssertionError: assert {'result': 'B...ITY_MISMATCH'} == {'result': 'V...ile_count': 1}&#10;  &#10;  Differing items:&#10;  {'result': 'BLOCKED'} != {'result': 'VALIDATED'}&#10;  Left contains 1 more item:&#10;  {'reason': 'CONTAINER_IDENTITY_MISMATCH'}&#10;  Right contains 1 more item:&#10;  {'file_count': 1}&#10;  Use -v to get more diff">details = {'Name': '/hybrid-windows-api-1', 'Image': 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ..._files': '/tmp/pytest-of-agent/pytest-316/test_native_powershell_single_0/PRIVATE_HOST_PATH with spaces/compose.yml'}}}
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-316/test_native_powershell_single_0')
+
+    def test_native_powershell_single_container_array_and_private_path_are_supported(details, tmp_path):
+        output = run_inspection(tmp_path, json.dumps([details]))
+&gt;       assert output[-1] == {"result": "VALIDATED", "file_count": 1}
+E       AssertionError: assert {'result': 'B...ITY_MISMATCH'} == {'result': 'V...ile_count': 1}
+E         
+E         Differing items:
+E         {'result': 'BLOCKED'} != {'result': 'VALIDATED'}
+E         Left contains 1 more item:
+E         {'reason': 'CONTAINER_IDENTITY_MISMATCH'}
+E         Right contains 1 more item:
+E         {'file_count': 1}
+E         Use -v to get more diff
+
+/tmp/runtime-install-v3-old-parser-repro/test_install_inspection_powershell.py:102: AssertionError</failure></testcase><testcase classname="test_install_inspection_powershell" name="test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata[array_preserved-None-None]" time="0.464"><failure message="AssertionError: TRANSFER_FILES_VERIFIED&#10;  {&quot;runtime_code_install&quot;:&quot;BLOCKED_KEEP_PAUSED&quot;,&quot;stage&quot;:&quot;CONTAINER_INSPECT_JSON&quot;,&quot;stop_reason&quot;:&quot;CONTAINER_IDENTITY_MISMATCH&quot;,&quot;api_replacement_started&quot;:false,&quot;execution_approved&quot;:false,&quot;orders_enabled&quot;:false,&quot;live_trading_enabled&quot;:false,&quot;next_action&quot;:&quot;SHARE_OUTPUT_NO_AUTOMATIC_RETRY&quot;}&#10;  &#10;assert 2 == 0&#10; +  where 2 = CompletedProcess(args=['/tmp/runtime-installer-pwsh/opt/microsoft/powershell/7/pwsh', '-NoProfile', '-File', '/tmp/pyt...lse,&quot;orders_enabled&quot;:false,&quot;live_trading_enabled&quot;:false,&quot;next_action&quot;:&quot;SHARE_OUTPUT_NO_AUTOMATIC_RETRY&quot;}\n', stderr='').returncode">details = {'Name': '/hybrid-windows-api-1', 'Image': 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ..._files': '/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr0/PRIVATE_HOST_PATH with spaces/compose.yml'}}}
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr0')
+fault = None, expected_reason = None
+
+    @pytest.mark.parametrize(
+        "fault,expected_reason",
+        [
+            (None, None),
+            ("health_missing", "API_HEALTHCHECK_MISSING"),
+            ("directory_gone", "COMPOSE_WORKING_DIRECTORY_NOT_FOUND"),
+            ("project_missing", "COMPOSE_PROJECT_LABEL_MISMATCH"),
+        ],
+    )
+    def test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata(
+        details, tmp_path, fault, expected_reason
+    ):
+        import hashlib
+    
+        packet = tmp_path / "installer packet"
+        packet.mkdir()
+        for name in (
+            "INSTALL_CODE.ps1",
+            "INSTALL_INSPECTION.ps1",
+            "guard_runtime_code_install.py",
+            "Dockerfile",
+        ):
+            shutil.copy2(ROOT / name, packet / name)
+        manifest = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in packet.iterdir()}
+        (packet / "TRANSFER_MANIFEST.json").write_text(json.dumps({"files": manifest}))
+        if fault == "health_missing":
+            details["State"].pop("Health")
+        elif fault == "directory_gone":
+            details["Config"]["Labels"]["com.docker.compose.project.working_dir"] += "/missing"
+        elif fault == "project_missing":
+            details["Config"]["Labels"].pop("com.docker.compose.project")
+        fixture = tmp_path / "docker.json"
+        fixture.write_text(json.dumps([details]))
+        log = tmp_path / "commands.jsonl"
+        binary = tmp_path / "bin"
+        binary.mkdir()
+        executable = binary / "docker"
+        executable.write_text("""#!/usr/bin/env python3
+    import json,os,sys
+    args=sys.argv[1:]
+    with open(os.environ['MOCK_DOCKER_LOG'],'a') as f:f.write(json.dumps(args)+'\\n')
+    if args[0]=='inspect':
+     if '--format' in args:print('sha256:'+'a'*64)
+     else:print(open(os.environ['MOCK_DOCKER_FIXTURE']).read())
+    elif args[0]=='exec':
+     sys.stdin.read()
+     phase=args[args.index('--phase')+1]
+     print(json.dumps({'runtime_code_install':'PRECHECKED_CODE_ONLY_KEEP_PAUSED' if phase=='pre' else 'POSTCHECKED_CODE_ONLY_KEEP_PAUSED','state_snapshot_sha256':'b'*64}))
+    elif args[0] in {'tag','build','compose'}:print('MOCK_DOCKER_ONLY')
+    else:raise SystemExit(95)
+    """)
+        executable.chmod(0o755)
+        env = os.environ | {
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "MOCK_DOCKER_LOG": str(log),
+            "MOCK_DOCKER_FIXTURE": str(fixture),
+            "XDG_CACHE_HOME": "/tmp/runtime-installer-cache",
+            "XDG_CONFIG_HOME": "/tmp/runtime-installer-config",
+            "XDG_DATA_HOME": "/tmp/runtime-installer-data",
+        }
+        bootstrap = tmp_path / "bootstrap.ps1"
+        install_path = str(packet / "INSTALL_CODE.ps1").replace("'", "''")
+        bootstrap.write_text(LEGACY_PARSER + "\n&amp; '" + install_path + "'\nexit $LASTEXITCODE\n")
+        result = subprocess.run(
+            [PWSH, "-NoProfile", "-File", str(bootstrap)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+            check=False,
+        )
+        assert "PRIVATE_" not in result.stdout + result.stderr
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        if fault:
+            assert result.returncode == 2, result.stdout + result.stderr
+            report = json.loads(result.stdout.splitlines()[-1])
+            assert (
+                report["stop_reason"] == expected_reason and report["api_replacement_started"] is False
+            )
+            assert [a[0] for a in calls] == ["inspect"]
+            assert not (packet / "INSTALL_STATE.json").exists()
+        else:
+&gt;           assert result.returncode == 0, result.stdout + result.stderr
+E           AssertionError: TRANSFER_FILES_VERIFIED
+E             {"runtime_code_install":"BLOCKED_KEEP_PAUSED","stage":"CONTAINER_INSPECT_JSON","stop_reason":"CONTAINER_IDENTITY_MISMATCH","api_replacement_started":false,"execution_approved":false,"orders_enabled":false,"live_trading_enabled":false,"next_action":"SHARE_OUTPUT_NO_AUTOMATIC_RETRY"}
+E             
+E           assert 2 == 0
+E            +  where 2 = CompletedProcess(args=['/tmp/runtime-installer-pwsh/opt/microsoft/powershell/7/pwsh', '-NoProfile', '-File', '/tmp/pyt...lse,"orders_enabled":false,"live_trading_enabled":false,"next_action":"SHARE_OUTPUT_NO_AUTOMATIC_RETRY"}\n', stderr='').returncode
+
+/tmp/runtime-install-v3-old-parser-repro/test_install_inspection_powershell.py:255: AssertionError</failure></testcase><testcase classname="test_install_inspection_powershell" name="test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata[array_preserved-health_missing-API_HEALTHCHECK_MISSING]" time="0.414"><failure message="AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'API_HEALTHCHECK_MISSING'&#10;  &#10;  - API_HEALTHCHECK_MISSING&#10;  + CONTAINER_IDENTITY_MISMATCH)">details = {'Name': '/hybrid-windows-api-1', 'Image': 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ..._files': '/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr1/PRIVATE_HOST_PATH with spaces/compose.yml'}}}
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr1')
+fault = 'health_missing', expected_reason = 'API_HEALTHCHECK_MISSING'
+
+    @pytest.mark.parametrize(
+        "fault,expected_reason",
+        [
+            (None, None),
+            ("health_missing", "API_HEALTHCHECK_MISSING"),
+            ("directory_gone", "COMPOSE_WORKING_DIRECTORY_NOT_FOUND"),
+            ("project_missing", "COMPOSE_PROJECT_LABEL_MISMATCH"),
+        ],
+    )
+    def test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata(
+        details, tmp_path, fault, expected_reason
+    ):
+        import hashlib
+    
+        packet = tmp_path / "installer packet"
+        packet.mkdir()
+        for name in (
+            "INSTALL_CODE.ps1",
+            "INSTALL_INSPECTION.ps1",
+            "guard_runtime_code_install.py",
+            "Dockerfile",
+        ):
+            shutil.copy2(ROOT / name, packet / name)
+        manifest = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in packet.iterdir()}
+        (packet / "TRANSFER_MANIFEST.json").write_text(json.dumps({"files": manifest}))
+        if fault == "health_missing":
+            details["State"].pop("Health")
+        elif fault == "directory_gone":
+            details["Config"]["Labels"]["com.docker.compose.project.working_dir"] += "/missing"
+        elif fault == "project_missing":
+            details["Config"]["Labels"].pop("com.docker.compose.project")
+        fixture = tmp_path / "docker.json"
+        fixture.write_text(json.dumps([details]))
+        log = tmp_path / "commands.jsonl"
+        binary = tmp_path / "bin"
+        binary.mkdir()
+        executable = binary / "docker"
+        executable.write_text("""#!/usr/bin/env python3
+    import json,os,sys
+    args=sys.argv[1:]
+    with open(os.environ['MOCK_DOCKER_LOG'],'a') as f:f.write(json.dumps(args)+'\\n')
+    if args[0]=='inspect':
+     if '--format' in args:print('sha256:'+'a'*64)
+     else:print(open(os.environ['MOCK_DOCKER_FIXTURE']).read())
+    elif args[0]=='exec':
+     sys.stdin.read()
+     phase=args[args.index('--phase')+1]
+     print(json.dumps({'runtime_code_install':'PRECHECKED_CODE_ONLY_KEEP_PAUSED' if phase=='pre' else 'POSTCHECKED_CODE_ONLY_KEEP_PAUSED','state_snapshot_sha256':'b'*64}))
+    elif args[0] in {'tag','build','compose'}:print('MOCK_DOCKER_ONLY')
+    else:raise SystemExit(95)
+    """)
+        executable.chmod(0o755)
+        env = os.environ | {
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "MOCK_DOCKER_LOG": str(log),
+            "MOCK_DOCKER_FIXTURE": str(fixture),
+            "XDG_CACHE_HOME": "/tmp/runtime-installer-cache",
+            "XDG_CONFIG_HOME": "/tmp/runtime-installer-config",
+            "XDG_DATA_HOME": "/tmp/runtime-installer-data",
+        }
+        bootstrap = tmp_path / "bootstrap.ps1"
+        install_path = str(packet / "INSTALL_CODE.ps1").replace("'", "''")
+        bootstrap.write_text(LEGACY_PARSER + "\n&amp; '" + install_path + "'\nexit $LASTEXITCODE\n")
+        result = subprocess.run(
+            [PWSH, "-NoProfile", "-File", str(bootstrap)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+            check=False,
+        )
+        assert "PRIVATE_" not in result.stdout + result.stderr
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        if fault:
+            assert result.returncode == 2, result.stdout + result.stderr
+            report = json.loads(result.stdout.splitlines()[-1])
+&gt;           assert (
+                report["stop_reason"] == expected_reason and report["api_replacement_started"] is False
+            )
+E           AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'API_HEALTHCHECK_MISSING'
+E             
+E             - API_HEALTHCHECK_MISSING
+E             + CONTAINER_IDENTITY_MISMATCH)
+
+/tmp/runtime-install-v3-old-parser-repro/test_install_inspection_powershell.py:249: AssertionError</failure></testcase><testcase classname="test_install_inspection_powershell" name="test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata[array_preserved-directory_gone-COMPOSE_WORKING_DIRECTORY_NOT_FOUND]" time="0.432"><failure message="AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'COMPOSE_WORK...ORY_NOT_FOUND'&#10;  &#10;  - COMPOSE_WORKING_DIRECTORY_NOT_FOUND&#10;  + CONTAINER_IDENTITY_MISMATCH)">details = {'Name': '/hybrid-windows-api-1', 'Image': 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ..._files': '/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr2/PRIVATE_HOST_PATH with spaces/compose.yml'}}}
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr2')
+fault = 'directory_gone'
+expected_reason = 'COMPOSE_WORKING_DIRECTORY_NOT_FOUND'
+
+    @pytest.mark.parametrize(
+        "fault,expected_reason",
+        [
+            (None, None),
+            ("health_missing", "API_HEALTHCHECK_MISSING"),
+            ("directory_gone", "COMPOSE_WORKING_DIRECTORY_NOT_FOUND"),
+            ("project_missing", "COMPOSE_PROJECT_LABEL_MISMATCH"),
+        ],
+    )
+    def test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata(
+        details, tmp_path, fault, expected_reason
+    ):
+        import hashlib
+    
+        packet = tmp_path / "installer packet"
+        packet.mkdir()
+        for name in (
+            "INSTALL_CODE.ps1",
+            "INSTALL_INSPECTION.ps1",
+            "guard_runtime_code_install.py",
+            "Dockerfile",
+        ):
+            shutil.copy2(ROOT / name, packet / name)
+        manifest = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in packet.iterdir()}
+        (packet / "TRANSFER_MANIFEST.json").write_text(json.dumps({"files": manifest}))
+        if fault == "health_missing":
+            details["State"].pop("Health")
+        elif fault == "directory_gone":
+            details["Config"]["Labels"]["com.docker.compose.project.working_dir"] += "/missing"
+        elif fault == "project_missing":
+            details["Config"]["Labels"].pop("com.docker.compose.project")
+        fixture = tmp_path / "docker.json"
+        fixture.write_text(json.dumps([details]))
+        log = tmp_path / "commands.jsonl"
+        binary = tmp_path / "bin"
+        binary.mkdir()
+        executable = binary / "docker"
+        executable.write_text("""#!/usr/bin/env python3
+    import json,os,sys
+    args=sys.argv[1:]
+    with open(os.environ['MOCK_DOCKER_LOG'],'a') as f:f.write(json.dumps(args)+'\\n')
+    if args[0]=='inspect':
+     if '--format' in args:print('sha256:'+'a'*64)
+     else:print(open(os.environ['MOCK_DOCKER_FIXTURE']).read())
+    elif args[0]=='exec':
+     sys.stdin.read()
+     phase=args[args.index('--phase')+1]
+     print(json.dumps({'runtime_code_install':'PRECHECKED_CODE_ONLY_KEEP_PAUSED' if phase=='pre' else 'POSTCHECKED_CODE_ONLY_KEEP_PAUSED','state_snapshot_sha256':'b'*64}))
+    elif args[0] in {'tag','build','compose'}:print('MOCK_DOCKER_ONLY')
+    else:raise SystemExit(95)
+    """)
+        executable.chmod(0o755)
+        env = os.environ | {
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "MOCK_DOCKER_LOG": str(log),
+            "MOCK_DOCKER_FIXTURE": str(fixture),
+            "XDG_CACHE_HOME": "/tmp/runtime-installer-cache",
+            "XDG_CONFIG_HOME": "/tmp/runtime-installer-config",
+            "XDG_DATA_HOME": "/tmp/runtime-installer-data",
+        }
+        bootstrap = tmp_path / "bootstrap.ps1"
+        install_path = str(packet / "INSTALL_CODE.ps1").replace("'", "''")
+        bootstrap.write_text(LEGACY_PARSER + "\n&amp; '" + install_path + "'\nexit $LASTEXITCODE\n")
+        result = subprocess.run(
+            [PWSH, "-NoProfile", "-File", str(bootstrap)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+            check=False,
+        )
+        assert "PRIVATE_" not in result.stdout + result.stderr
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        if fault:
+            assert result.returncode == 2, result.stdout + result.stderr
+            report = json.loads(result.stdout.splitlines()[-1])
+&gt;           assert (
+                report["stop_reason"] == expected_reason and report["api_replacement_started"] is False
+            )
+E           AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'COMPOSE_WORK...ORY_NOT_FOUND'
+E             
+E             - COMPOSE_WORKING_DIRECTORY_NOT_FOUND
+E             + CONTAINER_IDENTITY_MISMATCH)
+
+/tmp/runtime-install-v3-old-parser-repro/test_install_inspection_powershell.py:249: AssertionError</failure></testcase><testcase classname="test_install_inspection_powershell" name="test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata[array_preserved-project_missing-COMPOSE_PROJECT_LABEL_MISMATCH]" time="0.418"><failure message="AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'COMPOSE_PROJ...ABEL_MISMATCH'&#10;  &#10;  - COMPOSE_PROJECT_LABEL_MISMATCH&#10;  + CONTAINER_IDENTITY_MISMATCH)">details = {'Name': '/hybrid-windows-api-1', 'Image': 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ..._files': '/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr3/PRIVATE_HOST_PATH with spaces/compose.yml'}}}
+tmp_path = PosixPath('/tmp/pytest-of-agent/pytest-316/test_native_installer_orchestr3')
+fault = 'project_missing', expected_reason = 'COMPOSE_PROJECT_LABEL_MISMATCH'
+
+    @pytest.mark.parametrize(
+        "fault,expected_reason",
+        [
+            (None, None),
+            ("health_missing", "API_HEALTHCHECK_MISSING"),
+            ("directory_gone", "COMPOSE_WORKING_DIRECTORY_NOT_FOUND"),
+            ("project_missing", "COMPOSE_PROJECT_LABEL_MISMATCH"),
+        ],
+    )
+    def test_native_installer_orchestration_stops_before_mutations_for_invalid_metadata(
+        details, tmp_path, fault, expected_reason
+    ):
+        import hashlib
+    
+        packet = tmp_path / "installer packet"
+        packet.mkdir()
+        for name in (
+            "INSTALL_CODE.ps1",
+            "INSTALL_INSPECTION.ps1",
+            "guard_runtime_code_install.py",
+            "Dockerfile",
+        ):
+            shutil.copy2(ROOT / name, packet / name)
+        manifest = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in packet.iterdir()}
+        (packet / "TRANSFER_MANIFEST.json").write_text(json.dumps({"files": manifest}))
+        if fault == "health_missing":
+            details["State"].pop("Health")
+        elif fault == "directory_gone":
+            details["Config"]["Labels"]["com.docker.compose.project.working_dir"] += "/missing"
+        elif fault == "project_missing":
+            details["Config"]["Labels"].pop("com.docker.compose.project")
+        fixture = tmp_path / "docker.json"
+        fixture.write_text(json.dumps([details]))
+        log = tmp_path / "commands.jsonl"
+        binary = tmp_path / "bin"
+        binary.mkdir()
+        executable = binary / "docker"
+        executable.write_text("""#!/usr/bin/env python3
+    import json,os,sys
+    args=sys.argv[1:]
+    with open(os.environ['MOCK_DOCKER_LOG'],'a') as f:f.write(json.dumps(args)+'\\n')
+    if args[0]=='inspect':
+     if '--format' in args:print('sha256:'+'a'*64)
+     else:print(open(os.environ['MOCK_DOCKER_FIXTURE']).read())
+    elif args[0]=='exec':
+     sys.stdin.read()
+     phase=args[args.index('--phase')+1]
+     print(json.dumps({'runtime_code_install':'PRECHECKED_CODE_ONLY_KEEP_PAUSED' if phase=='pre' else 'POSTCHECKED_CODE_ONLY_KEEP_PAUSED','state_snapshot_sha256':'b'*64}))
+    elif args[0] in {'tag','build','compose'}:print('MOCK_DOCKER_ONLY')
+    else:raise SystemExit(95)
+    """)
+        executable.chmod(0o755)
+        env = os.environ | {
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "MOCK_DOCKER_LOG": str(log),
+            "MOCK_DOCKER_FIXTURE": str(fixture),
+            "XDG_CACHE_HOME": "/tmp/runtime-installer-cache",
+            "XDG_CONFIG_HOME": "/tmp/runtime-installer-config",
+            "XDG_DATA_HOME": "/tmp/runtime-installer-data",
+        }
+        bootstrap = tmp_path / "bootstrap.ps1"
+        install_path = str(packet / "INSTALL_CODE.ps1").replace("'", "''")
+        bootstrap.write_text(LEGACY_PARSER + "\n&amp; '" + install_path + "'\nexit $LASTEXITCODE\n")
+        result = subprocess.run(
+            [PWSH, "-NoProfile", "-File", str(bootstrap)],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+            check=False,
+        )
+        assert "PRIVATE_" not in result.stdout + result.stderr
+        calls = [json.loads(line) for line in log.read_text().splitlines()]
+        if fault:
+            assert result.returncode == 2, result.stdout + result.stderr
+            report = json.loads(result.stdout.splitlines()[-1])
+&gt;           assert (
+                report["stop_reason"] == expected_reason and report["api_replacement_started"] is False
+            )
+E           AssertionError: assert ('CONTAINER_IDENTITY_MISMATCH' == 'COMPOSE_PROJ...ABEL_MISMATCH'
+E             
+E             - COMPOSE_PROJECT_LABEL_MISMATCH
+E             + CONTAINER_IDENTITY_MISMATCH)
+
+/tmp/runtime-install-v3-old-parser-repro/test_install_inspection_powershell.py:249: AssertionError</failure></testcase></testsuite></testsuites>
