@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "files": {
+    "README_KO.md": "09fd093ab7cd76d85005b036e8c92a125fd4730e9871f67c6784422d3223f4f0",
+    "review_runtime_readiness.py": "76bf1d7dd699777dd0d1ff356bda883e618b54e88f233f60b3ced491393d35e0",
+    "verification/docker-smoke.json": "8c5dfe110cef6a0b17e7acdfe2a6dd4be0714376c84eb8470784ee8761db37b5",
+    "verification/manual-close-day-apply-20261111/adopt_manual_close_day_20261111.py": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4",
+    "verification/manual-close-day-apply-20261111/test_manual_close_day_apply_20261111.py": "257b57acb8782417302624eef87701ed61cb663031b2dff59587278fb545e9c9",
+    "verification/readiness-tests.xml": "4b1e5564bb934631951c947d86a8b660590f8936a1eb875384256fd198e2ff4c",
+    "verification/runtime-readiness-review-20261111/review_runtime_readiness.py": "76bf1d7dd699777dd0d1ff356bda883e618b54e88f233f60b3ced491393d35e0",
+    "verification/runtime-readiness-review-20261111/test_runtime_readiness.py": "764713f02717a547fa14486444311c69c096dfe40d14b01554faadf21b65ccce",
+    "verification/runtime-storage-setup-20261111/configure_runtime_storage.py": "a10d3e5c18a37ffc53180fc91690da3a0c4cf7cfdcfb319e4e3e407f02a7e6cb",
+    "verification/runtime-storage-setup-20261111/test_runtime_storage_setup.py": "75ca59e6c6411677163d9d1479fec4ba501a80fb88edef2fcf91402d380e7277"
+  }
+}

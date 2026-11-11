@@ -1,0 +1,17 @@
+[
+  {
+    "case": "old_code",
+    "exit_code": 2,
+    "stop_reason": "INSTALL_SOURCE_CONFLICT"
+  },
+  {
+    "case": "live_context",
+    "exit_code": 2,
+    "stop_reason": "REVIEW_LIVE_CONTEXT_FORBIDDEN"
+  },
+  {
+    "case": "no_database",
+    "exit_code": 2,
+    "stop_reason": "REVIEW_UNAVAILABLE"
+  }
+]
