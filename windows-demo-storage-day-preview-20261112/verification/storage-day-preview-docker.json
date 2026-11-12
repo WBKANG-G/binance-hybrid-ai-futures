@@ -1,0 +1,17 @@
+[
+  {
+    "case": "live",
+    "reason": "LIVE_CONTEXT_FORBIDDEN",
+    "exit_code": 2
+  },
+  {
+    "case": "old_source",
+    "reason": "INSTALL_SOURCE_CONFLICT",
+    "exit_code": 2
+  },
+  {
+    "case": "database_unavailable",
+    "reason": "REVIEW_DATABASE_READ_FAILED",
+    "exit_code": 2
+  }
+]

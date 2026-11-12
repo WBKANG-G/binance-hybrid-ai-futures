@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "files": {
+    "README_KO.md": "d82ec28a801d9ddf4aeddf5da90535a57e2195c4a685ad71626cfbf199db91a8",
+    "preview_storage_day_20261112.py": "cc92f82f01338938bc9928830ef1734ff5c1868797476bde95cf48deba1bbab8",
+    "verification/manual-close-day-apply-20261111/adopt_manual_close_day_20261111.py": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4",
+    "verification/manual-close-day-apply-20261111/test_manual_close_day_apply_20261111.py": "257b57acb8782417302624eef87701ed61cb663031b2dff59587278fb545e9c9",
+    "verification/runtime-clock-recovery-20261112/recover_unused_shared_clock.py": "e993b22802d6126af9c52fd49476d9e9625499e9403fc9ca94173fff64fecb88",
+    "verification/runtime-storage-setup-20261111/configure_runtime_storage.py": "a10d3e5c18a37ffc53180fc91690da3a0c4cf7cfdcfb319e4e3e407f02a7e6cb",
+    "verification/runtime-storage-setup-20261111/test_runtime_storage_setup.py": "75ca59e6c6411677163d9d1479fec4ba501a80fb88edef2fcf91402d380e7277",
+    "verification/storage-day-preview-20261112/preview_storage_day_20261112.py": "cc92f82f01338938bc9928830ef1734ff5c1868797476bde95cf48deba1bbab8",
+    "verification/storage-day-preview-20261112/test_storage_day_preview.py": "fbccbe53a7bb72b4d08a33a9bc72b01bcb7bb90767392a55e676c741db65ac13",
+    "verification/storage-day-preview-docker.json": "7c133a999302b2884bc684b1ceaa2d9ff5f3a9050b9953bb5f4f8dd3f26d45a8",
+    "verification/storage-day-preview.xml": "bd9b525fefe89bd0040059aaf77973a8d9c20f75c985d36b2b5eadc2081615bc"
+  }
+}
