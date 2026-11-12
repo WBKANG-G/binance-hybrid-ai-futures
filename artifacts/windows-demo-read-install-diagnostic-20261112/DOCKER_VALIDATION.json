@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "source": "c0da3ad078c46adadb704aaf6c88ad95f17ae396",
+  "artifact_sha256": "4c31166ffcb766af9d5583f04e21316d2cae6d21bc6c6f61b3d20013b9bf3871",
+  "normal_precheck_passed": true,
+  "injected_database_permission_failure_classified": true,
+  "injected_failure_stage": "DATABASE_TABLE_READ",
+  "injected_failure_sqlstate": "42501",
+  "diagnostic_message_and_parameter_redaction_verified": true,
+  "all_database_rows_storage_and_source_files_preserved": true,
+  "original_container_id_and_image_preserved": true,
+  "api_replacement_started": false,
+  "exchange_http_attempts": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "user_pc_tested": false,
+  "actual_user_failure_root_cause_confirmed": false
+}
