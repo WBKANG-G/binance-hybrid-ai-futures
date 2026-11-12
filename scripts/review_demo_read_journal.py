@@ -15,6 +15,7 @@ from packages.persistence.demo_order_quota import LocalQuotaStopped
 from packages.persistence.demo_read_audit import AuditedDemoReadJournal, ReadAuditStore
 from packages.persistence.demo_read_recovery import recover_completed_read_clock
 from packages.persistence.demo_shared_checkpoint import SharedWeightAnchorStore
+from services.execution.demo_read_audit_bootstrap import prepare_read_audit
 from services.execution.demo_runtime_storage import RuntimeClocks
 
 
@@ -29,19 +30,29 @@ class Parser(argparse.ArgumentParser):
 
 def arguments(argv: list[str] | None) -> argparse.Namespace:
     parser = Parser(description=__doc__, allow_abbrev=False)
-    parser.add_argument("operation", choices=("review", "recover-clock"))
+    parser.add_argument("operation", choices=("review", "recover-clock", "prepare-audit"))
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--scope", required=True)
     parser.add_argument("--journal", type=UUID, required=True)
     parser.add_argument("--installation", type=UUID, required=True)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--readers-stopped", action="store_true")
+    parser.add_argument("--account")
     args = parser.parse_args(argv)
     if (
         not args.directory.is_absolute()
         or not re.fullmatch(r"DEMO-[A-Za-z0-9_-]{1,75}", args.scope)
         or (args.operation == "review" and (args.apply or args.readers_stopped))
         or (args.operation == "recover-clock" and not (args.apply and args.readers_stopped))
+        or (args.operation != "prepare-audit" and args.account is not None)
+        or (
+            args.operation == "prepare-audit"
+            and (
+                not args.account
+                or not re.fullmatch(r"DEMO-[A-Za-z0-9_-]{1,75}", args.account)
+                or (args.apply and not args.readers_stopped)
+            )
+        )
     ):
         raise ArgumentsInvalid("READ_OPERATION_ARGUMENTS_INVALID")
     return args
@@ -64,9 +75,11 @@ def run(
         next_action="KEEP_PAUSED_REVIEW_ONLY",
     )
     engine = None
+    write_requested = False
     stage = "ARGUMENTS"
     try:
         args = arguments(argv)
+        write_requested = args.apply
         stage = "ENVIRONMENT"
         if (
             os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "false"
@@ -90,7 +103,24 @@ def run(
         if anchor.installation_id() != args.installation:
             raise ArgumentsInvalid("READ_OPERATION_INSTALLATION_MISMATCH")
         current = clocks or RuntimeClocks()
-        stage = "JOURNAL_REVIEW" if args.operation == "review" else "CLOCK_RECOVERY"
+        stage = {
+            "review": "JOURNAL_REVIEW",
+            "recover-clock": "CLOCK_RECOVERY",
+            "prepare-audit": "AUDIT_SETUP",
+        }[args.operation]
+        if args.operation == "prepare-audit":
+            report = prepare_read_audit(
+                engine,
+                args.account,
+                args.directory,
+                args.scope,
+                args.journal,
+                args.installation,
+                apply=args.apply,
+                readers_stopped=args.readers_stopped,
+                clocks=current,
+            )
+            return 0, base | report | dict(stage=stage, account_state_checked=True)
         if args.operation == "review":
             shared = AuditedDemoReadJournal(
                 args.directory,
@@ -142,7 +172,7 @@ def run(
         stage=stage,
         stop_reason=reason,
         resource_changes="UNKNOWN_IF_APPLY_STARTED"
-        if stage == "CLOCK_RECOVERY"
+        if stage in {"CLOCK_RECOVERY", "AUDIT_SETUP"} and write_requested
         else "NONE_BY_THIS_COMMAND",
     )
 

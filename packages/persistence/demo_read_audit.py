@@ -28,7 +28,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from integrations.binance_usdm.demo_tp_weight_model import MODELED_TP_ROUTE_COSTS
 from packages.persistence.demo_order_quota import canonical, quota_require
@@ -36,6 +36,7 @@ from packages.persistence.demo_shared_checkpoint import (
     INSTALLATION_KEY,
     AnchoredSharedWeightJournal,
     CheckpointContext,
+    SharedWeightAnchorStore,
     checkpoints,
     installations,
 )
@@ -293,19 +294,22 @@ class ReadAuditStore:
     def provision(self, *, apply: bool = False) -> None:
         require(apply is True, "READ_AUDIT_EXPLICIT_PROVISION_REQUIRED")
         with self.engine.begin() as c:
-            read_bindings.create(c, checkfirst=False)
-            read_events.create(c, checkfirst=False)
+            self._provision_on(c)
+
+    def _provision_on(self, c: Connection) -> None:
+        read_bindings.create(c, checkfirst=False)
+        read_events.create(c, checkfirst=False)
+        c.execute(
+            text(
+                "CREATE FUNCTION demo_read_audit_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'demo_read_audit_append_only'; END $$"
+            )
+        )
+        for table in (read_bindings, read_events):
             c.execute(
                 text(
-                    "CREATE FUNCTION demo_read_audit_immutable() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'demo_read_audit_append_only'; END $$"
+                    f"CREATE TRIGGER demo_read_audit_immutable BEFORE UPDATE OR DELETE ON {table.name} FOR EACH ROW EXECUTE FUNCTION demo_read_audit_immutable()"
                 )
             )
-            for table in (read_bindings, read_events):
-                c.execute(
-                    text(
-                        f"CREATE TRIGGER demo_read_audit_immutable BEFORE UPDATE OR DELETE ON {table.name} FOR EACH ROW EXECUTE FUNCTION demo_read_audit_immutable()"
-                    )
-                )
 
     def bind_empty(self, shared: AnchoredSharedWeightJournal, *, apply: bool = False) -> None:
         require(apply is True, "READ_AUDIT_EXPLICIT_BIND_REQUIRED")
@@ -317,33 +321,34 @@ class ReadAuditStore:
             marker = reader.checkpoint.set(cp)
             try:
                 with SharedWeightJournal._transaction(reader) as (c, meta, _):
-                    existing = (
-                        cp.connection.execute(
-                            select(read_bindings).where(read_bindings.c.scope == shared.scope)
-                        )
-                        .mappings()
-                        .one_or_none()
-                    )
-                    if existing is not None:
-                        self.verify_tip(cp, c)
-                        return
-                    state = snapshot(c)
-                    require(
-                        meta["total"] == 0 and not state[2], "READ_AUDIT_USED_STORE_NOT_ADOPTED"
-                    )
-                    row = dict(
-                        scope=shared.scope,
-                        journal=str(shared.identity),
-                        installation=str(shared.anchors._installation_on(cp.connection)),
-                        policy=POLICY_VERSION,
-                        base_revision=cp.revision,
-                        base_digest=cp.digest,
-                        base_state=state,
-                    )
-                    row["root_hash"] = digest(row)
-                    cp.connection.execute(insert(read_bindings).values(**row))
+                    self._bind_empty_on(cp, c, meta)
             finally:
                 reader.checkpoint.reset(marker)
+
+    def _bind_empty_on(
+        self, cp: CheckpointContext, c: sqlite3.Connection, meta: dict[str, Any]
+    ) -> None:
+        existing = (
+            cp.connection.execute(select(read_bindings).where(read_bindings.c.scope == cp.scope))
+            .mappings()
+            .one_or_none()
+        )
+        if existing is not None:
+            self.verify_tip(cp, c)
+            return
+        state = snapshot(c)
+        require(meta["total"] == 0 and not state[2], "READ_AUDIT_USED_STORE_NOT_ADOPTED")
+        row = dict(
+            scope=cp.scope,
+            journal=str(cp.journal),
+            installation=str(SharedWeightAnchorStore(self.engine)._installation_on(cp.connection)),
+            policy=POLICY_VERSION,
+            base_revision=cp.revision,
+            base_digest=cp.digest,
+            base_state=state,
+        )
+        row["root_hash"] = digest(row)
+        cp.connection.execute(insert(read_bindings).values(**row))
 
     def _binding(self, cp: CheckpointContext) -> Any:
         row = (
