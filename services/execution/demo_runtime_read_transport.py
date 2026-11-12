@@ -23,6 +23,7 @@ from integrations.binance_usdm.demo_rate_limits import rate_headers
 from integrations.binance_usdm.demo_tp_weight_model import MODELED_TP_ROUTE_COSTS
 from integrations.binance_usdm.rest import NoRedirect, RESTResponse
 from packages.persistence.demo_order_quota import LocalQuotaStopped, quota_require
+from packages.persistence.demo_read_audit import AuditedDemoReadJournal
 from packages.persistence.demo_shared_checkpoint import AnchoredSharedWeightJournal
 from services.execution.demo_query_contract import require_wire_query
 from services.execution.demo_runtime_cost_contract import require_runtime_cost_contract
@@ -188,6 +189,8 @@ class AccountedDemoReadTransport:
             id(shared.monotonic),
             id(shared.wall_clock),
             id(shared.boot),
+            id(shared.audit) if isinstance(shared, AuditedDemoReadJournal) else None,
+            id(shared.audit.engine) if isinstance(shared, AuditedDemoReadJournal) else None,
         )
 
     def _sample(self) -> float:
@@ -253,7 +256,11 @@ class AccountedDemoReadTransport:
                 cost = self._costs.get((method, path))
                 quota_require(type(cost) is int and cost > 0, "READ_TRANSPORT_ROUTE_UNMODELED")
                 assert isinstance(cost, int)
-                token = self._shared.reserve(cost, "ORDINARY")
+                token = (
+                    self._shared.reserve_read(path, cost)
+                    if isinstance(self._shared, AuditedDemoReadJournal)
+                    else self._shared.reserve(cost, "ORDINARY")
+                )
             except Exception as error:
                 self._denied += 1
                 self._stopped = True
@@ -329,6 +336,7 @@ class AccountedDemoReadTransport:
                 http_attempts=self._http_attempts,
                 reserved_requests=self._reservations,
                 completed_reads=self._completed,
+                read_audit_attached=isinstance(self._shared, AuditedDemoReadJournal),
                 modeled_weight_charged=self._modeled_cost,
                 denied_requests=self._denied,
                 closed=self._closed,
