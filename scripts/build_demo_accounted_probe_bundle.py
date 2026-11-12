@@ -1,0 +1,135 @@
+"""Pinned two-GET probe; project imports resolve to installed /app code only."""
+
+import argparse
+import ast
+import base64
+import hashlib
+import json
+from pathlib import Path
+
+from scripts.build_demo_read_review_bundle import archive, git, hashes
+from scripts.review_demo_read_code_install import INSTALL_FILES
+
+
+def fingerprint_source(source: str) -> bytes:
+    tree = ast.parse(source)
+    names = {
+        "mark",
+        "_budget",
+        "_table_snapshot",
+        "SNAPSHOT_SECONDS",
+        "MAX_TABLE_ROWS",
+        "MAX_ROW_BYTES",
+    }
+    parts = []
+    found = set()
+    for node in tree.body:
+        name = (
+            node.name
+            if isinstance(node, ast.FunctionDef)
+            else node.targets[0].id
+            if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)
+            else None
+        )
+        if name in names:
+            segment = ast.get_source_segment(source, node)
+            assert segment is not None
+            parts.append(segment)
+            found.add(name)
+    assert found == names
+    prefix = "import hashlib,re,time\nfrom contextvars import ContextVar\nfrom typing import Any\nfrom sqlalchemy import text\nfrom packages.persistence.demo_read_audit import require\nDIAGNOSTIC=ContextVar('probe_fingerprint',default=None)\n"
+    result = (prefix + "\n\n".join(parts) + "\n").encode()
+    compile(result, "probe_fingerprint.py", "exec")
+    return result
+
+
+def build(ref: str, output: Path) -> Path:
+    revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
+    installed = json.loads(
+        git("show", f"{revision}:tools/windows-demo-read-review/INSTALLED_SOURCE_20261111.json")
+    )
+    installed.update(
+        {
+            name: hashlib.sha256(git("show", f"{revision}:{name}")).hexdigest()
+            for name in INSTALL_FILES
+        }
+    )
+    candidate = {
+        "scripts/probe_demo_accounted_reads.py": git(
+            "show", f"{revision}:scripts/probe_demo_accounted_reads.py"
+        ),
+        "probe_fingerprint.py": fingerprint_source(
+            git("show", f"{revision}:scripts/review_demo_read_code_install.py").decode()
+        ),
+    }
+    candidate["PROBE_MANIFEST.json"] = json.dumps(
+        dict(
+            source_reference=revision,
+            installed_files=installed,
+            runtime_modules=list(INSTALL_FILES),
+            candidate_files=hashes(candidate),
+        ),
+        sort_keys=True,
+    ).encode()
+    payload = archive(candidate)
+    loader = git("show", f"{revision}:scripts/demo_read_candidate_loader.py").decode()
+    assert (
+        loader.count("sys.path.insert(0, str(root))") == 1
+        and loader.count(
+            'runpy.run_module("scripts.review_demo_read_deployment", run_name="__main__")'
+        )
+        == 1
+    )
+    loader = loader.replace("sys.path.insert(0, str(root))", 'sys.path.insert(0, "/app")').replace(
+        'runpy.run_module("scripts.review_demo_read_deployment", run_name="__main__")',
+        'runpy.run_path(str(root / "scripts/probe_demo_accounted_reads.py"), run_name="__main__")',
+    )
+    encoded = base64.b64encode(loader.encode()).decode()
+    command = (
+        '@echo off\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="" exit /b 1\r\n'
+        f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{encoded}'))\" {hashlib.sha256(payload).hexdigest()} --run-two-gets < \"%~dp0candidate.zip\"\r\n"
+        "exit /b %errorlevel%\r\n"
+    ).encode("ascii")
+    if max(map(len, command.splitlines())) > 8000:
+        raise ValueError("Windows command limit exceeded")
+    package = {
+        "candidate.zip": payload,
+        "RUN_WORKER.cmd": command,
+        "PROBE.ps1": git("show", f"{revision}:tools/windows-demo-accounted-probe/PROBE.ps1"),
+        "INSTALL_INSPECTION.ps1": git(
+            "show", f"{revision}:tools/windows-demo-read-install/INSTALL_INSPECTION.ps1"
+        ),
+        "README_KO.md": git("show", f"{revision}:RUNTIME_ACCOUNTED_READ_PROBE_KO.md"),
+        "SOURCE_REFERENCE.json": json.dumps(
+            dict(source_reference=revision, installed_files=installed), sort_keys=True, indent=2
+        ).encode(),
+    }
+    manifest = json.dumps(dict(files=hashes(package)), sort_keys=True, indent=2).encode()
+    package["TRANSFER_MANIFEST.json"] = manifest
+    package["RUN_PROBE.cmd"] = (
+        '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0PROBE.ps1" '
+        f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
+    ).encode("ascii")
+    folder = "windows-demo-accounted-read-probe-20261112"
+    output.mkdir(parents=True, exist_ok=True)
+    destination = output / (folder + ".zip")
+    with destination.open("xb") as stream:
+        stream.write(archive({folder + "/" + name: body for name, body in package.items()}))
+    print(
+        json.dumps(
+            dict(
+                artifact=str(destination),
+                sha256=hashlib.sha256(destination.read_bytes()).hexdigest(),
+                source=revision,
+            )
+        )
+    )
+    return destination
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--ref", required=True)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    build(args.ref, args.output)
