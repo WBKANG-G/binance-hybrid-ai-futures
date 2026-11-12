@@ -67,3 +67,19 @@ def test_recovery_bundle_has_explicit_entrypoint_and_wait_flag(tmp_path, monkeyp
                 json.loads(inner.read("CANDIDATE_MANIFEST.json"))["operation"]
                 == "recover-unused-clock"
             )
+
+
+def test_apply_bundle_has_distinct_entrypoint_without_recovery(tmp_path, monkeypatch):
+    mock_git(monkeypatch, Path("scripts/demo_read_candidate_loader.py").read_bytes())
+    result = builder.build("ref", tmp_path, apply_audit=True)
+    with zipfile.ZipFile(result) as z:
+        prefix = "windows-demo-read-audit-apply-20261112/"
+        assert b"-AuditApply" in z.read(prefix + "RUN_APPLY.cmd")
+        assert prefix + "RUN_RECOVER.cmd" not in z.namelist()
+        with zipfile.ZipFile(io.BytesIO(z.read(prefix + "candidate.zip"))) as inner:
+            assert json.loads(inner.read("CANDIDATE_MANIFEST.json"))["operation"] == "apply-audit"
+
+
+def test_apply_and_recovery_cannot_be_mixed(tmp_path):
+    with pytest.raises(ValueError, match="one explicit"):
+        builder.build("ref", tmp_path, recover=True, apply_audit=True)

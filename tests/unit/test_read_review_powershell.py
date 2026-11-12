@@ -45,6 +45,21 @@ def execute(tmp_path, fault=None):
             + status
             + "'\nexit 2\nfi\necho CANDIDATE_TEST_OK\nexit 0\n"
         )
+    if fault in {"audit", "audit_bad"}:
+        report = json.dumps(
+            dict(
+                read_deployment_review="AUDIT_CONFIGURED_KEEP_PAUSED",
+                audit_postcheck_passed=fault == "audit",
+                orders_enabled=False,
+                live_trading_enabled=False,
+                execution_approved=False,
+            )
+        )
+        candidate.write_text(
+            "#!/bin/sh\ntest \"$2\" = '--readers-stopped' || exit 9\necho '"
+            + report
+            + "'\nexit 0\n"
+        )
     body = json.dumps(
         dict(
             files={
@@ -92,6 +107,7 @@ def execute(tmp_path, fault=None):
         + "' -ManifestSHA256 "
         + expected
         + (" -WaitStartupHold" if fault == "startup" else "")
+        + (" -AuditApply" if fault in {"audit", "audit_bad"} else "")
         + "\nexit $LASTEXITCODE\n"
     )
     return subprocess.run(
@@ -120,6 +136,19 @@ def test_runner_continues_only_expected_startup_hold(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert "STARTUP_HOLD_KEEP_PAUSED_NO_ORDERS" in result.stdout
     assert "UNUSED_CLOCK_RECOVERED_CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED" in result.stdout
+
+
+def test_apply_runner_checks_postcheck_and_uses_distinct_success_marker(tmp_path):
+    result = execute(tmp_path, "audit")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "AUDIT_SCHEMA_AND_BINDING_CONFIGURED_KEEP_PAUSED_NO_ORDERS" in result.stdout
+    assert "NO_AUDIT_APPLY" not in result.stdout
+
+
+def test_apply_runner_does_not_accept_failed_postcheck_or_deny_attempt(tmp_path):
+    result = execute(tmp_path, "audit_bad")
+    assert result.returncode == 1
+    assert '"audit_apply_attempted":true' in result.stdout
 
 
 @pytest.mark.parametrize(

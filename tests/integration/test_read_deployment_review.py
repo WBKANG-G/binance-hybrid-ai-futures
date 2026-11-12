@@ -159,3 +159,62 @@ def test_explicit_recovery_bundle_waits_then_reaches_plan_without_audit_apply(ca
     assert final["read_deployment_review"] == "CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED"
     assert not final["shared_journal_changed"] and not final["audit_apply_attempted"]
     assert final["audit_binding_required"] and not final["audit_binding_created"]
+
+
+def enable_apply(case):
+    from services.execution.demo_runtime_storage import RUNTIME_STORAGE_KEY
+
+    a, root, _ = case
+    manifest = json.loads((root / "CANDIDATE_MANIFEST.json").read_text())
+    manifest["operation"] = "apply-audit"
+    (root / "CANDIDATE_MANIFEST.json").write_text(json.dumps(manifest))
+    with a[1].engine.begin() as c:
+        raw = c.execute(select(accounts.c.state)).scalar_one()
+        record = json.loads(raw["operations"][deployment.SETUP_KEY])
+        record.update(
+            stage="PREPARED",
+            anchor_installation=str(a[1].installation_id()),
+            expected_runtime_binding=raw["operations"][RUNTIME_STORAGE_KEY],
+        )
+        raw["operations"][deployment.SETUP_KEY] = json.dumps(record)
+        c.execute(update(accounts).values(state=raw))
+
+
+def test_apply_bundle_requires_operator_reader_stop_flag_before_database(candidate, monkeypatch):
+    enable_apply(candidate)
+    monkeypatch.setattr(deployment, "create_engine", lambda *a, **kw: pytest.fail("DB opened"))
+    with pytest.raises(LocalQuotaStopped, match="READERS_STOPPED_REQUIRED"):
+        run(candidate)
+
+
+def test_apply_bundle_creates_audit_only_rechecks_and_is_idempotent(candidate):
+    from packages.persistence.demo_read_audit import read_bindings, read_events
+
+    enable_apply(candidate)
+    a, root, installed = candidate
+    before = state(a)
+    current = RuntimeClocks(a[2].mono, a[2].utc, lambda: "test-boot")
+    first = deployment.review(root, installed_root=installed, clocks=current, readers_stopped=True)
+    assert first["read_deployment_review"] == "AUDIT_CONFIGURED_KEEP_PAUSED"
+    assert first["audit_schema_created"] and first["audit_binding_created"]
+    assert first["audit_postcheck_passed"] and first["audit_apply_attempted"]
+    assert not first["api_replaced"] and not first["orders_enabled"]
+    assert state(a) == before
+    with a[1].engine.connect() as c:
+        rows = c.execute(select(read_bindings)).all()
+        assert len(rows) == 1 and not c.execute(select(read_events)).all()
+    second = deployment.review(root, installed_root=installed, clocks=current, readers_stopped=True)
+    assert second["audit_postcheck_passed"] and not second["audit_binding_created"]
+    assert state(a) == before
+
+
+def test_apply_failure_does_not_claim_no_attempt(monkeypatch, capsys):
+    def fail(*args, progress, **kwargs):
+        progress("AUDIT_POSTCHECK")
+        raise RuntimeError("PRIVATE_DATABASE_URL")
+
+    monkeypatch.setattr(deployment, "review", fail)
+    assert deployment.main() == 1
+    result = json.loads(capsys.readouterr().out)
+    assert result["audit_apply_attempted"] and result["stage"] == "AUDIT_POSTCHECK"
+    assert "PRIVATE" not in str(result)

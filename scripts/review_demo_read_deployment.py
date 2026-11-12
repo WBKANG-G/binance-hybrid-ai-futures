@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -57,11 +58,17 @@ def review(
     installed_root: Path = Path("/app"),
     clocks: RuntimeClocks | None = None,
     status_only: bool = False,
+    readers_stopped: bool = False,
+    progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     manifest = json.loads((candidate_root / "CANDIDATE_MANIFEST.json").read_text())
     require(manifest["baseline_reference"] == SOURCE, "DEPLOYMENT_BASELINE_INVALID")
     verify_files(candidate_root, manifest["candidate_files"])
     verify_files(installed_root, manifest["installed_files"])
+    operation = manifest.get("operation", "review")
+    require(
+        operation != "apply-audit" or readers_stopped is True, "DEPLOYMENT_READERS_STOPPED_REQUIRED"
+    )
     require(
         os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "false"
         and os.getenv("TRADING_MODE", "PAPER").upper() != "LIVE",
@@ -103,7 +110,7 @@ def review(
             UUID(binding["checkpoint_installation"]),
         )
         recovery = {}
-        if manifest.get("operation", "review") == "recover-unused-clock":
+        if operation in {"recover-unused-clock", "apply-audit"}:
             require(
                 record.get("stage") == "PREPARED"
                 and record.get("anchor_installation") == str(installation)
@@ -111,6 +118,7 @@ def review(
                 == ledger.operations[RUNTIME_STORAGE_KEY],
                 "DEPLOYMENT_STORAGE_RECEIPTS_MISMATCH",
             )
+        if operation == "recover-unused-clock":
             recovery = recover_unused_clock(
                 engine,
                 ACCOUNT,
@@ -128,20 +136,44 @@ def review(
                     next_action="WAIT_THEN_REVIEW_KEEP_PAUSED",
                 )
         else:
-            require(manifest.get("operation", "review") == "review", "DEPLOYMENT_OPERATION_INVALID")
+            require(operation in {"review", "apply-audit"}, "DEPLOYMENT_OPERATION_INVALID")
+        applying = operation == "apply-audit"
+        if applying and progress:
+            progress("AUDIT_APPLY")
         report = prepare_read_audit(
-            engine, ACCOUNT, STORAGE, SCOPE, journal, installation, apply=False, clocks=clocks
+            engine,
+            ACCOUNT,
+            STORAGE,
+            SCOPE,
+            journal,
+            installation,
+            apply=applying,
+            readers_stopped=readers_stopped if applying else False,
+            clocks=clocks,
         )
+        if applying:
+            if progress:
+                progress("AUDIT_POSTCHECK")
+            post = prepare_read_audit(
+                engine, ACCOUNT, STORAGE, SCOPE, journal, installation, apply=False, clocks=clocks
+            )
+            require(
+                not post["audit_schema_required"] and not post["audit_binding_required"],
+                "DEPLOYMENT_AUDIT_POSTCHECK_FAILED",
+            )
+            report["audit_postcheck_passed"] = True
         return (
             report
             | recovery
             | dict(
-                read_deployment_review="CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED",
+                read_deployment_review="AUDIT_CONFIGURED_KEEP_PAUSED"
+                if applying
+                else "CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED",
                 baseline_source_verified=True,
                 candidate_source_verified=True,
                 candidate_reference=manifest["candidate_reference"],
                 api_replaced=False,
-                audit_apply_attempted=False,
+                audit_apply_attempted=applying,
                 full_deployment_completed=False,
             )
         )
@@ -150,9 +182,13 @@ def review(
 
 
 def main() -> int:
+    stage = ["SOURCE_AND_CONTEXT_VALIDATION"]
     try:
         report = review(
-            Path(__file__).resolve().parents[1], status_only=sys.argv[2:] == ["--status"]
+            Path(__file__).resolve().parents[1],
+            status_only=sys.argv[2:] == ["--status"],
+            readers_stopped=sys.argv[2:] == ["--readers-stopped"],
+            progress=lambda value: stage.__setitem__(0, value),
         )
         code = 2 if report["read_deployment_review"] == "WAIT_STARTUP_HOLD" else 0
     except Exception as error:
@@ -168,13 +204,14 @@ def main() -> int:
             read_deployment_review="BLOCKED_KEEP_PAUSED",
             stop_reason=reason,
             api_replaced=False,
-            audit_apply_attempted=False,
+            audit_apply_attempted=stage[0] in {"AUDIT_APPLY", "AUDIT_POSTCHECK"},
             order_writes=0,
             orders_enabled=False,
             live_trading_enabled=False,
             execution_approved=False,
             next_action="SHARE_OUTPUT_NO_AUTOMATIC_RETRY",
-            resource_changes="UNKNOWN_IF_RECOVERY_STARTED",
+            resource_changes="UNKNOWN_IF_LOCAL_APPLY_STARTED",
+            stage=stage[0],
         )
         code = 1
     print(json.dumps(report, sort_keys=True, allow_nan=False))

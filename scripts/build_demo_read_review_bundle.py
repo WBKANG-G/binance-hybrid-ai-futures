@@ -44,7 +44,9 @@ def archive(files: dict[str, bytes]) -> bytes:
     return out.getvalue()
 
 
-def build(ref: str, output: Path, *, recover: bool = False) -> Path:
+def build(ref: str, output: Path, *, recover: bool = False, apply_audit: bool = False) -> Path:
+    if recover and apply_audit:
+        raise ValueError("Choose one explicit operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     files = source(revision)
     installed = json.loads(
@@ -56,7 +58,11 @@ def build(ref: str, output: Path, *, recover: bool = False) -> Path:
             baseline_reference=BASELINE,
             candidate_files=hashes(files),
             installed_files=installed,
-            operation="recover-unused-clock" if recover else "review",
+            operation="apply-audit"
+            if apply_audit
+            else "recover-unused-clock"
+            if recover
+            else "review",
         ),
         sort_keys=True,
     ).encode()
@@ -88,21 +94,31 @@ def build(ref: str, output: Path, *, recover: bool = False) -> Path:
         "README_KO.md": git(
             "show",
             f"{revision}:"
-            + ("RUNTIME_UNUSED_CLOCK_REVIEW_KO.md" if recover else "RUNTIME_READ_DEPLOYMENT_KO.md"),
+            + (
+                "RUNTIME_READ_AUDIT_APPLY_KO.md"
+                if apply_audit
+                else "RUNTIME_UNUSED_CLOCK_REVIEW_KO.md"
+                if recover
+                else "RUNTIME_READ_DEPLOYMENT_KO.md"
+            ),
         ),
     }
     manifest = json.dumps(dict(files=hashes(package)), sort_keys=True, indent=2).encode()
     package["TRANSFER_MANIFEST.json"] = manifest
-    package["RUN_RECOVER.cmd" if recover else "RUN_REVIEW.cmd"] = (
+    package[
+        "RUN_APPLY.cmd" if apply_audit else "RUN_RECOVER.cmd" if recover else "RUN_REVIEW.cmd"
+    ] = (
         "@echo off\r\n"
         'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0REVIEW.ps1" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}"
-        + (" -WaitStartupHold" if recover else "")
+        + (" -AuditApply" if apply_audit else " -WaitStartupHold" if recover else "")
         + "\r\n"
         "exit /b %errorlevel%\r\n"
     ).encode("ascii")
     folder_name = (
-        "windows-demo-unused-clock-review-20261112"
+        "windows-demo-read-audit-apply-20261112"
+        if apply_audit
+        else "windows-demo-unused-clock-review-20261112"
         if recover
         else "windows-demo-read-deployment-review-20261112"
     )
@@ -127,5 +143,6 @@ if __name__ == "__main__":
     parser.add_argument("--ref", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--recover-unused-clock", action="store_true")
+    parser.add_argument("--apply-audit", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output, recover=args.recover_unused_clock)
+    build(args.ref, args.output, recover=args.recover_unused_clock, apply_audit=args.apply_audit)
