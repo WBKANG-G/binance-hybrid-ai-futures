@@ -10,7 +10,7 @@ from scripts.build_demo_read_review_bundle import BASELINE, archive, git, hashes
 from scripts.review_demo_read_code_install import INSTALL_FILES
 
 
-def build(ref: str, output: Path) -> Path:
+def build(ref: str, output: Path, *, diagnostic: bool = False) -> Path:
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     files = source(revision)
     installed = json.loads(
@@ -57,19 +57,43 @@ def build(ref: str, output: Path) -> Path:
             sort_keys=True,
             indent=2,
         ).encode(),
-        "README_KO.md": git("show", f"{revision}:RUNTIME_READ_CODE_INSTALL_KO.md"),
+        "README_KO.md": git(
+            "show",
+            f"{revision}:"
+            + (
+                "RUNTIME_READ_INSTALL_DIAGNOSTIC_KO.md"
+                if diagnostic
+                else "RUNTIME_READ_CODE_INSTALL_KO.md"
+            ),
+        ),
     }
     for name in ("INSTALL.ps1", "INSTALL_INSPECTION.ps1", "DOCKER_RECOVERY.ps1"):
         package[name] = git("show", f"{revision}:tools/windows-demo-read-install/{name}")
     package.update({"payload/" + name: body for name, body in targets.items()})
     package[".dockerignore"] = b"*\n!Dockerfile\n!payload/\n!payload/**\n"
+    if diagnostic:
+        package = {
+            n: b
+            for n, b in package.items()
+            if not n.startswith("payload/")
+            and n not in {"Dockerfile", ".dockerignore", "INSTALL.ps1", "DOCKER_RECOVERY.ps1"}
+        }
+        package["DIAGNOSE.ps1"] = git(
+            "show", f"{revision}:tools/windows-demo-read-install/DIAGNOSE.ps1"
+        )
     manifest = json.dumps(dict(files=hashes(package)), sort_keys=True, indent=2).encode()
     package["TRANSFER_MANIFEST.json"] = manifest
-    package["RUN_INSTALL.cmd"] = (
-        '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0INSTALL.ps1" '
+    package["RUN_DIAGNOSE.cmd" if diagnostic else "RUN_INSTALL.cmd"] = (
+        '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0'
+        + ("DIAGNOSE.ps1" if diagnostic else "INSTALL.ps1")
+        + '" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
-    folder = "windows-demo-read-code-install-20261112"
+    folder = (
+        "windows-demo-read-install-diagnostic-20261112"
+        if diagnostic
+        else "windows-demo-read-code-install-20261112"
+    )
     output.mkdir(parents=True, exist_ok=True)
     destination = output / (folder + ".zip")
     with destination.open("xb") as stream:
@@ -90,5 +114,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ref", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--diagnostic", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output)
+    build(args.ref, args.output, diagnostic=args.diagnostic)

@@ -42,3 +42,29 @@ def test_build_pins_six_new_files_and_never_copies_existing_sources(tmp_path, mo
             data = json.loads(inner.read("CANDIDATE_MANIFEST.json"))
             assert set(data["install_files"]) == set(builder.INSTALL_FILES)
             assert data["operation"] == "review"
+
+
+def test_diagnostic_bundle_cannot_run_install_or_build_image(tmp_path, monkeypatch):
+    loader = Path("scripts/demo_read_candidate_loader.py").read_bytes()
+
+    def git(*args):
+        if args[0] == "rev-parse":
+            return b"a" * 40
+        path = args[1].split(":", 1)[1]
+        if path.endswith("demo_read_candidate_loader.py"):
+            return loader
+        if path.endswith("INSTALLED_SOURCE_20261111.json"):
+            return json.dumps({"existing.py": "b" * 64}).encode()
+        return b"# fixture\n"
+
+    monkeypatch.setattr(builder, "git", git)
+    monkeypatch.setattr(
+        builder, "source", lambda ref: {n: b"# fixture" for n in builder.INSTALL_FILES}
+    )
+    result = builder.build("ref", tmp_path, diagnostic=True)
+    with zipfile.ZipFile(result) as z:
+        prefix = "windows-demo-read-install-diagnostic-20261112/"
+        names = {n.removeprefix(prefix) for n in z.namelist()}
+        assert "RUN_DIAGNOSE.cmd" in names and "DIAGNOSE.ps1" in names
+        assert not (names & {"RUN_INSTALL.cmd", "INSTALL.ps1", "Dockerfile", "DOCKER_RECOVERY.ps1"})
+        assert not any(n.startswith("payload/") for n in names)

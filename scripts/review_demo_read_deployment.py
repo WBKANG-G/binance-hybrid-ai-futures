@@ -63,7 +63,11 @@ def review(
 ) -> dict[str, Any]:
     manifest = json.loads((candidate_root / "CANDIDATE_MANIFEST.json").read_text())
     require(manifest["baseline_reference"] == SOURCE, "DEPLOYMENT_BASELINE_INVALID")
+    if progress:
+        progress("CANDIDATE_SOURCE_VALIDATION")
     verify_files(candidate_root, manifest["candidate_files"])
+    if progress:
+        progress("INSTALLED_SOURCE_VALIDATION")
     verify_files(installed_root, manifest["installed_files"])
     operation = manifest.get("operation", "review")
     require(
@@ -76,6 +80,8 @@ def review(
     )
     url = os.environ.get("DATABASE_URL", "")
     require(url.startswith("postgresql+psycopg://"), "DEPLOYMENT_DATABASE_CONFIGURATION_REQUIRED")
+    if progress:
+        progress("ACCOUNT_ENGINE_CREATION")
     engine = create_engine(
         url,
         poolclass=NullPool,
@@ -86,6 +92,8 @@ def review(
         },
     )
     try:
+        if progress:
+            progress("ACCOUNT_RECEIPT_READ")
         with engine.connect() as c, c.begin():
             c.execute(text("SET TRANSACTION READ ONLY"))
             row = c.execute(
@@ -140,6 +148,8 @@ def review(
         applying = operation == "apply-audit"
         if applying and progress:
             progress("AUDIT_APPLY")
+        if progress and not applying:
+            progress("STORAGE_AUDIT_PLAN")
         report = prepare_read_audit(
             engine,
             ACCOUNT,
