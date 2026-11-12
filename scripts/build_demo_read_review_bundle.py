@@ -44,7 +44,7 @@ def archive(files: dict[str, bytes]) -> bytes:
     return out.getvalue()
 
 
-def build(ref: str, output: Path) -> Path:
+def build(ref: str, output: Path, *, recover: bool = False) -> Path:
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     files = source(revision)
     installed = json.loads(
@@ -56,6 +56,7 @@ def build(ref: str, output: Path) -> Path:
             baseline_reference=BASELINE,
             candidate_files=hashes(files),
             installed_files=installed,
+            operation="recover-unused-clock" if recover else "review",
         ),
         sort_keys=True,
     ).encode()
@@ -66,7 +67,7 @@ def build(ref: str, output: Path) -> Path:
     payload_hash = hashlib.sha256(payload).hexdigest()
     candidate_cmd = (
         '@echo off\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="" exit /b 1\r\n'
-        f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{loader}'))\" {payload_hash} < \"%~dp0candidate.zip\"\r\n"
+        f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{loader}'))\" {payload_hash} %2 < \"%~dp0candidate.zip\"\r\n"
         "exit /b %errorlevel%\r\n"
     ).encode("ascii")
     if max(map(len, candidate_cmd.splitlines())) > 8000:
@@ -84,24 +85,31 @@ def build(ref: str, output: Path) -> Path:
             sort_keys=True,
             indent=2,
         ).encode(),
-        "README_KO.md": git("show", f"{revision}:RUNTIME_READ_DEPLOYMENT_KO.md"),
+        "README_KO.md": git(
+            "show",
+            f"{revision}:"
+            + ("RUNTIME_UNUSED_CLOCK_REVIEW_KO.md" if recover else "RUNTIME_READ_DEPLOYMENT_KO.md"),
+        ),
     }
     manifest = json.dumps(dict(files=hashes(package)), sort_keys=True, indent=2).encode()
     package["TRANSFER_MANIFEST.json"] = manifest
-    package["RUN_REVIEW.cmd"] = (
+    package["RUN_RECOVER.cmd" if recover else "RUN_REVIEW.cmd"] = (
         "@echo off\r\n"
         'powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0REVIEW.ps1" '
-        f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\n"
+        f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}"
+        + (" -WaitStartupHold" if recover else "")
+        + "\r\n"
         "exit /b %errorlevel%\r\n"
     ).encode("ascii")
-    destination = output / "windows-demo-read-deployment-review-20261112.zip"
+    folder_name = (
+        "windows-demo-unused-clock-review-20261112"
+        if recover
+        else "windows-demo-read-deployment-review-20261112"
+    )
+    destination = output / (folder_name + ".zip")
     output.mkdir(parents=True, exist_ok=True)
     with destination.open("xb") as stream:
-        stream.write(
-            archive(
-                {"windows-demo-read-deployment-review-20261112/" + n: b for n, b in package.items()}
-            )
-        )
+        stream.write(archive({folder_name + "/" + n: b for n, b in package.items()}))
     print(
         json.dumps(
             dict(
@@ -118,5 +126,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ref", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--recover-unused-clock", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output)
+    build(args.ref, args.output, recover=args.recover_unused_clock)

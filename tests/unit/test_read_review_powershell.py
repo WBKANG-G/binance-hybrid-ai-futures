@@ -27,6 +27,24 @@ def execute(tmp_path, fault=None):
         + "\n"
     )
     candidate.chmod(0o700)
+    if fault == "startup":
+        status = json.dumps(
+            dict(
+                read_deployment_review="WAIT_STARTUP_HOLD",
+                orders_enabled=False,
+                live_trading_enabled=False,
+                execution_approved=False,
+            )
+        )
+        candidate.write_text(
+            "#!/bin/sh\nif [ ! -f '"
+            + str(root / "called")
+            + "' ]; then\ntouch '"
+            + str(root / "called")
+            + "'\necho '"
+            + status
+            + "'\nexit 2\nfi\necho CANDIDATE_TEST_OK\nexit 0\n"
+        )
     body = json.dumps(
         dict(
             files={
@@ -73,6 +91,7 @@ def execute(tmp_path, fault=None):
         + str(root / "REVIEW.ps1")
         + "' -ManifestSHA256 "
         + expected
+        + (" -WaitStartupHold" if fault == "startup" else "")
         + "\nexit $LASTEXITCODE\n"
     )
     return subprocess.run(
@@ -94,6 +113,13 @@ def test_runner_validates_metadata_and_passes_fixed_container_id(tmp_path):
     assert result.returncode == 0, result.stdout + result.stderr
     assert "CANDIDATE_PLAN_VERIFIED_NO_API_REPLACEMENT_NO_AUDIT_APPLY" in result.stdout
     assert "PRIVATE" not in result.stdout + result.stderr
+
+
+def test_runner_continues_only_expected_startup_hold(tmp_path):
+    result = execute(tmp_path, "startup")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "STARTUP_HOLD_KEEP_PAUSED_NO_ORDERS" in result.stdout
+    assert "UNUSED_CLOCK_RECOVERED_CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED" in result.stdout
 
 
 @pytest.mark.parametrize(

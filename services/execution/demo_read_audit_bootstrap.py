@@ -54,6 +54,45 @@ def _validate_schema(connection: Connection) -> None:
     )
 
 
+def validate_account_row(
+    row: Any, scope: str, journal: UUID, installation: UUID, clock: RuntimeClocks
+) -> None:
+    ledger = DemoLedger.model_validate(row["state"])
+    require(
+        row["owner"] is None
+        and (row["lease_until"] is None or row["lease_until"] <= clock.wall_clock()),
+        "READ_SETUP_ACTIVE_OWNER",
+    )
+    require(
+        ledger.paused and ledger.risk_state.value == "NORMAL",
+        "READ_SETUP_PAUSED_NORMAL_REQUIRED",
+    )
+    require(
+        not any(ledger.positions.values())
+        and all(
+            not o.remaining and not o.open_quantity and o.position_state.value == "CLOSED"
+            for o in ledger.orders.values()
+        ),
+        "READ_SETUP_LOCAL_FLAT_REQUIRED",
+    )
+    require(
+        period_keys(clock.wall_clock(), ledger.policy.week_start_kst)
+        == (ledger.daily_key, ledger.weekly_key),
+        "READ_SETUP_PERIOD_MISMATCH",
+    )
+    expected = dict(
+        version=1,
+        scope=scope,
+        journal=str(journal),
+        checkpoint_installation=str(installation),
+        policy=POLICY,
+    )
+    require(
+        json.loads(ledger.operations.get(RUNTIME_STORAGE_KEY, "{}")) == expected,
+        "READ_SETUP_ACCOUNT_BINDING_MISMATCH",
+    )
+
+
 def prepare_read_audit(
     engine: Engine,
     account: str,
@@ -91,40 +130,7 @@ def prepare_read_audit(
             .mappings()
             .one()
         )
-        ledger = DemoLedger.model_validate(row["state"])
-        require(
-            row["owner"] is None
-            and (row["lease_until"] is None or row["lease_until"] <= clock.wall_clock()),
-            "READ_SETUP_ACTIVE_OWNER",
-        )
-        require(
-            ledger.paused and ledger.risk_state.value == "NORMAL",
-            "READ_SETUP_PAUSED_NORMAL_REQUIRED",
-        )
-        require(
-            not any(ledger.positions.values())
-            and all(
-                not o.remaining and not o.open_quantity and o.position_state.value == "CLOSED"
-                for o in ledger.orders.values()
-            ),
-            "READ_SETUP_LOCAL_FLAT_REQUIRED",
-        )
-        require(
-            period_keys(clock.wall_clock(), ledger.policy.week_start_kst)
-            == (ledger.daily_key, ledger.weekly_key),
-            "READ_SETUP_PERIOD_MISMATCH",
-        )
-        expected = dict(
-            version=1,
-            scope=scope,
-            journal=str(journal),
-            checkpoint_installation=str(installation),
-            policy=POLICY,
-        )
-        require(
-            json.loads(ledger.operations.get(RUNTIME_STORAGE_KEY, "{}")) == expected,
-            "READ_SETUP_ACCOUNT_BINDING_MISMATCH",
-        )
+        validate_account_row(row, scope, journal, installation, clock)
         # Global lock serializes schema creation across cooperating scopes/accounts.
         control.execute(text("SELECT pg_advisory_xact_lock(717332001228)"))
         shared = AnchoredSharedWeightJournal(
@@ -136,6 +142,9 @@ def prepare_read_audit(
             marker = reader.checkpoint.set(cp)
             try:
                 with SharedWeightJournal._transaction(reader) as (local, meta, now):
+                    from services.execution.demo_unused_read_clock import verify_backups
+
+                    verify_backups(directory, cp, installation)
                     tables = set(inspect(cp.connection).get_table_names())
                     present = tables & {"demo_read_audit_bindings", "demo_read_audit_events"}
                     require(len(present) in (0, 2), "READ_SETUP_PARTIAL_SCHEMA")

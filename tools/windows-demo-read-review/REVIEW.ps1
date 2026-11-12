@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ManifestSHA256)
+param([Parameter(Mandatory=$true)][string]$ManifestSHA256, [switch]$WaitStartupHold)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $stage = 'TRANSFER_VERIFICATION'
@@ -24,13 +24,29 @@ try {
     if ($d.State.Running -ne $true -or $d.State.Health.Status -ne 'healthy') { throw 'API_CONTAINER_NOT_HEALTHY' }
     if ($d.Config.WorkingDir -ne '/app' -or $d.Config.User -notin @('10001','10001:10001')) { throw 'API_EXECUTION_CONTEXT_MISMATCH' }
     $stage = 'CANDIDATE_LOCAL_REVIEW'
-    & (Join-Path $root 'RUN_CANDIDATE.cmd') $d.Id
-    if ($LASTEXITCODE -ne 0) { throw 'CANDIDATE_REVIEW_BLOCKED' }
-    Write-Host 'CANDIDATE_PLAN_VERIFIED_NO_API_REPLACEMENT_NO_AUDIT_APPLY'
+    $watch = [Diagnostics.Stopwatch]::StartNew()
+    $waiting = $false
+    while ($true) {
+        $candidateArgs = @($d.Id)
+        if ($waiting) { $candidateArgs += '--status' }
+        $output = @(& (Join-Path $root 'RUN_CANDIDATE.cmd') @candidateArgs)
+        $code = $LASTEXITCODE
+        $output | Write-Host
+        if ($code -eq 0) { break }
+        if ($code -ne 2 -or -not $WaitStartupHold) { throw 'CANDIDATE_REVIEW_BLOCKED' }
+        $status = ($output -join "`n") | ConvertFrom-Json
+        if ($status.read_deployment_review -ne 'WAIT_STARTUP_HOLD' -or $status.orders_enabled -ne $false -or $status.live_trading_enabled -ne $false -or $status.execution_approved -ne $false) { throw 'CANDIDATE_REVIEW_BLOCKED' }
+        if ($watch.Elapsed.TotalSeconds -ge 120) { throw 'STARTUP_HOLD_TIMEOUT' }
+        Write-Host 'STARTUP_HOLD_KEEP_PAUSED_NO_ORDERS'
+        $waiting = $true
+        Start-Sleep -Seconds 3
+    }
+    if ($WaitStartupHold) { Write-Host 'UNUSED_CLOCK_RECOVERED_CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED' }
+    else { Write-Host 'CANDIDATE_PLAN_VERIFIED_NO_API_REPLACEMENT_NO_AUDIT_APPLY' }
     exit 0
 } catch {
     $reason = 'DEPLOYMENT_RUNNER_UNAVAILABLE'
-    $allowed = @('TRANSFER_MANIFEST_HASH_MISMATCH','TRANSFER_PATH_INVALID','TRANSFER_FILE_HASH_MISMATCH','API_CONTAINER_INSPECTION_FAILED','API_CONTAINER_IDENTITY_MISMATCH','API_CONTAINER_NOT_HEALTHY','API_EXECUTION_CONTEXT_MISMATCH','CANDIDATE_REVIEW_BLOCKED')
+    $allowed = @('TRANSFER_MANIFEST_HASH_MISMATCH','TRANSFER_PATH_INVALID','TRANSFER_FILE_HASH_MISMATCH','API_CONTAINER_INSPECTION_FAILED','API_CONTAINER_IDENTITY_MISMATCH','API_CONTAINER_NOT_HEALTHY','API_EXECUTION_CONTEXT_MISMATCH','CANDIDATE_REVIEW_BLOCKED','STARTUP_HOLD_TIMEOUT')
     if ($allowed -contains $_.Exception.Message) { $reason = $_.Exception.Message }
     [pscustomobject]@{read_deployment_review='BLOCKED_KEEP_PAUSED';stage=$stage;stop_reason=$reason;api_replaced=$false;audit_apply_attempted=$false;orders_enabled=$false;live_trading_enabled=$false;execution_approved=$false;next_action='SHARE_OUTPUT_NO_AUTOMATIC_RETRY'} | ConvertTo-Json -Compress | Write-Host
     exit 1

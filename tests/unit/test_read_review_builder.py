@@ -53,3 +53,17 @@ def test_oversized_loader_is_refused_before_creating_bundle(tmp_path, monkeypatc
     with pytest.raises(ValueError, match="Windows command limit"):
         builder.build("ref", tmp_path / "output")
     assert not (tmp_path / "output").exists()
+
+
+def test_recovery_bundle_has_explicit_entrypoint_and_wait_flag(tmp_path, monkeypatch):
+    mock_git(monkeypatch, Path("scripts/demo_read_candidate_loader.py").read_bytes())
+    result = builder.build("ref", tmp_path, recover=True)
+    with zipfile.ZipFile(result) as z:
+        prefix = "windows-demo-unused-clock-review-20261112/"
+        assert b"-WaitStartupHold" in z.read(prefix + "RUN_RECOVER.cmd")
+        assert prefix + "RUN_REVIEW.cmd" not in z.namelist()
+        with zipfile.ZipFile(io.BytesIO(z.read(prefix + "candidate.zip"))) as inner:
+            assert (
+                json.loads(inner.read("CANDIDATE_MANIFEST.json"))["operation"]
+                == "recover-unused-clock"
+            )

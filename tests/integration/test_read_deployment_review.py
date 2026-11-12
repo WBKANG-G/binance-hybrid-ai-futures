@@ -125,3 +125,37 @@ def test_main_redacts_unexpected_failure(monkeypatch, capsys):
     report = json.loads(capsys.readouterr().out)
     assert report["stop_reason"] == "DEPLOYMENT_REVIEW_UNAVAILABLE"
     assert "PRIVATE" not in str(report)
+
+
+def test_explicit_recovery_bundle_waits_then_reaches_plan_without_audit_apply(candidate):
+    from dataclasses import replace
+
+    a, root, installed = candidate
+    manifest = json.loads((root / "CANDIDATE_MANIFEST.json").read_text())
+    manifest["operation"] = "recover-unused-clock"
+    (root / "CANDIDATE_MANIFEST.json").write_text(json.dumps(manifest))
+    with a[1].engine.begin() as c:
+        raw = c.execute(select(accounts.c.state)).scalar_one()
+        receipt = json.loads(raw["operations"][deployment.SETUP_KEY])
+        from services.execution.demo_runtime_storage import RUNTIME_STORAGE_KEY
+
+        binding = raw["operations"][RUNTIME_STORAGE_KEY]
+        receipt.update(
+            stage="PREPARED",
+            anchor_installation=str(a[1].installation_id()),
+            expected_runtime_binding=binding,
+        )
+        raw["operations"][deployment.SETUP_KEY] = json.dumps(receipt)
+        c.execute(update(accounts).values(state=raw))
+    current = replace(
+        RuntimeClocks(a[2].mono, a[2].utc, lambda: "test-boot"), boot=lambda: "new-boot"
+    )
+    first = deployment.review(root, installed_root=installed, clocks=current)
+    assert (
+        first["read_deployment_review"] == "WAIT_STARTUP_HOLD" and first["shared_journal_changed"]
+    )
+    a[2].seconds += 70.002
+    final = deployment.review(root, installed_root=installed, clocks=current)
+    assert final["read_deployment_review"] == "CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED"
+    assert not final["shared_journal_changed"] and not final["audit_apply_attempted"]
+    assert final["audit_binding_required"] and not final["audit_binding_created"]

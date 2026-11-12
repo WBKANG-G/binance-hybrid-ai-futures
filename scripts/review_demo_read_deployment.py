@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -15,6 +16,7 @@ from packages.persistence.demo_order_quota import LocalQuotaStopped
 from services.execution.demo_models import DemoLedger
 from services.execution.demo_read_audit_bootstrap import prepare_read_audit
 from services.execution.demo_runtime_storage import RUNTIME_STORAGE_KEY, RuntimeClocks
+from services.execution.demo_unused_read_clock import recover_unused_clock
 
 ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
 SCOPE = "DEMO-WINDOWS-TP-MANAGED-WRITERS-V1"
@@ -54,6 +56,7 @@ def review(
     *,
     installed_root: Path = Path("/app"),
     clocks: RuntimeClocks | None = None,
+    status_only: bool = False,
 ) -> dict[str, Any]:
     manifest = json.loads((candidate_root / "CANDIDATE_MANIFEST.json").read_text())
     require(manifest["baseline_reference"] == SOURCE, "DEPLOYMENT_BASELINE_INVALID")
@@ -99,17 +102,48 @@ def review(
             UUID(record["shared_journal"]),
             UUID(binding["checkpoint_installation"]),
         )
+        recovery = {}
+        if manifest.get("operation", "review") == "recover-unused-clock":
+            require(
+                record.get("stage") == "PREPARED"
+                and record.get("anchor_installation") == str(installation)
+                and record.get("expected_runtime_binding")
+                == ledger.operations[RUNTIME_STORAGE_KEY],
+                "DEPLOYMENT_STORAGE_RECEIPTS_MISMATCH",
+            )
+            recovery = recover_unused_clock(
+                engine,
+                ACCOUNT,
+                STORAGE,
+                SCOPE,
+                journal,
+                installation,
+                apply=True,
+                status_only=status_only,
+                clocks=clocks,
+            )
+            if not recovery["startup_ready"]:
+                return recovery | dict(
+                    read_deployment_review="WAIT_STARTUP_HOLD",
+                    next_action="WAIT_THEN_REVIEW_KEEP_PAUSED",
+                )
+        else:
+            require(manifest.get("operation", "review") == "review", "DEPLOYMENT_OPERATION_INVALID")
         report = prepare_read_audit(
             engine, ACCOUNT, STORAGE, SCOPE, journal, installation, apply=False, clocks=clocks
         )
-        return report | dict(
-            read_deployment_review="CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED",
-            baseline_source_verified=True,
-            candidate_source_verified=True,
-            candidate_reference=manifest["candidate_reference"],
-            api_replaced=False,
-            audit_apply_attempted=False,
-            full_deployment_completed=False,
+        return (
+            report
+            | recovery
+            | dict(
+                read_deployment_review="CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED",
+                baseline_source_verified=True,
+                candidate_source_verified=True,
+                candidate_reference=manifest["candidate_reference"],
+                api_replaced=False,
+                audit_apply_attempted=False,
+                full_deployment_completed=False,
+            )
         )
     finally:
         engine.dispose()
@@ -117,8 +151,10 @@ def review(
 
 def main() -> int:
     try:
-        report = review(Path(__file__).resolve().parents[1])
-        code = 0
+        report = review(
+            Path(__file__).resolve().parents[1], status_only=sys.argv[2:] == ["--status"]
+        )
+        code = 2 if report["read_deployment_review"] == "WAIT_STARTUP_HOLD" else 0
     except Exception as error:
         import re
 
@@ -138,6 +174,7 @@ def main() -> int:
             live_trading_enabled=False,
             execution_approved=False,
             next_action="SHARE_OUTPUT_NO_AUTOMATIC_RETRY",
+            resource_changes="UNKNOWN_IF_RECOVERY_STARTED",
         )
         code = 1
     print(json.dumps(report, sort_keys=True, allow_nan=False))
