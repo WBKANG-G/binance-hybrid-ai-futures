@@ -1,0 +1,46 @@
+{
+  "artifact_sha256": "788f97733f44d22809435d80466a27dc54d011817da48cfef5626a6443f2f3dc",
+  "source": "fb371aeabcc9c4611d7b7d20def1a4e3edeaa41d",
+  "cases": [
+    {
+      "case": "success",
+      "passed": true,
+      "all_original_database_rows_storage_and_source_files_preserved": true,
+      "original_restart_policy_restored_or_preserved": true,
+      "backup_or_failed_candidate_restart_disabled": true,
+      "installed_command_verified": true,
+      "actual_api_replacement_tested": true,
+      "large_history_over_32mib": true,
+      "sql_statement_timeout_seconds": 2,
+      "actual_rollback_tested": false,
+      "exchange_http_attempts": 0,
+      "order_writes": 0,
+      "user_pc_tested": false,
+      "windows_cmd_tested": false,
+      "linux_powershell7_with_native_cmd_shim": true
+    },
+    {
+      "case": "postcheck_fault",
+      "passed": true,
+      "all_original_database_rows_storage_and_source_files_preserved": true,
+      "original_restart_policy_restored_or_preserved": true,
+      "backup_or_failed_candidate_restart_disabled": true,
+      "installed_command_verified": false,
+      "actual_api_replacement_tested": true,
+      "large_history_over_32mib": true,
+      "sql_statement_timeout_seconds": 2,
+      "actual_rollback_tested": true,
+      "exchange_http_attempts": 0,
+      "order_writes": 0,
+      "user_pc_tested": false,
+      "windows_cmd_tested": false,
+      "linux_powershell7_with_native_cmd_shim": true
+    }
+  ],
+  "passed": true,
+  "exchange_http_attempts": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
