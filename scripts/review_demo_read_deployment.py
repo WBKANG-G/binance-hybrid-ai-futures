@@ -1,0 +1,148 @@
+"""Windows candidate-only read deployment review; no installation or audit apply."""
+
+import hashlib
+import json
+import os
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+from sqlalchemy import create_engine, select, text
+from sqlalchemy.pool import NullPool
+
+from packages.persistence.demo import accounts
+from packages.persistence.demo_order_quota import LocalQuotaStopped
+from services.execution.demo_models import DemoLedger
+from services.execution.demo_read_audit_bootstrap import prepare_read_audit
+from services.execution.demo_runtime_storage import RUNTIME_STORAGE_KEY, RuntimeClocks
+
+ACCOUNT = "DEMO-WINDOWS-ISOLATED-BTC-V1"
+SCOPE = "DEMO-WINDOWS-TP-MANAGED-WRITERS-V1"
+SETUP_KEY = "MANAGED_RUNTIME:STORAGE_SETUP_20261111_V1"
+SOURCE = "e03b6ba683732cd5872c30cf0d245a5b1fb6d325"
+STORAGE = Path("/app/demo-export-state/demo-runtime-20261111/shared-weight")
+
+
+def require(ok: bool, code: str) -> None:
+    if not ok:
+        raise LocalQuotaStopped(code)
+
+
+def verify_files(root: Path, files: dict[str, str]) -> None:
+    require(isinstance(files, dict) and 1 <= len(files) <= 512, "DEPLOYMENT_MANIFEST_INVALID")
+    for name, expected in files.items():
+        relative = Path(name)
+        require(
+            not relative.is_absolute() and ".." not in relative.parts, "DEPLOYMENT_MANIFEST_INVALID"
+        )
+        path = root / relative
+        require(
+            path.resolve().is_relative_to(root.resolve())
+            and path.is_file()
+            and not path.is_symlink(),
+            "DEPLOYMENT_SOURCE_MISSING",
+        )
+        require(path.stat().st_size <= 2 * 1024 * 1024, "DEPLOYMENT_SOURCE_SIZE_INVALID")
+        require(
+            hashlib.sha256(path.read_bytes()).hexdigest() == expected,
+            "DEPLOYMENT_SOURCE_HASH_MISMATCH",
+        )
+
+
+def review(
+    candidate_root: Path,
+    *,
+    installed_root: Path = Path("/app"),
+    clocks: RuntimeClocks | None = None,
+) -> dict[str, Any]:
+    manifest = json.loads((candidate_root / "CANDIDATE_MANIFEST.json").read_text())
+    require(manifest["baseline_reference"] == SOURCE, "DEPLOYMENT_BASELINE_INVALID")
+    verify_files(candidate_root, manifest["candidate_files"])
+    verify_files(installed_root, manifest["installed_files"])
+    require(
+        os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "false"
+        and os.getenv("TRADING_MODE", "PAPER").upper() != "LIVE",
+        "DEPLOYMENT_LIVE_CONTEXT_FORBIDDEN",
+    )
+    url = os.environ.get("DATABASE_URL", "")
+    require(url.startswith("postgresql+psycopg://"), "DEPLOYMENT_DATABASE_CONFIGURATION_REQUIRED")
+    engine = create_engine(
+        url,
+        poolclass=NullPool,
+        hide_parameters=True,
+        connect_args={
+            "connect_timeout": 5,
+            "options": "-c statement_timeout=2000 -c lock_timeout=2000",
+        },
+    )
+    try:
+        with engine.connect() as c, c.begin():
+            c.execute(text("SET TRANSACTION READ ONLY"))
+            row = c.execute(
+                select(accounts.c.state).where(accounts.c.account_id == ACCOUNT)
+            ).scalar_one()
+            ledger = DemoLedger.model_validate(row)
+        record = json.loads(ledger.operations.get(SETUP_KEY, "{}"))
+        binding = json.loads(ledger.operations.get(RUNTIME_STORAGE_KEY, "{}"))
+        require(
+            type(record.get("version")) is int
+            and record["version"] == 1
+            and record.get("account") == ACCOUNT
+            and record.get("source") == SOURCE
+            and record.get("scope") == SCOPE
+            and record.get("directory") == "demo-runtime-20261111"
+            and binding.get("scope") == SCOPE
+            and binding.get("journal") == record.get("shared_journal"),
+            "DEPLOYMENT_STORAGE_RECEIPTS_MISMATCH",
+        )
+        journal, installation = (
+            UUID(record["shared_journal"]),
+            UUID(binding["checkpoint_installation"]),
+        )
+        report = prepare_read_audit(
+            engine, ACCOUNT, STORAGE, SCOPE, journal, installation, apply=False, clocks=clocks
+        )
+        return report | dict(
+            read_deployment_review="CANDIDATE_PLAN_VERIFIED_KEEP_PAUSED",
+            baseline_source_verified=True,
+            candidate_source_verified=True,
+            candidate_reference=manifest["candidate_reference"],
+            api_replaced=False,
+            audit_apply_attempted=False,
+            full_deployment_completed=False,
+        )
+    finally:
+        engine.dispose()
+
+
+def main() -> int:
+    try:
+        report = review(Path(__file__).resolve().parents[1])
+        code = 0
+    except Exception as error:
+        import re
+
+        reason = (
+            str(error)
+            if isinstance(error, LocalQuotaStopped)
+            and re.fullmatch(r"[A-Z][A-Z0-9_]{1,100}", str(error))
+            else "DEPLOYMENT_REVIEW_UNAVAILABLE"
+        )
+        report = dict(
+            read_deployment_review="BLOCKED_KEEP_PAUSED",
+            stop_reason=reason,
+            api_replaced=False,
+            audit_apply_attempted=False,
+            order_writes=0,
+            orders_enabled=False,
+            live_trading_enabled=False,
+            execution_approved=False,
+            next_action="SHARE_OUTPUT_NO_AUTOMATIC_RETRY",
+        )
+        code = 1
+    print(json.dumps(report, sort_keys=True, allow_nan=False))
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
