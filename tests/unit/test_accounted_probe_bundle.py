@@ -16,9 +16,9 @@ from scripts import build_demo_accounted_probe_bundle as builder
 from tests.unit.test_read_install_powershell import PWSH
 
 
-@pytest.mark.parametrize("recover", [False, True])
+@pytest.mark.parametrize("recover,flat_review", [(False, False), (True, False), (False, True)])
 def test_deterministic_archive_pins_installed_code_and_isolates_worker(
-    tmp_path, monkeypatch, recover
+    tmp_path, monkeypatch, recover, flat_review
 ):
     def git(*args):
         if args[0] == "rev-parse":
@@ -27,12 +27,14 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(
         return Path(path).read_bytes()
 
     monkeypatch.setattr(builder, "git", git)
-    first = builder.build("ref", tmp_path / "one", recover=recover)
-    second = builder.build("ref", tmp_path / "two", recover=recover)
+    first = builder.build("ref", tmp_path / "one", recover=recover, flat_review=flat_review)
+    second = builder.build("ref", tmp_path / "two", recover=recover, flat_review=flat_review)
     assert first.read_bytes() == second.read_bytes()
     with zipfile.ZipFile(first) as z:
         prefix = (
-            "windows-demo-accounted-clock-recovery-20261112/"
+            "windows-demo-accounted-flat-review-20261112/"
+            if flat_review
+            else "windows-demo-accounted-clock-recovery-20261112/"
             if recover
             else "windows-demo-accounted-read-probe-20261112/"
         )
@@ -41,7 +43,7 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(
             assert hashlib.sha256(z.read(prefix + name)).hexdigest() == digest
         cmd = z.read(prefix + "RUN_WORKER.cmd").decode()
         assert cmd.count("docker exec") == 1 and "python -I" in cmd
-        assert ("%2 %3" if recover else "--run-two-gets") in cmd
+        assert ("%2 %3" if recover else "--review-flat" if flat_review else "--run-two-gets") in cmd
         assert max(map(len, cmd.splitlines())) < 8000
         loader = base64.b64decode(re.search(r"b64decode\('([^']+)'\)", cmd).group(1)).decode()
         assert 'sys.path.insert(0, "/app")' in loader
@@ -57,23 +59,40 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(
 
 
 @pytest.mark.skipif(not Path(PWSH).exists(), reason="PowerShell required")
+@pytest.mark.parametrize("flat_review", [False, True])
 @pytest.mark.parametrize("case", ["success", "partial", "identity", "tamper"])
-def test_powershell_validates_identity_and_never_retries(tmp_path, case):
+def test_powershell_validates_identity_and_never_retries(tmp_path, case, flat_review):
     root = tmp_path / "probe with spaces"
     root.mkdir()
+    runner = "FLAT_REVIEW" if flat_review else "PROBE"
     for name, source in [
-        ("PROBE.ps1", "tools/windows-demo-accounted-probe/PROBE.ps1"),
+        (runner + ".ps1", "tools/windows-demo-accounted-probe/" + runner + ".ps1"),
         ("INSTALL_INSPECTION.ps1", "tools/windows-demo-read-install/INSTALL_INSPECTION.ps1"),
     ]:
         (root / name).write_bytes(Path(source).read_bytes())
     report = dict(
-        accounted_read_probe="TWO_GETS_AUDITED_KEEP_PAUSED"
+        accounted_read_probe=(
+            "FIVE_GETS_FLAT_OBSERVED_KEEP_PAUSED" if flat_review else "TWO_GETS_AUDITED_KEEP_PAUSED"
+        )
         if case == "success"
         else "BLOCKED_KEEP_PAUSED",
         installed_transport_verified=True,
         orders_enabled=False,
         live_trading_enabled=False,
         execution_approved=False,
+    )
+    report.update(
+        http_attempts=5,
+        completed_reads=5,
+        modeled_weight_charged=91,
+        audit_events_added=10,
+        resource_checkpoints_added=10,
+        prior_two_get_receipt_verified=True,
+        positions_empty_at_read=True,
+        regular_orders_empty_at_read=True,
+        algo_orders_empty_at_read=True,
+        financial_ledger_unchanged_verified=True,
+        snapshot_atomic=False,
     )
     counter = tmp_path / "worker-count"
     (root / "RUN_WORKER.cmd").write_text(
@@ -113,7 +132,7 @@ def test_powershell_validates_identity_and_never_retries(tmp_path, case):
         "function global:docker { $global:LASTEXITCODE=0; Get-Content -Raw -LiteralPath '"
         + str(metadata)
         + "' }\n& '"
-        + str(root / "PROBE.ps1")
+        + str(root / (runner + ".ps1"))
         + "' -ManifestSHA256 "
         + hashlib.sha256(manifest).hexdigest()
         + "\nexit $LASTEXITCODE\n"
@@ -137,7 +156,14 @@ def test_powershell_validates_identity_and_never_retries(tmp_path, case):
         if case in ("success", "partial")
         else not counter.exists()
     )
-    assert ("TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS" in result.stdout) == (case == "success")
+    assert (
+        (
+            "FIVE_DEMO_GETS_FLAT_OBSERVED_KEEP_PAUSED_NO_ORDERS"
+            if flat_review
+            else "TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS"
+        )
+        in result.stdout
+    ) == (case == "success")
 
 
 @pytest.mark.skipif(not Path(PWSH).exists(), reason="PowerShell required")

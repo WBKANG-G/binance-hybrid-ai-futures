@@ -43,7 +43,9 @@ def fingerprint_source(source: str) -> bytes:
     return result
 
 
-def build(ref: str, output: Path, *, recover: bool = False) -> Path:
+def build(ref: str, output: Path, *, recover: bool = False, flat_review: bool = False) -> Path:
+    if recover and flat_review:
+        raise ValueError("Choose one operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
         git("show", f"{revision}:tools/windows-demo-read-review/INSTALLED_SOURCE_20261111.json")
@@ -85,8 +87,8 @@ def build(ref: str, output: Path, *, recover: bool = False) -> Path:
         'runpy.run_path(str(root / "scripts/probe_demo_accounted_reads.py"), run_name="__main__")',
     )
     encoded = base64.b64encode(loader.encode()).decode()
-    worker_args = "%2 %3" if recover else "--run-two-gets"
-    runner = "RECOVER_AND_PROBE" if recover else "PROBE"
+    worker_args = "%2 %3" if recover else "--review-flat" if flat_review else "--run-two-gets"
+    runner = "RECOVER_AND_PROBE" if recover else "FLAT_REVIEW" if flat_review else "PROBE"
     command = (
         '@echo off\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="" exit /b 1\r\n'
         f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{encoded}'))\" {hashlib.sha256(payload).hexdigest()} {worker_args} < \"%~dp0candidate.zip\"\r\n"
@@ -105,7 +107,9 @@ def build(ref: str, output: Path, *, recover: bool = False) -> Path:
             "show",
             f"{revision}:"
             + (
-                "RUNTIME_ACCOUNTED_CLOCK_RECOVERY_KO.md"
+                "RUNTIME_ACCOUNTED_FLAT_REVIEW_KO.md"
+                if flat_review
+                else "RUNTIME_ACCOUNTED_CLOCK_RECOVERY_KO.md"
                 if recover
                 else "RUNTIME_ACCOUNTED_READ_PROBE_KO.md"
             ),
@@ -121,7 +125,9 @@ def build(ref: str, output: Path, *, recover: bool = False) -> Path:
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
     folder = (
-        "windows-demo-accounted-clock-recovery-20261112"
+        "windows-demo-accounted-flat-review-20261112"
+        if flat_review
+        else "windows-demo-accounted-clock-recovery-20261112"
         if recover
         else "windows-demo-accounted-read-probe-20261112"
     )
@@ -146,5 +152,6 @@ if __name__ == "__main__":
     parser.add_argument("--ref", required=True)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--recover-clock", action="store_true")
+    parser.add_argument("--flat-review", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output, recover=args.recover_clock)
+    build(args.ref, args.output, recover=args.recover_clock, flat_review=args.flat_review)

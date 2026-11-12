@@ -1,0 +1,47 @@
+param([Parameter(Mandatory=$true)][string]$ManifestSHA256)
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+$root=$PSScriptRoot
+$stage='TRANSFER_VERIFICATION'
+$probeConsoleEncoding=[Console]::OutputEncoding
+[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
+try {
+    $manifestPath=Join-Path $root 'TRANSFER_MANIFEST.json'
+    if ((Get-FileHash -Algorithm SHA256 -LiteralPath $manifestPath).Hash.ToLowerInvariant() -ne $ManifestSHA256) { throw 'PROBE_TRANSFER_HASH_MISMATCH' }
+    $manifest=Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
+    foreach ($entry in $manifest.files.PSObject.Properties) {
+        $path=[IO.Path]::GetFullPath((Join-Path $root $entry.Name))
+        if (-not $path.StartsWith(($root+[IO.Path]::DirectorySeparatorChar),[StringComparison]::OrdinalIgnoreCase)) { throw 'PROBE_TRANSFER_PATH_INVALID' }
+        if ((Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() -ne $entry.Value) { throw 'PROBE_TRANSFER_HASH_MISMATCH' }
+    }
+    Write-Host 'TRANSFER_FILES_VERIFIED'
+    . (Join-Path $root 'INSTALL_INSPECTION.ps1')
+    $stage='CONTAINER_INSPECTION'
+    $raw=@(& docker inspect hybrid-windows-api-1 2>$null)
+    $code=$LASTEXITCODE
+    $details=Convert-InstallInspection -InspectOutput $raw -InspectExitCode $code
+    $id=Read-InstallProperty $details 'Id'
+    $config=Read-InstallProperty $details 'Config'
+    $labels=Read-InstallProperty $config 'Labels'
+    $state=Read-InstallProperty $details 'State'
+    if ($id -notmatch '^[0-9a-f]{64}$' -or (Read-InstallProperty $labels 'com.docker.compose.project') -ne 'hybrid-windows' -or (Read-InstallProperty $labels 'com.docker.compose.service') -ne 'api') { throw 'PROBE_CONTAINER_IDENTITY_MISMATCH' }
+    if ((Read-InstallProperty $state 'Running') -ne $true -or (Read-InstallProperty (Read-InstallProperty $state 'Health') 'Status') -ne 'healthy') { throw 'PROBE_API_NOT_HEALTHY' }
+    if ((Read-InstallProperty $config 'WorkingDir') -ne '/app' -or @('10001','10001:10001') -notcontains (Read-InstallProperty $config 'User')) { throw 'PROBE_EXECUTION_CONTEXT_MISMATCH' }
+    $stage='ACCOUNTED_FLAT_LIST_REVIEW'
+    $output=@(& (Join-Path $root 'RUN_WORKER.cmd') $id)
+    $code=$LASTEXITCODE
+    $output | Write-Host
+    if ($code -ne 0) { exit $code }
+    $result=($output -join "`n") | ConvertFrom-Json
+    if ($result.accounted_read_probe -ne 'FIVE_GETS_FLAT_OBSERVED_KEEP_PAUSED' -or $result.installed_transport_verified -ne $true -or $result.orders_enabled -ne $false -or $result.live_trading_enabled -ne $false -or $result.execution_approved -ne $false) { throw 'PROBE_RESULT_INVALID' }
+    if ($result.http_attempts -ne 5 -or $result.completed_reads -ne 5 -or $result.modeled_weight_charged -ne 91 -or $result.audit_events_added -ne 10 -or $result.resource_checkpoints_added -ne 10 -or $result.prior_two_get_receipt_verified -ne $true -or $result.positions_empty_at_read -ne $true -or $result.regular_orders_empty_at_read -ne $true -or $result.algo_orders_empty_at_read -ne $true -or $result.financial_ledger_unchanged_verified -ne $true -or $result.snapshot_atomic -ne $false) { throw 'PROBE_FLAT_RESULT_INVALID' }
+    Write-Host 'FIVE_DEMO_GETS_FLAT_OBSERVED_KEEP_PAUSED_NO_ORDERS'
+    exit 0
+} catch {
+    $reason='PROBE_RUNNER_UNAVAILABLE'
+    if ($_.Exception.Message -match '^(PROBE|CONTAINER)_[A-Z0-9_]+$') { $reason=$_.Exception.Message }
+    [pscustomobject]@{accounted_read_probe='BLOCKED_KEEP_PAUSED';stage=$stage;stop_reason=$reason;request_state='CHECK_WORKER_OUTPUT';order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;automatic_retry=$false;next_action='REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT'} | ConvertTo-Json -Compress | Write-Host
+    exit 1
+} finally {
+    [Console]::OutputEncoding=$probeConsoleEncoding
+}

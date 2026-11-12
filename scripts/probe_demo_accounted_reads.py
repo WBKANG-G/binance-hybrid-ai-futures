@@ -17,6 +17,13 @@ from typing import Any
 from uuid import UUID, uuid5
 
 POLICY = "INSTALLED_ACCOUNTED_TWO_GET_PROBE_V1"
+FLAT_POLICY = "INSTALLED_ACCOUNTED_FLAT_READ_REVIEW_V1"
+BASIC_ROUTES = (("/fapi/v1/time", 1), ("/fapi/v1/accountConfig", 5))
+FLAT_ROUTES = BASIC_ROUTES + (
+    ("/fapi/v3/positionRisk", 5),
+    ("/fapi/v1/openOrders", 40),
+    ("/fapi/v1/openAlgoOrders", 40),
+)
 RESOURCE_TABLES = {
     "demo_read_audit_events": "sequence",
     "demo_shared_weight_checkpoints": "revision",
@@ -157,6 +164,109 @@ def resource_rows(
     return result, events
 
 
+def verify_flat_payload(path: str, value: Any) -> int:
+    """Accept explicit complete list shapes; never turn missing/invalid data into zero."""
+    from decimal import Decimal
+
+    require(isinstance(value, list) and len(value) <= 4096, "FLAT_RESPONSE_LIST_REQUIRED")
+    if path != "/fapi/v3/positionRisk":
+        require(path in ("/fapi/v1/openOrders", "/fapi/v1/openAlgoOrders"), "FLAT_ROUTE_INVALID")
+        require(not value, "FLAT_OPEN_ORDERS_OBSERVED")
+        return 0
+    symbols: set[str] = set()
+    for row in value:
+        require(isinstance(row, dict), "FLAT_POSITION_ROW_INVALID")
+        symbol, amount = row.get("symbol"), row.get("positionAmt")
+        require(
+            isinstance(symbol, str)
+            and re.fullmatch("[A-Z0-9_]{1,40}", symbol) is not None
+            and symbol not in symbols,
+            "FLAT_POSITION_SYMBOL_INVALID",
+        )
+        symbols.add(symbol)
+        require(row.get("positionSide") == "BOTH", "FLAT_POSITION_SIDE_INVALID")
+        require(
+            isinstance(amount, str)
+            and len(amount) <= 48
+            and re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?", amount) is not None,
+            "FLAT_POSITION_AMOUNT_INVALID",
+        )
+        require(Decimal(amount) == 0, "FLAT_NONZERO_POSITION_OBSERVED")
+    return len(value)
+
+
+def verify_prior_probe(
+    engine: Any,
+    directory: Path,
+    scope: str,
+    journal: UUID,
+    installation: UUID,
+    shared: Any,
+    original: Any,
+    fingerprint: Any,
+) -> None:
+    from packages.persistence.demo_read_recovery import _file, _private_directory
+
+    operation = str(uuid5(journal, POLICY))
+    folder = directory.parent / ("accounted-read-probe-" + operation)
+    _private_directory(folder)
+    require(
+        {p.name for p in folder.iterdir()} == {"intent.json", "complete.json"},
+        "FLAT_PRIOR_PROBE_RECEIPT_REQUIRED",
+    )
+    intent = json.loads(_file(folder / "intent.json", 16384))
+    complete = json.loads(_file(folder / "complete.json", 16384))
+    require(
+        isinstance(intent, dict) and isinstance(complete, dict), "FLAT_PRIOR_PROBE_RECEIPT_INVALID"
+    )
+    require(
+        intent.get("policy") == POLICY
+        and intent.get("operation_id") == operation
+        and intent.get("scope") == scope
+        and intent.get("journal") == str(journal)
+        and intent.get("installation") == str(installation)
+        and intent.get("planned_gets") == 2
+        and intent.get("modeled_weight") == 6,
+        "FLAT_PRIOR_PROBE_RECEIPT_INVALID",
+    )
+    require(
+        complete.get("operation_id") == operation
+        and complete.get("accounted_read_probe") == "TWO_GETS_AUDITED_KEEP_PAUSED"
+        and complete.get("http_attempts") == complete.get("completed_reads") == 2
+        and complete.get("modeled_weight_charged") == 6
+        and complete.get("audit_events_added") == complete.get("resource_checkpoints_added") == 4
+        and complete.get("account_mode_fields_verified") is True
+        and complete.get("financial_ledger_unchanged_verified") is True
+        and all(
+            complete.get(k) is False
+            for k in ("execution_approved", "orders_enabled", "live_trading_enabled")
+        ),
+        "FLAT_PRIOR_PROBE_RECEIPT_INVALID",
+    )
+    witness = protected_snapshot(engine, directory.parent, shared.path, folder, fingerprint)
+    require(
+        witness
+        == intent.get("protected_snapshot_sha256")
+        == complete.get("protected_snapshot_sha256"),
+        "FLAT_PRIOR_PROTECTED_STATE_CHANGED",
+    )
+    _, actions = resource_rows(engine, scope)
+    reads = [a for a in actions.values() if a["kind"] != "CLOCK_REBASE"]
+    require(
+        len(reads) == 4 and original["shared_total_weight"] == 6, "FLAT_PRIOR_AUDIT_CHAIN_INVALID"
+    )
+    for offset, (path, cost) in enumerate(BASIC_ROUTES):
+        for phase, kind in enumerate(("RESERVE", "FINISH")):
+            action = reads[offset * 2 + phase]
+            require(
+                action["kind"] == kind
+                and action["path"] == path
+                and action["cost"] == cost
+                and (not phase or (action["sent"] is True and action["status"] == 200)),
+                "FLAT_PRIOR_AUDIT_CHAIN_INVALID",
+            )
+
+
 def run_probe(
     engine: Any,
     directory: Path,
@@ -172,9 +282,16 @@ def run_probe(
     clocks: Any = None,
     sender: Any = None,
     source_reference: str = "",
+    flat_review: bool = False,
     state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     require(apply is True, "PROBE_EXPLICIT_RUN_REQUIRED")
+    require(type(flat_review) is bool, "PROBE_PROFILE_INVALID")
+    routes = FLAT_ROUTES if flat_review else BASIC_ROUTES
+    planned_gets = len(routes)
+    event_count = planned_gets * 2
+    modeled_weight = sum(cost for _, cost in routes)
+    policy = FLAT_POLICY if flat_review else POLICY
     from sqlalchemy import select, text
 
     from integrations.binance_usdm.demo import DemoClient
@@ -207,8 +324,10 @@ def run_probe(
     current = clocks or RuntimeClocks()
     anchor, audit = SharedWeightAnchorStore(engine), ReadAuditStore(engine)
     require(anchor.installation_id() == installation, "PROBE_INSTALLATION_MISMATCH")
-    operation = str(uuid5(journal, POLICY))
-    marker = directory.parent / ("accounted-read-probe-" + operation)
+    operation = str(uuid5(journal, policy))
+    marker = directory.parent / (
+        ("accounted-flat-review-" if flat_review else "accounted-read-probe-") + operation
+    )
     _private_directory(directory.parent)
     root_fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     transport = None
@@ -242,9 +361,14 @@ def run_probe(
         require(
             original["startup_ready"]
             and original["local_read_activity_complete"]
-            and original["audit_events"] + 4 <= 1024,
+            and original["audit_events"] + event_count <= 1024,
             "PROBE_AUDIT_NOT_READY",
         )
+        if flat_review:
+            state["stage"] = "PRIOR_TWO_GET_RECEIPT_AND_AUDIT"
+            verify_prior_probe(
+                engine, directory, scope, journal, installation, shared, original, fingerprint
+            )
         state["stage"] = "PROTECTED_STATE_BEFORE"
         before = protected_snapshot(engine, directory.parent, shared.path, marker, fingerprint)
         state["stage"] = "PRIVATE_CREDENTIAL_SESSION"
@@ -273,7 +397,7 @@ def run_probe(
                 shared,
                 enable_reads=True,
                 monotonic=current.monotonic,
-                max_requests=2,
+                max_requests=planned_gets,
                 max_seconds=30,
                 **kwargs,
             )
@@ -286,15 +410,15 @@ def run_probe(
             os.mkdir(marker, mode=0o700)
             state["intent_created"] = True
             intent = dict(
-                policy=POLICY,
+                policy=policy,
                 operation_id=operation,
                 source_reference=source_reference,
                 scope=scope,
                 journal=str(journal),
                 installation=str(installation),
                 protected_snapshot_sha256=before,
-                planned_gets=2,
-                modeled_weight=6,
+                planned_gets=planned_gets,
+                modeled_weight=modeled_weight,
             )
             _write_new(marker / "intent.json", (json.dumps(intent, sort_keys=True) + "\n").encode())
             _sync_directory(marker)
@@ -309,6 +433,18 @@ def run_probe(
                 and config.get("multiAssetsMargin") is False,
                 "PROBE_ACCOUNT_MODE_MISMATCH",
             )
+            flat_counts: dict[str, int] = {}
+            observation_times: dict[str, str] = {}
+            if flat_review:
+                for path, _ in routes[2:]:
+                    state["stage"] = {
+                        "/fapi/v3/positionRisk": "ACCOUNTED_POSITION_RISK_GET",
+                        "/fapi/v1/openOrders": "ACCOUNTED_REGULAR_ORDERS_GET",
+                        "/fapi/v1/openAlgoOrders": "ACCOUNTED_ALGO_ORDERS_GET",
+                    }[path]
+                    payload = client.request("GET", path)
+                    flat_counts[path] = verify_flat_payload(path, payload)
+                    observation_times[path] = current.wall_clock().isoformat()
             state["stage"] = "AUDIT_AND_CHECKPOINT_POSTCHECK"
             final = audit.review(shared)
             resources_after, actions = resource_rows(engine, scope)
@@ -324,12 +460,11 @@ def run_probe(
             )
             first_sequence = original["audit_events"]
             expected = {
-                ("demo_shared_weight_checkpoints", scope, old_revision + i) for i in range(1, 5)
-            } | {("demo_read_audit_events", scope, first_sequence + i) for i in range(4)}
+                ("demo_shared_weight_checkpoints", scope, old_revision + i)
+                for i in range(1, event_count + 1)
+            } | {("demo_read_audit_events", scope, first_sequence + i) for i in range(event_count)}
             require(additions == expected, "PROBE_RESOURCE_DELTA_INVALID")
-            for offset, (path, cost) in enumerate(
-                [("/fapi/v1/time", 1), ("/fapi/v1/accountConfig", 5)]
-            ):
+            for offset, (path, cost) in enumerate(routes):
                 for phase, kind in enumerate(["RESERVE", "FINISH"]):
                     action = actions[first_sequence + offset * 2 + phase]
                     require(
@@ -344,35 +479,37 @@ def run_probe(
                             "PROBE_RESPONSE_UNCONFIRMED",
                         )
             require(
-                final["audit_events"] == original["audit_events"] + 4
-                and final["shared_total_weight"] == original["shared_total_weight"] + 6
+                final["audit_events"] == original["audit_events"] + event_count
+                and final["shared_total_weight"] == original["shared_total_weight"] + modeled_weight
                 and final["local_read_activity_complete"],
                 "PROBE_AUDIT_DELTA_INVALID",
             )
         transport.close()
         metrics = transport.diagnostics()
         require(
-            metrics["http_attempts"] == metrics["completed_reads"] == 2
-            and metrics["modeled_weight_charged"] == 6,
+            metrics["http_attempts"] == metrics["completed_reads"] == planned_gets
+            and metrics["modeled_weight_charged"] == modeled_weight,
             "PROBE_TRANSPORT_DELTA_INVALID",
         )
         state["stage"] = "PROTECTED_STATE_AFTER"
         after = protected_snapshot(engine, directory.parent, shared.path, marker, fingerprint)
         require(after == before, "PROBE_PROTECTED_STATE_CHANGED")
-        result = dict(
-            accounted_read_probe="TWO_GETS_AUDITED_KEEP_PAUSED",
+        result: dict[str, Any] = dict(
+            accounted_read_probe="FIVE_GETS_FLAT_OBSERVED_KEEP_PAUSED"
+            if flat_review
+            else "TWO_GETS_AUDITED_KEEP_PAUSED",
             operation_id=operation,
-            http_attempts=2,
-            completed_reads=2,
-            modeled_weight_charged=6,
-            audit_events_added=4,
-            resource_checkpoints_added=4,
+            http_attempts=planned_gets,
+            completed_reads=planned_gets,
+            modeled_weight_charged=modeled_weight,
+            audit_events_added=event_count,
+            resource_checkpoints_added=event_count,
             prior_resource_rows_preserved=True,
             protected_snapshot_sha256=after,
             financial_ledger_unchanged_verified=True,
             account_mode_fields_verified=True,
             exchange_account_identity_verified=False,
-            positions_or_orders_checked=False,
+            positions_or_orders_checked=flat_review,
             account_order_usage_verified=False,
             actual_ip_capacity_reserved=False,
             request_cost_upper_bounds_proven=False,
@@ -385,6 +522,17 @@ def run_probe(
             synthetic_sender_configured=sender is not None,
             next_action="KEEP_PAUSED_REVIEW_AUDIT_NO_AUTOMATIC_RETRY",
         )
+        if flat_review:
+            result.update(
+                prior_two_get_receipt_verified=True,
+                positions_empty_at_read=True,
+                regular_orders_empty_at_read=True,
+                algo_orders_empty_at_read=True,
+                position_rows_observed=flat_counts["/fapi/v3/positionRisk"],
+                observation_times_utc=observation_times,
+                snapshot_atomic=False,
+                observation_scope="SEQUENTIAL_ACCOUNT_WIDE_LIST_READS_ONLY",
+            )
         _write_new(marker / "complete.json", (json.dumps(result, sort_keys=True) + "\n").encode())
         _sync_directory(marker)
         state["stage"] = "COMPLETE"
@@ -602,7 +750,7 @@ def main() -> int:
     try:
         args = sys.argv[2:]
         require(
-            args in (["--run-two-gets"], ["--recover-clock"])
+            args in (["--run-two-gets"], ["--review-flat"], ["--recover-clock"])
             or (
                 len(args) == 2
                 and args[0] == "--review-clock"
@@ -684,7 +832,7 @@ def main() -> int:
         assert spec is not None and spec.loader is not None
         fingerprint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fingerprint)
-        if args[0] == "--run-two-gets":
+        if args[0] in ("--run-two-gets", "--review-flat"):
             result = run_probe(
                 engine,
                 STORAGE,
@@ -697,6 +845,7 @@ def main() -> int:
                 fingerprint,
                 apply=True,
                 source_reference=manifest["source_reference"],
+                flat_review=args[0] == "--review-flat",
                 state=state,
             )
             result["installed_transport_verified"] = True
