@@ -1,0 +1,22 @@
+[
+  {
+    "case": "explicit_apply",
+    "reason": "RECOVERY_EXPLICIT_APPLY_REQUIRED",
+    "exit_code": 2
+  },
+  {
+    "case": "live_context",
+    "reason": "REVIEW_LIVE_CONTEXT_FORBIDDEN",
+    "exit_code": 2
+  },
+  {
+    "case": "old_code",
+    "reason": "INSTALL_SOURCE_CONFLICT",
+    "exit_code": 2
+  },
+  {
+    "case": "no_database",
+    "reason": "REVIEW_DATABASE_READ_FAILED",
+    "exit_code": 2
+  }
+]

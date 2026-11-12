@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "files": {
+    "README_KO.md": "e5e90b18ff0730b4253b26b94d3e539430b5cea55fe6f29fc72c85b4d287d1b8",
+    "RUN_RECOVER.ps1": "ad164769e4e9637d57098cfa2ccdb23e0ee1e17c5e7faaff485f6261e494dc3b",
+    "recover_unused_shared_clock.py": "e993b22802d6126af9c52fd49476d9e9625499e9403fc9ca94173fff64fecb88",
+    "verification/manual-close-day-apply-20261111/adopt_manual_close_day_20261111.py": "624eb1df83b8f8de95b27d52ac0f6bc152a97ea775c4356c17cab4b7081161f4",
+    "verification/manual-close-day-apply-20261111/test_manual_close_day_apply_20261111.py": "257b57acb8782417302624eef87701ed61cb663031b2dff59587278fb545e9c9",
+    "verification/runtime-clock-recovery-20261112/RUN_RECOVER.ps1": "ad164769e4e9637d57098cfa2ccdb23e0ee1e17c5e7faaff485f6261e494dc3b",
+    "verification/runtime-clock-recovery-20261112/recover_unused_shared_clock.py": "e993b22802d6126af9c52fd49476d9e9625499e9403fc9ca94173fff64fecb88",
+    "verification/runtime-clock-recovery-20261112/test_recovery_runner.py": "d5c1b0a4b69227d7792277e5553f7b3d1c59d7ec4f7fe2f4c40ddd5548a80043",
+    "verification/runtime-clock-recovery-20261112/test_unused_shared_clock.py": "413e1c68b1beab634ddf829aaa6b8674d0fe8facee05f8d780fcfb5df053978d",
+    "verification/runtime-clock-recovery-combined.xml": "c11772bf54722343ad28452178f5312b62219bb91145945c75fc0036592ed523",
+    "verification/runtime-clock-recovery-docker.json": "607638f08ef0b308eee792dd5d22ea21ee6142991c9e76d5b89dec4f129c7fd3",
+    "verification/runtime-clock-recovery-natural.xml": "024f3eadfb362cdc773edbbaaf7b42c03ded2025d47624971e9cd39f883b5033",
+    "verification/runtime-storage-setup-20261111/configure_runtime_storage.py": "a10d3e5c18a37ffc53180fc91690da3a0c4cf7cfdcfb319e4e3e407f02a7e6cb",
+    "verification/runtime-storage-setup-20261111/test_runtime_storage_setup.py": "75ca59e6c6411677163d9d1479fec4ba501a80fb88edef2fcf91402d380e7277"
+  }
+}
