@@ -1,0 +1,17 @@
+{
+  "artifact_sha256": "30a48a1c79a6e083a639e76be1c6c7be880ae3d18a01bf05ff5dbdf4a668023c",
+  "candidate_reference": "163424c51875b87dc23fd4552064115a0a9c7b42",
+  "test": "SYNTHETIC_EXISTING_IMAGE_BINARY_STDIN_REVIEW",
+  "passed": true,
+  "before_after_snapshot_sha256": "9a86d7a0130f8ffae80635d732b31ed8bea512b696bcbc6f19ebf35878763f88",
+  "source_files_preserved": true,
+  "all_database_tables_and_journal_files_preserved": true,
+  "temporary_source_removed": true,
+  "audit_apply_attempted": false,
+  "api_replaced": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "execution_approved": false,
+  "user_pc_tested": false,
+  "exchange_http_attempts": 0
+}
