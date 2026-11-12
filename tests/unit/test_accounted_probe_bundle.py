@@ -16,7 +16,10 @@ from scripts import build_demo_accounted_probe_bundle as builder
 from tests.unit.test_read_install_powershell import PWSH
 
 
-def test_deterministic_archive_pins_installed_code_and_isolates_worker(tmp_path, monkeypatch):
+@pytest.mark.parametrize("recover", [False, True])
+def test_deterministic_archive_pins_installed_code_and_isolates_worker(
+    tmp_path, monkeypatch, recover
+):
     def git(*args):
         if args[0] == "rev-parse":
             return b"a" * 40
@@ -24,16 +27,21 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(tmp_path,
         return Path(path).read_bytes()
 
     monkeypatch.setattr(builder, "git", git)
-    first = builder.build("ref", tmp_path / "one")
-    second = builder.build("ref", tmp_path / "two")
+    first = builder.build("ref", tmp_path / "one", recover=recover)
+    second = builder.build("ref", tmp_path / "two", recover=recover)
     assert first.read_bytes() == second.read_bytes()
     with zipfile.ZipFile(first) as z:
-        prefix = "windows-demo-accounted-read-probe-20261112/"
+        prefix = (
+            "windows-demo-accounted-clock-recovery-20261112/"
+            if recover
+            else "windows-demo-accounted-read-probe-20261112/"
+        )
         manifest = json.loads(z.read(prefix + "TRANSFER_MANIFEST.json"))
         for name, digest in manifest["files"].items():
             assert hashlib.sha256(z.read(prefix + name)).hexdigest() == digest
         cmd = z.read(prefix + "RUN_WORKER.cmd").decode()
-        assert cmd.count("docker exec") == 1 and "python -I" in cmd and "--run-two-gets" in cmd
+        assert cmd.count("docker exec") == 1 and "python -I" in cmd
+        assert ("%2 %3" if recover else "--run-two-gets") in cmd
         assert max(map(len, cmd.splitlines())) < 8000
         loader = base64.b64decode(re.search(r"b64decode\('([^']+)'\)", cmd).group(1)).decode()
         assert 'sys.path.insert(0, "/app")' in loader
@@ -130,3 +138,111 @@ def test_powershell_validates_identity_and_never_retries(tmp_path, case):
         else not counter.exists()
     )
     assert ("TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS" in result.stdout) == (case == "success")
+
+
+@pytest.mark.skipif(not Path(PWSH).exists(), reason="PowerShell required")
+@pytest.mark.parametrize(
+    "case", ["success", "recover_blocked", "review_blocked", "probe_blocked", "ready"]
+)
+def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case):
+    root = tmp_path / "recovery with spaces"
+    root.mkdir()
+    for name, source in [
+        ("RECOVER_AND_PROBE.ps1", "tools/windows-demo-accounted-probe/RECOVER_AND_PROBE.ps1"),
+        ("INSTALL_INSPECTION.ps1", "tools/windows-demo-read-install/INSTALL_INSPECTION.ps1"),
+    ]:
+        (root / name).write_bytes(Path(source).read_bytes())
+    base = dict(orders_enabled=False, live_trading_enabled=False, execution_approved=False)
+    recovery = base | dict(
+        accounted_clock_recovery="RECOVERED_KEEP_PAUSED"
+        if case == "ready"
+        else "WAIT_STARTUP_HOLD",
+        startup_ready=case == "ready",
+        installed_recovery_verified=True,
+        http_attempts=0,
+        modeled_weight_charged=0,
+        financial_ledger_unchanged_verified=True,
+        recovery_post_snapshot_sha256="b" * 64,
+        shared_journal_changed=case != "ready",
+    )
+    ready = recovery | dict(
+        accounted_clock_recovery="RECOVERED_KEEP_PAUSED",
+        startup_ready=True,
+        shared_journal_changed=False,
+    )
+    success = base | dict(
+        accounted_read_probe="TWO_GETS_AUDITED_KEEP_PAUSED", installed_transport_verified=True
+    )
+    counter = tmp_path / "ops"
+    shell = '#!/bin/sh\necho "$2" >> \'' + str(counter) + '\'\ncase "$2" in\n'
+    for op, result, failed in [
+        ("--recover-clock", recovery, case == "recover_blocked"),
+        ("--review-clock", ready, case == "review_blocked"),
+        ("--run-two-gets", success, case == "probe_blocked"),
+    ]:
+        if failed:
+            result = base | dict(
+                accounted_read_probe="BLOCKED_KEEP_PAUSED", stop_reason="SYNTHETIC_REFUSAL"
+            )
+        shell += (
+            op + ")\necho '" + json.dumps(result) + "'\nexit " + ("1" if failed else "0") + "\n;;\n"
+        )
+    shell += "*) exit 99;;\nesac\n"
+    (root / "RUN_WORKER.cmd").write_text(shell)
+    (root / "RUN_WORKER.cmd").chmod(0o700)
+    manifest = json.dumps(
+        dict(files={p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir()})
+    ).encode()
+    (root / "TRANSFER_MANIFEST.json").write_bytes(manifest)
+    metadata = tmp_path / "meta.json"
+    metadata.write_text(
+        json.dumps(
+            dict(
+                Id="a" * 64,
+                Name="/hybrid-windows-api-1",
+                Config=dict(
+                    User="10001",
+                    WorkingDir="/app",
+                    Labels={
+                        "com.docker.compose.project": "hybrid-windows",
+                        "com.docker.compose.service": "api",
+                    },
+                ),
+                State=dict(Running=True, Health=dict(Status="healthy")),
+            )
+        )
+    )
+    wrapper = tmp_path / "wrapper.ps1"
+    wrapper.write_text(
+        "function global:docker { $global:LASTEXITCODE=0; Get-Content -Raw -LiteralPath '"
+        + str(metadata)
+        + "' }\nfunction global:Start-Sleep { param($Seconds) if ($Seconds -ne 5) { throw 'BAD_WAIT' } }\n& '"
+        + str(root / "RECOVER_AND_PROBE.ps1")
+        + "' -ManifestSHA256 "
+        + hashlib.sha256(manifest).hexdigest()
+        + "\nexit $LASTEXITCODE\n"
+    )
+    result = subprocess.run(
+        [PWSH, "-NoProfile", "-File", str(wrapper)],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        env=dict(
+            os.environ,
+            XDG_CACHE_HOME=str(tmp_path / "cache"),
+            XDG_CONFIG_HOME=str(tmp_path / "config"),
+            XDG_DATA_HOME=str(tmp_path / "data"),
+        ),
+    )
+    assert result.returncode == (0 if case in ("success", "ready") else 1), (
+        result.stdout + result.stderr
+    )
+    expected = ["--recover-clock"]
+    if case != "recover_blocked" and case != "ready":
+        expected += ["--review-clock"]
+    if case in ("success", "ready", "probe_blocked"):
+        expected += ["--run-two-gets"]
+    assert counter.read_text().splitlines() == expected
+    assert ("CLOCK_RECOVERED_TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS" in result.stdout) == (
+        case in ("success", "ready")
+    )

@@ -59,7 +59,13 @@ def verify_files(root: Path, values: dict[str, str]) -> None:
 
 
 def protected_snapshot(
-    engine: Any, directory: Path, shared_file: Path, marker: Path, fingerprint: Any
+    engine: Any,
+    directory: Path,
+    shared_file: Path,
+    marker: Path,
+    fingerprint: Any,
+    *,
+    excluded_folder: Path | None = None,
 ) -> str:
     from sqlalchemy import inspect, text
 
@@ -81,6 +87,10 @@ def protected_snapshot(
     total = 0
     for path in sorted(directory.rglob("*")):
         require(not path.is_symlink(), "PROBE_STORAGE_SYMLINK")
+        if excluded_folder is not None and (
+            path == excluded_folder or excluded_folder in path.parents
+        ):
+            continue
         if path == marker or marker in path.parents:
             continue
         if path.is_dir():
@@ -386,12 +396,220 @@ def run_probe(
         os.close(root_fd)
 
 
+def recover_probe_clock(
+    engine: Any,
+    directory: Path,
+    scope: str,
+    journal: UUID,
+    installation: UUID,
+    account: str,
+    fingerprint: Any,
+    *,
+    apply: bool = False,
+    expected: str | None = None,
+    clocks: Any = None,
+    state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Recover only an unused, audited scope; review polls never rebase again."""
+    require(apply is True or expected is not None, "PROBE_CLOCK_EXPLICIT_OPERATION_REQUIRED")
+    require(not (apply and expected is not None), "PROBE_CLOCK_FLAGS_INVALID")
+    from sqlalchemy import select, text
+
+    from packages.persistence.demo import accounts
+    from packages.persistence.demo_read_audit import AuditedDemoReadJournal, ReadAuditStore
+    from packages.persistence.demo_read_recovery import (
+        PREFIX,
+        _file,
+        _operation,
+        _private_directory,
+        _raw,
+        recover_completed_read_clock,
+    )
+    from packages.persistence.demo_shared_checkpoint import SharedWeightAnchorStore
+    from services.execution.demo_read_audit_bootstrap import validate_account_row
+    from services.execution.demo_runtime_read_transport import AccountedDemoReadTransport
+    from services.execution.demo_runtime_storage import RuntimeClocks
+
+    state = {} if state is None else state
+    state["stage"] = "AUDITED_CLOCK_PRECHECK"
+    AccountedDemoReadTransport._context()
+    current = clocks or RuntimeClocks()
+    anchor, audit = SharedWeightAnchorStore(engine), ReadAuditStore(engine)
+    require(anchor.installation_id() == installation, "PROBE_INSTALLATION_MISMATCH")
+    marker = directory.parent / ("accounted-read-probe-" + str(uuid5(journal, POLICY)))
+    _private_directory(directory.parent)
+    fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ProbeBlocked("PROBE_ALREADY_RUNNING") from None
+        require(
+            not marker.exists() and not marker.is_symlink(),
+            "PROBE_ALREADY_ATTEMPTED_REVIEW_REQUIRED",
+        )
+        with engine.connect() as control, control.begin():
+            control.execute(text("SET LOCAL lock_timeout='2s'"))
+            control.execute(text("SET LOCAL statement_timeout='2s'"))
+            row = (
+                control.execute(
+                    select(accounts)
+                    .where(accounts.c.account_id == account)
+                    .with_for_update(read=True)
+                )
+                .mappings()
+                .one()
+            )
+            validate_account_row(row, scope, journal, installation, current)
+            if apply:
+                # Verify complete history without trusting an invalid boot/wall-clock sample.
+                with _raw(directory, scope, journal, anchor) as (cp, local, shared_file):
+                    history, snapshot = audit._verified_history(cp, local)
+                    require(
+                        snapshot[1][0][7:] == [0, 0] and not snapshot[2],
+                        "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
+                    )
+                    require(
+                        all(r["action"]["kind"] == "CLOCK_REBASE" for r in history),
+                        "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
+                    )
+                    revision, old_digest = cp.revision, cp.digest
+                    body_sha = hashlib.sha256(_file(shared_file)).hexdigest()
+                folder = directory / (PREFIX + _operation(str(journal), revision, old_digest))
+                require(
+                    not folder.exists() and not folder.is_symlink(),
+                    "PROBE_CLOCK_BACKUP_ALREADY_PRESENT",
+                )
+                resources_before, actions_before = resource_rows(engine, scope)
+                before = protected_snapshot(
+                    engine, directory.parent, shared_file, marker, fingerprint
+                )
+                state["stage"] = "AUDITED_CLOCK_RECOVERY"
+                state["clock_apply_started"] = True
+                report = recover_completed_read_clock(
+                    directory,
+                    scope,
+                    journal,
+                    anchor=anchor,
+                    audit=audit,
+                    apply=True,
+                    clocks=current,
+                )
+                changed = report["shared_journal_changed"]
+                resources_after, actions_after = resource_rows(engine, scope)
+                require(
+                    all(resources_after.get(k) == v for k, v in resources_before.items()),
+                    "PROBE_PRIOR_RESOURCE_ROWS_CHANGED",
+                )
+                additions = set(resources_after) - set(resources_before)
+                expected_delta = (
+                    {
+                        ("demo_shared_weight_checkpoints", scope, revision + 1),
+                        ("demo_read_audit_events", scope, len(actions_before)),
+                    }
+                    if changed
+                    else set()
+                )
+                require(additions == expected_delta, "PROBE_CLOCK_RESOURCE_DELTA_INVALID")
+                if changed:
+                    action = actions_after[len(actions_before)]
+                    require(
+                        action["kind"] == "CLOCK_REBASE"
+                        and action["sent"] is False
+                        and action["cost"] is None,
+                        "PROBE_CLOCK_RESOURCE_DELTA_INVALID",
+                    )
+                    require(
+                        hashlib.sha256(_file(folder / "original.sqlite3")).hexdigest() == body_sha,
+                        "PROBE_CLOCK_BACKUP_CHANGED",
+                    )
+                    require(
+                        set(p.name for p in folder.iterdir())
+                        == {"original.sqlite3", "intent.json"},
+                        "PROBE_CLOCK_BACKUP_INVALID",
+                    )
+                after = protected_snapshot(
+                    engine,
+                    directory.parent,
+                    shared_file,
+                    marker,
+                    fingerprint,
+                    excluded_folder=folder if changed else None,
+                )
+                require(after == before, "PROBE_PROTECTED_STATE_CHANGED")
+                state["stage"] = "CLOCK_PROTECTED_STATE_POSTCHECK"
+                full_snapshot = protected_snapshot(
+                    engine, directory.parent, shared_file, marker, fingerprint
+                )
+            else:
+                require(
+                    isinstance(expected, str)
+                    and re.fullmatch("[0-9a-f]{64}", expected) is not None,
+                    "PROBE_CLOCK_EXPECTED_SNAPSHOT_INVALID",
+                )
+                shared = AuditedDemoReadJournal(
+                    directory,
+                    scope,
+                    journal,
+                    anchors=anchor,
+                    audit=audit,
+                    read_only=True,
+                    monotonic=current.monotonic,
+                    wall_clock=current.wall_clock,
+                    boot=current.boot,
+                )
+                report = audit.review(shared)
+                full_snapshot = protected_snapshot(
+                    engine, directory.parent, shared.path, marker, fingerprint
+                )
+                require(full_snapshot == expected, "PROBE_PROTECTED_STATE_CHANGED")
+                changed = False
+            require(
+                report["shared_total_weight"] == 0 and report["local_read_activity_complete"],
+                "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
+            )
+        return dict(
+            accounted_clock_recovery="RECOVERED_KEEP_PAUSED"
+            if report["startup_ready"]
+            else "WAIT_STARTUP_HOLD",
+            startup_ready=report["startup_ready"],
+            startup_hold_seconds=70.001,
+            recovery_post_snapshot_sha256=full_snapshot,
+            shared_journal_changed=changed,
+            audit_clock_event_added=changed,
+            resource_checkpoint_added=changed,
+            prior_resource_rows_preserved=True,
+            financial_ledger_unchanged_verified=True,
+            exchange_credentials_accessed=False,
+            http_attempts=0,
+            order_writes=0,
+            modeled_weight_charged=0,
+            execution_approved=False,
+            orders_enabled=False,
+            live_trading_enabled=False,
+            next_action="WAIT_THEN_SINGLE_TWO_GET_PROBE"
+            if not report["startup_ready"]
+            else "SINGLE_TWO_GET_PROBE",
+        )
+    finally:
+        os.close(fd)
+
+
 def main() -> int:
     state: dict[str, Any] = {"stage": "SOURCE_VALIDATION", "intent_created": False}
     engine = None
     safe_types: tuple[type[BaseException], ...] = (ProbeBlocked,)
     try:
-        require(sys.argv[2:] == ["--run-two-gets"], "PROBE_EXPLICIT_RUN_REQUIRED")
+        args = sys.argv[2:]
+        require(
+            args in (["--run-two-gets"], ["--recover-clock"])
+            or (
+                len(args) == 2
+                and args[0] == "--review-clock"
+                and re.fullmatch("[0-9a-f]{64}", args[1]) is not None
+            ),
+            "PROBE_EXPLICIT_RUN_REQUIRED",
+        )
         root = Path(__file__).resolve().parents[1]
         manifest = json.loads((root / "PROBE_MANIFEST.json").read_text())
         installed = Path("/app")
@@ -466,21 +684,36 @@ def main() -> int:
         assert spec is not None and spec.loader is not None
         fingerprint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fingerprint)
-        result = run_probe(
-            engine,
-            STORAGE,
-            SCOPE,
-            UUID(binding["journal"]),
-            UUID(binding["checkpoint_installation"]),
-            ACCOUNT,
-            settings,
-            lambda: credentials(prompt=False),
-            fingerprint,
-            apply=True,
-            source_reference=manifest["source_reference"],
-            state=state,
-        )
-        result["installed_transport_verified"] = True
+        if args[0] == "--run-two-gets":
+            result = run_probe(
+                engine,
+                STORAGE,
+                SCOPE,
+                UUID(binding["journal"]),
+                UUID(binding["checkpoint_installation"]),
+                ACCOUNT,
+                settings,
+                lambda: credentials(prompt=False),
+                fingerprint,
+                apply=True,
+                source_reference=manifest["source_reference"],
+                state=state,
+            )
+            result["installed_transport_verified"] = True
+        else:
+            result = recover_probe_clock(
+                engine,
+                STORAGE,
+                SCOPE,
+                UUID(binding["journal"]),
+                UUID(binding["checkpoint_installation"]),
+                ACCOUNT,
+                fingerprint,
+                apply=args[0] == "--recover-clock",
+                expected=args[1] if len(args) == 2 else None,
+                state=state,
+            )
+            result["installed_recovery_verified"] = True
         code = 0
     except Exception as error:
         reason = (
@@ -494,6 +727,10 @@ def main() -> int:
             stage=state["stage"],
             stop_reason=reason,
             intent_created=state["intent_created"],
+            clock_apply_started=state.get("clock_apply_started", False),
+            clock_resource_state="REVIEW_REQUIRED"
+            if state.get("clock_apply_started")
+            else "NO_CLOCK_APPLY_STARTED",
             http_attempts=metrics.get("http_attempts", 0),
             completed_reads=metrics.get("completed_reads", 0),
             modeled_weight_charged=metrics.get("modeled_weight_charged", 0),

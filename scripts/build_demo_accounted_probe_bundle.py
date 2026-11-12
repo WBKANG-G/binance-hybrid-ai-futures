@@ -43,7 +43,7 @@ def fingerprint_source(source: str) -> bytes:
     return result
 
 
-def build(ref: str, output: Path) -> Path:
+def build(ref: str, output: Path, *, recover: bool = False) -> Path:
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
         git("show", f"{revision}:tools/windows-demo-read-review/INSTALLED_SOURCE_20261111.json")
@@ -85,9 +85,11 @@ def build(ref: str, output: Path) -> Path:
         'runpy.run_path(str(root / "scripts/probe_demo_accounted_reads.py"), run_name="__main__")',
     )
     encoded = base64.b64encode(loader.encode()).decode()
+    worker_args = "%2 %3" if recover else "--run-two-gets"
+    runner = "RECOVER_AND_PROBE" if recover else "PROBE"
     command = (
         '@echo off\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="" exit /b 1\r\n'
-        f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{encoded}'))\" {hashlib.sha256(payload).hexdigest()} --run-two-gets < \"%~dp0candidate.zip\"\r\n"
+        f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{encoded}'))\" {hashlib.sha256(payload).hexdigest()} {worker_args} < \"%~dp0candidate.zip\"\r\n"
         "exit /b %errorlevel%\r\n"
     ).encode("ascii")
     if max(map(len, command.splitlines())) > 8000:
@@ -95,22 +97,34 @@ def build(ref: str, output: Path) -> Path:
     package = {
         "candidate.zip": payload,
         "RUN_WORKER.cmd": command,
-        "PROBE.ps1": git("show", f"{revision}:tools/windows-demo-accounted-probe/PROBE.ps1"),
+        runner + ".ps1": git("show", f"{revision}:tools/windows-demo-accounted-probe/{runner}.ps1"),
         "INSTALL_INSPECTION.ps1": git(
             "show", f"{revision}:tools/windows-demo-read-install/INSTALL_INSPECTION.ps1"
         ),
-        "README_KO.md": git("show", f"{revision}:RUNTIME_ACCOUNTED_READ_PROBE_KO.md"),
+        "README_KO.md": git(
+            "show",
+            f"{revision}:"
+            + (
+                "RUNTIME_ACCOUNTED_CLOCK_RECOVERY_KO.md"
+                if recover
+                else "RUNTIME_ACCOUNTED_READ_PROBE_KO.md"
+            ),
+        ),
         "SOURCE_REFERENCE.json": json.dumps(
             dict(source_reference=revision, installed_files=installed), sort_keys=True, indent=2
         ).encode(),
     }
     manifest = json.dumps(dict(files=hashes(package)), sort_keys=True, indent=2).encode()
     package["TRANSFER_MANIFEST.json"] = manifest
-    package["RUN_PROBE.cmd"] = (
-        '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0PROBE.ps1" '
+    package["RUN_" + runner + ".cmd"] = (
+        f'@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0{runner}.ps1" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
-    folder = "windows-demo-accounted-read-probe-20261112"
+    folder = (
+        "windows-demo-accounted-clock-recovery-20261112"
+        if recover
+        else "windows-demo-accounted-read-probe-20261112"
+    )
     output.mkdir(parents=True, exist_ok=True)
     destination = output / (folder + ".zip")
     with destination.open("xb") as stream:
@@ -131,5 +145,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--ref", required=True)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--recover-clock", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output)
+    build(args.ref, args.output, recover=args.recover_clock)
