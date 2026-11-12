@@ -1,0 +1,21 @@
+{
+  "artifact_sha256": "18d3af02d84c752dbef3d17d3602c652544053c3dcc8dfa85b174429d2bf264b",
+  "candidate_reference": "4325e76db012cfe72b879c33d9e9c7c85f36d890",
+  "test": "SYNTHETIC_EXISTING_IMAGE_FIRST_AUDIT_APPLY_AFTER_PRIOR_CLOCK_RECOVERY",
+  "passed": true,
+  "preserved_database_and_files_sha256": "c7ba8c2a3c380c1e1a8fe3d6eeb3b2f86ec2950e2f62023c7fca95b32ed5bfeb",
+  "financial_rows_events_outbox_periods_shared_journal_and_resource_checkpoints_preserved": true,
+  "prior_clock_backup_preserved": true,
+  "one_audit_binding_created": true,
+  "audit_request_events": 0,
+  "independent_postcheck_passed": true,
+  "repeated_apply_unchanged": true,
+  "temporary_source_removed": true,
+  "audit_apply_attempted": true,
+  "api_replaced": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "execution_approved": false,
+  "user_pc_tested": false,
+  "exchange_http_attempts": 0
+}
