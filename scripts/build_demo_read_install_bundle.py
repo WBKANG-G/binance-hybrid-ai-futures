@@ -92,7 +92,7 @@ def build(ref: str, output: Path, *, diagnostic: bool = False) -> Path:
     folder = (
         "windows-demo-read-install-diagnostic-20261112"
         if diagnostic
-        else "windows-demo-read-code-install-20261112"
+        else "windows-demo-read-code-install-v2-20261112"
     )
     output.mkdir(parents=True, exist_ok=True)
     destination = output / (folder + ".zip")

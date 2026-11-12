@@ -28,7 +28,7 @@ def test_build_pins_six_new_files_and_never_copies_existing_sources(tmp_path, mo
     first = builder.build("ref", tmp_path / "one")
     second = builder.build("ref", tmp_path / "two")
     assert first.read_bytes() == second.read_bytes()
-    prefix = "windows-demo-read-code-install-20261112/"
+    prefix = "windows-demo-read-code-install-v2-20261112/"
     with zipfile.ZipFile(first) as z:
         manifest = json.loads(z.read(prefix + "TRANSFER_MANIFEST.json"))
         assert ".dockerignore" in manifest["files"]

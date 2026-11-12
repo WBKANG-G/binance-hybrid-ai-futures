@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,10 @@ INSTALL_FILES = (
     "scripts/review_demo_read_journal.py",
 )
 DIAGNOSTIC: ContextVar[dict[str, Any] | None] = ContextVar("read_install_diagnostic", default=None)
+SNAPSHOT_PROTOCOL = "READ_INSTALL_KEYSET_SNAPSHOT_V2"
+SNAPSHOT_SECONDS = 60.0
+MAX_TABLE_ROWS = 1_000_000
+MAX_ROW_BYTES = 16 * 1024 * 1024
 
 
 def mark(stage: str, kind: str | None = None, resource: str | None = None) -> None:
@@ -94,7 +99,81 @@ def safe_failure(error: Exception) -> dict[str, Any]:
     return result
 
 
-def preserved_snapshot(engine: Any, storage_root: Path) -> str:
+def _budget(deadline: float) -> None:
+    require(time.monotonic() <= deadline, "READ_INSTALL_SNAPSHOT_BUDGET_EXCEEDED")
+
+
+def _table_snapshot(c: Any, inspector: Any, name: str, deadline: float) -> dict[str, Any]:
+    mark("DATABASE_KEYSET_METADATA", "DATABASE_TABLE", name)
+    _budget(deadline)
+    require(re.fullmatch(r"demo_[a-z0-9_]+", name) is not None, "READ_INSTALL_DATABASE_LIMIT")
+    keys = inspector.get_pk_constraint(name).get("constrained_columns")
+    require(
+        isinstance(keys, list)
+        and 1 <= len(keys) <= 8
+        and all(isinstance(k, str) and re.fullmatch(r"[a-z_][a-z0-9_]*", k) for k in keys),
+        "READ_INSTALL_PRIMARY_KEY_REQUIRED",
+    )
+    columns = inspector.get_columns(name)
+    require(1 <= len(columns) <= 256, "READ_INSTALL_DATABASE_LIMIT")
+    descriptor = [(col["name"], str(col["type"]), col["nullable"]) for col in columns]
+    order = ",".join('source."' + k + '"' for k in keys)
+    projected_keys = ",".join('t."' + k + '"' for k in keys)
+    placeholders = ",".join(":key" + str(i) for i in range(len(keys)))
+    digest = hashlib.sha256()
+    count = total = 0
+    last: tuple[Any, ...] | None = None
+    while True:
+        mark("DATABASE_KEYSET_PAGE_READ", "DATABASE_TABLE", name)
+        trace = DIAGNOSTIC.get()
+        if trace is not None:
+            trace["rows_hashed"] = count
+            trace["bytes_hashed"] = total
+        _budget(deadline)
+        where = "" if last is None else "WHERE ROW(" + order + ") > ROW(" + placeholders + ") "
+        # LIMIT is inside the subquery: JSON serialization applies only to one
+        # selected row, never to the full historical table before ordering.
+        query = text(
+            "SELECT row_to_json(t)::text,"
+            + projected_keys
+            + ' FROM (SELECT * FROM "'
+            + name
+            + '" source '
+            + where
+            + "ORDER BY "
+            + order
+            + " LIMIT 1) t"
+        )
+        params = {} if last is None else {"key" + str(i): v for i, v in enumerate(last)}
+        row = c.execute(query, params).fetchone()
+        _budget(deadline)
+        if row is None:
+            break
+        require(isinstance(row[0], str), "READ_INSTALL_ROW_SHAPE_INVALID")
+        body = row[0].encode("utf-8")
+        require(len(body) <= MAX_ROW_BYTES, "READ_INSTALL_ROW_SIZE_LIMIT")
+        key = tuple(row[1:])
+        require(
+            all(v is not None for v in key) and key != last, "READ_INSTALL_KEYSET_PROGRESS_INVALID"
+        )
+        count += 1
+        require(count <= MAX_TABLE_ROWS, "READ_INSTALL_DATABASE_LIMIT")
+        digest.update(len(body).to_bytes(8, "big"))
+        digest.update(body)
+        total += len(body)
+        last = key
+    return dict(
+        columns=descriptor,
+        primary_key=keys,
+        row_count=count,
+        row_bytes=total,
+        rows_sha256=digest.hexdigest(),
+    )
+
+
+def preserved_snapshot(engine: Any, storage_root: Path, *, deadline: float | None = None) -> str:
+    deadline = time.monotonic() + SNAPSHOT_SECONDS if deadline is None else deadline
+    _budget(deadline)
     mark("DATABASE_SNAPSHOT_OPEN")
     value: dict[str, Any] = {}
     with engine.connect() as c, c.begin():
@@ -102,22 +181,9 @@ def preserved_snapshot(engine: Any, storage_root: Path) -> str:
         mark("DATABASE_CATALOG_READ")
         names = sorted(n for n in inspect(c).get_table_names() if n.startswith("demo_"))
         require(1 <= len(names) <= 40, "READ_INSTALL_DATABASE_LIMIT")
+        inspector = inspect(c)
         for name in names:
-            mark("DATABASE_TABLE_READ", "DATABASE_TABLE", name)
-            require(
-                re.fullmatch(r"demo_[a-z0-9_]+", name) is not None, "READ_INSTALL_DATABASE_LIMIT"
-            )
-            rows = (
-                c.execute(text('SELECT row_to_json(t) FROM "' + name + '" t LIMIT 10001'))
-                .scalars()
-                .all()
-            )
-            require(len(rows) <= 10000, "READ_INSTALL_DATABASE_LIMIT")
-            mark("DATABASE_ROW_CANONICALIZE", "DATABASE_TABLE", name)
-            value[name] = sorted(canonical(row) for row in rows)
-            require(
-                len(canonical(value).encode()) <= 32 * 1024 * 1024, "READ_INSTALL_DATABASE_LIMIT"
-            )
+            value[name] = _table_snapshot(c, inspector, name, deadline)
     mark("STORAGE_ROOT_VALIDATE")
     _private_directory(storage_root)
     files: dict[str, str] = {}
@@ -136,7 +202,10 @@ def preserved_snapshot(engine: Any, storage_root: Path) -> str:
         files[str(path.relative_to(storage_root))] = hashlib.sha256(body).hexdigest()
     require(bool(files), "READ_INSTALL_STORAGE_MISSING")
     mark("SNAPSHOT_DIGEST")
-    return hashlib.sha256(canonical(dict(database=value, storage=files)).encode()).hexdigest()
+    _budget(deadline)
+    return hashlib.sha256(
+        canonical(dict(protocol=SNAPSHOT_PROTOCOL, database=value, storage=files)).encode()
+    ).hexdigest()
 
 
 def installed_review(root: Path, storage: Path, expected_files: dict[str, str]) -> dict[str, Any]:
@@ -238,12 +307,13 @@ def review(
         },
     )
     try:
-        before = preserved_snapshot(engine, deployment.STORAGE.parent)
+        deadline = time.monotonic() + SNAPSHOT_SECONDS
+        before = preserved_snapshot(engine, deployment.STORAGE.parent, deadline=deadline)
         if expected is not None:
             require(before == expected, "READ_INSTALL_PRESERVED_STATE_CHANGED")
         mark("INSTALLED_COMMAND_REVIEW")
         direct = installed_review(installed, deployment.STORAGE, targets) if phase == "post" else {}
-        after = preserved_snapshot(engine, deployment.STORAGE.parent)
+        after = preserved_snapshot(engine, deployment.STORAGE.parent, deadline=deadline)
         require(before == after, "READ_INSTALL_PRESERVED_STATE_CHANGED")
     finally:
         engine.dispose()
@@ -255,6 +325,7 @@ def review(
             if phase == "post"
             else "PRECHECKED_READ_CODE_INSTALL_KEEP_PAUSED",
             preserved_snapshot_sha256=after,
+            snapshot_protocol=SNAPSHOT_PROTOCOL,
             target_already_installed=bool(present),
             target_file_count=len(targets),
             installed_command_verified=phase == "post",
