@@ -163,6 +163,11 @@ def _rows(state: Any) -> dict[str, list[Any]]:
 
 
 def validate_transition(before: Any, after: Any, action: dict[str, Any]) -> None:
+    if action.get("kind") == "CLOCK_REBASE":
+        from packages.persistence.demo_read_recovery import validate_rebase_transition
+
+        validate_rebase_transition(before, after, action)
+        return
     old, new = _rows(before), _rows(after)
     b, a = before[1][0], after[1][0]
     require(
@@ -429,6 +434,11 @@ class ReadAuditStore:
             pending = sum(row[4] is None for row in before[2])
             require(count + pending + 2 <= MAX_RECORDS, "READ_AUDIT_COMPLETION_CREDIT_REQUIRED")
         after = snapshot(c)
+        if action["kind"] == "CLOCK_REBASE":
+            require(
+                action["recovery"]["before_revision"] == cp.revision,
+                "READ_RECOVERY_REVISION_INVALID",
+            )
         validate_transition(before, after, action)
         previous_hash = (
             binding["root_hash"]
@@ -469,6 +479,63 @@ class ReadAuditStore:
         )
         return rows[0]["action"]
 
+    def _verified_history(
+        self, cp: CheckpointContext, c: sqlite3.Connection
+    ) -> tuple[list[dict[str, Any]], Any]:
+        binding, _, _ = self.verify_tip(cp, c)
+        state = binding["base_state"]
+        previous = binding["root_hash"]
+        requests: dict[str, Any] = {}
+        rows = (
+            cp.connection.execute(
+                select(read_events)
+                .where(read_events.c.scope == cp.scope)
+                .order_by(read_events.c.sequence)
+            )
+            .mappings()
+            .all()
+        )
+        for index, row in enumerate(rows):
+            require(
+                row["sequence"] == index
+                and row["revision"] == binding["base_revision"] + index + 1
+                and row["previous_hash"] == previous
+                and digest(_event_body(row)) == row["hash"]
+                and row["token"] == row["action"]["token"]
+                and row["event_id"] == str(uuid5(cp.journal, "demo-read-audit:" + str(index))),
+                "READ_AUDIT_HISTORY_INVALID",
+            )
+            witness = cp.connection.execute(
+                select(checkpoints.c.digest).where(
+                    checkpoints.c.scope == cp.scope, checkpoints.c.revision == row["revision"]
+                )
+            ).scalar_one()
+            require(
+                witness == row["checkpoint_digest"] == digest(row["state"]),
+                "READ_AUDIT_CHECKPOINT_MISMATCH",
+            )
+            action = row["action"]
+            if action["kind"] == "RESERVE":
+                require(action["token"] not in requests, "READ_AUDIT_REQUEST_DUPLICATED")
+                requests[action["token"]] = action
+            elif action["kind"] == "FINISH":
+                reserved = requests.get(action["token"])
+                require(
+                    reserved is not None
+                    and reserved["path"] == action["path"]
+                    and reserved["cost"] == action["cost"],
+                    "READ_AUDIT_ROUTE_CHANGED",
+                )
+            if action["kind"] == "CLOCK_REBASE":
+                require(
+                    action["recovery"]["before_revision"] == row["revision"] - 1,
+                    "READ_RECOVERY_REVISION_INVALID",
+                )
+            validate_transition(state, row["state"], action)
+            state, previous = row["state"], row["hash"]
+        require(digest(state) == digest(snapshot(c)), "READ_AUDIT_UNRECORDED_CHANGE")
+        return [dict(row) for row in rows], state
+
     def review(self, shared: "AuditedDemoReadJournal") -> dict[str, Any]:
         require_runtime_cost_contract(MODELED_TP_ROUTE_COSTS)
         reader = copy.copy(shared)
@@ -476,53 +543,11 @@ class ReadAuditStore:
         with reader._transaction() as (c, meta, now):
             cp = reader.checkpoint.get()
             assert cp is not None
-            binding, _, count = self.verify_tip(cp, c)
-            state = binding["base_state"]
-            previous = binding["root_hash"]
-            requests: dict[str, Any] = {}
-            rows = (
-                cp.connection.execute(
-                    select(read_events)
-                    .where(read_events.c.scope == cp.scope)
-                    .order_by(read_events.c.sequence)
-                )
-                .mappings()
-                .all()
-            )
-            for index, row in enumerate(rows):
-                require(
-                    row["sequence"] == index
-                    and row["revision"] == binding["base_revision"] + index + 1
-                    and row["previous_hash"] == previous
-                    and digest(_event_body(row)) == row["hash"]
-                    and row["token"] == row["action"]["token"]
-                    and row["event_id"] == str(uuid5(cp.journal, "demo-read-audit:" + str(index))),
-                    "READ_AUDIT_HISTORY_INVALID",
-                )
-                witness = cp.connection.execute(
-                    select(checkpoints.c.digest).where(
-                        checkpoints.c.scope == cp.scope, checkpoints.c.revision == row["revision"]
-                    )
-                ).scalar_one()
-                require(
-                    witness == row["checkpoint_digest"] == digest(row["state"]),
-                    "READ_AUDIT_CHECKPOINT_MISMATCH",
-                )
-                action = row["action"]
-                if action["kind"] == "RESERVE":
-                    require(action["token"] not in requests, "READ_AUDIT_REQUEST_DUPLICATED")
-                    requests[action["token"]] = action
-                elif action["kind"] == "FINISH":
-                    reserved = requests.get(action["token"])
-                    require(
-                        reserved is not None
-                        and reserved["path"] == action["path"]
-                        and reserved["cost"] == action["cost"],
-                        "READ_AUDIT_ROUTE_CHANGED",
-                    )
-                validate_transition(state, row["state"], action)
-                state, previous = row["state"], row["hash"]
-            require(digest(state) == digest(snapshot(c)), "READ_AUDIT_UNRECORDED_CHANGE")
+            rows, state = self._verified_history(cp, c)
+            count = len(rows)
+            from packages.persistence.demo_read_recovery import verify_recovery_backups
+
+            verify_recovery_backups(shared.directory, rows)
             pending = sum(row[4] is None for row in state[2])
             return dict(
                 read_activity_review="AUDITED_READ_ACTIVITY_VERIFIED_KEEP_PAUSED",
@@ -576,6 +601,7 @@ class _Action:
 class AuditedDemoReadJournal(AnchoredSharedWeightJournal):
     def __init__(self, *args: Any, audit: ReadAuditStore, **kwargs: Any):
         self.audit = audit
+        self._backup_witness: str | None = None
         self._action: ContextVar[_Action | None] = ContextVar("demo_read_action", default=None)
         self._before: ContextVar[Any] = ContextVar("demo_read_before", default=None)
         writable = not kwargs.pop("read_only", False)
@@ -586,6 +612,7 @@ class AuditedDemoReadJournal(AnchoredSharedWeightJournal):
         )
         require_runtime_cost_contract(MODELED_TP_ROUTE_COSTS)
         super().__init__(*args, **kwargs)
+        audit.review(self)
         self.read_only = not writable
 
     @contextmanager
@@ -603,6 +630,30 @@ class AuditedDemoReadJournal(AnchoredSharedWeightJournal):
         cp = self.checkpoint.get()
         assert cp is not None
         self.audit.verify_tip(cp, c)
+        # An old live object must not ignore an interrupted recovery or a changed
+        # backup. Hash unchanged artifacts once, then compare bounded file witnesses.
+        from packages.persistence.demo_read_recovery import (
+            recovery_layout_witness,
+            verify_recovery_backups,
+        )
+
+        recovery_rows = [
+            dict(row)
+            for row in cp.connection.execute(
+                select(read_events.c.action, read_events.c.checkpoint_digest).where(
+                    read_events.c.scope == self.scope,
+                    read_events.c.action["kind"].astext == "CLOCK_REBASE",
+                )
+            ).mappings()
+        ]
+        witness = recovery_layout_witness(self.directory, recovery_rows)
+        if self._backup_witness != witness:
+            verify_recovery_backups(self.directory, recovery_rows)
+            require(
+                recovery_layout_witness(self.directory, recovery_rows) == witness,
+                "READ_RECOVERY_BACKUP_INVALID",
+            )
+            self._backup_witness = witness
         self._before.set(snapshot(c))
 
     def _stage_checkpoint(self, c: sqlite3.Connection) -> None:
