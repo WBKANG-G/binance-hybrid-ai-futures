@@ -10,6 +10,8 @@ $backupName=$null
 $originalRestart=$null
 $rollback='NOT_NEEDED'
 $rollbackVerified=$false
+$readInstallConsoleEncoding=[Console]::OutputEncoding
+[Console]::OutputEncoding=New-Object Text.UTF8Encoding($false)
 function Docker-Checked([string[]]$Arguments) {
     & docker @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'INSTALL_DOCKER_COMMAND_FAILED' }
@@ -128,4 +130,6 @@ try {
     }
     [pscustomobject]@{read_code_install='BLOCKED_KEEP_PAUSED';stage=$stage;stop_reason=$reason;api_replacement_started=$apiReplacementStarted;backup_container=$backupName;rollback_status=$rollback;rollback_data_verified=$rollbackVerified;exchange_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;next_action='SHARE_OUTPUT_NO_AUTOMATIC_RETRY'} | ConvertTo-Json -Compress | Write-Host
     exit 1
+} finally {
+    [Console]::OutputEncoding=$readInstallConsoleEncoding
 }

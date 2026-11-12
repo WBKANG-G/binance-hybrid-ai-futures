@@ -148,3 +148,20 @@ def test_main_redacts_unknown_error(monkeypatch, capsys):
     report = json.loads(capsys.readouterr().out)
     assert report["stop_reason"] == "READ_INSTALL_REVIEW_UNAVAILABLE"
     assert "PRIVATE" not in str(report)
+
+
+def test_empty_native_shell_argument_is_not_an_expected_snapshot(monkeypatch, capsys):
+    import sys
+
+    monkeypatch.setattr(sys, "argv", ["-c", "a" * 64, "pre", ""])
+
+    def check(*args, phase, expected, **kwargs):
+        assert phase == "pre" and expected is None
+        return dict(read_code_install="PRECHECKED_READ_CODE_INSTALL_KEEP_PAUSED")
+
+    monkeypatch.setattr(guard, "review", check)
+    assert guard.main() == 0
+    assert (
+        json.loads(capsys.readouterr().out)["read_code_install"]
+        == "PRECHECKED_READ_CODE_INSTALL_KEEP_PAUSED"
+    )

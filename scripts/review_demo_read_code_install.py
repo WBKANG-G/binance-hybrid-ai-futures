@@ -196,7 +196,7 @@ def main() -> int:
         report = review(
             Path(__file__).resolve().parents[1],
             phase=args[0],
-            expected=args[1] if len(args) == 2 else None,
+            expected=(args[1] or None) if len(args) == 2 else None,
         )
         code = 0
     except Exception as error:

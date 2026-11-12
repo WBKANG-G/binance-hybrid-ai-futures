@@ -33,4 +33,4 @@ Compose 원본 폴더가 없어도 기존 Docker 메타데이터에서 환경 �
 
 ## 개발 검사
 
-신규 14개를 포함한 관련 검사 108개가 통과했다. 격리 PostgreSQL·SQLite에서 데이터 보존 해시, 부분/변조 소스 거부, 감사 설정 필수 조건, 설치 후 기대 해시 검사와 오류 정보 제한을 확인했다. 설치 ZIP의 재현성·payload 6개 제한·전송 해시·Docker context 제한을 검사했다. Linux PowerShell 7의 제어된 Docker/guard 대역으로 설치 성공, 교체 전 차단, 사후 실패 시 restart policy 복원 및 원본 재검증, 이미 설치된 경우 무교체 처리를 확인했다. Ruff·포맷 검사와 새 2개 모듈 strict mypy도 통과했다. 실제 Windows CMD/PowerShell 5.1과 사용자 PC에서의 설치 결과는 아직 없다. 실제 Docker 검증 결과는 배포 묶음의 별도 검증 기록으로 제공한다.
+신규 15개를 포함한 관련 검사 109개가 통과했다. 격리 PostgreSQL·SQLite에서 데이터 보존 해시, 부분/변조 소스 거부, 감사 설정 필수 조건, 설치 후 기대 해시 검사, 빈 셸 인자 처리와 오류 정보 제한을 확인했다. 설치 ZIP의 재현성·payload 6개 제한·전송 해시·Docker context 제한을 검사했다. Linux PowerShell 7의 제어된 Docker/guard 대역으로 설치 성공, 교체 전 차단, 사후 실패 시 restart policy 복원 및 원본 재검증, 이미 설치된 경우 무교체 처리를 확인했다. Ruff·포맷 검사와 새 2개 모듈 strict mypy도 통과했다. 실제 Windows CMD/PowerShell 5.1과 사용자 PC에서의 설치 결과는 아직 없다. 실제 Docker 검증 결과는 배포 묶음의 별도 검증 기록으로 제공한다.
