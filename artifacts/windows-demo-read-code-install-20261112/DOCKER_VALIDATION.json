@@ -1,0 +1,42 @@
+{
+  "artifact_sha256": "9c041031dcb7db3b4a29851a81606b9e5f4c2d28a3d7b685c546b8e22670d933",
+  "source": "be724f557c023516f48f96a81d95474569036fb3",
+  "cases": [
+    {
+      "case": "success",
+      "passed": true,
+      "all_original_database_rows_storage_and_source_files_preserved": true,
+      "original_restart_policy_restored_or_preserved": true,
+      "backup_or_failed_candidate_restart_disabled": true,
+      "installed_command_verified": true,
+      "actual_api_replacement_tested": true,
+      "actual_rollback_tested": false,
+      "exchange_http_attempts": 0,
+      "order_writes": 0,
+      "user_pc_tested": false,
+      "windows_cmd_tested": false,
+      "linux_powershell7_with_native_cmd_shim": true
+    },
+    {
+      "case": "postcheck_fault",
+      "passed": true,
+      "all_original_database_rows_storage_and_source_files_preserved": true,
+      "original_restart_policy_restored_or_preserved": true,
+      "backup_or_failed_candidate_restart_disabled": true,
+      "installed_command_verified": false,
+      "actual_api_replacement_tested": true,
+      "actual_rollback_tested": true,
+      "exchange_http_attempts": 0,
+      "order_writes": 0,
+      "user_pc_tested": false,
+      "windows_cmd_tested": false,
+      "linux_powershell7_with_native_cmd_shim": true
+    }
+  ],
+  "passed": true,
+  "exchange_http_attempts": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
