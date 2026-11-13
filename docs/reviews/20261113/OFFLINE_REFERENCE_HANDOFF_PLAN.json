@@ -1,0 +1,22 @@
+{
+  "policy": "OFFLINE_REFERENCE_HANDOFF_OPERATOR_PLAN_V1",
+  "user_selected_method": "SEPARATE_DEVICE_OFFLINE",
+  "selection_date_client_kst": "2026-11-13",
+  "selection_source": "EXPLICIT_USER_PREFERENCE",
+  "runtime_authorization_document": false,
+  "device_label": null,
+  "reference_directory": null,
+  "latest_digest_record_location": null,
+  "physical_destination_configured": false,
+  "windows_reference_exported": false,
+  "actual_offline_handoff_performed": false,
+  "latest_digest_registered": false,
+  "external_custody_verified": false,
+  "reference_latestness_verified": false,
+  "credential_or_database_secret_copy_in_scope": false,
+  "cloud_transmission_selected": false,
+  "activation_enabled": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "procedure_document": "OFFLINE_REFERENCE_REVIEW_CLI_KO.md"
+}
