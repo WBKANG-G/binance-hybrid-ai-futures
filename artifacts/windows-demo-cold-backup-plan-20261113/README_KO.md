@@ -1,0 +1,39 @@
+# Windows 콜드 백업 계획 검사
+
+앞선 범위 검사는 DB 객체 19개와 런타임 파일 30개를 확인했습니다. 이번에는 실제 중단 대상과 PostgreSQL 데이터 볼륨을 확인합니다. **컨테이너 정지·재시작 정책 변경·백업·복원·설치는 실행하지 않습니다.**
+
+바탕화면에 압축을 풀고 CMD에서 실행하세요. 키 세션 준비는 필요 없습니다.
+
+```cmd
+cd /d "%USERPROFILE%\Desktop\windows-demo-cold-backup-plan-20261113"
+RUN_PLAN.cmd
+```
+
+성공 문구는 `COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED_NO_STOP_NO_BACKUP_NO_ORDERS`입니다. JSON과 종료 문구 전체를 공유하세요. 차단 시 자동 반복 실행하지 말고 코드를 검토하세요.
+
+## 조회하는 내용
+
+- Docker 컨테이너 최대 128개의 ID·이미지·Compose 서비스·실행 상태·재시작 정책·마운트·네트워크 메타데이터를 관측하고 전후 동일성을 확인합니다. API, DB, alerts, web 및 소스 볼륨을 사용하는 보관 컨테이너를 후속 중단 검토 목록으로 출력합니다. 이미 정지된 보관 컨테이너도 재시작 정책 때문에 검토 대상입니다.
+- PostgreSQL 컨테이너에서 고정 `sh` 명령으로 PGDATA·POSTGRES_USER·POSTGRES_DB와 두 도구의 버전만 읽습니다. SQL을 실행하거나 비밀번호·Config.Env 전체·API 키를 읽지 않습니다. DB명·사용자명·원본 호스트 경로·볼륨 이름은 출력하지 않습니다.
+- 현재 지원 범위는 PG 15–18의 표준 PGDATA 위치, PostgreSQL 단일 named volume, 런타임 named volume, 옵션 없는 Docker local driver입니다. 비표준 볼륨·추가 DB 마운트·중첩 런타임 마운트는 차단합니다.
+- 프로젝트 외부의 볼륨 소비자나 실행 중인 동일 DB 네트워크 소비자는 검토를 위해 차단합니다. 프로젝트 안에서도 알 수 없는 서비스는 차단합니다. 키 세션 서비스와 `/run/demo-keys` tmpfs는 복사 범위에서 제외합니다.
+
+## 결과가 의미하지 않는 것
+
+이 목록은 향후 콜드 백업 중단 범위의 관측 결과입니다. 모든 writer가 정지했다는 증거, 실제 백업, 복원 완료, 별도 기기 인계 또는 설치 승인이 아닙니다. 호스트 프로세스·Docker 외부 DB 클라이언트·특권 사용자의 동시 조작은 독립 검증하지 않습니다. 이 검사는 계정 일시정지 상태를 다시 조회하지 않으며 `account_pause_rechecked=false`를 표시합니다.
+
+실제 콜드 백업은 향후 검토된 서비스의 자동 재시작을 차단하고 writer를 먼저, DB를 마지막에 정상 정지한 뒤 두 볼륨을 함께 보존해야 합니다. 원본은 자동 재시작하지 않고 보관합니다. 복원은 원본 볼륨을 덮어쓰지 않는 새 볼륨과 네트워크 없는 DB에서만 수행해야 합니다.
+
+이번 ZIP에는 백업·복원 mutation 후보 코드를 넣지 않았습니다. 해당 후보는 별도 합성 Docker/PG 실험에서 검증합니다. 실제 중단 계획과 보호된 로컬 백업 저장 위치가 확인되기 전에는 Windows에 적용하지 않습니다. Docker CLI 전체 실행 시간 감시는 없으며 명령 실패 시 원문 출력 대신 고정 차단 코드만 표시합니다.
+
+## 배포 검증
+
+소스 커밋: `5d6794b561dd3ea541c38c71011058a83f87c643`
+
+ZIP SHA256: `381fa7e890ac9bb135f307b5345a0cbf7d5504b971fd9d527e05f515dadb85b3`
+
+신규 기능 검사 49개, 최종 ZIP 검사 21개 통과. 두 시험 집합은 중복됩니다. 합성 PG18 파일 1,291개와 SQLite 파일 1개의 복원·전체 manifest 재검증 및 논리 검증을 통과했습니다. 실제 Windows 백업은 수행하지 않았습니다.
+
+archive 후보가 보존하는 메타데이터는 UID/GID·mode·mtime이며 POSIX ACL·xattr·희소 파일 배치 보존은 검증하지 않습니다. 실제 적용 전 별도 검토가 필요합니다.
+
+[절차와 남은 조건](https://github.com/WBKANG-G/binance-hybrid-ai-futures/blob/5d6794b561dd3ea541c38c71011058a83f87c643/docs/reviews/20261113/COLD_BACKUP_PREPARATION_KO.md)

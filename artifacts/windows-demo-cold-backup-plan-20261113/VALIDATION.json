@@ -1,0 +1,57 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_backup_created": false,
+  "actual_windows_database_changed": false,
+  "actual_windows_files_changed": false,
+  "actual_windows_powershell51_executed": false,
+  "actual_windows_restore_tested": false,
+  "actual_windows_source_stopped": false,
+  "archive_entries": 5,
+  "artifact": "windows-demo-cold-backup-plan-20261113.zip",
+  "artifact_bytes": 7166,
+  "artifact_sha256": "381fa7e890ac9bb135f307b5345a0cbf7d5504b971fd9d527e05f515dadb85b3",
+  "backup_ready": false,
+  "committed_sources_and_transfer_manifest_verified": true,
+  "execution_approved": false,
+  "installation_ready": false,
+  "limitations": [
+    "WINDOWS_PACKAGE_OBSERVES_TOPOLOGY_ONLY_NO_STOP_OR_BACKUP",
+    "ACTUAL_DB_VOLUME_AND_CONSUMERS_REQUIRE_USER_RUN_RESULT",
+    "ARCHIVE_CALLER_FREEZE_FLAG_IS_NOT_INDEPENDENT_QUIESCENCE_PROOF",
+    "NO_PRODUCTION_STOP_EXPORT_ACL_IMAGE_SAVE_OR_RESUME_ORCHESTRATION",
+    "ARCHIVE_METADATA_IS_UID_GID_MODE_MTIME_NOT_POSIX_ACL_XATTR_OR_SPARSE_ALLOCATION",
+    "ACTUAL_WINDOWS_RESTORE_AND_OFFLINE_CUSTODY_NOT_PERFORMED"
+  ],
+  "live_trading_enabled": false,
+  "mutation_candidate_in_windows_zip": false,
+  "mypy": {
+    "source_files": 2,
+    "status": "PASS",
+    "strict": true
+  },
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "policy": "COLD_BACKUP_PREPARATION_AND_READ_ONLY_WINDOWS_PLAN_V1",
+  "powershell_test_host": "LINUX_POWERSHELL_7",
+  "release_zip_tests": {
+    "passed": 21,
+    "scope": "PLAN_PACKAGE_AND_NATIVE_POWERSHELL",
+    "seconds": 16.78,
+    "skipped": 0
+  },
+  "ruff": {
+    "files": 5,
+    "status": "PASS"
+  },
+  "source_reference": "5d6794b561dd3ea541c38c71011058a83f87c643",
+  "source_test_suite": {
+    "passed": 49,
+    "scope": "ARCHIVE_UNIT_NATIVE_POWERSHELL_AND_FRESH_NETWORKLESS_PG18_RESTORE",
+    "seconds": 36.3,
+    "skipped": 0
+  },
+  "synthetic_resources_cleanup_verified": true,
+  "synthetic_restore_drill_completed": true,
+  "test_sets_overlap": true
+}

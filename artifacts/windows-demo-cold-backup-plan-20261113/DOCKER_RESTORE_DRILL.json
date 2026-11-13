@@ -1,0 +1,22 @@
+{
+  "both_source_mounts_read_only": true,
+  "clone_network_mode": "none",
+  "execution_approved": false,
+  "helper_image": "hybrid-read-code:fb371aeabcc9-ea6d3f52e6bb",
+  "key_volume_mounted": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "original_windows_touched": false,
+  "postgres_image": "sha256:c293117fcecda7344b5480222e813b9f673d7abd69b1dd95eff239b768b04f59",
+  "restore_destinations_fresh_volumes": true,
+  "restored_file_counts": {
+    "database": 1291,
+    "runtime": 1
+  },
+  "restored_pg_logical_hash_matches": true,
+  "restored_sqlite_read_only_check": true,
+  "scope": "FRESH_SYNTHETIC_NETWORKLESS_PG18_ONLY_NOT_ACTUAL_WINDOWS",
+  "source_clean_shutdown_verified": true,
+  "source_stayed_stopped": true,
+  "whole_restored_manifest_matches": true
+}
