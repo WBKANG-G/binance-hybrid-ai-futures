@@ -1,0 +1,57 @@
+{
+  "date": "2026-11-13",
+  "scope": "SYNTHETIC_WIRE_FINANCIAL_RECEIPT_PG_AND_TWO_PRIVATE_FILE_CHECKPOINT_COUPLING",
+  "tests_passed": 292,
+  "new_anchored_wire_integration_tests_passed": 38,
+  "baseline_demo_store_coordinator_tests_passed": 30,
+  "prior_wire_session_submission_outcome_evidence_regression_tests_passed": 224,
+  "seconds": 59.6,
+  "ruff_check_and_format_passed": true,
+  "strict_mypy_source_files_passed": 2,
+  "existing_runtime_files_changed": [
+    "packages/persistence/demo.py"
+  ],
+  "base_store_change": "Protected no-op transaction-local audit hook; existing callers do not enable candidate coupling.",
+  "new_runtime_files": [
+    "packages/persistence/demo_wire_checkpoint_candidate.py"
+  ],
+  "same_pg_transaction_components": [
+    "Synthetic financial operations marker",
+    "DEMO_SYNTHETIC_WIRE_PREPARED event",
+    "DEMO_AUDIT outbox",
+    "PREPARE wire checkpoint"
+  ],
+  "additional_private_files": [
+    "wire-contract-v1.log",
+    "wire-checkpoint-v2.log"
+  ],
+  "financial_only_marker_change_verified": true,
+  "financial_request_order_balance_policy_changes_by_prepare": false,
+  "pg_file_commit_gap_fail_closed_tested": true,
+  "financial_state_event_outbox_checkpoint_rollback_tested": true,
+  "single_store_prefix_rollback_rejected": true,
+  "privileged_pg_rehash_without_file_rewrite_rejected": true,
+  "new_process_readonly_review_and_rollback_rejection_tested": true,
+  "whole_system_rollback_protection_verified": false,
+  "process_restart_resumption_supported": false,
+  "original_historical_intent_authenticated": false,
+  "remote_account_identity_verified": false,
+  "real_wire_submission_verified": false,
+  "actual_exchange_http_attempts": 0,
+  "exchange_responder": "SEALED_SYNTHETIC_ONLY",
+  "real_windows_state_accessed": false,
+  "windows_installation_performed": false,
+  "historical_request_reconciliation_performed": false,
+  "capacity_shortfall_resolved": false,
+  "archive_authority_implemented": false,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "remaining_requirements": [
+    "External trust anchor for whole-system rollback/authenticity claims.",
+    "Storage restore/retention and installation review; no writer resumption API.",
+    "Trusted remote account identity, operational authorization and admission limits.",
+    "Fresh exchange state and trusted clock before any real transport integration."
+  ]
+}

@@ -7,7 +7,7 @@ If DB commit fails after a POST, the persisted SUBMITTING intent is reconciled.
 
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
-from typing import TypeVar
+from typing import Any, TypeVar
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -23,7 +23,7 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.dialects.postgresql import JSONB, insert
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from packages.persistence.demo_alerts import enqueue as enqueue_alerts
 from packages.persistence.demo_alerts import signals as alert_signals
@@ -164,7 +164,22 @@ class DemoStore:
             )
             conn.execute(insert(outbox).values(event_id=event_id, topic="DEMO_AUDIT"))
             enqueue_alerts(conn, event_id, lease.account_id, now, kind, alert_before, ledger)
+            self._stage_change_audit(conn, event_id, lease, kind, row["state"])
             return result
+
+    def _stage_change_audit(
+        self,
+        connection: Connection,
+        event_id: str,
+        lease: Lease,
+        kind: str,
+        before_state: dict[str, Any],
+    ) -> None:
+        """No-op extension for transaction-local audit staging, never network I/O.
+
+        The surrounding transaction can still fail after this hook returns.
+        Overrides must handle cross-store commit gaps without resending effects.
+        """
 
     def renew(self, lease: Lease) -> None:
         # Reuse fenced change, then extend under a second short row-locked transaction.
