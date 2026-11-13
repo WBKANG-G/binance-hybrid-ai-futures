@@ -1,0 +1,74 @@
+{
+  "actual_http_attempts": 0,
+  "actual_install_authorized_by_this_document": false,
+  "archive_authorized": false,
+  "candidate_groups": {
+    "CORE_CHANGE_EXCLUDED_FROM_GET_STAGE": [
+      "packages/persistence/demo.py"
+    ],
+    "GET_EVIDENCE_FUTURE_OPT_IN": [
+      "packages/persistence/demo_response_evidence.py",
+      "services/execution/demo_response_evidence_transport.py"
+    ],
+    "ISOLATED_SYNTHETIC_ONLY": [
+      "services/execution/demo_wire_session_contract_candidate.py",
+      "packages/persistence/demo_wire_checkpoint_candidate.py",
+      "services/execution/demo_wire_restore_reference_candidate.py",
+      "scripts/review_wire_restore_reference.py"
+    ],
+    "OFFLINE_REVIEW_ONLY": [
+      "services/execution/demo_request_outcome_candidate.py",
+      "services/execution/demo_submission_link_candidate.py"
+    ]
+  },
+  "candidate_sha256": {
+    "packages/persistence/demo.py": "04ad88342e15814a17c6bcbd7755c37df43186b9a532c63913495f70e2fed9da",
+    "packages/persistence/demo_response_evidence.py": "535c280015a3120181323a68f1f0b9e54c0728938f03ef0ee800af602897d47b",
+    "packages/persistence/demo_wire_checkpoint_candidate.py": "11f66ae9ab6c87311184c0e3b29d68b738563a9371b2472afddebb51fc1e3f53",
+    "scripts/review_wire_restore_reference.py": "a684a665b550bdb93189b96421365f7a2f8de2b77beaee917786342921fae40c",
+    "services/execution/demo_request_outcome_candidate.py": "263fd8a6cb346482530ae31c903c1523539b1a06096ee998547b3ae016281fbc",
+    "services/execution/demo_response_evidence_transport.py": "e3dd4491103bbbb69ae2c701ef9d6d1ec1cba47468346bd850840436975caec4",
+    "services/execution/demo_submission_link_candidate.py": "d766dad9903297de0837614080898310f4bfef3ba10d208ac04a6f1a8a4ff1ca",
+    "services/execution/demo_wire_restore_reference_candidate.py": "428b9d0e5c3472e3ae43ae8624e204bfb69cfe904644fab055454d58fd05d79a",
+    "services/execution/demo_wire_session_contract_candidate.py": "23aea6c263f980da5918c682df40893b90b5784780e02c52a77dfadd1aa3aaea"
+  },
+  "execution_approved": false,
+  "existing_snapshot_protocol_sufficient_for_v2": false,
+  "future_get_stage_schema": [
+    "read_response_evidence_bindings_v2",
+    "read_response_evidence_events_v2"
+  ],
+  "inventory_evidence": "WINDOWS_AUDIT_PLAN_OBSERVED_INVENTORY.json",
+  "live_trading_enabled": false,
+  "next_implementation_scope": "LOCAL_LEGACY_RUNTIME_BACKUP_COVERAGE_PREFLIGHT_NO_INSTALL_NO_EXCHANGE",
+  "order_writes": 0,
+  "orders_enabled": false,
+  "policy": "WINDOWS_AUDIT_DEPLOYMENT_SCOPE_AND_ROLLBACK_REVIEW_V1",
+  "request_reconciliation_authorized": false,
+  "required_before_install": [
+    "INVENTORY_FRESHNESS_AND_CONTAINER_IMAGE_MOUNT_IDENTITIES",
+    "ALL_WRITERS_QUIESCED_AND_INDEPENDENTLY_VERIFIED",
+    "COMPLETE_SCHEMA_AND_PERSISTENT_FILE_BACKUP_SCOPE",
+    "RESTORE_DRILL_IN_ISOLATED_NETWORK_BLOCKED_ENVIRONMENT",
+    "V2_AWARE_SNAPSHOT_INCLUDING_NON_DEMO_PREFIX_TABLES_FUNCTIONS_TRIGGERS",
+    "EXPLICIT_GET_BOOTSTRAP_AND_CLOCK_REBASE_POLICY",
+    "BEFORE_AFTER_WRITE_BOUNDARY_FAILURE_TESTS",
+    "EXTERNAL_OFFLINE_REFERENCE_CUSTODY_ACTUALLY_COMPLETED"
+  ],
+  "rollback_policy": {
+    "after_new_binding_or_evidence_write": "STOP_WRITERS_PRESERVE_ALL_NEW_EVIDENCE_FORWARD_REPAIR_REVIEW_NO_AUTOMATIC_DATA_RESTORE",
+    "before_any_new_durable_write": "RESTORE_PINNED_OLD_CODE_ONLY_AFTER_UNCHANGED_DATA_VERIFICATION",
+    "pg_file_commit_gap": "DENY_REOPEN_PRESERVE_BOTH_SIDES_NO_REFUND_OR_RETRY"
+  },
+  "snapshot_hash_is_restorable_backup": false,
+  "source_reference": "a10bc489461438c4d9b1b3ff5e23b80222982e99",
+  "status": "PLAN_REVIEWED_IMPLEMENTATION_REQUIRED_KEEP_PAUSED",
+  "synthetic_schema_excluded_from_windows_get_stage": [
+    "wire_checkpoint_installation_v2",
+    "wire_checkpoint_bindings_v2",
+    "wire_checkpoint_events_v2"
+  ],
+  "unresolved_requests_preserved": 4,
+  "whole_db_and_files_rollback_independently_detectable_without_retained_reference": false,
+  "windows_changes_performed": false
+}

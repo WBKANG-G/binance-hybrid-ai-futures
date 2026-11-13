@@ -1,0 +1,60 @@
+{
+  "baseline_manifest_python_entries": 89,
+  "candidate_partition_complete_and_disjoint": true,
+  "candidate_source_hashes_verified": 9,
+  "candidate_static_import_edges": {
+    "packages/persistence/demo.py": [],
+    "packages/persistence/demo_response_evidence.py": [],
+    "packages/persistence/demo_wire_checkpoint_candidate.py": [
+      "packages/persistence/demo.py",
+      "packages/persistence/demo_response_evidence.py",
+      "services/execution/demo_request_outcome_candidate.py",
+      "services/execution/demo_submission_link_candidate.py",
+      "services/execution/demo_wire_session_contract_candidate.py"
+    ],
+    "scripts/review_wire_restore_reference.py": [
+      "packages/persistence/demo_wire_checkpoint_candidate.py",
+      "services/execution/demo_wire_restore_reference_candidate.py",
+      "services/execution/demo_wire_session_contract_candidate.py"
+    ],
+    "services/execution/demo_request_outcome_candidate.py": [
+      "packages/persistence/demo_response_evidence.py"
+    ],
+    "services/execution/demo_response_evidence_transport.py": [
+      "packages/persistence/demo_response_evidence.py"
+    ],
+    "services/execution/demo_submission_link_candidate.py": [
+      "packages/persistence/demo.py",
+      "packages/persistence/demo_response_evidence.py",
+      "services/execution/demo_request_outcome_candidate.py"
+    ],
+    "services/execution/demo_wire_restore_reference_candidate.py": [
+      "packages/persistence/demo.py",
+      "packages/persistence/demo_response_evidence.py",
+      "packages/persistence/demo_wire_checkpoint_candidate.py",
+      "services/execution/demo_request_outcome_candidate.py",
+      "services/execution/demo_wire_session_contract_candidate.py"
+    ],
+    "services/execution/demo_wire_session_contract_candidate.py": [
+      "packages/persistence/demo_response_evidence.py",
+      "services/execution/demo_request_outcome_candidate.py",
+      "services/execution/demo_submission_link_candidate.py"
+    ]
+  },
+  "database_connections": 0,
+  "dynamic_import_or_runtime_sender_safety_proven": false,
+  "exchange_http_attempts": 0,
+  "execution_approved": false,
+  "limitations": [
+    "AST_IMPORT_SCAN_ONLY_NOT_RUNTIME_OR_DYNAMIC_PROOF",
+    "SCREENSHOT_IS_REPORTED_OBSERVATION_NOT_FRESH_REMOTE_ACCESS",
+    "NO_INSTALLER_OR_BACKUP_RESTORE_IMPLEMENTATION_TESTED_IN_THIS_PHASE"
+  ],
+  "live_trading_enabled": false,
+  "noncandidate_static_imports_of_new_candidate_modules": [],
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "source_reference": "a10bc489461438c4d9b1b3ff5e23b80222982e99",
+  "validation_kind": "LOCAL_STATIC_PLAN_AND_SOURCE_REVIEW",
+  "windows_operations": 0
+}
