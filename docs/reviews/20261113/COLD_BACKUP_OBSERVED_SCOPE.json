@@ -1,0 +1,41 @@
+{
+  "account_paused": true,
+  "active_lease_observed": false,
+  "actual_restore_tested": false,
+  "backup_created": false,
+  "catalog": {
+    "constraints": 144,
+    "cross_schema_foreign_keys": 0,
+    "cross_schema_inheritance": 0,
+    "functions": 2,
+    "indexes": 27,
+    "triggers": 5
+  },
+  "database_relations": 19,
+  "database_volume_identified": false,
+  "evidence_source": "USER_SUPPLIED_WINDOWS_SCREENSHOT_TRANSCRIPTION_NOT_FRESH_REMOTE_READ",
+  "execution_approved": false,
+  "live_trading_enabled": false,
+  "observed_source_reference": "0ae71bd04faa364115decebd17f535b0128d2631",
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "source_consumers_identified": false,
+  "status": "READ_ONLY_SCOPE_OBSERVED_KEEP_PAUSED",
+  "storage": {
+    "directories": 15,
+    "files": 30,
+    "group_or_other_writable_entries": 0,
+    "logical_bytes": 309255,
+    "order_quota_bytes": 20480,
+    "order_quota_files": 2,
+    "other_bytes": 205210,
+    "other_files": 18,
+    "shared_weight_bytes": 83565,
+    "shared_weight_files": 10,
+    "sqlite_journal_files": 0,
+    "sqlite_shm_files": 0,
+    "sqlite_wal_files": 0
+  },
+  "unclassified_relations": 1,
+  "writer_quiescence_verified": false
+}
