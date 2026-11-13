@@ -60,6 +60,8 @@ def test_plan_package_has_no_mutation_candidate_and_is_pinned():
         b"cold_backup_candidate",
         b"PGPASSWORD",
         b"POSTGRES_PASSWORD",
+        b"'sh','-c'",
+        b"printf",
     ):
         assert forbidden not in files["PLAN.ps1"]
 
@@ -88,9 +90,15 @@ def test_plan_package_has_no_mutation_candidate_and_is_pinned():
         "missing-db",
         "api-stopped",
         "restarting-source",
+        "missing-env",
+        "duplicate-env-output",
+        "unsupported-server",
     ],
 )
-def test_native_runner_is_read_only_and_sanitizes_topology_failures(tmp_path, scenario):
+@pytest.mark.parametrize("argument_mode", ["Standard", "Legacy"])
+def test_native_runner_is_read_only_and_sanitizes_topology_failures(
+    tmp_path, scenario, argument_mode
+):
     files = package()
     for name, body in files.items():
         (tmp_path / name).write_bytes(body)
@@ -136,27 +144,37 @@ if args[0]=='inspect':
     value=dict(id=ident,name='/hybrid-windows-api-1' if ident[0]=='a' else '/PRIVATE_NAME',image='sha256:'+('c'*64 if case=='changed-source' and count>1 and ident[0]=='a' else 'b'*64),labels=labels,mounts=mounts,running=ident[0]!='f',restarting=case=='restarting-source' and ident[0]=='a',paused=case=='unrelated-paused' and ident[0]=='1',dead=False,restart=dict(Name='no',MaximumRetryCount=0),networks={'PRIVATE_NETWORK':dict(NetworkID=network)})
     if case=='api-stopped' and ident[0]=='a': value['running']=False
     print(json.dumps(value)); sys.exit(0)
-if args[:4]==['exec','b'*64,'sh','-c']:
-    assert len(args)==5 and 'POSTGRES_PASSWORD' not in args[-1]
-    print('/PRIVATE_NEVER_ECHO' if case=='wrong-pgdata' else '/var/lib/postgresql/18/docker')
-    print('PRIVATE_NEVER_ECHO!' if case=='wrong-role' else 'dev')
-    print('hybrid')
-    print('postgres (PostgreSQL) 18.6')
-    print('pg_controldata (PostgreSQL) '+('17.2' if case=='tool-version-mismatch' else '18.6'))
+if args[:2]==['exec','b'*64]:
+    command=args[2:]
+    allowed=[['printenv','PGDATA'],['printenv','POSTGRES_USER'],['printenv','POSTGRES_DB'],['postgres','--version'],['pg_controldata','--version']]
+    assert command in allowed
+    if case=='missing-env' and command==['printenv','POSTGRES_USER']: sys.exit(1)
+    output={
+      ('printenv','PGDATA'):'/PRIVATE_NEVER_ECHO' if case=='wrong-pgdata' else '/var/lib/postgresql/18/docker',
+      ('printenv','POSTGRES_USER'):'PRIVATE_NEVER_ECHO!' if case=='wrong-role' else 'dev',
+      ('printenv','POSTGRES_DB'):'hybrid',
+      ('postgres','--version'):'postgres (PostgreSQL) '+('19.0' if case=='unsupported-server' else '18.6'),
+      ('pg_controldata','--version'):'pg_controldata (PostgreSQL) '+('17.2' if case=='tool-version-mismatch' else '18.6')}
+    print(output[tuple(command)])
+    if case=='duplicate-env-output' and command==['printenv','PGDATA']: print('PRIVATE_NEVER_ECHO')
     sys.exit(0)
 sys.exit(9)
 """
     )
     fake.chmod(0o700)
+    launcher = tmp_path / "launch.ps1"
+    safe_path = str(tmp_path / "PLAN.ps1").replace("'", "''")
+    digest = hashlib.sha256(files["TRANSFER_MANIFEST.json"]).hexdigest()
+    launcher.write_text(
+        f"$PSNativeCommandArgumentPassing='{argument_mode}'\n& '{safe_path}' -ManifestSHA256 '{digest}'\nexit $LASTEXITCODE\n"
+    )
     result = subprocess.run(
         [
             str(PWSH),
             "-NoProfile",
             "-NonInteractive",
             "-File",
-            str(tmp_path / "PLAN.ps1"),
-            "-ManifestSHA256",
-            hashlib.sha256(files["TRANSFER_MANIFEST.json"]).hexdigest(),
+            str(launcher),
         ],
         capture_output=True,
         text=True,
@@ -188,8 +206,31 @@ sys.exit(9)
         assert len(report["participants"]) == 5 and report["excluded_key_session_containers"] == 1
         assert report["postgresql_major"] == 18
         assert not report["backup_ready"] and not report["source_services_stopped"]
+        assert report["postgres_probe"] == dict(
+            pgdata="SUPPORTED_LAYOUT",
+            database_user="VALID_IDENTIFIER",
+            database_name="VALID_IDENTIFIER",
+            server_version="SUPPORTED_VERSION",
+            control_version="MATCHING_VERSION",
+        )
     else:
         assert result.returncode == 2, result.stdout
         assert "BLOCKED_KEEP_PAUSED" in result.stdout
+    if scenario in {
+        "wrong-pgdata",
+        "wrong-role",
+        "tool-version-mismatch",
+        "missing-env",
+        "unsupported-server",
+    }:
+        failed = json.loads(next(x for x in result.stdout.splitlines() if x.startswith("{")))
+        key, status = {
+            "wrong-pgdata": ("pgdata", "UNSUPPORTED_LAYOUT"),
+            "wrong-role": ("database_user", "INVALID_FORMAT"),
+            "tool-version-mismatch": ("control_version", "VERSION_MISMATCH_OR_INVALID"),
+            "missing-env": ("database_user", "READ_FAILED"),
+            "unsupported-server": ("server_version", "UNSUPPORTED_VERSION"),
+        }[scenario]
+        assert failed["postgres_probe"][key] == status
     if scenario == "tampered-transfer":
         assert not calls

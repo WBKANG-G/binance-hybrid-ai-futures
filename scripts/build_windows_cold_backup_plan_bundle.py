@@ -7,7 +7,7 @@ from pathlib import Path
 
 from scripts.build_demo_read_review_bundle import archive, git, hashes
 
-FOLDER = "windows-demo-cold-backup-plan-20261113"
+FOLDER = "windows-demo-cold-backup-plan-v2-20261113"
 PREFIX = "tools/windows_demo_backup_plan/"
 
 
