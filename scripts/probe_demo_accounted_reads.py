@@ -1090,6 +1090,7 @@ def main() -> int:
                 ["--apply-day13"],
                 ["--day13-adoption-status"],
                 ["--prepare-day13-adoption-clock"],
+                ["--post-adoption-gate"],
             )
             or (
                 len(args) == 2
@@ -1177,6 +1178,7 @@ def main() -> int:
             "--day13-adoption-status",
             "--prepare-day13-adoption-clock",
             "--day13-adoption-clock-status",
+            "--post-adoption-gate",
         ):
             from types import SimpleNamespace
 
@@ -1209,7 +1211,31 @@ def main() -> int:
                     )
                 }
             )
-            if args[0] == "--prepare-day13-adoption-clock":
+            if args[0] == "--post-adoption-gate":
+                gate_spec = importlib.util.spec_from_file_location(
+                    "_post_adoption_gate", root / "scripts/review_demo_post_adoption.py"
+                )
+                require(
+                    gate_spec is not None and gate_spec.loader is not None, "GATE_MODULE_INVALID"
+                )
+                assert gate_spec is not None and gate_spec.loader is not None
+                gate = importlib.util.module_from_spec(gate_spec)
+                gate_spec.loader.exec_module(gate)
+                evidence = json.loads((root / "COST_EVIDENCE.json").read_text())
+                result = gate.run(
+                    engine,
+                    STORAGE,
+                    SCOPE,
+                    UUID(binding["journal"]),
+                    UUID(binding["checkpoint_installation"]),
+                    ACCOUNT,
+                    fingerprint,
+                    adoption,
+                    common,
+                    evidence,
+                )
+                result["installed_control_files_verified"] = True
+            elif args[0] == "--prepare-day13-adoption-clock":
                 result = adoption.prepare_clock(
                     engine,
                     STORAGE,

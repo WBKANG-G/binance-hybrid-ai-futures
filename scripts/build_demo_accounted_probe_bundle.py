@@ -51,8 +51,9 @@ def build(
     flat_review: bool = False,
     day13: bool = False,
     day13_apply: bool = False,
+    post_gate: bool = False,
 ) -> Path:
-    if sum((recover, flat_review, day13, day13_apply)) > 1:
+    if sum((recover, flat_review, day13, day13_apply, post_gate)) > 1:
         raise ValueError("Choose one operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
@@ -72,9 +73,16 @@ def build(
             git("show", f"{revision}:scripts/review_demo_read_code_install.py").decode()
         ),
     }
-    if day13_apply:
+    if day13_apply or post_gate:
         candidate["scripts/adopt_demo_accounted_day13.py"] = git(
             "show", f"{revision}:scripts/adopt_demo_accounted_day13.py"
+        )
+    if post_gate:
+        candidate["scripts/review_demo_post_adoption.py"] = git(
+            "show", f"{revision}:scripts/review_demo_post_adoption.py"
+        )
+        candidate["COST_EVIDENCE.json"] = git(
+            "show", f"{revision}:docs/request_cost_evidence/PINNED_RUNTIME_COST_PROOF.json"
         )
     candidate["PROBE_MANIFEST.json"] = json.dumps(
         dict(
@@ -100,14 +108,18 @@ def build(
     )
     encoded = base64.b64encode(loader.encode()).decode()
     worker_args = (
-        "%2 %3"
+        "--post-adoption-gate"
+        if post_gate
+        else "%2 %3"
         if recover or day13 or day13_apply
         else "--review-flat"
         if flat_review
         else "--run-two-gets"
     )
     runner = (
-        "DAY13_APPLY"
+        "POST_ADOPTION_GATE"
+        if post_gate
+        else "DAY13_APPLY"
         if day13_apply
         else "DAY13_PREVIEW"
         if day13
@@ -135,7 +147,9 @@ def build(
             "show",
             f"{revision}:"
             + (
-                "RUNTIME_ACCOUNTED_DAY13_APPLY_KO.md"
+                "POST_ADOPTION_LOCAL_GATE_KO.md"
+                if post_gate
+                else "RUNTIME_ACCOUNTED_DAY13_APPLY_KO.md"
                 if day13_apply
                 else "RUNTIME_ACCOUNTED_DAY13_PREVIEW_KO.md"
                 if day13
@@ -162,7 +176,9 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-accounted-day13-apply-v2-20261113"
+        "windows-demo-post-adoption-gate-20261113"
+        if post_gate
+        else "windows-demo-accounted-day13-apply-v2-20261113"
         if day13_apply
         else "windows-demo-accounted-day13-preview-20261113"
         if day13
@@ -196,6 +212,7 @@ if __name__ == "__main__":
     parser.add_argument("--flat-review", action="store_true")
     parser.add_argument("--day13-preview", action="store_true")
     parser.add_argument("--day13-apply", action="store_true")
+    parser.add_argument("--post-adoption-gate", action="store_true")
     args = parser.parse_args()
     build(
         args.ref,
@@ -204,4 +221,5 @@ if __name__ == "__main__":
         flat_review=args.flat_review,
         day13=args.day13_preview,
         day13_apply=args.day13_apply,
+        post_gate=args.post_adoption_gate,
     )

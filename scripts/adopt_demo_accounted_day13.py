@@ -691,7 +691,7 @@ def check_resource_delta(engine: Any, scope: str, intent: dict[str, Any], common
             )
 
 
-def verified_status(
+def financial_adoption_witness(
     engine: Any,
     directory: Path,
     scope: str,
@@ -777,6 +777,23 @@ def verified_status(
             == intent["financial_witness_sha256"],
             "DAY13_APPLY_PRIOR_FINANCIAL_HISTORY_CHANGED",
         )
+    return dict(intent)
+
+
+def verified_status(
+    engine: Any,
+    directory: Path,
+    scope: str,
+    journal: UUID,
+    installation: UUID,
+    account: str,
+    clock: Any,
+    common: Any,
+) -> dict[str, Any]:
+    operation, folder = paths(directory, journal)
+    intent = financial_adoption_witness(
+        engine, directory, scope, journal, installation, account, clock, common
+    )
     shared = AuditedDemoReadJournal(
         directory,
         scope,
