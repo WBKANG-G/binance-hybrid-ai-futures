@@ -22,7 +22,7 @@ def test_gate_archive_pins_helpers_and_cost_proof(tmp_path, monkeypatch):
 
     monkeypatch.setattr(builder, "git", git)
     artifact = builder.build("ref", tmp_path, post_gate=True)
-    prefix = "windows-demo-post-adoption-gate-20261113/"
+    prefix = "windows-demo-post-adoption-gate-v2-20261113/"
     with zipfile.ZipFile(artifact) as z:
         assert prefix + "RUN_POST_ADOPTION_GATE.cmd" in z.namelist()
         assert prefix + "RUN_DAY13_STATUS.cmd" not in z.namelist()

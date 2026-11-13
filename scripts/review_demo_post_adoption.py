@@ -5,6 +5,7 @@ import hashlib
 import inspect as pyinspect
 import os
 import sqlite3
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid5
@@ -27,7 +28,7 @@ from packages.persistence.demo_shared_checkpoint import CheckpointContext, Share
 from packages.persistence.demo_shared_weight import STARTUP_HOLD, SharedWeightJournal
 from services.execution.demo_managed_runtime import assemble_managed_runtime
 from services.execution.demo_models import DemoLedger
-from services.execution.demo_quota_startup_review import assess_snapshot
+from services.execution.demo_quota_startup_review import UNRESOLVED, assess_snapshot
 from services.execution.demo_read_audit_bootstrap import _validate_schema
 from services.execution.demo_runtime_capacity import capacity_plan
 from services.execution.demo_runtime_cost_contract import require_runtime_cost_contract
@@ -159,6 +160,84 @@ def raw_audit(
             os.close(fd)
 
 
+def historical_diagnostics(ledger: DemoLedger) -> dict[str, Any]:
+    """Opaque stable references only; local closure never resolves remote uncertainty."""
+
+    def reference(value: str) -> str:
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    rows = []
+    for identifier, state in sorted(ledger.requests.items()):
+        if state not in UNRESOLVED:
+            continue
+        matches = []
+        for order in ledger.orders.values():
+            for role, attribute in (
+                ("ENTRY", "client_id"),
+                ("STOP_LOSS", "algo_id"),
+                ("TAKE_PROFIT", "tp_algo_id"),
+                ("EXIT", "exit_id"),
+            ):
+                if getattr(order, attribute) == identifier:
+                    matches.append(
+                        dict(
+                            order_reference_sha256=reference(order.client_id),
+                            role=role,
+                            local_order_state=order.state.value,
+                            local_position_state=order.position_state.value,
+                            local_exposure_zero=(not order.remaining and not order.open_quantity),
+                        )
+                    )
+        rows.append(
+            dict(
+                request_reference_sha256=reference(identifier),
+                state=state,
+                matched_local_orders=matches,
+                local_no_send_evidence=ledger.request_no_send_evidence.get(identifier),
+                remote_resolution_verified=False,
+                automatically_resolvable=False,
+            )
+        )
+    profile = TPModelProfile(historical_orders=len(ledger.orders))
+    plan = capacity_plan(profile)
+    proof_snapshots = (6 + profile.historical_orders) * profile.snapshot
+    proof_queries = 80 * (profile.historical_orders + 1)
+    return dict(
+        unresolved_requests=rows,
+        unresolved_request_count=len(rows),
+        unresolved_state_counts=dict(sorted(Counter(r["state"] for r in rows).items())),
+        raw_request_identifiers_printed=False,
+        historical_orders_retained=len(ledger.orders),
+        historical_rows_omitted=0,
+        model_assumptions=profile.report(),
+        proof_components=dict(
+            snapshot_count=6 + profile.historical_orders,
+            snapshot_weight=profile.snapshot,
+            snapshots_weight=proof_snapshots,
+            original_id_query_weight=proof_queries,
+            fixed_weight=38,
+            reserve=plan["proof_reserve"],
+        ),
+        entry_components=dict(
+            snapshot_count=8,
+            snapshot_weight=profile.snapshot,
+            snapshots_weight=8 * profile.snapshot,
+            fixed_weight=400,
+            reserve=plan["entry_required"] - profile.entry,
+        ),
+        proof_capacity_deficit=max(0, -plan["proof_slack"]),
+        entry_capacity_deficit=max(0, plan["entry_required"] - plan["effective_ceiling"]),
+        capacity_fits_unchanged_model=bool(
+            plan["proof_fits_empty_window"] and plan["entry_fits_empty_window"]
+        ),
+        history_pruning_permitted=False,
+        budget_increase_permitted=False,
+        reconciliation_performed=False,
+        exchange_checked=False,
+        execution_approved=False,
+    )
+
+
 def run(
     engine: Any,
     directory: Path,
@@ -219,6 +298,7 @@ def run(
                 now=clock.wall_clock(),
                 lease_until=row["lease_until"],
             )
+        diagnostics = historical_diagnostics(ledger)
         costs = cost_contract(evidence, common)
         default_blocked = deny_default(common)
         feasibility = capacity_plan(TPModelProfile(historical_orders=len(ledger.orders)))
@@ -251,6 +331,10 @@ def run(
             blockers.append("SHARED_STARTUP_HOLD")
         if quota.get("historical_unresolved_request_count", 0):
             blockers.append("HISTORICAL_UNRESOLVED_REQUESTS_REQUIRE_RECONCILIATION")
+        if not feasibility["proof_fits_empty_window"]:
+            blockers.append("RUNTIME_PROOF_BATCH_CANNOT_FIT")
+        if not feasibility["entry_fits_empty_window"]:
+            blockers.append("RUNTIME_ENTRY_BATCH_CANNOT_FIT")
         external = [
             "REMOTE_ACCOUNT_IDENTITY_NOT_BOUND",
             "FRESH_EXCHANGE_STATE_NOT_CHECKED_BY_LOCAL_GATE",
@@ -282,6 +366,7 @@ def run(
             managed_quota_startup=quota,
             pinned_cost_contract=costs,
             capacity_assumptions=feasibility,
+            historical_blocker_diagnostics=diagnostics,
             default_execution_denial_verified=default_blocked,
             accounted_order_usage_endpoint_supported=endpoint_supported,
             protected_snapshot_sha256=before,
@@ -306,7 +391,7 @@ def run(
             live_trading_enabled=False,
             execution_approved=False,
             trading_readiness_checked=False,
-            next_action="IMPLEMENT_ACCOUNTED_ORDER_USAGE_EVIDENCE_CONTRACT_KEEP_PAUSED",
+            next_action="REVIEW_HISTORICAL_REQUEST_EVIDENCE_AND_CAPACITY_KEEP_PAUSED",
         )
     finally:
         os.close(fd)

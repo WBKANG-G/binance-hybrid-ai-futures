@@ -176,7 +176,7 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-post-adoption-gate-20261113"
+        "windows-demo-post-adoption-gate-v2-20261113"
         if post_gate
         else "windows-demo-accounted-day13-apply-v2-20261113"
         if day13_apply

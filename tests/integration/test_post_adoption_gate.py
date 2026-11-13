@@ -36,7 +36,7 @@ from tests.unit.test_quota_startup_read_only import files
 
 
 @pytest.fixture
-def installation(base_installation):
+def installation(base_installation, request):
     a = base_installation[0]
     directory = deployment.STORAGE.parent / "order-quota"
     directory.mkdir(mode=0o700)
@@ -55,6 +55,35 @@ def installation(base_installation):
     with a[1].engine.begin() as c:
         value = c.execute(select(accounts.c.state)).scalar_one()
         value["operations"][STORAGE_KEY] = binding
+        if getattr(request, "param", False):
+            from packages.domain.contracts import OrderState, PositionState
+            from services.execution.models import PaperOrder
+            from tests.integration.test_paper import signal, snapshot
+
+            for i in range(34):
+                order = PaperOrder(
+                    client_id=f"synthetic-entry-{i}",
+                    signal=signal(),
+                    snapshot=snapshot(),
+                    group="BTC",
+                    quantity=".0007",
+                    quantity_step=".0001",
+                    price_tick=".1",
+                    loss_per_unit="1",
+                    budget="1",
+                    remaining="0",
+                    state=OrderState.FILLED,
+                    position_state=PositionState.CLOSED,
+                    algo_id=f"synthetic-sl-{i}",
+                    tp_algo_id=f"synthetic-tp-{i}",
+                )
+                value["orders"][str(i)] = order.model_dump(mode="json")
+            value["requests"] = {
+                "synthetic-entry-0": "UNKNOWN",
+                "synthetic-sl-1": "NOT_FOUND_UNRESOLVED",
+                "synthetic-tp-2": "CANCEL_REQUESTED",
+                "synthetic-unmatched": "SUBMITTING",
+            }
         c.execute(update(accounts).values(state=value))
     return base_installation
 
@@ -218,3 +247,21 @@ def test_clock_change_during_final_snapshot_is_included_in_result(adopted, monke
         not result["shared_clock_valid"] and result["shared_clock_reason"] == "WALL_MONOTONIC_DRIFT"
     )
     assert result["all_reviewed_state_unchanged"] and result["http_attempts"] == 0
+
+
+@pytest.mark.parametrize("installation", [True], indirect=True)
+def test_existing_34_closed_orders_and_four_requests_remain_unchanged(adopted):
+    before = financial(adopted[0]), files(deployment.STORAGE.parent)
+    result = review(adopted)
+    assert result["day13_adoption_integrity_verified"] and result["all_reviewed_state_unchanged"]
+    assert set(result["local_blockers"]) == {
+        "HISTORICAL_UNRESOLVED_REQUESTS_REQUIRE_RECONCILIATION",
+        "RUNTIME_PROOF_BATCH_CANNOT_FIT",
+        "RUNTIME_ENTRY_BATCH_CANNOT_FIT",
+    }
+    report = result["historical_blocker_diagnostics"]
+    assert report["unresolved_request_count"] == 4
+    assert report["proof_capacity_deficit"] == 21666 and report["entry_capacity_deficit"] == 220
+    assert all(not r["remote_resolution_verified"] for r in report["unresolved_requests"])
+    assert before == (financial(adopted[0]), files(deployment.STORAGE.parent))
+    assert result["http_attempts"] == 0 and not result["execution_approved"]
