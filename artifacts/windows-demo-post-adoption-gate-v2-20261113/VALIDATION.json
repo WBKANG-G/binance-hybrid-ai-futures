@@ -1,0 +1,531 @@
+{
+  "passed": true,
+  "artifact_sha256": "1a2443ae34b410267690b111efe0b6f7fbcf530b425d5a3c06acd80165f852fd",
+  "cases": [
+    {
+      "case": "valid_clock",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "prior_fixture_synthetic_gets": 18,
+      "gate_exchange_http_attempts": 0,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_database_rows_and_files_unchanged": true,
+      "active_shared_sqlite_bytes_unchanged": true,
+      "quota_store_provisioned_before_prior_receipts": true,
+      "large_history_over_32mib": true,
+      "clock_divergence_reported_without_repair": false,
+      "tampered_adoption_not_accepted": false,
+      "linux_powershell7_native_cmd_shim": true,
+      "user_pc_tested": false,
+      "no_external_network": true,
+      "worker_result": {
+        "account_order_usage_verified": false,
+        "accounted_order_usage_endpoint_supported": false,
+        "actual_ip_capacity_reserved": false,
+        "all_reviewed_state_unchanged": true,
+        "capacity_assumptions": {
+          "current_pressure_checked": false,
+          "effective_ceiling": 5700,
+          "entry_fits_empty_window": false,
+          "entry_required": 5920,
+          "execution_approved": false,
+          "historical_orders": 34,
+          "policy": "SYNTHETIC_SINGLE_WINDOW_FEASIBILITY_V1",
+          "proof_batch_weight": 27238,
+          "proof_fits_empty_window": false,
+          "proof_required": 27366,
+          "proof_reserve": 128,
+          "proof_slack": -21666,
+          "published_limit_assumption": 6000,
+          "request_cost_upper_bounds_proven": false
+        },
+        "credential_session_accessed": false,
+        "database_changed": false,
+        "day13_adoption_integrity_verified": true,
+        "default_execution_denial_verified": true,
+        "exchange_account_identity_verified": false,
+        "exchange_checked": false,
+        "execution_approved": false,
+        "filesystem_changed": false,
+        "historical_blocker_diagnostics": {
+          "budget_increase_permitted": false,
+          "capacity_fits_unchanged_model": false,
+          "entry_capacity_deficit": 220,
+          "entry_components": {
+            "fixed_weight": 400,
+            "reserve": 640,
+            "snapshot_count": 8,
+            "snapshot_weight": 610,
+            "snapshots_weight": 4880
+          },
+          "exchange_checked": false,
+          "execution_approved": false,
+          "historical_orders_retained": 34,
+          "historical_rows_omitted": 0,
+          "history_pruning_permitted": false,
+          "model_assumptions": {
+            "cleanup_assumption": 40640,
+            "entry_protection_assumption": 5280,
+            "flat_attempts": 4,
+            "headroom_assumption": 300,
+            "historical_orders": 34,
+            "is_proven_upper_bound": false,
+            "max_income_pages": 10,
+            "preparation_assumption": 2640,
+            "snapshot_assumption": 610
+          },
+          "proof_capacity_deficit": 21666,
+          "proof_components": {
+            "fixed_weight": 38,
+            "original_id_query_weight": 2800,
+            "reserve": 128,
+            "snapshot_count": 40,
+            "snapshot_weight": 610,
+            "snapshots_weight": 24400
+          },
+          "raw_request_identifiers_printed": false,
+          "reconciliation_performed": false,
+          "unresolved_request_count": 4,
+          "unresolved_requests": [
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+                  "role": "ENTRY"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "state": "UNKNOWN"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+                  "role": "STOP_LOSS"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "0147da137e1bceabfdbeb439b4b03dc6b08c4961721ff50badcb030414f3cf4d",
+              "state": "NOT_FOUND_UNRESOLVED"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+                  "role": "TAKE_PROFIT"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "9a634b073f114c938ae0c52745c149ae9e7f277b2da374d73ab61e58fe7114d8",
+              "state": "CANCEL_REQUESTED"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "81b6503e914e4723352b07b7f0d222d7c02ff784a9deed9f7a8fee88882ea1a9",
+              "state": "SUBMITTING"
+            }
+          ],
+          "unresolved_state_counts": {
+            "CANCEL_REQUESTED": 1,
+            "NOT_FOUND_UNRESOLVED": 1,
+            "SUBMITTING": 1,
+            "UNKNOWN": 1
+          }
+        },
+        "http_attempts": 0,
+        "installed_adoption_modules_verified": true,
+        "installed_control_files_verified": true,
+        "journal_changed": false,
+        "leader_acquired": false,
+        "live_trading_enabled": false,
+        "local_blockers": [
+          "HISTORICAL_UNRESOLVED_REQUESTS_REQUIRE_RECONCILIATION",
+          "RUNTIME_ENTRY_BATCH_CANNOT_FIT",
+          "RUNTIME_PROOF_BATCH_CANNOT_FIT"
+        ],
+        "local_runtime_review_checked": true,
+        "local_storage_checks_passed": true,
+        "managed_quota_startup": {
+          "blockers": [],
+          "database_changed_by_review": false,
+          "durable_claims": 0,
+          "exchange_checked": false,
+          "execution_approved": false,
+          "external_account_usage": "UNKNOWN",
+          "historical_unresolved_request_count": 4,
+          "http_attempts": 0,
+          "journal_changed_by_review": false,
+          "leader_acquired": false,
+          "live_trading_enabled": false,
+          "local_checks_passed": true,
+          "local_storage_consistent": true,
+          "managed_quota_startup_review": "LOCAL_CHECKS_PASSED_KEEP_PAUSED",
+          "next_action": "KEEP_PAUSED_NO_AUTOMATIC_APPLY_OR_RECOVERY",
+          "order_writes": 0,
+          "orders_enabled": false,
+          "paused": true,
+          "pending_flows": 0,
+          "pending_reserved_slots": 0,
+          "period_keys_match": true,
+          "policy_digest": "20f90dfb9985dd5202ddba2e2dc2d91b58354476caccfb903b353596d1f7dc40",
+          "remaining_execution_blockers": [
+            "EXTERNAL_ACCOUNT_ORDER_USAGE_UNKNOWN",
+            "REQUEST_COST_CONTRACT_REVIEW_PENDING",
+            "SHARED_IP_CAPACITY_NOT_RESERVED",
+            "PRODUCTION_DEFAULT_EXECUTION_DISABLED"
+          ],
+          "review_scope": "LOCAL_SNAPSHOT_ONLY_NOT_EXCHANGE_READINESS",
+          "risk_state": "NORMAL",
+          "sealed_flows": 0,
+          "session_started": false,
+          "slots_10s": null,
+          "slots_60s": null,
+          "storage_created": false,
+          "writer_restart_hold_seconds": 70.001
+        },
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_HISTORICAL_REQUEST_EVIDENCE_AND_CAPACITY_KEEP_PAUSED",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "paused": true,
+        "pinned_cost_contract": {
+          "documented_routes": 21,
+          "live_venue_cost_upper_bounds_verified": false,
+          "pinned_documented_cost_contract_verified": true,
+          "sdk_commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179"
+        },
+        "post_adoption_local_gate": "REVIEW_COMPLETED_KEEP_PAUSED",
+        "prior_financial_history_preserved": true,
+        "prior_receipts_and_files_preserved": true,
+        "protected_snapshot_sha256": "d6a3f7954aa6e2454cab2c532ff6e02140239521012140eb58d0dd53ec84b8cd",
+        "remaining_execution_blockers": [
+          "REMOTE_ACCOUNT_IDENTITY_NOT_BOUND",
+          "FRESH_EXCHANGE_STATE_NOT_CHECKED_BY_LOCAL_GATE",
+          "EXTERNAL_ACCOUNT_ORDER_USAGE_UNKNOWN",
+          "ORDER_USAGE_ENDPOINT_NOT_IN_ACCOUNTED_ROUTE_SET",
+          "LIVE_VENUE_COST_UPPER_BOUNDS_NOT_PROVEN",
+          "SHARED_IP_CAPACITY_NOT_RESERVED",
+          "DEFAULT_EXECUTION_DISABLED"
+        ],
+        "request_cost_upper_bounds_proven": false,
+        "review_scope": "LOCAL_INTEGRITY_AND_STATIC_RUNTIME_CONTRACT_ONLY",
+        "session_started": false,
+        "shared_audit_events": 37,
+        "shared_audit_integrity_verified": true,
+        "shared_clock_reason": "NONE",
+        "shared_clock_valid": true,
+        "shared_cumulative_modeled_weight": 268,
+        "shared_startup_ready": true,
+        "storage_created": false,
+        "trading_readiness_checked": false
+      }
+    },
+    {
+      "case": "changed_clock",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "prior_fixture_synthetic_gets": 18,
+      "gate_exchange_http_attempts": 0,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_database_rows_and_files_unchanged": true,
+      "active_shared_sqlite_bytes_unchanged": true,
+      "quota_store_provisioned_before_prior_receipts": true,
+      "large_history_over_32mib": true,
+      "clock_divergence_reported_without_repair": true,
+      "tampered_adoption_not_accepted": false,
+      "linux_powershell7_native_cmd_shim": true,
+      "user_pc_tested": false,
+      "no_external_network": true,
+      "worker_result": {
+        "account_order_usage_verified": false,
+        "accounted_order_usage_endpoint_supported": false,
+        "actual_ip_capacity_reserved": false,
+        "all_reviewed_state_unchanged": true,
+        "capacity_assumptions": {
+          "current_pressure_checked": false,
+          "effective_ceiling": 5700,
+          "entry_fits_empty_window": false,
+          "entry_required": 5920,
+          "execution_approved": false,
+          "historical_orders": 34,
+          "policy": "SYNTHETIC_SINGLE_WINDOW_FEASIBILITY_V1",
+          "proof_batch_weight": 27238,
+          "proof_fits_empty_window": false,
+          "proof_required": 27366,
+          "proof_reserve": 128,
+          "proof_slack": -21666,
+          "published_limit_assumption": 6000,
+          "request_cost_upper_bounds_proven": false
+        },
+        "credential_session_accessed": false,
+        "database_changed": false,
+        "day13_adoption_integrity_verified": true,
+        "default_execution_denial_verified": true,
+        "exchange_account_identity_verified": false,
+        "exchange_checked": false,
+        "execution_approved": false,
+        "filesystem_changed": false,
+        "historical_blocker_diagnostics": {
+          "budget_increase_permitted": false,
+          "capacity_fits_unchanged_model": false,
+          "entry_capacity_deficit": 220,
+          "entry_components": {
+            "fixed_weight": 400,
+            "reserve": 640,
+            "snapshot_count": 8,
+            "snapshot_weight": 610,
+            "snapshots_weight": 4880
+          },
+          "exchange_checked": false,
+          "execution_approved": false,
+          "historical_orders_retained": 34,
+          "historical_rows_omitted": 0,
+          "history_pruning_permitted": false,
+          "model_assumptions": {
+            "cleanup_assumption": 40640,
+            "entry_protection_assumption": 5280,
+            "flat_attempts": 4,
+            "headroom_assumption": 300,
+            "historical_orders": 34,
+            "is_proven_upper_bound": false,
+            "max_income_pages": 10,
+            "preparation_assumption": 2640,
+            "snapshot_assumption": 610
+          },
+          "proof_capacity_deficit": 21666,
+          "proof_components": {
+            "fixed_weight": 38,
+            "original_id_query_weight": 2800,
+            "reserve": 128,
+            "snapshot_count": 40,
+            "snapshot_weight": 610,
+            "snapshots_weight": 24400
+          },
+          "raw_request_identifiers_printed": false,
+          "reconciliation_performed": false,
+          "unresolved_request_count": 4,
+          "unresolved_requests": [
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+                  "role": "ENTRY"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "state": "UNKNOWN"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+                  "role": "STOP_LOSS"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "0147da137e1bceabfdbeb439b4b03dc6b08c4961721ff50badcb030414f3cf4d",
+              "state": "NOT_FOUND_UNRESOLVED"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [
+                {
+                  "local_exposure_zero": true,
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+                  "role": "TAKE_PROFIT"
+                }
+              ],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "9a634b073f114c938ae0c52745c149ae9e7f277b2da374d73ab61e58fe7114d8",
+              "state": "CANCEL_REQUESTED"
+            },
+            {
+              "automatically_resolvable": false,
+              "local_no_send_evidence": null,
+              "matched_local_orders": [],
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "81b6503e914e4723352b07b7f0d222d7c02ff784a9deed9f7a8fee88882ea1a9",
+              "state": "SUBMITTING"
+            }
+          ],
+          "unresolved_state_counts": {
+            "CANCEL_REQUESTED": 1,
+            "NOT_FOUND_UNRESOLVED": 1,
+            "SUBMITTING": 1,
+            "UNKNOWN": 1
+          }
+        },
+        "http_attempts": 0,
+        "installed_adoption_modules_verified": true,
+        "installed_control_files_verified": true,
+        "journal_changed": false,
+        "leader_acquired": false,
+        "live_trading_enabled": false,
+        "local_blockers": [
+          "HISTORICAL_UNRESOLVED_REQUESTS_REQUIRE_RECONCILIATION",
+          "RUNTIME_ENTRY_BATCH_CANNOT_FIT",
+          "RUNTIME_PROOF_BATCH_CANNOT_FIT",
+          "SHARED_CLOCK_OR_BOOT_CHANGED"
+        ],
+        "local_runtime_review_checked": true,
+        "local_storage_checks_passed": true,
+        "managed_quota_startup": {
+          "blockers": [],
+          "database_changed_by_review": false,
+          "durable_claims": 0,
+          "exchange_checked": false,
+          "execution_approved": false,
+          "external_account_usage": "UNKNOWN",
+          "historical_unresolved_request_count": 4,
+          "http_attempts": 0,
+          "journal_changed_by_review": false,
+          "leader_acquired": false,
+          "live_trading_enabled": false,
+          "local_checks_passed": true,
+          "local_storage_consistent": true,
+          "managed_quota_startup_review": "LOCAL_CHECKS_PASSED_KEEP_PAUSED",
+          "next_action": "KEEP_PAUSED_NO_AUTOMATIC_APPLY_OR_RECOVERY",
+          "order_writes": 0,
+          "orders_enabled": false,
+          "paused": true,
+          "pending_flows": 0,
+          "pending_reserved_slots": 0,
+          "period_keys_match": true,
+          "policy_digest": "20f90dfb9985dd5202ddba2e2dc2d91b58354476caccfb903b353596d1f7dc40",
+          "remaining_execution_blockers": [
+            "EXTERNAL_ACCOUNT_ORDER_USAGE_UNKNOWN",
+            "REQUEST_COST_CONTRACT_REVIEW_PENDING",
+            "SHARED_IP_CAPACITY_NOT_RESERVED",
+            "PRODUCTION_DEFAULT_EXECUTION_DISABLED"
+          ],
+          "review_scope": "LOCAL_SNAPSHOT_ONLY_NOT_EXCHANGE_READINESS",
+          "risk_state": "NORMAL",
+          "sealed_flows": 0,
+          "session_started": false,
+          "slots_10s": null,
+          "slots_60s": null,
+          "storage_created": false,
+          "writer_restart_hold_seconds": 70.001
+        },
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_HISTORICAL_REQUEST_EVIDENCE_AND_CAPACITY_KEEP_PAUSED",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "paused": true,
+        "pinned_cost_contract": {
+          "documented_routes": 21,
+          "live_venue_cost_upper_bounds_verified": false,
+          "pinned_documented_cost_contract_verified": true,
+          "sdk_commit": "f75b4a52c5aebf52b1c6ad671b0ce53b96f8e179"
+        },
+        "post_adoption_local_gate": "REVIEW_COMPLETED_KEEP_PAUSED",
+        "prior_financial_history_preserved": true,
+        "prior_receipts_and_files_preserved": true,
+        "protected_snapshot_sha256": "aeb565c17a56c389b610be0c371699a0118b886337055dbac5869416eae9d266",
+        "remaining_execution_blockers": [
+          "REMOTE_ACCOUNT_IDENTITY_NOT_BOUND",
+          "FRESH_EXCHANGE_STATE_NOT_CHECKED_BY_LOCAL_GATE",
+          "EXTERNAL_ACCOUNT_ORDER_USAGE_UNKNOWN",
+          "ORDER_USAGE_ENDPOINT_NOT_IN_ACCOUNTED_ROUTE_SET",
+          "LIVE_VENUE_COST_UPPER_BOUNDS_NOT_PROVEN",
+          "SHARED_IP_CAPACITY_NOT_RESERVED",
+          "DEFAULT_EXECUTION_DISABLED"
+        ],
+        "request_cost_upper_bounds_proven": false,
+        "review_scope": "LOCAL_INTEGRITY_AND_STATIC_RUNTIME_CONTRACT_ONLY",
+        "session_started": false,
+        "shared_audit_events": 37,
+        "shared_audit_integrity_verified": true,
+        "shared_clock_reason": "WALL_MONOTONIC_DRIFT",
+        "shared_clock_valid": false,
+        "shared_cumulative_modeled_weight": 268,
+        "shared_startup_ready": false,
+        "storage_created": false,
+        "trading_readiness_checked": false
+      }
+    },
+    {
+      "case": "tampered_ledger",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "prior_fixture_synthetic_gets": 18,
+      "gate_exchange_http_attempts": 0,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_database_rows_and_files_unchanged": true,
+      "active_shared_sqlite_bytes_unchanged": true,
+      "quota_store_provisioned_before_prior_receipts": true,
+      "large_history_over_32mib": true,
+      "clock_divergence_reported_without_repair": false,
+      "tampered_adoption_not_accepted": true,
+      "linux_powershell7_native_cmd_shim": true,
+      "user_pc_tested": false,
+      "no_external_network": true,
+      "worker_result": {
+        "accounted_read_probe": "BLOCKED_KEEP_PAUSED",
+        "application_may_have_completed": false,
+        "automatic_retry": false,
+        "clock_apply_started": false,
+        "clock_preparation_created": false,
+        "clock_resource_state": "NO_CLOCK_APPLY_STARTED",
+        "completed_reads": 0,
+        "execution_approved": false,
+        "financial_ledger_unchanged_verified": false,
+        "financial_ledger_writes_by_probe": 0,
+        "http_attempts": 0,
+        "intent_created": false,
+        "live_trading_enabled": false,
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "resource_state": "NO_PROBE_REQUEST_STARTED",
+        "stage": "ACCOUNT_RECEIPTS",
+        "stop_reason": "DAY13_APPLY_COMMIT_STATE_CHANGED"
+      }
+    }
+  ],
+  "exchange_http_attempts": 0,
+  "order_writes": 0,
+  "source_commit": "37daa569c5f471f4c217701c6a109baa0bfc4dd5",
+  "tests_passed": 56,
+  "ruff_passed": true,
+  "strict_mypy_files_passed": 2,
+  "archive_hashes_verified": true,
+  "windows_powershell_5_1_tested": false,
+  "user_pc_tested": false,
+  "synthetic_historical_orders": 34,
+  "synthetic_unresolved_requests": 4
+}
