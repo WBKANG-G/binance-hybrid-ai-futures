@@ -225,7 +225,7 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-historical-local-receipts-20261113"
+        "windows-demo-historical-local-receipts-v2-20261113"
         if local_receipts
         else "windows-demo-historical-exit-evidence-20261113"
         if exit_followup

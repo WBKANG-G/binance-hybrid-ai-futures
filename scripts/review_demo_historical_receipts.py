@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text, tuple_
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from integrations.binance_usdm.demo_tp_admission import TPModelProfile
 from packages.domain.contracts import OrderState, PositionState
@@ -236,69 +237,120 @@ def event_signature(payload: Any, item: Any, common: Any) -> dict[str, Any] | No
     return result
 
 
-def timelines(engine: Any, account: str, plan: Any, common: Any) -> dict[str, Any]:
+def timelines(
+    engine: Any, account: str, plan: Any, common: Any, *, state: Any = None
+) -> dict[str, Any]:
     result: dict[str, list[dict[str, Any]]] = {p["request_reference_sha256"]: [] for p in plan}
     previous: dict[str, Any] = {}
     scanned = skipped = total = 0
-    deadline = time.monotonic() + 60
-    last = None
-    with engine.connect() as c, c.begin():
-        c.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
-        c.execute(text("SET LOCAL statement_timeout='2s'"))
-        while True:
-            common.require(
-                time.monotonic() < deadline and scanned <= 4096 and total <= 128 * 1024 * 1024,
-                "LOCAL_RECEIPT_EVENT_SCAN_LIMIT",
+    started = time.monotonic()
+    state = {} if state is None else state
+    diagnostic: dict[str, Any] = dict(
+        query_strategy="SINGLE_READ_ONLY_STREAM",
+        row_limit=4096,
+        byte_limit=128 * 1024 * 1024,
+        per_row_byte_limit=2 * 1024 * 1024,
+        seconds_limit=60,
+        events_scanned=0,
+        event_bytes_scanned=0,
+        elapsed_ms=0,
+        phase="EVENT_METADATA",
+    )
+    state["local_receipt_scan"] = diagnostic
+
+    def checkpoint() -> None:
+        diagnostic.update(
+            events_scanned=scanned,
+            event_bytes_scanned=total,
+            elapsed_ms=int(max(0, time.monotonic() - started) * 1000),
+        )
+        common.require(diagnostic["elapsed_ms"] < 60000, "LOCAL_RECEIPT_EVENT_TIME_LIMIT")
+
+    try:
+        with engine.connect() as c, c.begin():
+            c.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+            c.execute(text("SET LOCAL statement_timeout='2s'"))
+            checkpoint()
+            count, size, largest = c.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(func.octet_length(events.c.payload)), 0),
+                    func.coalesce(func.max(func.octet_length(events.c.payload)), 0),
+                ).where(events.c.account_id == account)
+            ).one()
+            diagnostic.update(
+                planned_event_rows=int(count),
+                planned_event_bytes=int(size),
+                max_event_row_bytes=int(largest),
             )
+            common.require(count <= 4096, "LOCAL_RECEIPT_EVENT_ROW_COUNT_LIMIT")
+            common.require(size <= 128 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_BYTE_LIMIT")
+            common.require(largest <= 2 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_ROW_LIMIT")
+            checkpoint()
+            diagnostic["phase"] = "EVENT_ROWS"
             q = (
                 select(events)
                 .where(events.c.account_id == account)
                 .order_by(events.c.as_of, events.c.event_id)
-                .limit(1)
             )
-            if last is not None:
-                q = q.where(tuple_(events.c.as_of, events.c.event_id) > last)
-            row = c.execute(q).mappings().one_or_none()
-            if row is None:
-                break
-            last = (row["as_of"], row["event_id"])
-            body = row["payload"]
-            size = len(body.encode())
-            total += size
-            scanned += 1
-            common.require(size <= 2 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_ROW_LIMIT")
-            common.require(
-                scanned <= 4096 and total <= 128 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_SCAN_LIMIT"
-            )
-            payload = json.loads(body)
-            if (
-                not isinstance(payload, dict)
-                or not isinstance(payload.get("requests"), dict)
-                or not isinstance(payload.get("orders"), dict)
-            ):
-                skipped += 1
-                continue
-            for item in plan:
-                signature = event_signature(payload, item, common)
-                key = item["request_reference_sha256"]
-                if signature == previous.get(key):
-                    continue
-                previous[key] = signature
-                common.require(len(result[key]) < 128, "LOCAL_RECEIPT_TIMELINE_LIMIT")
-                result[key].append(
-                    dict(
-                        event_reference_sha256=ref(row["event_id"]),
-                        as_of_utc=row["as_of"].astimezone(UTC).isoformat(),
-                        event_kind=row["kind"] if row["kind"] in KINDS else "OTHER_STORED_EVENT",
-                        local_fields=signature,
-                        remote_proof_verified=False,
+            # A single server cursor avoids re-sorting the entire table for every event.
+            with c.execution_options(stream_results=True, yield_per=32).execute(q) as cursor:
+                for row in cursor.mappings():
+                    checkpoint()
+                    body = row["payload"]
+                    row_size = len(body.encode())
+                    scanned += 1
+                    total += row_size
+                    diagnostic.update(
+                        events_scanned=scanned,
+                        event_bytes_scanned=total,
+                        last_event_reference_sha256=ref(row["event_id"]),
                     )
-                )
+                    common.require(scanned <= 4096, "LOCAL_RECEIPT_EVENT_ROW_COUNT_LIMIT")
+                    common.require(total <= 128 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_BYTE_LIMIT")
+                    common.require(row_size <= 2 * 1024 * 1024, "LOCAL_RECEIPT_EVENT_ROW_LIMIT")
+                    payload = json.loads(body)
+                    if (
+                        not isinstance(payload, dict)
+                        or not isinstance(payload.get("requests"), dict)
+                        or not isinstance(payload.get("orders"), dict)
+                    ):
+                        skipped += 1
+                        continue
+                    for item in plan:
+                        signature = event_signature(payload, item, common)
+                        key = item["request_reference_sha256"]
+                        if signature == previous.get(key):
+                            continue
+                        previous[key] = signature
+                        common.require(len(result[key]) < 128, "LOCAL_RECEIPT_TIMELINE_LIMIT")
+                        result[key].append(
+                            dict(
+                                event_reference_sha256=ref(row["event_id"]),
+                                as_of_utc=row["as_of"].astimezone(UTC).isoformat(),
+                                event_kind=row["kind"]
+                                if row["kind"] in KINDS
+                                else "OTHER_STORED_EVENT",
+                                local_fields=signature,
+                                remote_proof_verified=False,
+                            )
+                        )
+            checkpoint()
+            common.require(
+                scanned == count and total == size, "LOCAL_RECEIPT_EVENT_SCAN_INCOMPLETE"
+            )
+            diagnostic["phase"] = "COMPLETE"
+    except SQLAlchemyError as error:
+        if getattr(getattr(error, "orig", None), "sqlstate", None) == "57014":
+            common.require(False, "LOCAL_RECEIPT_EVENT_DATABASE_TIMEOUT")
+        raise
     return dict(
         events_scanned=scanned,
         event_bytes_scanned=total,
         non_ledger_payloads_skipped=skipped,
         request_local_state_timelines=result,
+        query_strategy="SINGLE_READ_ONLY_STREAM",
+        event_metadata_counts_verified=True,
         remote_proof_replayed=False,
     )
 
@@ -319,8 +371,11 @@ def run(
     evidence: Any,
     *,
     clocks: Any = None,
+    state: Any = None,
 ) -> dict[str, Any]:
     clock = clocks or RuntimeClocks()
+    state = {} if state is None else state
+    state["stage"] = "LOCAL_RECEIPT_PRIOR_EXIT_STATUS"
 
     def forbidden() -> Any:
         common.require(False, "LOCAL_RECEIPT_CREDENTIAL_ACCESS_FORBIDDEN")
@@ -389,7 +444,9 @@ def run(
             )
         plan = history.plan_requests(ledger, common)
         inventory = relations(ledger, plan, clock.wall_clock())
-        timeline = timelines(engine, account, plan, common)
+        state["stage"] = "LOCAL_RECEIPT_EVENT_SCAN"
+        timeline = timelines(engine, account, plan, common, state=state)
+        state["stage"] = "LOCAL_RECEIPT_PRESERVATION_POSTCHECK"
         common.require(
             before
             == common.protected_snapshot(engine, directory.parent, path, sentinel, fingerprint)

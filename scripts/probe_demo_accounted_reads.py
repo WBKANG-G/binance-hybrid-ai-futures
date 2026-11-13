@@ -1290,6 +1290,7 @@ def main() -> int:
                             helper,
                             common,
                             evidence,
+                            state=state,
                         )
                     else:
                         result = helper.run(
@@ -1438,6 +1439,8 @@ def main() -> int:
             if args and args[0] in ("--apply-day13", "--day13-adoption-status")
             else "REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT",
         )
+        if "local_receipt_scan" in state:
+            result["local_receipt_scan"] = state["local_receipt_scan"]
         code = 1
     finally:
         if engine is not None:

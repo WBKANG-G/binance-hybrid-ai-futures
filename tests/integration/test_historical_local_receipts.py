@@ -201,11 +201,93 @@ def test_scan_timeout_refuses_without_partial_success(finished, monkeypatch):
     samples = iter([0, 61])
     from types import SimpleNamespace
 
-    monkeypatch.setattr(receipts, "time", SimpleNamespace(monotonic=lambda: next(samples)))
+    monkeypatch.setattr(receipts, "time", SimpleNamespace(monotonic=lambda: next(samples, 61)))
     ledger = finished[0][6].read("DEMO-test")
-    with pytest.raises(common.ProbeBlocked, match="EVENT_SCAN_LIMIT"):
+    with pytest.raises(common.ProbeBlocked, match="EVENT_TIME_LIMIT"):
         receipts.timelines(
             finished[0][1].engine, "DEMO-test", history.plan_requests(ledger, common), common
         )
     monkeypatch.undo()
     assert financial(finished[0]) == before
+
+
+def scan_account(engine, ledger, count, *, payload_expression="'{\"synthetic\":true}'"):
+    # Separate synthetic account so metadata limits can be tested without changing adopted receipts.
+    from sqlalchemy import text
+
+    with engine.begin() as c:
+        c.execute(
+            accounts.insert().values(
+                account_id="DEMO-scan",
+                owner=None,
+                fence=0,
+                lease_until=None,
+                state=ledger.model_dump(mode="json"),
+            )
+        )
+        c.execute(
+            text(
+                "INSERT INTO demo_events(event_id,account_id,fence,as_of,kind,payload) SELECT md5('scan-'||n::text)::uuid::text,'DEMO-scan',0,now(),'SYNTHETIC',"
+                + payload_expression
+                + " FROM generate_series(1,:count) n"
+            ),
+            dict(count=count),
+        )
+
+
+def test_full_4096_rows_use_one_ordered_stream_without_omitting_rows(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    scan_account(engine, ledger, 4096)
+    queries = []
+
+    def record(c, cursor, statement, parameters, context, many):
+        if statement.startswith("SELECT demo_events.event_id"):
+            queries.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        result = receipts.timelines(
+            engine, "DEMO-scan", history.plan_requests(ledger, common), common
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert len(queries) == 1
+    assert result["events_scanned"] == result["non_ledger_payloads_skipped"] == 4096
+    assert (
+        result["event_metadata_counts_verified"]
+        and result["query_strategy"] == "SINGLE_READ_ONLY_STREAM"
+    )
+
+
+def test_row_count_limit_is_diagnosed_before_transferring_payloads(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    scan_account(engine, ledger, 4097)
+    state = {}
+    with pytest.raises(common.ProbeBlocked, match="EVENT_ROW_COUNT_LIMIT"):
+        receipts.timelines(
+            engine, "DEMO-scan", history.plan_requests(ledger, common), common, state=state
+        )
+    assert state["local_receipt_scan"]["planned_event_rows"] == 4097
+    assert state["local_receipt_scan"]["events_scanned"] == 0
+    assert state["local_receipt_scan"]["row_limit"] == 4096
+
+
+def test_byte_limit_is_diagnosed_before_transferring_payloads(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    scan_account(
+        engine,
+        ledger,
+        128,
+        payload_expression="json_build_object('synthetic',repeat('X',1048576))::text",
+    )
+    state = {}
+    with pytest.raises(common.ProbeBlocked, match="EVENT_BYTE_LIMIT"):
+        receipts.timelines(
+            engine, "DEMO-scan", history.plan_requests(ledger, common), common, state=state
+        )
+    assert state["local_receipt_scan"]["planned_event_rows"] == 128
+    assert state["local_receipt_scan"]["planned_event_bytes"] > 128 * 1024 * 1024
+    assert state["local_receipt_scan"]["events_scanned"] == 0
