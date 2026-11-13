@@ -1,0 +1,50 @@
+{
+  "date": "2026-11-13",
+  "scope": "UNINSTALLED_EXPLICIT_OPT_IN_GET_RESPONSE_EVIDENCE_CANDIDATE",
+  "unique_tests_passed": 162,
+  "final_candidate_integration_tests_passed": 24,
+  "final_metadata_unit_tests_passed": 12,
+  "existing_regression_tests_passed": 126,
+  "runs": [
+    {
+      "tests_passed": 147,
+      "seconds": 109.6,
+      "note": "21 initial candidate cases plus 126 existing audit/recovery/read-accounting/checkpoint cases"
+    },
+    {
+      "tests_passed": 36,
+      "seconds": 8.48,
+      "note": "Final 24 candidate integration and 12 metadata unit cases; includes capacity guard and restart/schema cases"
+    }
+  ],
+  "ruff_check_and_format_passed": true,
+  "strict_mypy_source_files_passed": 2,
+  "storage_tested": [
+    "PostgreSQL",
+    "SQLite",
+    "private local file witness"
+  ],
+  "exchange_sender": "SYNTHETIC_ONLY",
+  "actual_exchange_http_attempts": 0,
+  "real_windows_state_accessed": false,
+  "existing_tracked_files_changed": false,
+  "candidate_runtime_source_files_added": 2,
+  "schema_provisioned_on_user_windows": false,
+  "windows_installation_performed": false,
+  "old_response_hashes_backfilled": false,
+  "response_body_artifact_storage_implemented": false,
+  "remote_account_identity_verified": false,
+  "archive_authority_implemented": false,
+  "historical_request_reconciliation_performed": false,
+  "capacity_shortfall_resolved": false,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "Cross-store commits can leave a blocking gap; no automatic repair or retry.",
+    "Independent file witness is not an external trust anchor against an actor rewriting both DB and private files.",
+    "CLOCK_REBASE after V2 binding and Windows installation migration are not implemented.",
+    "Response digest and local account label do not prove terminal result or remote account identity."
+  ]
+}
