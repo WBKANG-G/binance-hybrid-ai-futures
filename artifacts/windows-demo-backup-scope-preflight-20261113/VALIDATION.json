@@ -1,0 +1,52 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_changes_performed": false,
+  "actual_windows_powershell_51_executed": false,
+  "archive_entries": 7,
+  "artifact": "windows-demo-backup-scope-preflight-20261113.zip",
+  "artifact_bytes": 14024,
+  "artifact_sha256": "2b41991d799d1b2a8bef2184ce66fdf0d705caccf544740b1974b23978fae694",
+  "backup_created": false,
+  "backup_ready": false,
+  "committed_sources_and_manifest_verified": true,
+  "docker_scope": "SYNTHETIC_INSTALLED_API_IMAGE_NOT_ACTUAL_WINDOWS",
+  "execution_approved": false,
+  "installation_ready": false,
+  "limitations": [
+    "METADATA_ONLY_NO_FILE_BODY_OR_EVENT_BODY_READ",
+    "CURRENT_SCHEMA_ONLY_NOT_COMPLETE_DEPENDENCY_CLOSURE",
+    "NO_ATOMIC_DB_FILE_SNAPSHOT",
+    "NO_DOCKER_CLI_WALL_TIME_WATCHDOG",
+    "NO_ACTUAL_WINDOWS_BACKUP_OR_RESTORE"
+  ],
+  "live_trading_enabled": false,
+  "mypy": {
+    "source_files": 2,
+    "status": "PASS",
+    "strict": true
+  },
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_BACKUP_SCOPE_PREFLIGHT_RELEASE_VALIDATION_V1",
+  "powershell_test_host": "LINUX_POWERSHELL_7",
+  "pre_release_regression": {
+    "duration_seconds": 38.21,
+    "includes": "NEW_PREFLIGHT_AND_PRIOR_INVENTORY",
+    "passed": 82,
+    "skipped": 0
+  },
+  "release_zip_tests": {
+    "duration_seconds": 25.92,
+    "passed": 49,
+    "scope": "UNIT_POWERSHELL_NATIVE_FILE_PG_DOCKER",
+    "skipped": 0
+  },
+  "restore_tested": false,
+  "ruff": {
+    "files": 6,
+    "status": "PASS"
+  },
+  "source_reference": "0ae71bd04faa364115decebd17f535b0128d2631",
+  "writer_quiescence_verified": false
+}

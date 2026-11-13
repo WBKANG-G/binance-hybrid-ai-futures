@@ -1,0 +1,195 @@
+{
+  "image": "hybrid-read-code:fb371aeabcc9-ea6d3f52e6bb",
+  "payload_streamed_to_stdin": true,
+  "rootfs_read_only": true,
+  "scope": "SYNTHETIC_DOCKER_NOT_ACTUAL_WINDOWS",
+  "storage_mount_read_only": true,
+  "user": "10001:10001",
+  "worker_report": {
+    "account_found": true,
+    "account_paused": true,
+    "active_lease_observed": false,
+    "actual_http_attempts": 0,
+    "api_replaced": false,
+    "automatic_retry": false,
+    "backup_created": false,
+    "backup_ready": false,
+    "backup_scope_preflight": "READ_ONLY_SCOPE_OBSERVED_KEEP_PAUSED",
+    "catalog": {
+      "constraints": 105,
+      "cross_schema_foreign_keys": 0,
+      "cross_schema_inheritance": 0,
+      "functions": 1,
+      "indexes": 16,
+      "triggers": 0
+    },
+    "clock_recovery_attempted": false,
+    "credential_session_opened": false,
+    "database_changed": false,
+    "database_configuration_used": true,
+    "database_scope": "b1e555e2478d845cd1342d0ce764e0f18cc92a33e5b163da11b77b74bb0467e6",
+    "exchange_credentials_accessed": false,
+    "execution_approved": false,
+    "failure_category": "NONE",
+    "file_contents_verified": false,
+    "files_changed": false,
+    "installation_ready": false,
+    "journal_opened": false,
+    "live_trading_enabled": false,
+    "metadata_only": true,
+    "next_action": "REVIEW_SCOPE_NO_AUTOMATIC_BACKUP_INSTALL_OR_RETRY",
+    "observation_atomic": false,
+    "offline_copy_performed": false,
+    "order_writes": 0,
+    "orders_enabled": false,
+    "reference_generated": false,
+    "restore_tested": false,
+    "schema_definitions_verified": false,
+    "source_reference": "0ae71bd04faa364115decebd17f535b0128d2631",
+    "sqlstate": null,
+    "stage": "COMPLETE",
+    "storage": {
+      "directories": 2,
+      "entries": 3,
+      "files": 1,
+      "group_or_other_writable_entries": 0,
+      "groups": {
+        "ORDER_QUOTA": {
+          "files": 0,
+          "logical_bytes": 0
+        },
+        "OTHER": {
+          "files": 0,
+          "logical_bytes": 0
+        },
+        "SHARED_WEIGHT": {
+          "files": 1,
+          "logical_bytes": 17
+        }
+      },
+      "logical_bytes": 17,
+      "metadata_sha256": "bb09988e0977897e12eb76e9d0622abe15703a66db6a0de27107af44b517bce3",
+      "root": "/app/demo-export-state",
+      "sqlite_journal_files": 0,
+      "sqlite_shm_files": 0,
+      "sqlite_wal_files": 1
+    },
+    "table_contents_verified": false,
+    "tables": [
+      {
+        "identity_sha256": "db93664b1a6525fcbb36a807b507710295f7092739f1d2c41f67262957b1bfae",
+        "kind": "r",
+        "name": "UNCLASSIFIED",
+        "persistence": "p",
+        "total_bytes": 24576
+      },
+      {
+        "identity_sha256": "bf24a4285ba55fce5acfe4f9abb90fd1e0f933977ffd6967a92160a74c2302ad",
+        "kind": "r",
+        "name": "market_raw_events",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "1e4953cb69203c61f33a26536279ab88fed865542075f8d4f5867be09b8f60d9",
+        "kind": "r",
+        "name": "market_candles",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "f7ac6558406d08c528ee941cb216aa59e16d38489eb08066d811af39ab8e9ede",
+        "kind": "r",
+        "name": "market_books",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "76ae0be8eb6236115e5e2e4e3f14ac99ee8b09927021a80650c49b527935e791",
+        "kind": "r",
+        "name": "market_stream_status",
+        "persistence": "p",
+        "total_bytes": 8192
+      },
+      {
+        "identity_sha256": "e1e730ec29bc9717ccb7e4ee29d68406a5b0a429e69226b2b8d57a2526b8fad1",
+        "kind": "r",
+        "name": "paper_accounts",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "e168728b0845769b2341bf53875d68cf705bf6924b89dcfaeae092fcf7350cfb",
+        "kind": "r",
+        "name": "paper_venues",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "9e2b65cb1f9110e564f4aed95aab3bfb3d4b352e209fe1e4cca4435fd8e0d025",
+        "kind": "r",
+        "name": "paper_events",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "01b2e657c49f8d7ab3a3029bc31f1e307daa5e7dfaa6659ef52919d8dd807775",
+        "kind": "r",
+        "name": "paper_outbox",
+        "persistence": "p",
+        "total_bytes": 8192
+      },
+      {
+        "identity_sha256": "21edcfb3aa9eddb4373e4bf6cbed09a0b1ccbec0989add5f056a65b78040197a",
+        "kind": "r",
+        "name": "demo_accounts",
+        "persistence": "p",
+        "total_bytes": 65536
+      },
+      {
+        "identity_sha256": "1fd7fd7ad9696846337e204fcfd504643ddaa274efd6445f6ec044fe1ce79899",
+        "kind": "r",
+        "name": "demo_events",
+        "persistence": "p",
+        "total_bytes": 65536
+      },
+      {
+        "identity_sha256": "a179a4f01cc3dc6daa5c6fac90f94fa9ada8de56b4fe4198a73cf62ec9c9b3f6",
+        "kind": "r",
+        "name": "demo_outbox",
+        "persistence": "p",
+        "total_bytes": 24576
+      },
+      {
+        "identity_sha256": "bf28e8fa4ba0a5fb268998bb256a4ed06d4966b9b813bfe737e8ea7b7343b850",
+        "kind": "r",
+        "name": "demo_urgent_alerts",
+        "persistence": "p",
+        "total_bytes": 24576
+      },
+      {
+        "identity_sha256": "01625a90b15385c451910c7f17622d66c35ed9cf075e3764f23d4f9689a9a694",
+        "kind": "r",
+        "name": "demo_urgent_alert_attempts",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "c54bfe843bcd34d8a005762330d67a03d9de7056b11694c3dda4fa8cae63d0d9",
+        "kind": "r",
+        "name": "read_response_evidence_events_v2",
+        "persistence": "p",
+        "total_bytes": 16384
+      },
+      {
+        "identity_sha256": "c0e283738a2489840c2588e2341afd5e30973fd7753a891b3505415889551e56",
+        "kind": "r",
+        "name": "UNCLASSIFIED",
+        "persistence": "p",
+        "total_bytes": 8192
+      }
+    ],
+    "writer_quiescence_verified": false,
+    "writers_stopped": false
+  }
+}
