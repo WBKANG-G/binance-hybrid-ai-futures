@@ -1087,6 +1087,8 @@ def main() -> int:
                 ["--recover-clock"],
                 ["--prepare-day13"],
                 ["--preview-day13"],
+                ["--apply-day13"],
+                ["--day13-adoption-status"],
             )
             or (
                 len(args) == 2
@@ -1169,7 +1171,54 @@ def main() -> int:
         assert spec is not None and spec.loader is not None
         fingerprint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fingerprint)
-        if args[0] in ("--run-two-gets", "--review-flat", "--preview-day13"):
+        if args[0] in ("--apply-day13", "--day13-adoption-status"):
+            from types import SimpleNamespace
+
+            adoption_spec = importlib.util.spec_from_file_location(
+                "_accounted_day13_adoption", root / "scripts/adopt_demo_accounted_day13.py"
+            )
+            require(
+                adoption_spec is not None and adoption_spec.loader is not None,
+                "DAY13_APPLY_MODULE_INVALID",
+            )
+            assert adoption_spec is not None and adoption_spec.loader is not None
+            adoption = importlib.util.module_from_spec(adoption_spec)
+            adoption_spec.loader.exec_module(adoption)
+            common = SimpleNamespace(
+                **{
+                    name: globals()[name]
+                    for name in (
+                        "require",
+                        "RESOURCE_TABLES",
+                        "day13_paths",
+                        "DAY13_POLICY",
+                        "BASIC_ROUTES",
+                        "DAY13_ROUTES",
+                        "protected_snapshot",
+                        "resource_rows",
+                        "validate_day13_row",
+                        "verify_flat_payload",
+                        "day13_wallet",
+                    )
+                }
+            )
+            result = adoption.run(
+                engine,
+                STORAGE,
+                SCOPE,
+                UUID(binding["journal"]),
+                UUID(binding["checkpoint_installation"]),
+                ACCOUNT,
+                settings,
+                lambda: credentials(prompt=False),
+                fingerprint,
+                common,
+                apply=args[0] == "--apply-day13",
+                status=args[0] == "--day13-adoption-status",
+                state=state,
+            )
+            result["installed_adoption_modules_verified"] = True
+        elif args[0] in ("--run-two-gets", "--review-flat", "--preview-day13"):
             result = run_probe(
                 engine,
                 STORAGE,
@@ -1225,6 +1274,7 @@ def main() -> int:
             stop_reason=reason,
             intent_created=state["intent_created"],
             clock_apply_started=state.get("clock_apply_started", False),
+            application_may_have_completed=state.get("application_may_have_completed", False),
             clock_resource_state="REVIEW_REQUIRED"
             if state.get("clock_apply_started")
             else "NO_CLOCK_APPLY_STARTED",
@@ -1234,14 +1284,18 @@ def main() -> int:
             resource_state="REVIEW_REQUIRED"
             if state["intent_created"]
             else "NO_PROBE_REQUEST_STARTED",
-            financial_ledger_writes_by_probe=0,
+            financial_ledger_writes_by_probe=None
+            if args and args[0] == "--apply-day13" and state.get("application_may_have_completed")
+            else 0,
             financial_ledger_unchanged_verified=False,
             order_writes=0,
             execution_approved=False,
             orders_enabled=False,
             live_trading_enabled=False,
             automatic_retry=False,
-            next_action="REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT",
+            next_action="RUN_READ_ONLY_STATUS_NO_APPLY_RETRY"
+            if args and args[0] in ("--apply-day13", "--day13-adoption-status")
+            else "REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT",
         )
         code = 1
     finally:

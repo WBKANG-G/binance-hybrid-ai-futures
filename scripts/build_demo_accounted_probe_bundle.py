@@ -44,9 +44,15 @@ def fingerprint_source(source: str) -> bytes:
 
 
 def build(
-    ref: str, output: Path, *, recover: bool = False, flat_review: bool = False, day13: bool = False
+    ref: str,
+    output: Path,
+    *,
+    recover: bool = False,
+    flat_review: bool = False,
+    day13: bool = False,
+    day13_apply: bool = False,
 ) -> Path:
-    if sum((recover, flat_review, day13)) > 1:
+    if sum((recover, flat_review, day13, day13_apply)) > 1:
         raise ValueError("Choose one operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
@@ -66,6 +72,10 @@ def build(
             git("show", f"{revision}:scripts/review_demo_read_code_install.py").decode()
         ),
     }
+    if day13_apply:
+        candidate["scripts/adopt_demo_accounted_day13.py"] = git(
+            "show", f"{revision}:scripts/adopt_demo_accounted_day13.py"
+        )
     candidate["PROBE_MANIFEST.json"] = json.dumps(
         dict(
             source_reference=revision,
@@ -90,10 +100,16 @@ def build(
     )
     encoded = base64.b64encode(loader.encode()).decode()
     worker_args = (
-        "%2 %3" if recover or day13 else "--review-flat" if flat_review else "--run-two-gets"
+        "%2 %3"
+        if recover or day13 or day13_apply
+        else "--review-flat"
+        if flat_review
+        else "--run-two-gets"
     )
     runner = (
-        "DAY13_PREVIEW"
+        "DAY13_APPLY"
+        if day13_apply
+        else "DAY13_PREVIEW"
         if day13
         else "RECOVER_AND_PROBE"
         if recover
@@ -119,7 +135,9 @@ def build(
             "show",
             f"{revision}:"
             + (
-                "RUNTIME_ACCOUNTED_DAY13_PREVIEW_KO.md"
+                "RUNTIME_ACCOUNTED_DAY13_APPLY_KO.md"
+                if day13_apply
+                else "RUNTIME_ACCOUNTED_DAY13_PREVIEW_KO.md"
                 if day13
                 else "RUNTIME_ACCOUNTED_FLAT_REVIEW_KO.md"
                 if flat_review
@@ -138,8 +156,15 @@ def build(
         f'@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0{runner}.ps1" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
+    if day13_apply:
+        package["RUN_DAY13_STATUS.cmd"] = (
+            '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0DAY13_APPLY.ps1" -StatusOnly '
+            f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
+        ).encode("ascii")
     folder = (
-        "windows-demo-accounted-day13-preview-20261113"
+        "windows-demo-accounted-day13-apply-20261113"
+        if day13_apply
+        else "windows-demo-accounted-day13-preview-20261113"
         if day13
         else "windows-demo-accounted-flat-review-20261112"
         if flat_review
@@ -170,6 +195,7 @@ if __name__ == "__main__":
     parser.add_argument("--recover-clock", action="store_true")
     parser.add_argument("--flat-review", action="store_true")
     parser.add_argument("--day13-preview", action="store_true")
+    parser.add_argument("--day13-apply", action="store_true")
     args = parser.parse_args()
     build(
         args.ref,
@@ -177,4 +203,5 @@ if __name__ == "__main__":
         recover=args.recover_clock,
         flat_review=args.flat_review,
         day13=args.day13_preview,
+        day13_apply=args.day13_apply,
     )
