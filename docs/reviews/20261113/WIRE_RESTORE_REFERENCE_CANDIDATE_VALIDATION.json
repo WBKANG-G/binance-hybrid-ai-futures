@@ -1,0 +1,72 @@
+{
+  "date": "2026-11-13",
+  "scope": "READ_ONLY_EXACT_REFERENCE_COMPARISON_FOR_ONE_ACCOUNT_AND_ONE_SYNTHETIC_WIRE_JOURNAL",
+  "tests_passed": 349,
+  "new_restore_reference_integration_tests_passed": 28,
+  "new_manifest_schema_unit_tests_passed": 29,
+  "prior_financial_checkpoint_wire_and_outcome_regression_tests_passed": 292,
+  "seconds": 74.7,
+  "ruff_check_and_format_passed": true,
+  "strict_mypy_source_files_passed": 1,
+  "new_runtime_source_files": [
+    "services/execution/demo_wire_restore_reference_candidate.py"
+  ],
+  "existing_runtime_source_files_changed": false,
+  "manifest_max_bytes": 8192,
+  "history_limits": {
+    "rows": 4096,
+    "total_body_bytes": 536870912,
+    "per_body_bytes": 2097152,
+    "page_rows": 64,
+    "page_boundary_time_budget_seconds": 10
+  },
+  "statement_timeout_seconds": 2,
+  "lock_timeout_seconds": 2,
+  "synthetic_large_history_test": {
+    "additional_rows": 3802,
+    "minimum_body_bytes": 285150000,
+    "returned_catalog_columns": [
+      "event_id",
+      "fence",
+      "as_of",
+      "kind",
+      "body_bytes",
+      "body_sha256",
+      "topic"
+    ],
+    "raw_catalog_payload_bodies_returned": false,
+    "semantic_event_replay_proven": false
+  },
+  "selected_account_event_outbox_catalog_coverage_checked": true,
+  "current_account_owner_fence_lease_and_state_digests_included": true,
+  "separately_supplied_digest_required": true,
+  "same_db_current_digest_fallback_implemented": false,
+  "selected_db_and_two_file_rollback_detected_against_retained_newer_reference": true,
+  "stale_reference_can_match_stale_snapshot_without_latestness_claim_tested": true,
+  "new_process_comparison_tested": true,
+  "comparison_source_database_or_file_mutations": false,
+  "optional_private_reference_copy_requires_explicit_apply": true,
+  "external_reference_service_written": false,
+  "external_reference_authenticity_verified": false,
+  "reference_is_latest_proven": false,
+  "whole_system_rollback_protection_verified": false,
+  "whole_runtime_backup_verified": false,
+  "historical_events_replayed": false,
+  "storage_restore_authorized": false,
+  "restore_performed": false,
+  "writer_or_credential_resumption_implemented": false,
+  "real_windows_state_accessed": false,
+  "windows_installation_performed": false,
+  "historical_request_reconciliation_performed": false,
+  "capacity_shortfall_resolved": false,
+  "actual_exchange_http_attempts": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "remaining_requirements": [
+    "Operator-selected independently retained authentic latest digest; current-copy export alone cannot establish custody.",
+    "Complete runtime backup/restore coverage beyond the selected account and journal.",
+    "Remote identity, fresh exchange state and explicit writer restart protocol before operational use."
+  ]
+}
