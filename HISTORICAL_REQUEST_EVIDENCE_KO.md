@@ -34,7 +34,7 @@ HISTORICAL_REQUEST_EVIDENCE_RECORDED_KEEP_PAUSED_NO_ORDERS
 
 현재 시계가 바뀌었거나 날짜가 달라졌으면 조회 전에 차단합니다. 시계를 자동 복구하거나 날짜·기준액을 변경하지 않습니다. 초기화·재설치·임의 시계 조정 없이 결과 화면을 공유하세요.
 
-의도가 만들어진 뒤에는 RUN_HISTORICAL_REQUESTS.cmd를 다시 실행하지 마세요. 이후 확인에는 다음 읽기 전용 명령만 사용합니다. 키나 HTTP를 사용하지 않으며 저장된 결과, 감사 경로와 보존 상태를 대조합니다. 미완료 의도면 재시도 없이 차단합니다.
+의도가 만들어진 뒤에는 RUN_HISTORICAL_REQUESTS.cmd를 다시 실행하지 마세요. 이후 확인에는 다음 읽기 전용 명령만 사용합니다. 키나 HTTP를 사용하지 않으며 저장된 결과, 감사 경로와 보존 상태를 대조합니다. 미완료 의도면 재시도 없이 차단합니다. 현재 상태 확인의 HTTP·모델 비용·감사 추가분은 0이며, 최초 실행의 수치는 original_attempt_summary에 별도로 표시합니다.
 
 ```cmd
 RUN_HISTORICAL_STATUS.cmd

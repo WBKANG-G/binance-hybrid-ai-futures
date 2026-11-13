@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sqlite3
 from collections import Counter
 from collections.abc import Iterator
@@ -461,12 +462,50 @@ def run(
                 and result["requests_unqueried"] == 4 - len(result["observations"]),
                 "HISTORY_SAVED_COUNT_CHANGED",
             )
-            for observed, planned in zip(result["observations"], intent["plan"], strict=False):
+            common.require(
+                result["stopped_after_not_found"] == (delta["last_http_status"] == 400),
+                "HISTORY_SAVED_STOP_REASON_CHANGED",
+            )
+            for i, (observed, planned) in enumerate(
+                zip(result["observations"], intent["plan"], strict=False)
+            ):
+                not_found = (
+                    delta["last_http_status"] == 400 and i == len(result["observations"]) - 1
+                )
+                allowed = (
+                    {
+                        "NEW",
+                        "TRIGGERING",
+                        "TRIGGERED",
+                        "FINISHED",
+                        "CANCELED",
+                        "REJECTED",
+                        "EXPIRED",
+                    }
+                    if planned["role"] == "STOP_LOSS"
+                    else {
+                        "NEW",
+                        "PARTIALLY_FILLED",
+                        "FILLED",
+                        "CANCELED",
+                        "REJECTED",
+                        "EXPIRED",
+                        "EXPIRED_IN_MATCH",
+                    }
+                )
                 common.require(
                     observed["request_reference_sha256"] == planned["request_reference_sha256"]
                     and observed["role"] == planned["role"]
                     and observed["remote_resolution_verified"] is False
-                    and observed["automatically_resolvable"] is False,
+                    and observed["automatically_resolvable"] is False
+                    and observed["response_body_bound_to_audit_chain"] is False
+                    and re.fullmatch("[0-9a-f]{64}", observed["response_body_sha256"]) is not None
+                    and observed["response_identity_fields_match"] is (not not_found)
+                    and (
+                        observed["observed_status"] == "NOT_FOUND_UNRESOLVED"
+                        if not_found
+                        else observed["observed_status"] in allowed
+                    ),
                     "HISTORY_SAVED_OBSERVATION_CHANGED",
                 )
             return dict(
@@ -474,7 +513,11 @@ def run(
                 status_read_only=True,
                 credential_session_accessed=False,
                 http_attempts=0,
+                modeled_weight_charged=0,
+                audit_events_added=0,
+                resource_checkpoints_added=0,
                 original_http_attempts=delta["attempts"],
+                original_attempt_summary=delta,
             )
         common.require(
             not folder.exists() and not folder.is_symlink(),

@@ -183,6 +183,13 @@ def test_six_gets_keep_all_history_and_original_states_with_readonly_status(adop
         and status["original_http_attempts"] == 6
         and not status["credential_session_accessed"]
     )
+    assert (
+        status["modeled_weight_charged"]
+        == status["audit_events_added"]
+        == status["resource_checkpoints_added"]
+        == 0
+    )
+    assert status["original_attempt_summary"]["modeled_weight_charged"] == 10
     assert files(deployment.STORAGE.parent) == now_disk
     with pytest.raises(common.ProbeBlocked, match="ALREADY_ATTEMPTED"):
         execute(adopted, sender=wire(adopted, seen))
@@ -257,4 +264,16 @@ def test_tampered_status_safety_flags_are_not_accepted(adopted):
     data["capacity_shortfall_resolved"] = True
     p.write_text(json.dumps(data))
     with pytest.raises(common.ProbeBlocked, match="SAFETY_FLAGS_CHANGED"):
+        execute(adopted, status=True)
+
+
+def test_saved_not_found_cannot_be_presented_as_a_matching_fill(adopted):
+    execute(adopted, sender=wire(adopted, [], "missing"))
+    _, folder = history.paths(deployment.STORAGE, adopted[0][4])
+    p = folder / "complete.json"
+    data = json.loads(p.read_text())
+    data["observations"][0]["observed_status"] = "FILLED"
+    data["observations"][0]["response_identity_fields_match"] = True
+    p.write_text(json.dumps(data))
+    with pytest.raises(common.ProbeBlocked, match="SAVED_OBSERVATION_CHANGED"):
         execute(adopted, status=True)
