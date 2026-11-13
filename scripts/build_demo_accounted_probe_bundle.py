@@ -52,8 +52,9 @@ def build(
     day13: bool = False,
     day13_apply: bool = False,
     post_gate: bool = False,
+    historical: bool = False,
 ) -> Path:
-    if sum((recover, flat_review, day13, day13_apply, post_gate)) > 1:
+    if sum((recover, flat_review, day13, day13_apply, post_gate, historical)) > 1:
         raise ValueError("Choose one operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
@@ -73,16 +74,20 @@ def build(
             git("show", f"{revision}:scripts/review_demo_read_code_install.py").decode()
         ),
     }
-    if day13_apply or post_gate:
+    if day13_apply or post_gate or historical:
         candidate["scripts/adopt_demo_accounted_day13.py"] = git(
             "show", f"{revision}:scripts/adopt_demo_accounted_day13.py"
         )
-    if post_gate:
+    if post_gate or historical:
         candidate["scripts/review_demo_post_adoption.py"] = git(
             "show", f"{revision}:scripts/review_demo_post_adoption.py"
         )
         candidate["COST_EVIDENCE.json"] = git(
             "show", f"{revision}:docs/request_cost_evidence/PINNED_RUNTIME_COST_PROOF.json"
+        )
+    if historical:
+        candidate["scripts/review_demo_historical_requests.py"] = git(
+            "show", f"{revision}:scripts/review_demo_historical_requests.py"
         )
     candidate["PROBE_MANIFEST.json"] = json.dumps(
         dict(
@@ -108,7 +113,9 @@ def build(
     )
     encoded = base64.b64encode(loader.encode()).decode()
     worker_args = (
-        "--post-adoption-gate"
+        "%2"
+        if historical
+        else "--post-adoption-gate"
         if post_gate
         else "%2 %3"
         if recover or day13 or day13_apply
@@ -117,7 +124,9 @@ def build(
         else "--run-two-gets"
     )
     runner = (
-        "POST_ADOPTION_GATE"
+        "HISTORICAL_REQUESTS"
+        if historical
+        else "POST_ADOPTION_GATE"
         if post_gate
         else "DAY13_APPLY"
         if day13_apply
@@ -147,7 +156,9 @@ def build(
             "show",
             f"{revision}:"
             + (
-                "POST_ADOPTION_LOCAL_GATE_KO.md"
+                "HISTORICAL_REQUEST_EVIDENCE_KO.md"
+                if historical
+                else "POST_ADOPTION_LOCAL_GATE_KO.md"
                 if post_gate
                 else "RUNTIME_ACCOUNTED_DAY13_APPLY_KO.md"
                 if day13_apply
@@ -170,13 +181,20 @@ def build(
         f'@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0{runner}.ps1" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
+    if historical:
+        package["RUN_HISTORICAL_STATUS.cmd"] = (
+            '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0HISTORICAL_REQUESTS.ps1" -StatusOnly '
+            f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
+        ).encode("ascii")
     if day13_apply:
         package["RUN_DAY13_STATUS.cmd"] = (
             '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0DAY13_APPLY.ps1" -StatusOnly '
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-post-adoption-gate-v2-20261113"
+        "windows-demo-historical-request-evidence-20261113"
+        if historical
+        else "windows-demo-post-adoption-gate-v2-20261113"
         if post_gate
         else "windows-demo-accounted-day13-apply-v2-20261113"
         if day13_apply
@@ -213,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument("--day13-preview", action="store_true")
     parser.add_argument("--day13-apply", action="store_true")
     parser.add_argument("--post-adoption-gate", action="store_true")
+    parser.add_argument("--historical-requests", action="store_true")
     args = parser.parse_args()
     build(
         args.ref,
@@ -222,4 +241,5 @@ if __name__ == "__main__":
         day13=args.day13_preview,
         day13_apply=args.day13_apply,
         post_gate=args.post_adoption_gate,
+        historical=args.historical_requests,
     )

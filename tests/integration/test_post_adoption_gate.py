@@ -63,7 +63,7 @@ def installation(base_installation, request):
             for i in range(34):
                 order = PaperOrder(
                     client_id=f"synthetic-entry-{i}",
-                    signal=signal(),
+                    signal=signal(environment="DEMO", purpose="DEMO_VALIDATION", strategy=None),
                     snapshot=snapshot(),
                     group="BTC",
                     quantity=".0007",
@@ -84,6 +84,14 @@ def installation(base_installation, request):
                 "synthetic-tp-2": "CANCEL_REQUESTED",
                 "synthetic-unmatched": "SUBMITTING",
             }
+            if request.param == "historical":
+                value["orders"]["2"]["exit_id"] = "synthetic-exit-2"
+                value["requests"] = {
+                    "synthetic-entry-0": "UNKNOWN",
+                    "synthetic-entry-1": "UNKNOWN",
+                    "synthetic-sl-2": "UNKNOWN",
+                    "synthetic-exit-2": "SUBMITTING",
+                }
         c.execute(update(accounts).values(state=value))
     return base_installation
 

@@ -1091,6 +1091,8 @@ def main() -> int:
                 ["--day13-adoption-status"],
                 ["--prepare-day13-adoption-clock"],
                 ["--post-adoption-gate"],
+                ["--historical-request-evidence"],
+                ["--historical-request-status"],
             )
             or (
                 len(args) == 2
@@ -1179,6 +1181,8 @@ def main() -> int:
             "--prepare-day13-adoption-clock",
             "--day13-adoption-clock-status",
             "--post-adoption-gate",
+            "--historical-request-evidence",
+            "--historical-request-status",
         ):
             from types import SimpleNamespace
 
@@ -1211,7 +1215,11 @@ def main() -> int:
                     )
                 }
             )
-            if args[0] == "--post-adoption-gate":
+            if args[0] in (
+                "--post-adoption-gate",
+                "--historical-request-evidence",
+                "--historical-request-status",
+            ):
                 gate_spec = importlib.util.spec_from_file_location(
                     "_post_adoption_gate", root / "scripts/review_demo_post_adoption.py"
                 )
@@ -1222,18 +1230,50 @@ def main() -> int:
                 gate = importlib.util.module_from_spec(gate_spec)
                 gate_spec.loader.exec_module(gate)
                 evidence = json.loads((root / "COST_EVIDENCE.json").read_text())
-                result = gate.run(
-                    engine,
-                    STORAGE,
-                    SCOPE,
-                    UUID(binding["journal"]),
-                    UUID(binding["checkpoint_installation"]),
-                    ACCOUNT,
-                    fingerprint,
-                    adoption,
-                    common,
-                    evidence,
-                )
+                if args[0] == "--post-adoption-gate":
+                    result = gate.run(
+                        engine,
+                        STORAGE,
+                        SCOPE,
+                        UUID(binding["journal"]),
+                        UUID(binding["checkpoint_installation"]),
+                        ACCOUNT,
+                        fingerprint,
+                        adoption,
+                        common,
+                        evidence,
+                    )
+                else:
+                    helper_spec = importlib.util.spec_from_file_location(
+                        "_historical_request_evidence",
+                        root / "scripts/review_demo_historical_requests.py",
+                    )
+                    require(
+                        helper_spec is not None and helper_spec.loader is not None,
+                        "HISTORY_MODULE_INVALID",
+                    )
+                    assert helper_spec is not None and helper_spec.loader is not None
+                    helper = importlib.util.module_from_spec(helper_spec)
+                    helper_spec.loader.exec_module(helper)
+                    result = helper.run(
+                        engine,
+                        STORAGE,
+                        SCOPE,
+                        UUID(binding["journal"]),
+                        UUID(binding["checkpoint_installation"]),
+                        ACCOUNT,
+                        settings,
+                        lambda: credentials(prompt=False),
+                        fingerprint,
+                        adoption,
+                        gate,
+                        common,
+                        evidence,
+                        status_only=args[0] == "--historical-request-status",
+                        source_reference=manifest["source_reference"],
+                        state=state,
+                    )
+                    result["installed_transport_verified"] = True
                 result["installed_control_files_verified"] = True
             elif args[0] == "--prepare-day13-adoption-clock":
                 result = adoption.prepare_clock(
