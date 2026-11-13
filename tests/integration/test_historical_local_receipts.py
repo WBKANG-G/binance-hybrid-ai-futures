@@ -211,7 +211,9 @@ def test_scan_timeout_refuses_without_partial_success(finished, monkeypatch):
     assert financial(finished[0]) == before
 
 
-def scan_account(engine, ledger, count, *, payload_expression="'{\"synthetic\":true}'"):
+def scan_account(
+    engine, ledger, count, *, payload_expression="json_build_object('synthetic',true)::text"
+):
     # Separate synthetic account so metadata limits can be tested without changing adopted receipts.
     from sqlalchemy import text
 
