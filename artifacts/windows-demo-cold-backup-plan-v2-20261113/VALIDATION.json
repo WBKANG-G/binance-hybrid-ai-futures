@@ -1,0 +1,63 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_changed": false,
+  "actual_windows_powershell51_execution_verified": false,
+  "archive_entries": 5,
+  "artifact": "windows-demo-cold-backup-plan-v2-20261113.zip",
+  "artifact_bytes": 7692,
+  "artifact_sha256": "b0edf5af93f5e9cd0c87e185b2609cde3f1dc93aa165dfe88ec3be7c031ec42e",
+  "backup_created": false,
+  "backup_ready": false,
+  "committed_sources_and_transfer_manifest_verified": true,
+  "execution_approved": false,
+  "installation_ready": false,
+  "legacy_old_shell_bug_reproduced": true,
+  "limitations": [
+    "LEGACY_HOST_SIMULATION_IS_NOT_ACTUAL_WINDOWS_EXECUTION",
+    "NO_BACKUP_OR_RESTORE_MUTATION_CODE_IN_ZIP",
+    "ACTUAL_PGDATA_USER_DB_AND_VERSIONS_NOT_REMOTELY_OBSERVED",
+    "EXISTING_PATH_VERSION_VOLUME_GUARDS_RETAINED"
+  ],
+  "live_trading_enabled": false,
+  "mypy": {
+    "source_files": 1,
+    "status": "PASS",
+    "strict": true
+  },
+  "native_argument_modes": [
+    "Standard",
+    "Legacy"
+  ],
+  "observed_user_failure": {
+    "backup_created": false,
+    "database_changed": false,
+    "failure_category": "BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED",
+    "files_changed": false,
+    "source": "USER_SCREENSHOT_NOT_REMOTE_READ",
+    "source_restart_policies_changed": false,
+    "source_services_stopped": false,
+    "stage": "POSTGRES_CAPABILITY"
+  },
+  "orders_enabled": false,
+  "policy": "WINDOWS_COLD_BACKUP_PLAN_LEGACY_ARGV_FIX_V2",
+  "powershell_host": "LINUX_POWERSHELL_7",
+  "real_docker_and_postgresql_tools_tested": true,
+  "release_zip_tests": {
+    "passed": 49,
+    "seconds": 52.16,
+    "skipped": 0
+  },
+  "ruff": {
+    "files": 3,
+    "status": "PASS"
+  },
+  "source_reference": "05ee656e003448bd057c0ffd3d4716db3576f4e1",
+  "source_services_stopped": false,
+  "source_tests": {
+    "passed": 49,
+    "seconds": 55.12,
+    "skipped": 0
+  },
+  "test_sets_overlap": true
+}

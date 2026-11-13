@@ -1,0 +1,34 @@
+{
+  "reports": [
+    {
+      "argument_mode": "Standard",
+      "backup_created": false,
+      "database_server_initialized": false,
+      "execution_approved": false,
+      "live_trading_enabled": false,
+      "old_shell_probe_returned_expected_fields": true,
+      "orders_enabled": false,
+      "postgres_fields_validated": true,
+      "postgresql_major": 18,
+      "scope": "FRESH_SLEEPING_SYNTHETIC_CONTAINERS_REAL_DOCKER_NOT_ACTUAL_WINDOWS",
+      "source_containers_kept_running": true,
+      "sql_executed": false
+    },
+    {
+      "argument_mode": "Legacy",
+      "backup_created": false,
+      "database_server_initialized": false,
+      "execution_approved": false,
+      "live_trading_enabled": false,
+      "old_shell_probe_returned_expected_fields": false,
+      "orders_enabled": false,
+      "postgres_fields_validated": true,
+      "postgresql_major": 18,
+      "scope": "FRESH_SLEEPING_SYNTHETIC_CONTAINERS_REAL_DOCKER_NOT_ACTUAL_WINDOWS",
+      "source_containers_kept_running": true,
+      "sql_executed": false
+    }
+  ],
+  "source_reference": "05ee656e003448bd057c0ffd3d4716db3576f4e1",
+  "synthetic_resources_cleanup_verified": true
+}
