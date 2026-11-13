@@ -1,0 +1,770 @@
+{
+  "passed": true,
+  "artifact_sha256": "cc5f8245f09c0f1760ab0dfe1ff2679c983cba4a40da3d1e01a8587d28f0255f",
+  "cases": [
+    {
+      "case": "valid_receipts",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "synthetic_historical_orders": 34,
+      "synthetic_unresolved_requests": 4,
+      "prior_fixture_synthetic_gets": 26,
+      "new_review_http_attempts": 0,
+      "no_external_network": true,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_financial_resource_rows_and_files_and_active_sqlite_bytes_unchanged": true,
+      "large_history_over_32mib": true,
+      "receipt_mismatch_is_not_remote_proof": true,
+      "repeat_review_does_not_send_or_write": true,
+      "linux_powershell7_native_cmd_shim": true,
+      "windows_powershell_5_1_tested": false,
+      "user_pc_tested": false,
+      "worker_result": {
+        "all_reviewed_state_unchanged": true,
+        "capacity_assumptions": {
+          "current_pressure_checked": false,
+          "effective_ceiling": 5700,
+          "entry_fits_empty_window": false,
+          "entry_required": 5920,
+          "execution_approved": false,
+          "historical_orders": 34,
+          "policy": "SYNTHETIC_SINGLE_WINDOW_FEASIBILITY_V1",
+          "proof_batch_weight": 27238,
+          "proof_fits_empty_window": false,
+          "proof_required": 27366,
+          "proof_reserve": 128,
+          "proof_slack": -21666,
+          "published_limit_assumption": 6000,
+          "request_cost_upper_bounds_proven": false
+        },
+        "capacity_shortfall_resolved": false,
+        "credential_session_accessed": false,
+        "execution_approved": false,
+        "filesystem_changed": false,
+        "financial_database_changed": false,
+        "http_attempts": 0,
+        "independent_remote_resolution_verified": false,
+        "installed_adoption_modules_verified": true,
+        "installed_control_files_verified": true,
+        "installed_transport_verified": true,
+        "journal_changed": false,
+        "leader_acquired": false,
+        "live_trading_enabled": false,
+        "local_event_history": {
+          "event_bytes_scanned": 42221324,
+          "events_scanned": 86,
+          "non_ledger_payloads_skipped": 80,
+          "remote_proof_replayed": false,
+          "request_local_state_timelines": {
+            "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e": [
+              {
+                "as_of_utc": "2026-11-13T05:12:00.316071+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "41c75abb114cadae2afa9c5d7e2cbde31d39a8e4fde614e9132ddb6da2211b38",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "ABSENT"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:03.316071+00:00",
+                "event_kind": "DEMO_REDUCE_ONLY_INTENT",
+                "event_reference_sha256": "e0f153b79ea8f7c2349b9701a6da6b315945e392978f25604c42baca8ea95d77",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:04.316071+00:00",
+                "event_kind": "DEMO_CANCELLED_EXPOSURE_CORRECTED",
+                "event_reference_sha256": "da9d195c4c87b5e5e1c1ce0629390d69bd8ffb24b1d2b5f789b16f6f1f2d71fb",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718": [
+              {
+                "as_of_utc": "2026-11-13T05:12:00.316071+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "41c75abb114cadae2afa9c5d7e2cbde31d39a8e4fde614e9132ddb6da2211b38",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "ABSENT"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:01.316071+00:00",
+                "event_kind": "DEMO_SL_INTENT",
+                "event_reference_sha256": "98e70631ddaec28a17807bc4ff4e6c01756dd90da3cf7a8a4b74fa35d3e04e11",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:02.316071+00:00",
+                "event_kind": "DEMO_SL_EFFECT",
+                "event_reference_sha256": "1f3a68441e8fbc49800b032b200a34999f0e7e55892ccc839726dc73372fef14",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:04.316071+00:00",
+                "event_kind": "DEMO_CANCELLED_EXPOSURE_CORRECTED",
+                "event_reference_sha256": "da9d195c4c87b5e5e1c1ce0629390d69bd8ffb24b1d2b5f789b16f6f1f2d71fb",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1": [
+              {
+                "as_of_utc": "2026-11-13T05:12:00.316071+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "41c75abb114cadae2afa9c5d7e2cbde31d39a8e4fde614e9132ddb6da2211b38",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "NONE",
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674": [
+              {
+                "as_of_utc": "2026-11-13T05:12:00.316071+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "41c75abb114cadae2afa9c5d7e2cbde31d39a8e4fde614e9132ddb6da2211b38",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "NONE",
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ]
+          }
+        },
+        "local_historical_receipt_review": "COMPLETED_KEEP_PAUSED",
+        "local_receipt_relations": {
+          "flat_emergency_acknowledgements": [
+            {
+              "operation_marker_matches": true,
+              "receipt_reference_sha256": "ad88fee7f80ef97d9495fdf8a2715220f720a38e416a9b2dfcc4f102d678dfdc",
+              "request_resolution_authorized": false,
+              "request_specific": false,
+              "token_format_valid": true
+            }
+          ],
+          "independent_exchange_proof_replayed": false,
+          "request_resolution_authorized": false,
+          "requests": [
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [],
+              "filled": "0",
+              "local_exit_state": "NONE",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "FILLED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+              "request_state": "UNKNOWN",
+              "role": "ENTRY",
+              "same_order_request_references": []
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [],
+              "filled": "0",
+              "local_exit_state": "NONE",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "FILLED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "request_state": "UNKNOWN",
+              "role": "ENTRY",
+              "same_order_request_references": []
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [
+                {
+                  "operation_marker_matches": true,
+                  "original_cancelled_zero_fill_shape": true,
+                  "permitted_local_exposure_delta_matches": true,
+                  "receipt_reference_sha256": "63bd9341d9e7c18cab94e5224540e9bdd5fc0af574fe26221b6e293847f7a1f4",
+                  "receipt_structure_matches_current_order": true,
+                  "remote_proof_replayed": false,
+                  "request_resolution_authorized": false
+                }
+              ],
+              "filled": "0",
+              "local_exit_state": "UNKNOWN",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "CANCELED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718",
+              "request_state": "UNKNOWN",
+              "role": "STOP_LOSS",
+              "same_order_request_references": [
+                "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e"
+              ]
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [
+                {
+                  "operation_marker_matches": true,
+                  "original_cancelled_zero_fill_shape": true,
+                  "permitted_local_exposure_delta_matches": true,
+                  "receipt_reference_sha256": "63bd9341d9e7c18cab94e5224540e9bdd5fc0af574fe26221b6e293847f7a1f4",
+                  "receipt_structure_matches_current_order": true,
+                  "remote_proof_replayed": false,
+                  "request_resolution_authorized": false
+                }
+              ],
+              "filled": "0",
+              "local_exit_state": "UNKNOWN",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "CANCELED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e",
+              "request_state": "SUBMITTING",
+              "role": "EXIT",
+              "same_order_request_references": [
+                "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718"
+              ]
+            }
+          ]
+        },
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_LOCAL_RECEIPT_RELATIONS_AND_MISSING_REMOTE_PROOF_KEEP_PAUSED",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "paused": true,
+        "previous_exit_evidence_verified": true,
+        "protected_snapshot_sha256": "e5de428c8c24b8f2f0a84917463304aa98f69fc2b67966685a139dfea4db8afb",
+        "reconciliation_performed": false,
+        "request_states_unchanged": true,
+        "review_scope": "LOCAL_RECEIPT_STRUCTURE_AND_STORED_EVENT_FIELDS_ONLY",
+        "trading_readiness_checked": false
+      },
+      "repeat_review_tested": true
+    },
+    {
+      "case": "receipt_mismatch",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "synthetic_historical_orders": 34,
+      "synthetic_unresolved_requests": 4,
+      "prior_fixture_synthetic_gets": 26,
+      "new_review_http_attempts": 0,
+      "no_external_network": true,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_financial_resource_rows_and_files_and_active_sqlite_bytes_unchanged": true,
+      "large_history_over_32mib": true,
+      "receipt_mismatch_is_not_remote_proof": true,
+      "repeat_review_does_not_send_or_write": true,
+      "linux_powershell7_native_cmd_shim": true,
+      "windows_powershell_5_1_tested": false,
+      "user_pc_tested": false,
+      "worker_result": {
+        "all_reviewed_state_unchanged": true,
+        "capacity_assumptions": {
+          "current_pressure_checked": false,
+          "effective_ceiling": 5700,
+          "entry_fits_empty_window": false,
+          "entry_required": 5920,
+          "execution_approved": false,
+          "historical_orders": 34,
+          "policy": "SYNTHETIC_SINGLE_WINDOW_FEASIBILITY_V1",
+          "proof_batch_weight": 27238,
+          "proof_fits_empty_window": false,
+          "proof_required": 27366,
+          "proof_reserve": 128,
+          "proof_slack": -21666,
+          "published_limit_assumption": 6000,
+          "request_cost_upper_bounds_proven": false
+        },
+        "capacity_shortfall_resolved": false,
+        "credential_session_accessed": false,
+        "execution_approved": false,
+        "filesystem_changed": false,
+        "financial_database_changed": false,
+        "http_attempts": 0,
+        "independent_remote_resolution_verified": false,
+        "installed_adoption_modules_verified": true,
+        "installed_control_files_verified": true,
+        "installed_transport_verified": true,
+        "journal_changed": false,
+        "leader_acquired": false,
+        "live_trading_enabled": false,
+        "local_event_history": {
+          "event_bytes_scanned": 42221294,
+          "events_scanned": 86,
+          "non_ledger_payloads_skipped": 80,
+          "remote_proof_replayed": false,
+          "request_local_state_timelines": {
+            "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e": [
+              {
+                "as_of_utc": "2026-11-13T05:12:42.143121+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "a7382a4d413221af97f6aab09fa0b8e85815267d15aa822828c3f9371ba267ac",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "ABSENT"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:45.143121+00:00",
+                "event_kind": "DEMO_REDUCE_ONLY_INTENT",
+                "event_reference_sha256": "81e4cc405be34e5177049f2e02e232b322a5f978a8e3cb9cc9427f6951a412ca",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:46.143121+00:00",
+                "event_kind": "DEMO_CANCELLED_EXPOSURE_CORRECTED",
+                "event_reference_sha256": "61805719a12378d476a636d8594da0512a1982d5951c38ac7b70b8095129a68a",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718": [
+              {
+                "as_of_utc": "2026-11-13T05:12:42.143121+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "a7382a4d413221af97f6aab09fa0b8e85815267d15aa822828c3f9371ba267ac",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "ABSENT"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:43.143121+00:00",
+                "event_kind": "DEMO_SL_INTENT",
+                "event_reference_sha256": "c389a77f91307a766f1f9231becc556557b768b674c186a36d625a1b35597e69",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "SUBMITTING"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:44.143121+00:00",
+                "event_kind": "DEMO_SL_EFFECT",
+                "event_reference_sha256": "f0744828bbccb1f0430d8ec230813bf0136b64c2a6e531be34acc109ddcefa17",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "EXIT_PENDING",
+                  "no_send_evidence": null,
+                  "open_quantity": "0.0007",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              },
+              {
+                "as_of_utc": "2026-11-13T05:12:46.143121+00:00",
+                "event_kind": "DEMO_CANCELLED_EXPOSURE_CORRECTED",
+                "event_reference_sha256": "61805719a12378d476a636d8594da0512a1982d5951c38ac7b70b8095129a68a",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "UNKNOWN",
+                  "local_order_state": "CANCELED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1": [
+              {
+                "as_of_utc": "2026-11-13T05:12:42.143121+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "a7382a4d413221af97f6aab09fa0b8e85815267d15aa822828c3f9371ba267ac",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "NONE",
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ],
+            "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674": [
+              {
+                "as_of_utc": "2026-11-13T05:12:42.143121+00:00",
+                "event_kind": "DEMO_ENTRY_EFFECT",
+                "event_reference_sha256": "a7382a4d413221af97f6aab09fa0b8e85815267d15aa822828c3f9371ba267ac",
+                "local_fields": {
+                  "filled": "0",
+                  "local_exit_state": "NONE",
+                  "local_order_state": "FILLED",
+                  "local_position_state": "CLOSED",
+                  "no_send_evidence": null,
+                  "open_quantity": "0",
+                  "order_present": true,
+                  "remaining": "0",
+                  "request_state": "UNKNOWN"
+                },
+                "remote_proof_verified": false
+              }
+            ]
+          }
+        },
+        "local_historical_receipt_review": "COMPLETED_KEEP_PAUSED",
+        "local_receipt_relations": {
+          "flat_emergency_acknowledgements": [
+            {
+              "operation_marker_matches": true,
+              "receipt_reference_sha256": "ad88fee7f80ef97d9495fdf8a2715220f720a38e416a9b2dfcc4f102d678dfdc",
+              "request_resolution_authorized": false,
+              "request_specific": false,
+              "token_format_valid": true
+            }
+          ],
+          "independent_exchange_proof_replayed": false,
+          "request_resolution_authorized": false,
+          "requests": [
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [],
+              "filled": "0",
+              "local_exit_state": "NONE",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "FILLED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "64a4d36b13498ea6cf04944d73f568f754a273144ca7db21f72d820dc307a4e1",
+              "request_state": "UNKNOWN",
+              "role": "ENTRY",
+              "same_order_request_references": []
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [],
+              "filled": "0",
+              "local_exit_state": "NONE",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "FILLED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "fc2a3821d89d032358334d7ee35ca8439bc312aefa5183b46aa4ab4db6dbc674",
+              "request_state": "UNKNOWN",
+              "role": "ENTRY",
+              "same_order_request_references": []
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [
+                {
+                  "operation_marker_matches": false,
+                  "original_cancelled_zero_fill_shape": true,
+                  "permitted_local_exposure_delta_matches": true,
+                  "receipt_reference_sha256": "63bd9341d9e7c18cab94e5224540e9bdd5fc0af574fe26221b6e293847f7a1f4",
+                  "receipt_structure_matches_current_order": false,
+                  "remote_proof_replayed": false,
+                  "request_resolution_authorized": false
+                }
+              ],
+              "filled": "0",
+              "local_exit_state": "UNKNOWN",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "CANCELED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718",
+              "request_state": "UNKNOWN",
+              "role": "STOP_LOSS",
+              "same_order_request_references": [
+                "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e"
+              ]
+            },
+            {
+              "automatically_resolvable": false,
+              "cancelled_exposure_correction_receipts": [
+                {
+                  "operation_marker_matches": false,
+                  "original_cancelled_zero_fill_shape": true,
+                  "permitted_local_exposure_delta_matches": true,
+                  "receipt_reference_sha256": "63bd9341d9e7c18cab94e5224540e9bdd5fc0af574fe26221b6e293847f7a1f4",
+                  "receipt_structure_matches_current_order": false,
+                  "remote_proof_replayed": false,
+                  "request_resolution_authorized": false
+                }
+              ],
+              "filled": "0",
+              "local_exit_state": "UNKNOWN",
+              "local_fill_record_count": 0,
+              "local_fill_records_are_independent_exchange_proof": false,
+              "local_no_send_evidence": null,
+              "local_order_state": "CANCELED",
+              "local_position_state": "CLOSED",
+              "manual_close_receipts": [],
+              "open_quantity": "0",
+              "order_reference_sha256": "abe16e044a67efdd9d2efc0edc10157d1b6cc3ad9ab63ebd8dc7c81d10fd5d5b",
+              "quantity": "0.0007",
+              "remaining": "0",
+              "remote_resolution_verified": false,
+              "request_reference_sha256": "0fd8c5f5fc1e4fcc2a003708699c85f786fcd26c35b9fdadfff406c8f075921e",
+              "request_state": "SUBMITTING",
+              "role": "EXIT",
+              "same_order_request_references": [
+                "21a627cc663264cbef8eb763fb93d5c8155faff4705fca9992a637d0cd879718"
+              ]
+            }
+          ]
+        },
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_LOCAL_RECEIPT_RELATIONS_AND_MISSING_REMOTE_PROOF_KEEP_PAUSED",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "paused": true,
+        "previous_exit_evidence_verified": true,
+        "protected_snapshot_sha256": "1d2086aa5ab73fc0be43b376711a03247935e80918e3e762218b55fcb5e9c745",
+        "reconciliation_performed": false,
+        "request_states_unchanged": true,
+        "review_scope": "LOCAL_RECEIPT_STRUCTURE_AND_STORED_EVENT_FIELDS_ONLY",
+        "trading_readiness_checked": false
+      },
+      "repeat_review_tested": true
+    },
+    {
+      "case": "tampered_prior",
+      "passed": true,
+      "installed_source_94_files_verified": true,
+      "synthetic_historical_orders": 34,
+      "synthetic_unresolved_requests": 4,
+      "prior_fixture_synthetic_gets": 26,
+      "new_review_http_attempts": 0,
+      "no_external_network": true,
+      "credentials_unavailable_and_not_accessed": true,
+      "all_financial_resource_rows_and_files_and_active_sqlite_bytes_unchanged": true,
+      "large_history_over_32mib": true,
+      "receipt_mismatch_is_not_remote_proof": null,
+      "repeat_review_does_not_send_or_write": null,
+      "linux_powershell7_native_cmd_shim": true,
+      "windows_powershell_5_1_tested": false,
+      "user_pc_tested": false,
+      "worker_result": {
+        "accounted_read_probe": "BLOCKED_KEEP_PAUSED",
+        "application_may_have_completed": false,
+        "automatic_retry": false,
+        "clock_apply_started": false,
+        "clock_preparation_created": false,
+        "clock_resource_state": "NO_CLOCK_APPLY_STARTED",
+        "completed_reads": 0,
+        "execution_approved": false,
+        "financial_ledger_unchanged_verified": false,
+        "financial_ledger_writes_by_probe": 0,
+        "http_attempts": 0,
+        "intent_created": false,
+        "live_trading_enabled": false,
+        "modeled_weight_charged": 0,
+        "next_action": "REVIEW_OUTPUT_NO_REPEAT_AFTER_INTENT",
+        "order_writes": 0,
+        "orders_enabled": false,
+        "resource_state": "NO_PROBE_REQUEST_STARTED",
+        "stage": "ACCOUNT_RECEIPTS",
+        "stop_reason": "HISTORY_SAVED_OBSERVATION_CHANGED"
+      },
+      "repeat_review_tested": false,
+      "tampered_prior_result_rejected": true
+    }
+  ],
+  "external_exchange_http_attempts": 0,
+  "order_writes": 0,
+  "source_commit": "703ed306ebcb4d29598c26e7498efb2c28e2a337",
+  "tested_tree_commit": "b81e38bceb82fe9a0006423858f5f9255f64c3d5",
+  "packaged_runtime_sources_identical_to_tested_tree": true,
+  "test_tree_only_difference": "unit test import correction",
+  "tests_passed": 173,
+  "ruff_passed": true,
+  "strict_mypy_files_passed": 4,
+  "archive_hashes_verified": true,
+  "windows_powershell_5_1_tested": false,
+  "user_pc_tested": false
+}
