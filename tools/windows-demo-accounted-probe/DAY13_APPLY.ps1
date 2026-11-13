@@ -60,7 +60,7 @@ try {
         }
         $timer.Stop()
         $clock | ConvertTo-Json -Compress | Write-Host
-        $stage='EXPLICIT_DAY13_ADOPTION' 
+        $stage='EXPLICIT_DAY13_ADOPTION'
         $adoption=Invoke-AdoptionWorker '--apply-day13'
         if ($adoption.http_attempts -ne 8) { throw 'PROBE_DAY13_ADOPTION_RESULT_INVALID' }
     }
