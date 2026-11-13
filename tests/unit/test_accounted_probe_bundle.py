@@ -16,9 +16,12 @@ from scripts import build_demo_accounted_probe_bundle as builder
 from tests.unit.test_read_install_powershell import PWSH
 
 
-@pytest.mark.parametrize("recover,flat_review", [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize(
+    "recover,flat_review,day13",
+    [(False, False, False), (True, False, False), (False, True, False), (False, False, True)],
+)
 def test_deterministic_archive_pins_installed_code_and_isolates_worker(
-    tmp_path, monkeypatch, recover, flat_review
+    tmp_path, monkeypatch, recover, flat_review, day13
 ):
     def git(*args):
         if args[0] == "rev-parse":
@@ -27,12 +30,18 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(
         return Path(path).read_bytes()
 
     monkeypatch.setattr(builder, "git", git)
-    first = builder.build("ref", tmp_path / "one", recover=recover, flat_review=flat_review)
-    second = builder.build("ref", tmp_path / "two", recover=recover, flat_review=flat_review)
+    first = builder.build(
+        "ref", tmp_path / "one", recover=recover, flat_review=flat_review, day13=day13
+    )
+    second = builder.build(
+        "ref", tmp_path / "two", recover=recover, flat_review=flat_review, day13=day13
+    )
     assert first.read_bytes() == second.read_bytes()
     with zipfile.ZipFile(first) as z:
         prefix = (
-            "windows-demo-accounted-flat-review-20261112/"
+            "windows-demo-accounted-day13-preview-20261113/"
+            if day13
+            else "windows-demo-accounted-flat-review-20261112/"
             if flat_review
             else "windows-demo-accounted-clock-recovery-20261112/"
             if recover
@@ -43,7 +52,9 @@ def test_deterministic_archive_pins_installed_code_and_isolates_worker(
             assert hashlib.sha256(z.read(prefix + name)).hexdigest() == digest
         cmd = z.read(prefix + "RUN_WORKER.cmd").decode()
         assert cmd.count("docker exec") == 1 and "python -I" in cmd
-        assert ("%2 %3" if recover else "--review-flat" if flat_review else "--run-two-gets") in cmd
+        assert (
+            "%2 %3" if recover or day13 else "--review-flat" if flat_review else "--run-two-gets"
+        ) in cmd
         assert max(map(len, cmd.splitlines())) < 8000
         loader = base64.b64decode(re.search(r"b64decode\('([^']+)'\)", cmd).group(1)).decode()
         assert 'sys.path.insert(0, "/app")' in loader
@@ -170,11 +181,13 @@ def test_powershell_validates_identity_and_never_retries(tmp_path, case, flat_re
 @pytest.mark.parametrize(
     "case", ["success", "recover_blocked", "review_blocked", "probe_blocked", "ready"]
 )
-def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case):
+@pytest.mark.parametrize("day13", [False, True])
+def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case, day13):
     root = tmp_path / "recovery with spaces"
     root.mkdir()
+    runner = "DAY13_PREVIEW" if day13 else "RECOVER_AND_PROBE"
     for name, source in [
-        ("RECOVER_AND_PROBE.ps1", "tools/windows-demo-accounted-probe/RECOVER_AND_PROBE.ps1"),
+        (runner + ".ps1", "tools/windows-demo-accounted-probe/" + runner + ".ps1"),
         ("INSTALL_INSPECTION.ps1", "tools/windows-demo-read-install/INSTALL_INSPECTION.ps1"),
     ]:
         (root / name).write_bytes(Path(source).read_bytes())
@@ -197,14 +210,33 @@ def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case):
         shared_journal_changed=False,
     )
     success = base | dict(
-        accounted_read_probe="TWO_GETS_AUDITED_KEEP_PAUSED", installed_transport_verified=True
+        accounted_read_probe="DAY13_PREVIEW_NO_FINANCIAL_CHANGE"
+        if day13
+        else "TWO_GETS_AUDITED_KEEP_PAUSED",
+        installed_transport_verified=True,
+    )
+    success.update(
+        http_attempts=8,
+        modeled_weight_charged=131,
+        audit_events_added=16,
+        resource_checkpoints_added=16,
+        day_adopted=False,
+        financial_database_changed_by_preview=False,
+        operator_attested_day_kst="2026-11-13",
+        baseline_adoption_approved=False,
+        financial_ledger_unchanged_verified=True,
+    )
+    prepare_op, status_op, preview_op = (
+        ("--prepare-day13", "--day13-status", "--preview-day13")
+        if day13
+        else ("--recover-clock", "--review-clock", "--run-two-gets")
     )
     counter = tmp_path / "ops"
     shell = '#!/bin/sh\necho "$2" >> \'' + str(counter) + '\'\ncase "$2" in\n'
     for op, result, failed in [
-        ("--recover-clock", recovery, case == "recover_blocked"),
-        ("--review-clock", ready, case == "review_blocked"),
-        ("--run-two-gets", success, case == "probe_blocked"),
+        (prepare_op, recovery, case == "recover_blocked"),
+        (status_op, ready, case == "review_blocked"),
+        (preview_op, success, case == "probe_blocked"),
     ]:
         if failed:
             result = base | dict(
@@ -243,7 +275,7 @@ def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case):
         "function global:docker { $global:LASTEXITCODE=0; Get-Content -Raw -LiteralPath '"
         + str(metadata)
         + "' }\nfunction global:Start-Sleep { param($Seconds) if ($Seconds -ne 5) { throw 'BAD_WAIT' } }\n& '"
-        + str(root / "RECOVER_AND_PROBE.ps1")
+        + str(root / (runner + ".ps1"))
         + "' -ManifestSHA256 "
         + hashlib.sha256(manifest).hexdigest()
         + "\nexit $LASTEXITCODE\n"
@@ -263,12 +295,17 @@ def test_recovery_runner_waits_read_only_then_sends_probe_once(tmp_path, case):
     assert result.returncode == (0 if case in ("success", "ready") else 1), (
         result.stdout + result.stderr
     )
-    expected = ["--recover-clock"]
+    expected = [prepare_op]
     if case != "recover_blocked" and case != "ready":
-        expected += ["--review-clock"]
+        expected += [status_op]
     if case in ("success", "ready", "probe_blocked"):
-        expected += ["--run-two-gets"]
+        expected += [preview_op]
     assert counter.read_text().splitlines() == expected
-    assert ("CLOCK_RECOVERED_TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS" in result.stdout) == (
-        case in ("success", "ready")
-    )
+    assert (
+        (
+            "DAY13_PREVIEW_VERIFIED_NO_FINANCIAL_APPLY_KEEP_PAUSED_NO_ORDERS"
+            if day13
+            else "CLOCK_RECOVERED_TWO_DEMO_GETS_AUDITED_KEEP_PAUSED_NO_ORDERS"
+        )
+        in result.stdout
+    ) == (case in ("success", "ready"))

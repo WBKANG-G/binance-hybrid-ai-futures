@@ -24,6 +24,13 @@ FLAT_ROUTES = BASIC_ROUTES + (
     ("/fapi/v1/openOrders", 40),
     ("/fapi/v1/openAlgoOrders", 40),
 )
+DAY13_POLICY = "OPERATOR_ATTESTED_ACCOUNTED_DAY13_PREVIEW_V1"
+DAY13_ROUTES = (
+    BASIC_ROUTES
+    + (("/fapi/v3/account", 5),)
+    + FLAT_ROUTES[2:]
+    + (("/fapi/v1/income", 30), ("/fapi/v3/account", 5))
+)
 RESOURCE_TABLES = {
     "demo_read_audit_events": "sequence",
     "demo_shared_weight_checkpoints": "revision",
@@ -267,6 +274,164 @@ def verify_prior_probe(
             )
 
 
+def day13_paths(directory: Path, journal: UUID) -> tuple[Path, Path]:
+    operation = str(uuid5(journal, DAY13_POLICY))
+    return (
+        directory.parent / ("accounted-day13-preparation-" + operation),
+        directory.parent / ("accounted-day13-preview-" + operation),
+    )
+
+
+def resource_witness(engine: Any, scope: str) -> str:
+    rows, _ = resource_rows(engine, scope)
+    return hashlib.sha256(
+        json.dumps([[list(k), v] for k, v in sorted(rows.items())], separators=(",", ":")).encode()
+    ).hexdigest()
+
+
+def validate_day13_row(row: Any, scope: str, journal: UUID, installation: UUID, clock: Any) -> Any:
+    # A preview-only exception for exactly the reviewed November 12 -> 13 boundary.
+    # The row remains unchanged and ordinary readiness still rejects it.
+    from decimal import Decimal
+
+    from packages.persistence.demo_shared_weight import POLICY as shared_policy
+    from services.execution.demo_models import DemoLedger
+    from services.execution.demo_runtime_storage import RUNTIME_STORAGE_KEY
+    from services.risk.paper import period_keys
+
+    ledger = DemoLedger.model_validate(row["state"])
+    require(
+        period_keys(clock.wall_clock(), ledger.policy.week_start_kst)
+        == ("2026-11-13", "2026-11-09"),
+        "DAY13_CURRENT_DAY_REQUIRED",
+    )
+    require(
+        (ledger.daily_key, ledger.weekly_key) == ("2026-11-12", "2026-11-09"),
+        "DAY13_REVIEWED_OLD_PERIOD_REQUIRED",
+    )
+    require(
+        row["owner"] is None
+        and (row["lease_until"] is None or row["lease_until"] <= clock.wall_clock()),
+        "READ_SETUP_ACTIVE_OWNER",
+    )
+    require(
+        ledger.paused and ledger.risk_state.value == "NORMAL", "READ_SETUP_PAUSED_NORMAL_REQUIRED"
+    )
+    require(
+        not any(ledger.positions.values())
+        and all(
+            not o.remaining and not o.open_quantity and o.position_state.value == "CLOSED"
+            for o in ledger.orders.values()
+        ),
+        "READ_SETUP_LOCAL_FLAT_REQUIRED",
+    )
+    require(
+        ledger.daily_base == ledger.weekly_base == ledger.value.equity == Decimal("4998.74183608")
+        and ledger.high_water == Decimal("5000"),
+        "DAY13_REVIEWED_BASELINES_CHANGED",
+    )
+    require(
+        ledger.value.as_of.isoformat() == "2026-11-06T07:25:25.109073+00:00",
+        "DAY13_VALUATION_ANCHOR_CHANGED",
+    )
+    require(
+        json.loads(ledger.operations.get(RUNTIME_STORAGE_KEY, "{}"))
+        == dict(
+            version=1,
+            scope=scope,
+            journal=str(journal),
+            checkpoint_installation=str(installation),
+            policy=shared_policy,
+        ),
+        "READ_SETUP_ACCOUNT_BINDING_MISMATCH",
+    )
+    return ledger
+
+
+def verify_day13_preparation(
+    engine: Any,
+    directory: Path,
+    scope: str,
+    journal: UUID,
+    installation: UUID,
+    fingerprint: Any,
+    shared_file: Path,
+) -> dict[str, Any]:
+    from packages.persistence.demo_read_recovery import _file, _private_directory
+
+    folder, marker = day13_paths(directory, journal)
+    _private_directory(folder)
+    require(
+        not marker.exists() and not marker.is_symlink(), "PROBE_ALREADY_ATTEMPTED_REVIEW_REQUIRED"
+    )
+    require(
+        {p.name for p in folder.iterdir()} == {"intent.json", "complete.json"},
+        "DAY13_PREPARATION_INCOMPLETE",
+    )
+    record = json.loads(_file(folder / "complete.json", 16384))
+    require(
+        isinstance(record, dict)
+        and record.get("policy") == DAY13_POLICY
+        and record.get("scope") == scope
+        and record.get("journal") == str(journal)
+        and record.get("installation") == str(installation)
+        and record.get("operator_attested_day_kst") == "2026-11-13"
+        and record.get("prior_two_get_receipt_verified") is True,
+        "DAY13_PREPARATION_INVALID",
+    )
+    require(
+        record.get("protected_snapshot_sha256")
+        == protected_snapshot(engine, directory.parent, shared_file, folder, fingerprint),
+        "PROBE_PROTECTED_STATE_CHANGED",
+    )
+    require(
+        record.get("resource_witness_sha256") == resource_witness(engine, scope),
+        "DAY13_RESOURCE_STATE_CHANGED",
+    )
+    return dict(record)
+
+
+def day13_wallet(value: Any) -> str:
+    from decimal import Decimal
+
+    require(
+        isinstance(value, dict) and isinstance(value.get("assets"), list),
+        "DAY13_ACCOUNT_RESPONSE_INVALID",
+    )
+    assets = value["assets"]
+    require(
+        len(assets) <= 256 and all(isinstance(r, dict) for r in assets),
+        "DAY13_ACCOUNT_RESPONSE_INVALID",
+    )
+    usdt = [r for r in assets if r.get("asset") == "USDT"]
+    require(len(usdt) == 1, "DAY13_USDT_ASSET_REQUIRED")
+
+    def amount(raw: Any) -> Any:
+        require(
+            isinstance(raw, str)
+            and len(raw) <= 48
+            and re.fullmatch(r"-?[0-9]+(?:\.[0-9]+)?", raw) is not None,
+            "DAY13_AMOUNT_INVALID",
+        )
+        return Decimal(raw)
+
+    wallet = Decimal("4998.74183608")
+    require(
+        all(amount(usdt[0].get(k)) == wallet for k in ("walletBalance", "marginBalance"))
+        and amount(usdt[0].get("unrealizedProfit")) == 0,
+        "DAY13_USDT_BALANCE_CHANGED",
+    )
+    require(
+        all(
+            amount(value.get(k)) == wallet
+            for k in ("totalWalletBalance", "totalMarginBalance", "availableBalance")
+        )
+        and all(amount(value.get(k)) == 0 for k in ("totalUnrealizedProfit", "totalInitialMargin")),
+        "DAY13_ACCOUNT_MARGIN_CHANGED",
+    )
+    return str(wallet)
+
+
 def run_probe(
     engine: Any,
     directory: Path,
@@ -283,15 +448,19 @@ def run_probe(
     sender: Any = None,
     source_reference: str = "",
     flat_review: bool = False,
+    day13_preview: bool = False,
     state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     require(apply is True, "PROBE_EXPLICIT_RUN_REQUIRED")
     require(type(flat_review) is bool, "PROBE_PROFILE_INVALID")
-    routes = FLAT_ROUTES if flat_review else BASIC_ROUTES
+    require(
+        type(day13_preview) is bool and not (flat_review and day13_preview), "PROBE_PROFILE_INVALID"
+    )
+    routes = DAY13_ROUTES if day13_preview else FLAT_ROUTES if flat_review else BASIC_ROUTES
     planned_gets = len(routes)
     event_count = planned_gets * 2
     modeled_weight = sum(cost for _, cost in routes)
-    policy = FLAT_POLICY if flat_review else POLICY
+    policy = DAY13_POLICY if day13_preview else FLAT_POLICY if flat_review else POLICY
     from sqlalchemy import select, text
 
     from integrations.binance_usdm.demo import DemoClient
@@ -326,7 +495,14 @@ def run_probe(
     require(anchor.installation_id() == installation, "PROBE_INSTALLATION_MISMATCH")
     operation = str(uuid5(journal, policy))
     marker = directory.parent / (
-        ("accounted-flat-review-" if flat_review else "accounted-read-probe-") + operation
+        (
+            "accounted-day13-preview-"
+            if day13_preview
+            else "accounted-flat-review-"
+            if flat_review
+            else "accounted-read-probe-"
+        )
+        + operation
     )
     _private_directory(directory.parent)
     root_fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -340,13 +516,28 @@ def run_probe(
             not marker.exists() and not marker.is_symlink(),
             "PROBE_ALREADY_ATTEMPTED_REVIEW_REQUIRED",
         )
-        plan = prepare_read_audit(
-            engine, account, directory, scope, journal, installation, clocks=current
-        )
-        require(
-            not plan["audit_schema_required"] and not plan["audit_binding_required"],
-            "PROBE_AUDIT_NOT_CONFIGURED",
-        )
+        if day13_preview:
+            from services.execution.demo_read_audit_bootstrap import _validate_schema
+
+            with engine.connect() as c:
+                validate_day13_row(
+                    c.execute(select(accounts).where(accounts.c.account_id == account))
+                    .mappings()
+                    .one(),
+                    scope,
+                    journal,
+                    installation,
+                    current,
+                )
+                _validate_schema(c)
+        else:
+            plan = prepare_read_audit(
+                engine, account, directory, scope, journal, installation, clocks=current
+            )
+            require(
+                not plan["audit_schema_required"] and not plan["audit_binding_required"],
+                "PROBE_AUDIT_NOT_CONFIGURED",
+            )
         shared = AuditedDemoReadJournal(
             directory,
             scope,
@@ -364,6 +555,11 @@ def run_probe(
             and original["audit_events"] + event_count <= 1024,
             "PROBE_AUDIT_NOT_READY",
         )
+        if day13_preview:
+            state["stage"] = "DAY13_PREPARATION_AND_PRESERVED_STATE"
+            verify_day13_preparation(
+                engine, directory, scope, journal, installation, fingerprint, shared.path
+            )
         if flat_review:
             state["stage"] = "PRIOR_TWO_GET_RECEIPT_AND_AUDIT"
             verify_prior_probe(
@@ -389,7 +585,10 @@ def run_probe(
                 .mappings()
                 .one()
             )
-            validate_account_row(row, scope, journal, installation, current)
+            if day13_preview:
+                validate_day13_row(row, scope, journal, installation, current)
+            else:
+                validate_account_row(row, scope, journal, installation, current)
             resources_before, _ = resource_rows(engine, scope)
             kwargs = {} if sender is None else dict(sender=sender)
             transport = AccountedDemoReadTransport(
@@ -445,6 +644,37 @@ def run_probe(
                     payload = client.request("GET", path)
                     flat_counts[path] = verify_flat_payload(path, payload)
                     observation_times[path] = current.wall_clock().isoformat()
+            history_cutoff_ms = 0
+            if day13_preview:
+                history_cutoff_ms = client.clock_ms() + client.offset
+                wallets = []
+                for index, (path, _) in enumerate(routes[2:]):
+                    state["stage"] = "DAY13_ACCOUNTED_READ_" + str(index + 3)
+                    params = (
+                        dict(
+                            startTime="1794409200000",
+                            endTime=str(history_cutoff_ms),
+                            limit="1000",
+                            page="1",
+                        )
+                        if path.endswith("/income")
+                        else None
+                    )
+                    payload = client.request("GET", path, params)
+                    if path.endswith("/account"):
+                        wallets.append(day13_wallet(payload))
+                    elif path.endswith("/income"):
+                        require(
+                            isinstance(payload, list) and not payload,
+                            "DAY13_PRIOR_DAY_INCOME_NOT_EMPTY",
+                        )
+                    else:
+                        flat_counts[path] = verify_flat_payload(path, payload)
+                    observation_times[path + ":" + str(index)] = current.wall_clock().isoformat()
+                require(
+                    wallets == ["4998.74183608", "4998.74183608"], "DAY13_WALLET_RECHECK_CHANGED"
+                )
+                validate_day13_row(row, scope, journal, installation, current)
             state["stage"] = "AUDIT_AND_CHECKPOINT_POSTCHECK"
             final = audit.review(shared)
             resources_after, actions = resource_rows(engine, scope)
@@ -495,7 +725,9 @@ def run_probe(
         after = protected_snapshot(engine, directory.parent, shared.path, marker, fingerprint)
         require(after == before, "PROBE_PROTECTED_STATE_CHANGED")
         result: dict[str, Any] = dict(
-            accounted_read_probe="FIVE_GETS_FLAT_OBSERVED_KEEP_PAUSED"
+            accounted_read_probe="DAY13_PREVIEW_NO_FINANCIAL_CHANGE"
+            if day13_preview
+            else "FIVE_GETS_FLAT_OBSERVED_KEEP_PAUSED"
             if flat_review
             else "TWO_GETS_AUDITED_KEEP_PAUSED",
             operation_id=operation,
@@ -509,7 +741,7 @@ def run_probe(
             financial_ledger_unchanged_verified=True,
             account_mode_fields_verified=True,
             exchange_account_identity_verified=False,
-            positions_or_orders_checked=flat_review,
+            positions_or_orders_checked=flat_review or day13_preview,
             account_order_usage_verified=False,
             actual_ip_capacity_reserved=False,
             request_cost_upper_bounds_proven=False,
@@ -533,6 +765,34 @@ def run_probe(
                 snapshot_atomic=False,
                 observation_scope="SEQUENTIAL_ACCOUNT_WIDE_LIST_READS_ONLY",
             )
+        if day13_preview:
+            result.update(
+                operator_attested_day_kst="2026-11-13",
+                operator_attestation_used=True,
+                old_day_kst="2026-11-12",
+                proposed_day_kst="2026-11-13",
+                week_kst_preserved="2026-11-09",
+                proposed_daily_base_usdt="4998.74183608",
+                weekly_base_usdt_preserved="4998.74183608",
+                high_water_usdt_preserved="5000.00000000",
+                prior_two_get_receipt_verified=True,
+                positions_empty_at_read=True,
+                regular_orders_empty_at_read=True,
+                algo_orders_empty_at_read=True,
+                income_since_prior_day_empty=True,
+                income_window_start_ms=1794409200000,
+                wallet_rechecked=True,
+                signed_history_cutoff_ms=history_cutoff_ms,
+                exact_day_midnight_valuation_verified=False,
+                account_wide_trade_export_verified=False,
+                baseline_adoption_approved=False,
+                day_adopted=False,
+                financial_database_changed_by_preview=False,
+                old_valuation_timestamp_preserved=True,
+                snapshot_atomic=False,
+                observation_times_utc=observation_times,
+                next_action="REVIEW_DAY13_VALUES_BEFORE_APPLY",
+            )
         _write_new(marker / "complete.json", (json.dumps(result, sort_keys=True) + "\n").encode())
         _sync_directory(marker)
         state["stage"] = "COMPLETE"
@@ -555,10 +815,12 @@ def recover_probe_clock(
     *,
     apply: bool = False,
     expected: str | None = None,
+    day13: bool = False,
     clocks: Any = None,
     state: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Recover only an unused, audited scope; review polls never rebase again."""
+    require(type(day13) is bool, "PROBE_CLOCK_FLAGS_INVALID")
     require(apply is True or expected is not None, "PROBE_CLOCK_EXPLICIT_OPERATION_REQUIRED")
     require(not (apply and expected is not None), "PROBE_CLOCK_FLAGS_INVALID")
     from sqlalchemy import select, text
@@ -585,6 +847,12 @@ def recover_probe_clock(
     anchor, audit = SharedWeightAnchorStore(engine), ReadAuditStore(engine)
     require(anchor.installation_id() == installation, "PROBE_INSTALLATION_MISMATCH")
     marker = directory.parent / ("accounted-read-probe-" + str(uuid5(journal, POLICY)))
+    if day13:
+        marker, request_marker = day13_paths(directory, journal)
+        require(
+            not request_marker.exists() and not request_marker.is_symlink(),
+            "PROBE_ALREADY_ATTEMPTED_REVIEW_REQUIRED",
+        )
     _private_directory(directory.parent)
     fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
@@ -593,7 +861,7 @@ def recover_probe_clock(
         except BlockingIOError:
             raise ProbeBlocked("PROBE_ALREADY_RUNNING") from None
         require(
-            not marker.exists() and not marker.is_symlink(),
+            (day13 and not apply) or (not marker.exists() and not marker.is_symlink()),
             "PROBE_ALREADY_ATTEMPTED_REVIEW_REQUIRED",
         )
         with engine.connect() as control, control.begin():
@@ -608,21 +876,44 @@ def recover_probe_clock(
                 .mappings()
                 .one()
             )
-            validate_account_row(row, scope, journal, installation, current)
+            if day13:
+                validate_day13_row(row, scope, journal, installation, current)
+            else:
+                validate_account_row(row, scope, journal, installation, current)
             if apply:
                 # Verify complete history without trusting an invalid boot/wall-clock sample.
                 with _raw(directory, scope, journal, anchor) as (cp, local, shared_file):
                     history, snapshot = audit._verified_history(cp, local)
-                    require(
-                        snapshot[1][0][7:] == [0, 0] and not snapshot[2],
-                        "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
-                    )
-                    require(
-                        all(r["action"]["kind"] == "CLOCK_REBASE" for r in history),
-                        "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
-                    )
+                    if day13:
+                        require(
+                            snapshot[1][0][7:] == [6, 0]
+                            and all(r[4] is not None for r in snapshot[2]),
+                            "DAY13_PRIOR_COMPLETED_READS_REQUIRED",
+                        )
+                    else:
+                        require(
+                            snapshot[1][0][7:] == [0, 0] and not snapshot[2],
+                            "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
+                        )
+                        require(
+                            all(r["action"]["kind"] == "CLOCK_REBASE" for r in history),
+                            "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
+                        )
                     revision, old_digest = cp.revision, cp.digest
                     body_sha = hashlib.sha256(_file(shared_file)).hexdigest()
+                if day13:
+                    from types import SimpleNamespace
+
+                    verify_prior_probe(
+                        engine,
+                        directory,
+                        scope,
+                        journal,
+                        installation,
+                        SimpleNamespace(path=shared_file),
+                        dict(shared_total_weight=6),
+                        fingerprint,
+                    )
                 folder = directory / (PREFIX + _operation(str(journal), revision, old_digest))
                 require(
                     not folder.exists() and not folder.is_symlink(),
@@ -632,6 +923,25 @@ def recover_probe_clock(
                 before = protected_snapshot(
                     engine, directory.parent, shared_file, marker, fingerprint
                 )
+                if day13:
+                    from packages.persistence.demo_read_recovery import _sync_directory, _write_new
+
+                    os.mkdir(marker, mode=0o700)
+                    _write_new(
+                        marker / "intent.json",
+                        json.dumps(
+                            dict(
+                                policy=DAY13_POLICY,
+                                operator_attested_day_kst="2026-11-13",
+                                scope=scope,
+                                journal=str(journal),
+                                installation=str(installation),
+                            ),
+                            sort_keys=True,
+                        ).encode(),
+                    )
+                    _sync_directory(marker)
+                    _sync_directory(directory.parent)
                 state["stage"] = "AUDITED_CLOCK_RECOVERY"
                 state["clock_apply_started"] = True
                 report = recover_completed_read_clock(
@@ -689,6 +999,21 @@ def recover_probe_clock(
                 full_snapshot = protected_snapshot(
                     engine, directory.parent, shared_file, marker, fingerprint
                 )
+                if day13:
+                    record = dict(
+                        policy=DAY13_POLICY,
+                        scope=scope,
+                        journal=str(journal),
+                        installation=str(installation),
+                        operator_attested_day_kst="2026-11-13",
+                        prior_two_get_receipt_verified=True,
+                        protected_snapshot_sha256=full_snapshot,
+                        resource_witness_sha256=resource_witness(engine, scope),
+                    )
+                    _write_new(
+                        marker / "complete.json", json.dumps(record, sort_keys=True).encode()
+                    )
+                    _sync_directory(marker)
             else:
                 require(
                     isinstance(expected, str)
@@ -707,13 +1032,18 @@ def recover_probe_clock(
                     boot=current.boot,
                 )
                 report = audit.review(shared)
+                if day13:
+                    verify_day13_preparation(
+                        engine, directory, scope, journal, installation, fingerprint, shared.path
+                    )
                 full_snapshot = protected_snapshot(
                     engine, directory.parent, shared.path, marker, fingerprint
                 )
                 require(full_snapshot == expected, "PROBE_PROTECTED_STATE_CHANGED")
                 changed = False
             require(
-                report["shared_total_weight"] == 0 and report["local_read_activity_complete"],
+                report["shared_total_weight"] == (6 if day13 else 0)
+                and report["local_read_activity_complete"],
                 "PROBE_CLOCK_UNUSED_SCOPE_REQUIRED",
             )
         return dict(
@@ -750,10 +1080,17 @@ def main() -> int:
     try:
         args = sys.argv[2:]
         require(
-            args in (["--run-two-gets"], ["--review-flat"], ["--recover-clock"])
+            args
+            in (
+                ["--run-two-gets"],
+                ["--review-flat"],
+                ["--recover-clock"],
+                ["--prepare-day13"],
+                ["--preview-day13"],
+            )
             or (
                 len(args) == 2
-                and args[0] == "--review-clock"
+                and args[0] in ("--review-clock", "--day13-status")
                 and re.fullmatch("[0-9a-f]{64}", args[1]) is not None
             ),
             "PROBE_EXPLICIT_RUN_REQUIRED",
@@ -832,7 +1169,7 @@ def main() -> int:
         assert spec is not None and spec.loader is not None
         fingerprint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fingerprint)
-        if args[0] in ("--run-two-gets", "--review-flat"):
+        if args[0] in ("--run-two-gets", "--review-flat", "--preview-day13"):
             result = run_probe(
                 engine,
                 STORAGE,
@@ -846,10 +1183,17 @@ def main() -> int:
                 apply=True,
                 source_reference=manifest["source_reference"],
                 flat_review=args[0] == "--review-flat",
+                day13_preview=args[0] == "--preview-day13",
                 state=state,
             )
             result["installed_transport_verified"] = True
         else:
+            if args[0] == "--prepare-day13":
+                state["stage"] = "PRIVATE_CREDENTIAL_SESSION_PREFLIGHT"
+                try:
+                    credentials(prompt=False)
+                except Exception:
+                    raise ProbeBlocked("PROBE_CREDENTIAL_SESSION_UNAVAILABLE") from None
             result = recover_probe_clock(
                 engine,
                 STORAGE,
@@ -858,11 +1202,15 @@ def main() -> int:
                 UUID(binding["checkpoint_installation"]),
                 ACCOUNT,
                 fingerprint,
-                apply=args[0] == "--recover-clock",
+                apply=args[0] in ("--recover-clock", "--prepare-day13"),
+                day13=args[0] in ("--prepare-day13", "--day13-status"),
                 expected=args[1] if len(args) == 2 else None,
                 state=state,
             )
             result["installed_recovery_verified"] = True
+            if args[0] == "--prepare-day13":
+                result["exchange_credentials_accessed"] = True
+                result["credential_session_prechecked"] = True
         code = 0
     except Exception as error:
         reason = (

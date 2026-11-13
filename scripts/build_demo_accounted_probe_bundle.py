@@ -43,8 +43,10 @@ def fingerprint_source(source: str) -> bytes:
     return result
 
 
-def build(ref: str, output: Path, *, recover: bool = False, flat_review: bool = False) -> Path:
-    if recover and flat_review:
+def build(
+    ref: str, output: Path, *, recover: bool = False, flat_review: bool = False, day13: bool = False
+) -> Path:
+    if sum((recover, flat_review, day13)) > 1:
         raise ValueError("Choose one operation")
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
@@ -87,8 +89,18 @@ def build(ref: str, output: Path, *, recover: bool = False, flat_review: bool = 
         'runpy.run_path(str(root / "scripts/probe_demo_accounted_reads.py"), run_name="__main__")',
     )
     encoded = base64.b64encode(loader.encode()).decode()
-    worker_args = "%2 %3" if recover else "--review-flat" if flat_review else "--run-two-gets"
-    runner = "RECOVER_AND_PROBE" if recover else "FLAT_REVIEW" if flat_review else "PROBE"
+    worker_args = (
+        "%2 %3" if recover or day13 else "--review-flat" if flat_review else "--run-two-gets"
+    )
+    runner = (
+        "DAY13_PREVIEW"
+        if day13
+        else "RECOVER_AND_PROBE"
+        if recover
+        else "FLAT_REVIEW"
+        if flat_review
+        else "PROBE"
+    )
     command = (
         '@echo off\r\nsetlocal DisableDelayedExpansion\r\nif "%~1"=="" exit /b 1\r\n'
         f"docker exec -i %1 python -I -c \"exec(__import__('base64').b64decode('{encoded}'))\" {hashlib.sha256(payload).hexdigest()} {worker_args} < \"%~dp0candidate.zip\"\r\n"
@@ -107,7 +119,9 @@ def build(ref: str, output: Path, *, recover: bool = False, flat_review: bool = 
             "show",
             f"{revision}:"
             + (
-                "RUNTIME_ACCOUNTED_FLAT_REVIEW_KO.md"
+                "RUNTIME_ACCOUNTED_DAY13_PREVIEW_KO.md"
+                if day13
+                else "RUNTIME_ACCOUNTED_FLAT_REVIEW_KO.md"
                 if flat_review
                 else "RUNTIME_ACCOUNTED_CLOCK_RECOVERY_KO.md"
                 if recover
@@ -125,7 +139,9 @@ def build(ref: str, output: Path, *, recover: bool = False, flat_review: bool = 
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
     folder = (
-        "windows-demo-accounted-flat-review-20261112"
+        "windows-demo-accounted-day13-preview-20261113"
+        if day13
+        else "windows-demo-accounted-flat-review-20261112"
         if flat_review
         else "windows-demo-accounted-clock-recovery-20261112"
         if recover
@@ -153,5 +169,12 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--recover-clock", action="store_true")
     parser.add_argument("--flat-review", action="store_true")
+    parser.add_argument("--day13-preview", action="store_true")
     args = parser.parse_args()
-    build(args.ref, args.output, recover=args.recover_clock, flat_review=args.flat_review)
+    build(
+        args.ref,
+        args.output,
+        recover=args.recover_clock,
+        flat_review=args.flat_review,
+        day13=args.day13_preview,
+    )
