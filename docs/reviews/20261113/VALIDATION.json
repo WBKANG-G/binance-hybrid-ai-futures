@@ -1,0 +1,12 @@
+{
+  "tests_passed": 160,
+  "ruff_passed": true,
+  "strict_mypy_files_passed": 2,
+  "scope": "OFFLINE_PROPOSAL_AND_UNCHANGED_RUNTIME_GUARD_REGRESSION",
+  "real_windows_state_accessed": false,
+  "exchange_http_attempts": 0,
+  "order_writes": 0,
+  "production_runtime_files_changed": false,
+  "archive_authority_implemented": false,
+  "activation_approved": false
+}

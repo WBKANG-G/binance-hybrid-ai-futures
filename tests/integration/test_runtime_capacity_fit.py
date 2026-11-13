@@ -18,7 +18,7 @@ from tests.integration.test_quota_startup_review import snapshot
 from tests.unit.test_quota_startup_read_only import files
 
 
-@pytest.mark.parametrize("history", [6, 128])
+@pytest.mark.parametrize("history", [6, 34, 128])
 def test_impossible_proof_stops_before_journal_open_or_transport(assembly, monkeypatch, history):
     store, c, _, _, _, _, _, calls, storage, _ = assembly
 
