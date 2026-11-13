@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from packages.domain.contracts import PositionState, timedelta
+from packages.domain.contracts import PositionState
 from scripts import probe_demo_accounted_reads as common
 from scripts import review_demo_historical_receipts as receipts
 from scripts import review_demo_historical_requests as history
