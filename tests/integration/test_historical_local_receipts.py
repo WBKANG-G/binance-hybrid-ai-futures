@@ -6,7 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import event, select, update
+from sqlalchemy import event, select, text, update
 from sqlalchemy.exc import DBAPIError
 
 from packages.persistence.demo import accounts, events
@@ -144,7 +144,7 @@ def test_database_refuses_write_inside_timeline_transaction(finished):
     before = financial(finished[0])
 
     def inject(c, cursor, statement, parameters, context, many):
-        if statement.startswith("SELECT demo_events.event_id"):
+        if statement.startswith(("SELECT demo_events.event_id", "SELECT event_id,as_of")):
             cursor.execute("UPDATE demo_accounts SET fence=fence+1")
 
     event.listen(engine, "before_cursor_execute", inject)
@@ -293,3 +293,116 @@ def test_byte_limit_is_diagnosed_before_transferring_payloads(finished):
     assert state["local_receipt_scan"]["planned_event_rows"] == 128
     assert state["local_receipt_scan"]["planned_event_bytes"] > 128 * 1024 * 1024
     assert state["local_receipt_scan"]["events_scanned"] == 0
+
+
+def test_projection_matches_raw_signatures_without_transferring_extra_fields(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    plan = history.plan_requests(ledger, common)
+    raw = receipts.timelines(engine, "DEMO-test", plan, common)
+    projected = receipts.projected_timelines(engine, "DEMO-test", plan, common)
+    assert projected["request_local_state_timelines"] == raw["request_local_state_timelines"]
+    assert projected["source_event_bytes"] == raw["event_bytes_scanned"]
+    assert projected["events_scanned"] == raw["events_scanned"]
+    assert not projected["all_source_event_bodies_transferred"]
+    assert not projected["full_event_content_validated_by_projection"]
+    query, params = receipts.projection_query(plan, common)
+    params["account"] = "DEMO-test"
+    with engine.connect() as c:
+        rows = c.execute(query, params).mappings().all()
+    for row in rows:
+        projected_body = json.loads(row["projected_payload"])
+        for o in projected_body.get("orders", {}).values():
+            assert set(o) == {
+                "client_id",
+                "state",
+                "position_state",
+                "exit_state",
+                "filled",
+                "remaining",
+                "open_quantity",
+            }
+
+
+def test_actual_3802_row_287mb_source_uses_bounded_small_projections(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    value = ledger.model_dump(mode="json")
+    template = json.dumps(
+        dict(
+            requests=value["requests"],
+            orders=value["orders"],
+            request_no_send_evidence=value["request_no_send_evidence"],
+            padding="",
+        )
+    )
+    with engine.begin() as c:
+        c.execute(
+            accounts.insert().values(
+                account_id="DEMO-projected", owner=None, fence=0, lease_until=None, state=value
+            )
+        )
+        c.execute(
+            text("""WITH base AS (SELECT CAST(:template AS jsonb) AS doc)
+          INSERT INTO demo_events(event_id,account_id,fence,as_of,kind,payload)
+          SELECT md5('projection-'||n::text)::uuid::text,'DEMO-projected',0,now(),'SYNTHETIC',
+          (doc || jsonb_build_object('padding',repeat('X',
+            (CASE WHEN n=1 THEN 227777 ELSE :base + CASE WHEN n<=:extra+1 THEN 1 ELSE 0 END END)
+            -octet_length(doc::text))))::text
+          FROM generate_series(1,3802) n CROSS JOIN base"""),
+            dict(
+                template=template,
+                base=(287240535 - 227777) // 3801,
+                extra=(287240535 - 227777) % 3801,
+            ),
+        )
+    state = {}
+    result = receipts.projected_timelines(
+        engine, "DEMO-projected", history.plan_requests(ledger, common), common, state=state
+    )
+    assert result["events_scanned"] == 3802
+    assert result["source_event_bytes"] == 287240535
+    assert 3802 * 2 < result["projected_bytes_transferred"] < 128 * 1024 * 1024
+    assert result["source_row_coverage_verified"] and result["non_ledger_payloads_skipped"] == 0
+    assert state["local_receipt_scan"]["max_source_event_row_bytes"] == 227777
+    assert not result["remote_proof_replayed"]
+
+
+def test_projection_source_budget_is_separate_and_bounded(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    scan_account(
+        engine,
+        ledger,
+        512,
+        payload_expression="json_build_object('synthetic',repeat('X',1048576))::text",
+    )
+    state = {}
+    with pytest.raises(common.ProbeBlocked, match="PROJECTION_SOURCE_BYTE_LIMIT"):
+        receipts.projected_timelines(
+            engine, "DEMO-scan", history.plan_requests(ledger, common), common, state=state
+        )
+    assert state["local_receipt_scan"]["source_event_bytes"] > 512 * 1024 * 1024
+    assert state["local_receipt_scan"]["projected_bytes_transferred"] == 0
+
+
+def test_projection_rejects_malformed_optional_field_instead_of_hiding_it(finished):
+    engine = finished[0][1].engine
+    ledger = finished[0][6].read("DEMO-test")
+    value = ledger.model_dump(mode="json")
+    value["request_no_send_evidence"] = "PRIVATE_INVALID"
+    with engine.begin() as c:
+        c.execute(
+            events.insert().values(
+                event_id=str(uuid4()),
+                account_id="DEMO-test",
+                fence=0,
+                as_of=finished[0][2].utc(),
+                kind="OTHER",
+                payload=json.dumps(value),
+            )
+        )
+    with pytest.raises(common.ProbeBlocked, match="PROJECTION_FIELD_SHAPE_INVALID"):
+        receipts.projected_timelines(
+            engine, "DEMO-test", history.plan_requests(ledger, common), common
+        )

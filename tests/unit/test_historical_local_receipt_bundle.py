@@ -22,7 +22,7 @@ def test_local_receipt_archive_is_readonly_and_pins_all_helpers(tmp_path, monkey
 
     monkeypatch.setattr(builder, "git", git)
     artifact = builder.build("ref", tmp_path, local_receipts=True)
-    prefix = "windows-demo-historical-local-receipts-v2-20261113/"
+    prefix = "windows-demo-historical-local-projection-20261113/"
     with zipfile.ZipFile(artifact) as z:
         assert prefix + "RUN_HISTORICAL_LOCAL_RECEIPTS.cmd" in z.namelist()
         assert prefix + "RUN_DAY13_STATUS.cmd" not in z.namelist()

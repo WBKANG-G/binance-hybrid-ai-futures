@@ -355,6 +355,183 @@ def timelines(
     )
 
 
+def projection_query(plan: Any, common: Any) -> tuple[Any, dict[str, Any]]:
+    common.require(len(plan) == 4, "LOCAL_PROJECTION_FOUR_REQUESTS_REQUIRED")
+    params: dict[str, Any] = {}
+    request_parts = []
+    no_send_parts = []
+    for i, item in enumerate(plan):
+        params["r" + str(i)] = item["identifier"]
+        params["o" + str(i)] = item["order"].client_id
+        request_parts.append(
+            "(CASE WHEN (doc->'requests') ? :r"
+            + str(i)
+            + " THEN jsonb_build_object(:r"
+            + str(i)
+            + ",(doc->'requests')->:r"
+            + str(i)
+            + ") ELSE '{}'::jsonb END)"
+        )
+        no_send_parts.extend([":r" + str(i), "(doc->'request_no_send_evidence')->:r" + str(i)])
+    query = """SELECT event_id,as_of,kind,octet_length(payload) AS source_bytes,
+      (CASE WHEN jsonb_typeof(doc->'requests')='object' AND jsonb_typeof(doc->'orders')='object'
+       THEN CASE WHEN doc ? 'request_no_send_evidence' AND jsonb_typeof(doc->'request_no_send_evidence') IS DISTINCT FROM 'object'
+        THEN jsonb_build_object('projection_shape_error',true)
+        ELSE jsonb_build_object('requests', REQUEST_PARTS,
+          'request_no_send_evidence',jsonb_build_object(NO_SEND_PARTS),
+          'orders',(SELECT coalesce(jsonb_object_agg(ow.key,jsonb_build_object(
+            'client_id',ow.value->'client_id','state',ow.value->'state',
+            'position_state',ow.value->'position_state','exit_state',coalesce(ow.value->'exit_state','"NONE"'::jsonb),
+            'filled',ow.value->'filled','remaining',ow.value->'remaining','open_quantity',ow.value->'open_quantity')),'{}'::jsonb)
+            FROM jsonb_each(CASE WHEN jsonb_typeof(doc->'orders')='object' THEN doc->'orders' ELSE '{}'::jsonb END) ow
+            WHERE ow.value->>'client_id' IN (:o0,:o1,:o2,:o3))) END
+       ELSE '{}'::jsonb END)::text AS projected_payload
+     FROM (SELECT event_id,as_of,kind,payload FROM demo_events WHERE account_id=:account
+       ORDER BY as_of,event_id OFFSET 0) ordered
+     CROSS JOIN LATERAL (SELECT payload::jsonb AS doc OFFSET 0) parsed
+     ORDER BY as_of,event_id"""
+    # OFFSET 0 keeps the per-row JSON parse behind a lateral subquery boundary.
+    return text(
+        query.replace("REQUEST_PARTS", " || ".join(request_parts)).replace(
+            "NO_SEND_PARTS", ",".join(no_send_parts)
+        )
+    ), params
+
+
+def projected_timelines(
+    engine: Any, account: str, plan: Any, common: Any, *, state: Any = None
+) -> dict[str, Any]:
+    result: dict[str, list[dict[str, Any]]] = {p["request_reference_sha256"]: [] for p in plan}
+    previous: dict[str, Any] = {}
+    state = {} if state is None else state
+    started = time.monotonic()
+    scanned = skipped = source_scanned = transferred = 0
+    diagnostic: dict[str, Any] = dict(
+        query_strategy="FOUR_REQUEST_FIELD_PROJECTION",
+        phase="SOURCE_METADATA",
+        row_limit=4096,
+        source_processing_byte_limit=512 * 1024 * 1024,
+        source_per_row_byte_limit=2 * 1024 * 1024,
+        projected_transfer_byte_limit=128 * 1024 * 1024,
+        projected_per_row_byte_limit=2 * 1024 * 1024,
+        seconds_limit=60,
+        events_scanned=0,
+        projected_bytes_transferred=0,
+        source_bytes_processed=0,
+    )
+    state["local_receipt_scan"] = diagnostic
+
+    def checkpoint() -> None:
+        diagnostic.update(
+            events_scanned=scanned,
+            projected_bytes_transferred=transferred,
+            source_bytes_processed=source_scanned,
+            elapsed_ms=int(max(0, time.monotonic() - started) * 1000),
+        )
+        common.require(diagnostic["elapsed_ms"] < 60000, "LOCAL_PROJECTION_TIME_LIMIT")
+
+    try:
+        with engine.connect() as c, c.begin():
+            c.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+            c.execute(text("SET LOCAL statement_timeout='2s'"))
+            checkpoint()
+            count, size, largest = c.execute(
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(func.octet_length(events.c.payload)), 0),
+                    func.coalesce(func.max(func.octet_length(events.c.payload)), 0),
+                ).where(events.c.account_id == account)
+            ).one()
+            diagnostic.update(
+                planned_event_rows=int(count),
+                source_event_bytes=int(size),
+                max_source_event_row_bytes=int(largest),
+            )
+            common.require(count <= 4096, "LOCAL_PROJECTION_ROW_COUNT_LIMIT")
+            common.require(size <= 512 * 1024 * 1024, "LOCAL_PROJECTION_SOURCE_BYTE_LIMIT")
+            common.require(largest <= 2 * 1024 * 1024, "LOCAL_PROJECTION_SOURCE_ROW_LIMIT")
+            query, params = projection_query(plan, common)
+            params["account"] = account
+            diagnostic["phase"] = "PROJECTED_FIELDS"
+            with c.execution_options(stream_results=True, yield_per=32).execute(
+                query, params
+            ) as cursor:
+                for row in cursor.mappings():
+                    checkpoint()
+                    body = row["projected_payload"]
+                    row_size = len(body.encode())
+                    scanned += 1
+                    source_scanned += row["source_bytes"]
+                    transferred += row_size
+                    diagnostic.update(
+                        events_scanned=scanned,
+                        projected_bytes_transferred=transferred,
+                        source_bytes_processed=source_scanned,
+                        last_event_reference_sha256=ref(row["event_id"]),
+                    )
+                    common.require(scanned <= 4096, "LOCAL_PROJECTION_ROW_COUNT_LIMIT")
+                    common.require(
+                        transferred <= 128 * 1024 * 1024, "LOCAL_PROJECTION_TRANSFER_BYTE_LIMIT"
+                    )
+                    common.require(
+                        row_size <= 2 * 1024 * 1024, "LOCAL_PROJECTION_TRANSFER_ROW_LIMIT"
+                    )
+                    payload = json.loads(body)
+                    common.require(
+                        not payload.get("projection_shape_error", False),
+                        "LOCAL_PROJECTION_FIELD_SHAPE_INVALID",
+                    )
+                    if not isinstance(payload.get("requests"), dict) or not isinstance(
+                        payload.get("orders"), dict
+                    ):
+                        skipped += 1
+                        continue
+                    for item in plan:
+                        signature = event_signature(payload, item, common)
+                        key = item["request_reference_sha256"]
+                        if signature == previous.get(key):
+                            continue
+                        previous[key] = signature
+                        common.require(len(result[key]) < 128, "LOCAL_RECEIPT_TIMELINE_LIMIT")
+                        result[key].append(
+                            dict(
+                                event_reference_sha256=ref(row["event_id"]),
+                                as_of_utc=row["as_of"].astimezone(UTC).isoformat(),
+                                event_kind=row["kind"]
+                                if row["kind"] in KINDS
+                                else "OTHER_STORED_EVENT",
+                                local_fields=signature,
+                                remote_proof_verified=False,
+                            )
+                        )
+            checkpoint()
+            common.require(
+                scanned == count and source_scanned == size,
+                "LOCAL_PROJECTION_SOURCE_ROW_COVERAGE_INVALID",
+            )
+            diagnostic["phase"] = "COMPLETE"
+    except SQLAlchemyError as error:
+        code = getattr(getattr(error, "orig", None), "sqlstate", None)
+        if code == "57014":
+            common.require(False, "LOCAL_PROJECTION_DATABASE_TIMEOUT")
+        if code == "22P02":
+            common.require(False, "LOCAL_PROJECTION_SOURCE_JSON_INVALID")
+        raise
+    return dict(
+        events_scanned=scanned,
+        source_event_bytes=source_scanned,
+        projected_bytes_transferred=transferred,
+        non_ledger_payloads_skipped=skipped,
+        request_local_state_timelines=result,
+        query_strategy="FOUR_REQUEST_FIELD_PROJECTION",
+        byte_count_basis="PROJECTED_JSON_UTF8_ONLY",
+        source_row_coverage_verified=True,
+        all_source_event_bodies_transferred=False,
+        full_event_content_validated_by_projection=False,
+        remote_proof_replayed=False,
+    )
+
+
 def run(
     engine: Any,
     directory: Path,
@@ -445,7 +622,7 @@ def run(
         plan = history.plan_requests(ledger, common)
         inventory = relations(ledger, plan, clock.wall_clock())
         state["stage"] = "LOCAL_RECEIPT_EVENT_SCAN"
-        timeline = timelines(engine, account, plan, common, state=state)
+        timeline = projected_timelines(engine, account, plan, common, state=state)
         state["stage"] = "LOCAL_RECEIPT_PRESERVATION_POSTCHECK"
         common.require(
             before
@@ -456,7 +633,7 @@ def run(
         )
         return dict(
             local_historical_receipt_review="COMPLETED_KEEP_PAUSED",
-            review_scope="LOCAL_RECEIPT_STRUCTURE_AND_STORED_EVENT_FIELDS_ONLY",
+            review_scope="LOCAL_RECEIPTS_AND_FOUR_REQUEST_FIELD_PROJECTIONS_ONLY",
             previous_exit_evidence_verified=True,
             local_receipt_relations=inventory,
             local_event_history=timeline,
