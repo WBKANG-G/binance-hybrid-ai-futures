@@ -36,8 +36,31 @@ try {
         if ($parsed.accounted_day13_adoption -ne 'APPLIED_VERIFIED_KEEP_PAUSED' -or $parsed.installed_adoption_modules_verified -ne $true -or $parsed.orders_enabled -ne $false -or $parsed.live_trading_enabled -ne $false -or $parsed.execution_approved -ne $false -or $parsed.day_adopted -ne $true -or $parsed.period_keys_match -ne $true -or $parsed.prior_financial_history_preserved -ne $true -or $parsed.prior_receipts_and_files_preserved -ne $true -or $parsed.application_http_attempts -ne 8 -or $parsed.application_modeled_weight_charged -ne 131 -or $parsed.application_audit_events_added -ne 16 -or $parsed.application_resource_checkpoints_added -ne 16 -or $parsed.financial_event_added -ne 1 -or $parsed.financial_outbox_added -ne 1) { throw 'PROBE_DAY13_ADOPTION_RESULT_INVALID' }
         return $parsed
     }
+    function Invoke-ClockPreparation([string]$Operation,[string]$Expected='') {
+        $lines=@(& (Join-Path $root 'RUN_WORKER.cmd') $id $Operation $Expected)
+        $workerCode=$LASTEXITCODE
+        if ($workerCode -ne 0) { $lines | Write-Host; exit $workerCode }
+        $parsed=($lines -join "`n") | ConvertFrom-Json
+        if (@('WAIT_STARTUP_HOLD','READY_TO_APPLY_KEEP_PAUSED') -notcontains $parsed.accounted_day13_clock_preparation -or $parsed.installed_adoption_modules_verified -ne $true -or $parsed.http_attempts -ne 0 -or $parsed.financial_ledger_unchanged_verified -ne $true -or $parsed.orders_enabled -ne $false -or $parsed.live_trading_enabled -ne $false -or $parsed.execution_approved -ne $false -or $parsed.preparation_snapshot_sha256 -notmatch '^[0-9a-f]{64}$') { throw 'PROBE_DAY13_CLOCK_RESULT_INVALID' }
+        return $parsed
+    }
     if (-not $StatusOnly) {
-        $stage='EXPLICIT_DAY13_ADOPTION'
+        $stage='VERIFIED_PRIOR_PREVIEW_AND_AUDITED_CLOCK_PREPARATION'
+        $clock=Invoke-ClockPreparation '--prepare-day13-adoption-clock'
+        $clock | ConvertTo-Json -Compress | Write-Host
+        $snapshot=$clock.preparation_snapshot_sha256
+        $timer=[Diagnostics.Stopwatch]::StartNew()
+        while ($clock.startup_ready -ne $true) {
+            if ($timer.Elapsed.TotalSeconds -ge 110) { throw 'PROBE_DAY13_CLOCK_WAIT_TIMEOUT' }
+            $stage='READ_ONLY_CLOCK_STARTUP_WAIT'
+            Write-Host ('STARTUP_HOLD_KEEP_PAUSED_NO_ORDERS remaining_seconds='+[Math]::Max(0,[Math]::Ceiling(70.001-$timer.Elapsed.TotalSeconds)))
+            Start-Sleep -Seconds 5
+            $clock=Invoke-ClockPreparation '--day13-adoption-clock-status' $snapshot
+            if ($clock.shared_journal_changed -ne $false -or $clock.preparation_snapshot_sha256 -ne $snapshot) { throw 'PROBE_DAY13_CLOCK_REVIEW_CHANGED' }
+        }
+        $timer.Stop()
+        $clock | ConvertTo-Json -Compress | Write-Host
+        $stage='EXPLICIT_DAY13_ADOPTION' 
         $adoption=Invoke-AdoptionWorker '--apply-day13'
         if ($adoption.http_attempts -ne 8) { throw 'PROBE_DAY13_ADOPTION_RESULT_INVALID' }
     }

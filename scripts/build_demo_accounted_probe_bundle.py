@@ -162,7 +162,7 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-accounted-day13-apply-20261113"
+        "windows-demo-accounted-day13-apply-v2-20261113"
         if day13_apply
         else "windows-demo-accounted-day13-preview-20261113"
         if day13

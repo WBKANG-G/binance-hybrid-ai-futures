@@ -46,7 +46,7 @@ def run(case, send=None, **kw):
         kw.pop("credentials", lambda: a[7].client.credentials),
         fingerprint,
         common,
-        clocks=case[3],
+        clocks=kw.pop("clocks", case[3]),
         sender=send,
         **kw,
     )

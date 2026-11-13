@@ -22,7 +22,7 @@ def test_bundle_pins_ephemeral_adoption_helper_and_both_entrypoints(tmp_path, mo
 
     monkeypatch.setattr(builder, "git", git)
     artifact = builder.build("ref", tmp_path, day13_apply=True)
-    prefix = "windows-demo-accounted-day13-apply-20261113/"
+    prefix = "windows-demo-accounted-day13-apply-v2-20261113/"
     with zipfile.ZipFile(artifact) as z:
         manifest = json.loads(z.read(prefix + "TRANSFER_MANIFEST.json"))
         for n, sha in manifest["files"].items():
@@ -43,7 +43,18 @@ def test_bundle_pins_ephemeral_adoption_helper_and_both_entrypoints(tmp_path, mo
 
 
 @pytest.mark.skipif(not Path(PWSH).exists(), reason="PowerShell required")
-@pytest.mark.parametrize("case", ["success", "apply_failed", "status_failed", "status_only"])
+@pytest.mark.parametrize(
+    "case",
+    [
+        "success",
+        "apply_failed",
+        "status_failed",
+        "status_only",
+        "clock_failed",
+        "clock_wait",
+        "clock_rechanged",
+    ],
+)
 def test_runner_does_not_reapply_or_retry_queries(tmp_path, case):
     root = tmp_path / "apply with spaces"
     root.mkdir()
@@ -71,6 +82,36 @@ def test_runner_does_not_reapply_or_retry_queries(tmp_path, case):
     )
     ops = tmp_path / "ops"
     shell = '#!/bin/sh\necho "$2" >> ' + str(ops) + '\ncase "$2" in\n'
+    clock = dict(
+        accounted_day13_clock_preparation="WAIT_STARTUP_HOLD"
+        if case in ("clock_wait", "clock_rechanged")
+        else "READY_TO_APPLY_KEEP_PAUSED",
+        startup_ready=case not in ("clock_wait", "clock_rechanged"),
+        preparation_snapshot_sha256="b" * 64,
+        installed_adoption_modules_verified=True,
+        http_attempts=0,
+        financial_ledger_unchanged_verified=True,
+        orders_enabled=False,
+        live_trading_enabled=False,
+        execution_approved=False,
+        shared_journal_changed=False,
+    )
+    for op, failed, value in [
+        ("--prepare-day13-adoption-clock", case == "clock_failed", clock),
+        (
+            "--day13-adoption-clock-status",
+            case == "clock_rechanged",
+            clock
+            | dict(
+                startup_ready=True, accounted_day13_clock_preparation="READY_TO_APPLY_KEEP_PAUSED"
+            ),
+        ),
+    ]:
+        if failed:
+            value = dict(accounted_read_probe="BLOCKED_KEEP_PAUSED")
+        shell += (
+            op + ")\necho '" + json.dumps(value) + "'\nexit " + ("1" if failed else "0") + "\n;;\n"
+        )
     for op, count, failed in [
         ("--apply-day13", 8, case == "apply_failed"),
         ("--day13-adoption-status", 0, case == "status_failed"),
@@ -113,7 +154,7 @@ def test_runner_does_not_reapply_or_retry_queries(tmp_path, case):
     wrapper.write_text(
         "function global:docker { $global:LASTEXITCODE=0; Get-Content -Raw -LiteralPath '"
         + str(metadata)
-        + "' }\n& '"
+        + "' }\nfunction global:Start-Sleep { param($Seconds) if ($Seconds -ne 5) { throw 'BAD_WAIT' } }\n& '"
         + str(root / "DAY13_APPLY.ps1")
         + "' -ManifestSHA256 "
         + hashlib.sha256(manifest).hexdigest()
@@ -132,18 +173,20 @@ def test_runner_does_not_reapply_or_retry_queries(tmp_path, case):
             XDG_DATA_HOME=str(tmp_path / "data"),
         ),
     )
-    assert result.returncode == (0 if case in ("success", "status_only") else 1), (
+    assert result.returncode == (0 if case in ("success", "status_only", "clock_wait") else 1), (
         result.stdout + result.stderr
     )
     expected = (
-        ["--day13-adoption-status"]
-        if case == "status_only"
-        else ["--apply-day13"]
-        if case == "apply_failed"
-        else ["--apply-day13", "--day13-adoption-status"]
+        ["--day13-adoption-status"] if case == "status_only" else ["--prepare-day13-adoption-clock"]
     )
+    if case in ("clock_wait", "clock_rechanged"):
+        expected += ["--day13-adoption-clock-status"]
+    if case in ("success", "apply_failed", "status_failed", "clock_wait"):
+        expected += ["--apply-day13"]
+    if case in ("success", "status_failed", "clock_wait"):
+        expected += ["--day13-adoption-status"]
     assert ops.read_text().splitlines() == expected
     assert ("DAY13_APPLIED_AUDIT_AND_HISTORY_VERIFIED_KEEP_PAUSED_NO_ORDERS" in result.stdout) == (
-        case in ("success", "status_only")
+        case in ("success", "status_only", "clock_wait")
     )
     assert "PRIVATE" not in result.stdout + result.stderr

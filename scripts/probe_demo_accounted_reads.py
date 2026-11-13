@@ -1089,10 +1089,11 @@ def main() -> int:
                 ["--preview-day13"],
                 ["--apply-day13"],
                 ["--day13-adoption-status"],
+                ["--prepare-day13-adoption-clock"],
             )
             or (
                 len(args) == 2
-                and args[0] in ("--review-clock", "--day13-status")
+                and args[0] in ("--review-clock", "--day13-status", "--day13-adoption-clock-status")
                 and re.fullmatch("[0-9a-f]{64}", args[1]) is not None
             ),
             "PROBE_EXPLICIT_RUN_REQUIRED",
@@ -1171,7 +1172,12 @@ def main() -> int:
         assert spec is not None and spec.loader is not None
         fingerprint = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fingerprint)
-        if args[0] in ("--apply-day13", "--day13-adoption-status"):
+        if args[0] in (
+            "--apply-day13",
+            "--day13-adoption-status",
+            "--prepare-day13-adoption-clock",
+            "--day13-adoption-clock-status",
+        ):
             from types import SimpleNamespace
 
             adoption_spec = importlib.util.spec_from_file_location(
@@ -1196,27 +1202,55 @@ def main() -> int:
                         "DAY13_ROUTES",
                         "protected_snapshot",
                         "resource_rows",
+                        "resource_witness",
                         "validate_day13_row",
                         "verify_flat_payload",
                         "day13_wallet",
                     )
                 }
             )
-            result = adoption.run(
-                engine,
-                STORAGE,
-                SCOPE,
-                UUID(binding["journal"]),
-                UUID(binding["checkpoint_installation"]),
-                ACCOUNT,
-                settings,
-                lambda: credentials(prompt=False),
-                fingerprint,
-                common,
-                apply=args[0] == "--apply-day13",
-                status=args[0] == "--day13-adoption-status",
-                state=state,
-            )
+            if args[0] == "--prepare-day13-adoption-clock":
+                result = adoption.prepare_clock(
+                    engine,
+                    STORAGE,
+                    SCOPE,
+                    UUID(binding["journal"]),
+                    UUID(binding["checkpoint_installation"]),
+                    ACCOUNT,
+                    lambda: credentials(prompt=False),
+                    fingerprint,
+                    common,
+                    apply=True,
+                    state=state,
+                )
+            elif args[0] == "--day13-adoption-clock-status":
+                result = adoption.clock_status(
+                    engine,
+                    STORAGE,
+                    SCOPE,
+                    UUID(binding["journal"]),
+                    UUID(binding["checkpoint_installation"]),
+                    ACCOUNT,
+                    fingerprint,
+                    common,
+                    expected=args[1],
+                )
+            else:
+                result = adoption.run(
+                    engine,
+                    STORAGE,
+                    SCOPE,
+                    UUID(binding["journal"]),
+                    UUID(binding["checkpoint_installation"]),
+                    ACCOUNT,
+                    settings,
+                    lambda: credentials(prompt=False),
+                    fingerprint,
+                    common,
+                    apply=args[0] == "--apply-day13",
+                    status=args[0] == "--day13-adoption-status",
+                    state=state,
+                )
             result["installed_adoption_modules_verified"] = True
         elif args[0] in ("--run-two-gets", "--review-flat", "--preview-day13"):
             result = run_probe(
@@ -1274,6 +1308,7 @@ def main() -> int:
             stop_reason=reason,
             intent_created=state["intent_created"],
             clock_apply_started=state.get("clock_apply_started", False),
+            clock_preparation_created=state.get("clock_preparation_created", False),
             application_may_have_completed=state.get("application_may_have_completed", False),
             clock_resource_state="REVIEW_REQUIRED"
             if state.get("clock_apply_started")
