@@ -1,0 +1,56 @@
+{
+  "date": "2026-11-13",
+  "scope": "SYNTHETIC_ONLY_WIRE_BOUNDARY_AND_RAM_CREDENTIAL_SESSION_CONTRACT",
+  "unique_tests_passed": 224,
+  "new_wire_session_contract_tests_passed": 61,
+  "prior_submission_outcome_evidence_regression_tests_passed": 163,
+  "runs": [
+    {
+      "passed": 221,
+      "seconds": 41.51,
+      "scope": "58 initial new contract cases plus 163 unchanged parent regression cases"
+    },
+    {
+      "passed": 61,
+      "seconds": 0.38,
+      "scope": "Final new contract cases, including three 12-hour/clock expiry cases"
+    }
+  ],
+  "ruff_check_and_format_passed": true,
+  "strict_mypy_source_files_passed": 1,
+  "runtime_source_files_added": 1,
+  "existing_runtime_files_changed": false,
+  "session_max_lifetime_seconds": 43200,
+  "pending_capture_limit_per_session": 64,
+  "file_record_limit": 256,
+  "file_byte_limit": 524288,
+  "api_key_secret_signature_or_key_fingerprint_persisted_by_contract": false,
+  "response_body_or_headers_persisted_by_contract": false,
+  "prepared_or_session_pickle_supported": false,
+  "wire_exit_quantity_from_actual_supplied_query": true,
+  "caller_callable_transport_supported": false,
+  "network_transport_integration_added": false,
+  "actual_exchange_http_attempts": 0,
+  "real_windows_state_accessed": false,
+  "windows_installed": false,
+  "local_session_binding_scope": "SINGLE_IN_PROCESS_SYNTHETIC_OWNER_ONLY",
+  "remote_account_identity_verified": false,
+  "real_wire_submission_verified": false,
+  "database_commit_coupling_verified": false,
+  "external_rollback_protection_verified": false,
+  "process_restart_resumption_supported": false,
+  "original_intent_authenticated": false,
+  "archive_authority_implemented": false,
+  "historical_request_reconciliation_performed": false,
+  "capacity_shortfall_resolved": false,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "remaining_requirements": [
+    "Independent durable checkpoint and financial transaction coupling.",
+    "Trusted remote account identity source and operational credential provenance.",
+    "Order authorization, rate capacity, leader fencing and trusted clock/freshness checks.",
+    "Installation/restart/failure recovery review before any real sender integration."
+  ]
+}
