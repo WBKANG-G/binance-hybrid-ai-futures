@@ -40,15 +40,18 @@ from services.execution.demo_runtime_storage import RuntimeClocks
 from services.execution.demo_unused_read_clock import verify_backups
 
 POLICY = "HISTORICAL_ORIGINAL_ID_EVIDENCE_20261113_V1"
+EXIT_POLICY = "PREVIOUSLY_UNQUERIED_EXIT_EVIDENCE_20261113_V1"
+PRIOR_SOURCE = "923adf55ef71494a09c0d43db69e392622ec1bcf"
 
 
 def ref(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()
 
 
-def paths(directory: Path, journal: UUID) -> tuple[str, Path]:
-    operation = str(uuid5(journal, POLICY))
-    return operation, directory.parent / ("historical-request-evidence-" + operation)
+def paths(directory: Path, journal: UUID, *, exit_followup: bool = False) -> tuple[str, Path]:
+    operation = str(uuid5(journal, EXIT_POLICY if exit_followup else POLICY))
+    prefix = "historical-exit-evidence-" if exit_followup else "historical-request-evidence-"
+    return operation, directory.parent / (prefix + operation)
 
 
 def plan_requests(ledger: DemoLedger, common: Any) -> list[dict[str, Any]]:
@@ -282,9 +285,22 @@ def audit_delta(
     common.require(
         all(resources.get(k) == v for k, v in prior.items()), "HISTORY_PRIOR_RESOURCE_CHANGED"
     )
+    common.require(intent["policy"] in {POLICY, EXIT_POLICY}, "HISTORY_INTENT_POLICY_INVALID")
+    followup = intent["policy"] == EXIT_POLICY
+    common.require(len(intent["plan"]) == (1 if followup else 4), "HISTORY_INTENT_PLAN_INVALID")
+    if followup:
+        common.require(
+            intent["plan"][0]["role"] == "EXIT"
+            and intent["plan"][0]["path"] == "/fapi/v1/order"
+            and intent.get("prior_source_reference") == PRIOR_SOURCE,
+            "HISTORY_EXIT_INTENT_INVALID",
+        )
     first = intent["first_sequence"]
     new = [actions[i] for i in range(first, len(actions))]
-    common.require(0 <= len(new) <= 12 and len(new) % 2 == 0, "HISTORY_AUDIT_DELTA_INVALID")
+    common.require(
+        0 <= len(new) <= (6 if followup else 12) and len(new) % 2 == 0,
+        "HISTORY_AUDIT_DELTA_INVALID",
+    )
     routes = [("/fapi/v1/time", 1), ("/fapi/v1/accountConfig", 5)] + [
         (r["path"], 1) for r in intent["plan"]
     ]
@@ -312,7 +328,7 @@ def audit_delta(
     common.require(
         set(resources) - set(prior) == expected
         and len(rows) == first + len(new)
-        and meta[7] == 268 + sum(c for _, c in routes[:count]),
+        and meta[7] == (277 if followup else 268) + sum(c for _, c in routes[:count]),
         "HISTORY_RESOURCE_DELTA_INVALID",
     )
     return dict(
@@ -343,6 +359,7 @@ def run(
     evidence: Any,
     *,
     status_only: bool = False,
+    exit_followup: bool = False,
     clocks: Any = None,
     sender: Any = None,
     source_reference: str = "",
@@ -350,7 +367,11 @@ def run(
 ) -> dict[str, Any]:
     clock = clocks or RuntimeClocks()
     state = {} if state is None else state
-    operation, folder = paths(directory, journal)
+    common.require(type(exit_followup) is bool, "HISTORY_PROFILE_INVALID")
+    policy = EXIT_POLICY if exit_followup else POLICY
+    planned_requests = 1 if exit_followup else 4
+    base_weight = 277 if exit_followup else 268
+    operation, folder = paths(directory, journal, exit_followup=exit_followup)
     AccountedDemoReadTransport._context()
     _private_directory(directory.parent)
     fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
@@ -363,24 +384,74 @@ def run(
                 not folder.exists() and not folder.is_symlink(),
                 "HISTORY_ALREADY_ATTEMPTED_RUN_STATUS_ONLY",
             )
-            # Gate owns a shared parent lock; release it before exclusive reader serialization.
-            preflight = gate.run(
-                engine,
-                directory,
-                scope,
-                journal,
-                installation,
-                account,
-                fingerprint,
-                adoption,
-                common,
-                evidence,
-                clocks=clock,
-            )
-            common.require(
-                preflight["shared_clock_valid"] and preflight["shared_startup_ready"],
-                "HISTORY_CLOCK_REVIEW_REQUIRED_NO_AUTOMATIC_REPAIR",
-            )
+            if exit_followup:
+                state["stage"] = "HISTORICAL_PRIOR_PARTIAL_RECEIPT_VALIDATION"
+                previous = run(
+                    engine,
+                    directory,
+                    scope,
+                    journal,
+                    installation,
+                    account,
+                    settings,
+                    credential_loader,
+                    fingerprint,
+                    adoption,
+                    gate,
+                    common,
+                    evidence,
+                    status_only=True,
+                    clocks=clock,
+                    source_reference=PRIOR_SOURCE,
+                )
+                summary = previous["original_attempt_summary"]
+                common.require(
+                    previous["requests_observed"] == 3
+                    and previous["requests_unqueried"] == 1
+                    and previous["stopped_after_not_found"] is True
+                    and summary["attempts"] == 5
+                    and summary["modeled_weight_charged"] == 9
+                    and summary["shared_total_weight"] == 277
+                    and [(o["role"], o["observed_status"]) for o in previous["observations"]]
+                    == [
+                        ("ENTRY", "FILLED"),
+                        ("ENTRY", "FILLED"),
+                        ("STOP_LOSS", "NOT_FOUND_UNRESOLVED"),
+                    ],
+                    "HISTORY_REVIEWED_PARTIAL_PREDECESSOR_REQUIRED",
+                )
+                adoption.financial_adoption_witness(
+                    engine, directory, scope, journal, installation, account, clock, common
+                )
+                with raw_read(directory, scope, journal, SharedWeightAnchorStore(engine)) as (
+                    cp,
+                    local,
+                    _,
+                ):
+                    history_rows, _ = ReadAuditStore(engine)._verified_history(cp, local)
+                preflight = dict(
+                    protected_snapshot_sha256=previous["protected_snapshot_sha256"],
+                    shared_audit_events=len(history_rows),
+                )
+            else:
+                # Gate owns a shared parent lock; release it before exclusive reader serialization.
+                preflight = gate.run(
+                    engine,
+                    directory,
+                    scope,
+                    journal,
+                    installation,
+                    account,
+                    fingerprint,
+                    adoption,
+                    common,
+                    evidence,
+                    clocks=clock,
+                )
+                common.require(
+                    preflight["shared_clock_valid"] and preflight["shared_startup_ready"],
+                    "HISTORY_CLOCK_REVIEW_REQUIRED_NO_AUTOMATIC_REPAIR",
+                )
         try:
             fcntl.flock(fd, (fcntl.LOCK_SH if status_only else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -395,7 +466,7 @@ def run(
             )
             intent = json.loads(_file(folder / "intent.json", 1048576))
             common.require(
-                intent["policy"] == POLICY
+                intent["policy"] == policy
                 and intent["operation_id"] == operation
                 and intent["account"] == account
                 and intent["scope"] == scope
@@ -422,7 +493,7 @@ def run(
                 "HISTORY_PROTECTED_STATE_CHANGED",
             )
             common.require(
-                result["policy"] == POLICY
+                result["policy"] == policy
                 and result["operation_id"] == operation
                 and result["orders_enabled"] is False
                 and result["execution_approved"] is False
@@ -454,12 +525,17 @@ def run(
                     ).scalar_one()
                 )
             common.require(
-                public_plan(plan_requests(ledger, common)) == intent["plan"],
+                public_plan(
+                    plan_requests(ledger, common)[-1:]
+                    if exit_followup
+                    else plan_requests(ledger, common)
+                )
+                == intent["plan"],
                 "HISTORY_REQUEST_PLAN_CHANGED",
             )
             common.require(
                 result["requests_observed"] == len(result["observations"]) == delta["attempts"] - 2
-                and result["requests_unqueried"] == 4 - len(result["observations"]),
+                and result["requests_unqueried"] == planned_requests - len(result["observations"]),
                 "HISTORY_SAVED_COUNT_CHANGED",
             )
             common.require(
@@ -538,6 +614,8 @@ def run(
             validate_account_row(row, scope, journal, installation, clock)
             ledger = DemoLedger.model_validate(row["state"])
             plan = plan_requests(ledger, common)
+            if exit_followup:
+                plan = plan[-1:]
             shared = AuditedDemoReadJournal(
                 directory,
                 scope,
@@ -552,7 +630,19 @@ def run(
                 engine, directory.parent, shared.path, folder, fingerprint
             )
             common.require(
-                before == preflight["protected_snapshot_sha256"],
+                (
+                    common.protected_snapshot(
+                        engine,
+                        directory.parent,
+                        shared.path,
+                        folder,
+                        fingerprint,
+                        excluded_folder=paths(directory, journal)[1],
+                    )
+                    if exit_followup
+                    else before
+                )
+                == preflight["protected_snapshot_sha256"],
                 "HISTORY_STATE_CHANGED_AFTER_PREFLIGHT",
             )
             original = audit.review(shared)
@@ -560,8 +650,8 @@ def run(
                 original["startup_ready"]
                 and original["local_read_activity_complete"]
                 and original["audit_events"] == preflight["shared_audit_events"]
-                and original["shared_total_weight"] == 268
-                and original["audit_events"] + 12 <= 1024,
+                and original["shared_total_weight"] == base_weight
+                and original["audit_events"] + 2 * (2 + planned_requests) <= 1024,
                 "HISTORY_AUDIT_NOT_READY",
             )
             resources, _ = common.resource_rows(engine, scope)
@@ -605,7 +695,7 @@ def run(
                 enable_reads=True,
                 sender=record,
                 monotonic=clock.monotonic,
-                max_requests=6,
+                max_requests=2 + planned_requests,
                 max_seconds=30,
             )
             client = DemoClient(
@@ -617,13 +707,14 @@ def run(
             os.mkdir(folder, mode=0o700)
             state["intent_created"] = True
             intent = dict(
-                policy=POLICY,
+                policy=policy,
                 operation_id=operation,
                 account=account,
                 scope=scope,
                 journal=str(journal),
                 installation=str(installation),
                 source_reference=source_reference,
+                prior_source_reference=PRIOR_SOURCE if exit_followup else None,
                 plan=public_plan(plan),
                 protected_snapshot_sha256=before,
                 first_sequence=original["audit_events"],
@@ -682,7 +773,7 @@ def run(
             )
             common.require(after == before, "HISTORY_PROTECTED_STATE_CHANGED")
             result = dict(
-                policy=POLICY,
+                policy=policy,
                 operation_id=operation,
                 historical_request_evidence="OBSERVED_KEEP_PAUSED",
                 **delta,
@@ -690,7 +781,11 @@ def run(
                 completed_reads=metrics["completed_reads"],
                 observations=observations,
                 requests_observed=len(observations),
-                requests_unqueried=4 - len(observations),
+                requests_unqueried=planned_requests - len(observations),
+                previous_historical_evidence_verified=exit_followup,
+                evidence_scope="PREVIOUSLY_UNQUERIED_EXIT_ONLY"
+                if exit_followup
+                else "FOUR_REVIEWED_HISTORICAL_REQUEST_IDS_ONLY",
                 stopped_after_not_found=delta["last_http_status"] == 400,
                 automatic_retry=False,
                 protected_snapshot_sha256=after,

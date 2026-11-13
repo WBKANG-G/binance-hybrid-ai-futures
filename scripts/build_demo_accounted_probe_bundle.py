@@ -53,9 +53,11 @@ def build(
     day13_apply: bool = False,
     post_gate: bool = False,
     historical: bool = False,
+    exit_followup: bool = False,
 ) -> Path:
-    if sum((recover, flat_review, day13, day13_apply, post_gate, historical)) > 1:
+    if sum((recover, flat_review, day13, day13_apply, post_gate, historical, exit_followup)) > 1:
         raise ValueError("Choose one operation")
+    historical = historical or exit_followup
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
         git("show", f"{revision}:tools/windows-demo-read-review/INSTALLED_SOURCE_20261111.json")
@@ -124,7 +126,9 @@ def build(
         else "--run-two-gets"
     )
     runner = (
-        "HISTORICAL_REQUESTS"
+        "HISTORICAL_EXIT"
+        if exit_followup
+        else "HISTORICAL_REQUESTS"
         if historical
         else "POST_ADOPTION_GATE"
         if post_gate
@@ -156,7 +160,9 @@ def build(
             "show",
             f"{revision}:"
             + (
-                "HISTORICAL_REQUEST_EVIDENCE_KO.md"
+                "HISTORICAL_EXIT_EVIDENCE_KO.md"
+                if exit_followup
+                else "HISTORICAL_REQUEST_EVIDENCE_KO.md"
                 if historical
                 else "POST_ADOPTION_LOCAL_GATE_KO.md"
                 if post_gate
@@ -182,8 +188,10 @@ def build(
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
     if historical:
-        package["RUN_HISTORICAL_STATUS.cmd"] = (
-            '@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0HISTORICAL_REQUESTS.ps1" -StatusOnly '
+        package[
+            "RUN_HISTORICAL_EXIT_STATUS.cmd" if exit_followup else "RUN_HISTORICAL_STATUS.cmd"
+        ] = (
+            f'@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0{runner}.ps1" -StatusOnly '
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     if day13_apply:
@@ -192,7 +200,9 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-historical-request-evidence-20261113"
+        "windows-demo-historical-exit-evidence-20261113"
+        if exit_followup
+        else "windows-demo-historical-request-evidence-20261113"
         if historical
         else "windows-demo-post-adoption-gate-v2-20261113"
         if post_gate
@@ -232,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument("--day13-apply", action="store_true")
     parser.add_argument("--post-adoption-gate", action="store_true")
     parser.add_argument("--historical-requests", action="store_true")
+    parser.add_argument("--historical-exit-only", action="store_true")
     args = parser.parse_args()
     build(
         args.ref,
@@ -242,4 +253,5 @@ if __name__ == "__main__":
         day13_apply=args.day13_apply,
         post_gate=args.post_adoption_gate,
         historical=args.historical_requests,
+        exit_followup=args.historical_exit_only,
     )

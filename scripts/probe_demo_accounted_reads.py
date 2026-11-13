@@ -1093,6 +1093,8 @@ def main() -> int:
                 ["--post-adoption-gate"],
                 ["--historical-request-evidence"],
                 ["--historical-request-status"],
+                ["--historical-exit-evidence"],
+                ["--historical-exit-status"],
             )
             or (
                 len(args) == 2
@@ -1183,6 +1185,8 @@ def main() -> int:
             "--post-adoption-gate",
             "--historical-request-evidence",
             "--historical-request-status",
+            "--historical-exit-evidence",
+            "--historical-exit-status",
         ):
             from types import SimpleNamespace
 
@@ -1219,6 +1223,8 @@ def main() -> int:
                 "--post-adoption-gate",
                 "--historical-request-evidence",
                 "--historical-request-status",
+                "--historical-exit-evidence",
+                "--historical-exit-status",
             ):
                 gate_spec = importlib.util.spec_from_file_location(
                     "_post_adoption_gate", root / "scripts/review_demo_post_adoption.py"
@@ -1269,7 +1275,10 @@ def main() -> int:
                         gate,
                         common,
                         evidence,
-                        status_only=args[0] == "--historical-request-status",
+                        status_only=args[0]
+                        in ("--historical-request-status", "--historical-exit-status"),
+                        exit_followup=args[0]
+                        in ("--historical-exit-evidence", "--historical-exit-status"),
                         source_reference=manifest["source_reference"],
                         state=state,
                     )

@@ -38,7 +38,17 @@ from tests.unit.test_quota_startup_read_only import files
 pytestmark = pytest.mark.parametrize("installation", ["historical"], indirect=True)
 
 
-def execute(case, *, status=False, sender=None, clock=None, loader=None, state=None):
+def execute(
+    case,
+    *,
+    status=False,
+    sender=None,
+    clock=None,
+    loader=None,
+    state=None,
+    exit_followup=False,
+    source="test-source",
+):
     from pathlib import Path
 
     a = case[0]
@@ -59,7 +69,8 @@ def execute(case, *, status=False, sender=None, clock=None, loader=None, state=N
         status_only=status,
         clocks=clock or case[3],
         sender=sender,
-        source_reference="test-source",
+        source_reference=source,
+        exit_followup=exit_followup,
         state=state,
     )
 
@@ -96,10 +107,10 @@ def response(item):
     )
 
 
-def wire(case, seen, mode="ok"):
+def wire(case, seen, mode="ok", base_weight=268):
     plan = history.plan_requests(case[0][6].read("DEMO-test"), common)
     mapping = {p["identifier"]: p for p in plan}
-    weight = 268
+    weight = base_weight
 
     def send(method, path, query, key):
         nonlocal weight
@@ -117,7 +128,9 @@ def wire(case, seen, mode="ok"):
             resources, events = common.resource_rows(case[0][1].engine, case[0][0].scope)
             assert events[max(events)]["kind"] == "RESERVE"
             body = response(mapping[identifier])
-            if mode == "missing":
+            if mode == "missing" or (
+                mode == "sl_missing" and mapping[identifier]["role"] == "STOP_LOSS"
+            ):
                 status = 400
                 body = {"code": -2013, "msg": "PRIVATE_DO_NOT_PRINT"}
             elif mode == "mismatch":
