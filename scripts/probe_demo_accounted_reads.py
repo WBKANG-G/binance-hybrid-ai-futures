@@ -1095,6 +1095,7 @@ def main() -> int:
                 ["--historical-request-status"],
                 ["--historical-exit-evidence"],
                 ["--historical-exit-status"],
+                ["--historical-local-receipts"],
             )
             or (
                 len(args) == 2
@@ -1187,6 +1188,7 @@ def main() -> int:
             "--historical-request-status",
             "--historical-exit-evidence",
             "--historical-exit-status",
+            "--historical-local-receipts",
         ):
             from types import SimpleNamespace
 
@@ -1225,6 +1227,7 @@ def main() -> int:
                 "--historical-request-status",
                 "--historical-exit-evidence",
                 "--historical-exit-status",
+                "--historical-local-receipts",
             ):
                 gate_spec = importlib.util.spec_from_file_location(
                     "_post_adoption_gate", root / "scripts/review_demo_post_adoption.py"
@@ -1261,27 +1264,55 @@ def main() -> int:
                     assert helper_spec is not None and helper_spec.loader is not None
                     helper = importlib.util.module_from_spec(helper_spec)
                     helper_spec.loader.exec_module(helper)
-                    result = helper.run(
-                        engine,
-                        STORAGE,
-                        SCOPE,
-                        UUID(binding["journal"]),
-                        UUID(binding["checkpoint_installation"]),
-                        ACCOUNT,
-                        settings,
-                        lambda: credentials(prompt=False),
-                        fingerprint,
-                        adoption,
-                        gate,
-                        common,
-                        evidence,
-                        status_only=args[0]
-                        in ("--historical-request-status", "--historical-exit-status"),
-                        exit_followup=args[0]
-                        in ("--historical-exit-evidence", "--historical-exit-status"),
-                        source_reference=manifest["source_reference"],
-                        state=state,
-                    )
+                    if args[0] == "--historical-local-receipts":
+                        receipt_spec = importlib.util.spec_from_file_location(
+                            "_historical_local_receipts",
+                            root / "scripts/review_demo_historical_receipts.py",
+                        )
+                        require(
+                            receipt_spec is not None and receipt_spec.loader is not None,
+                            "LOCAL_RECEIPT_MODULE_INVALID",
+                        )
+                        assert receipt_spec is not None and receipt_spec.loader is not None
+                        receipts = importlib.util.module_from_spec(receipt_spec)
+                        receipt_spec.loader.exec_module(receipts)
+                        result = receipts.run(
+                            engine,
+                            STORAGE,
+                            SCOPE,
+                            UUID(binding["journal"]),
+                            UUID(binding["checkpoint_installation"]),
+                            ACCOUNT,
+                            settings,
+                            fingerprint,
+                            adoption,
+                            gate,
+                            helper,
+                            common,
+                            evidence,
+                        )
+                    else:
+                        result = helper.run(
+                            engine,
+                            STORAGE,
+                            SCOPE,
+                            UUID(binding["journal"]),
+                            UUID(binding["checkpoint_installation"]),
+                            ACCOUNT,
+                            settings,
+                            lambda: credentials(prompt=False),
+                            fingerprint,
+                            adoption,
+                            gate,
+                            common,
+                            evidence,
+                            status_only=args[0]
+                            in ("--historical-request-status", "--historical-exit-status"),
+                            exit_followup=args[0]
+                            in ("--historical-exit-evidence", "--historical-exit-status"),
+                            source_reference=manifest["source_reference"],
+                            state=state,
+                        )
                     result["installed_transport_verified"] = True
                 result["installed_control_files_verified"] = True
             elif args[0] == "--prepare-day13-adoption-clock":

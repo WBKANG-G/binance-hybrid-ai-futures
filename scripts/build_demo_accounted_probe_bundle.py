@@ -54,10 +54,25 @@ def build(
     post_gate: bool = False,
     historical: bool = False,
     exit_followup: bool = False,
+    local_receipts: bool = False,
 ) -> Path:
-    if sum((recover, flat_review, day13, day13_apply, post_gate, historical, exit_followup)) > 1:
+    if (
+        sum(
+            (
+                recover,
+                flat_review,
+                day13,
+                day13_apply,
+                post_gate,
+                historical,
+                exit_followup,
+                local_receipts,
+            )
+        )
+        > 1
+    ):
         raise ValueError("Choose one operation")
-    historical = historical or exit_followup
+    historical = historical or exit_followup or local_receipts
     revision = git("rev-parse", "--verify", ref + "^{commit}").decode().strip()
     installed = json.loads(
         git("show", f"{revision}:tools/windows-demo-read-review/INSTALLED_SOURCE_20261111.json")
@@ -91,6 +106,10 @@ def build(
         candidate["scripts/review_demo_historical_requests.py"] = git(
             "show", f"{revision}:scripts/review_demo_historical_requests.py"
         )
+    if local_receipts:
+        candidate["scripts/review_demo_historical_receipts.py"] = git(
+            "show", f"{revision}:scripts/review_demo_historical_receipts.py"
+        )
     candidate["PROBE_MANIFEST.json"] = json.dumps(
         dict(
             source_reference=revision,
@@ -115,7 +134,9 @@ def build(
     )
     encoded = base64.b64encode(loader.encode()).decode()
     worker_args = (
-        "%2"
+        "--historical-local-receipts"
+        if local_receipts
+        else "%2"
         if historical
         else "--post-adoption-gate"
         if post_gate
@@ -126,7 +147,9 @@ def build(
         else "--run-two-gets"
     )
     runner = (
-        "HISTORICAL_EXIT"
+        "HISTORICAL_LOCAL_RECEIPTS"
+        if local_receipts
+        else "HISTORICAL_EXIT"
         if exit_followup
         else "HISTORICAL_REQUESTS"
         if historical
@@ -160,7 +183,9 @@ def build(
             "show",
             f"{revision}:"
             + (
-                "HISTORICAL_EXIT_EVIDENCE_KO.md"
+                "HISTORICAL_LOCAL_RECEIPTS_KO.md"
+                if local_receipts
+                else "HISTORICAL_EXIT_EVIDENCE_KO.md"
                 if exit_followup
                 else "HISTORICAL_REQUEST_EVIDENCE_KO.md"
                 if historical
@@ -187,7 +212,7 @@ def build(
         f'@echo off\r\npowershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0{runner}.ps1" '
         f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
     ).encode("ascii")
-    if historical:
+    if historical and not local_receipts:
         package[
             "RUN_HISTORICAL_EXIT_STATUS.cmd" if exit_followup else "RUN_HISTORICAL_STATUS.cmd"
         ] = (
@@ -200,7 +225,9 @@ def build(
             f"-ManifestSHA256 {hashlib.sha256(manifest).hexdigest()}\r\nexit /b %errorlevel%\r\n"
         ).encode("ascii")
     folder = (
-        "windows-demo-historical-exit-evidence-20261113"
+        "windows-demo-historical-local-receipts-20261113"
+        if local_receipts
+        else "windows-demo-historical-exit-evidence-20261113"
         if exit_followup
         else "windows-demo-historical-request-evidence-20261113"
         if historical
@@ -243,6 +270,7 @@ if __name__ == "__main__":
     parser.add_argument("--post-adoption-gate", action="store_true")
     parser.add_argument("--historical-requests", action="store_true")
     parser.add_argument("--historical-exit-only", action="store_true")
+    parser.add_argument("--historical-local-receipts", action="store_true")
     args = parser.parse_args()
     build(
         args.ref,
@@ -254,4 +282,5 @@ if __name__ == "__main__":
         post_gate=args.post_adoption_gate,
         historical=args.historical_requests,
         exit_followup=args.historical_exit_only,
+        local_receipts=args.historical_local_receipts,
     )

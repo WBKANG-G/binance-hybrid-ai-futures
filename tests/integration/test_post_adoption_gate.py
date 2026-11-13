@@ -84,7 +84,7 @@ def installation(base_installation, request):
                 "synthetic-tp-2": "CANCEL_REQUESTED",
                 "synthetic-unmatched": "SUBMITTING",
             }
-            if request.param == "historical":
+            if request.param in {"historical", "local_receipts"}:
                 value["orders"]["2"]["exit_id"] = "synthetic-exit-2"
                 value["requests"] = {
                     "synthetic-entry-0": "UNKNOWN",
@@ -92,6 +92,21 @@ def installation(base_installation, request):
                     "synthetic-sl-2": "UNKNOWN",
                     "synthetic-exit-2": "SUBMITTING",
                 }
+        if getattr(request, "param", None) == "local_receipts":
+            from packages.persistence.demo import events
+            from tests.fixtures.historical_receipts import seed
+
+            for kind, stamp, payload in seed(value, a[2].utc()):
+                c.execute(
+                    events.insert().values(
+                        event_id=str(uuid4()),
+                        account_id="DEMO-test",
+                        fence=0,
+                        as_of=stamp,
+                        kind=kind,
+                        payload=json.dumps(payload),
+                    )
+                )
         c.execute(update(accounts).values(state=value))
     return base_installation
 
