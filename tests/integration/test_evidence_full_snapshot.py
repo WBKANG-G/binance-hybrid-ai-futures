@@ -230,3 +230,25 @@ def test_table_rewrite_rules_are_fingerprinted(evidenced):
     assert after["sha256"] != before["sha256"]
     assert after["catalog"]["rules"]["count"] == before["catalog"]["rules"]["count"] + 1
     assert after["tables"] == before["tables"]
+
+
+def test_historical_payload_above_128mib_is_fully_hashed_without_omitting_rows(setup_ready):
+    # User's measured historical JSON projection was 287,240,535 bytes. The old
+    # 128MiB DB cap could never cover it; file and per-row limits stay separate.
+    a = setup_ready
+    with a[1].engine.begin() as c:
+        c.execute(
+            text(
+                "CREATE TABLE large_historical_payload (id integer PRIMARY KEY, body text NOT NULL)"
+            )
+        )
+        c.execute(
+            text(
+                "INSERT INTO large_historical_payload SELECT i,repeat('X',131072) FROM generate_series(1,2300) i"
+            )
+        )
+    before = files(a[3])
+    report = evidence_snapshot(a[1].engine, a[3])
+    table = report["tables"]["large_historical_payload"]
+    assert table["rows"] == 2300 and 287240535 < table["bytes"] < 512 * 1024 * 1024
+    assert files(a[3]) == before

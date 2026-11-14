@@ -19,7 +19,8 @@ from packages.persistence.demo_read_recovery import _file, _private_directory
 
 POLICY = "FULL_SCHEMA_GET_EVIDENCE_REVIEW_SNAPSHOT_V1"
 MAX_ROWS = 1_000_000
-MAX_BYTES = 128 * 1024 * 1024
+MAX_BYTES = 512 * 1024 * 1024
+MAX_FILE_BYTES = 128 * 1024 * 1024
 MAX_ROW_BYTES = 16 * 1024 * 1024
 
 
@@ -177,7 +178,7 @@ def evidence_snapshot(engine: Engine, storage: Path, *, seconds: float = 60.0) -
         )
         body = _file(path)
         size += len(body)
-        require(len(entries) < 128 and size <= MAX_BYTES, "EVIDENCE_SNAPSHOT_STORAGE_LIMIT")
+        require(len(entries) < 128 and size <= MAX_FILE_BYTES, "EVIDENCE_SNAPSHOT_STORAGE_LIMIT")
         entries[str(path.relative_to(storage))] = hashlib.sha256(body).hexdigest()
     require(bool(entries), "EVIDENCE_SNAPSHOT_STORAGE_MISSING")
     budget(deadline)
