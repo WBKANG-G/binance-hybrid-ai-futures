@@ -8,7 +8,7 @@ from pathlib import Path
 from scripts.build_demo_read_review_bundle import archive, git, hashes
 from scripts.build_windows_cold_backup_bundle import API, DB
 
-FOLDER = "windows-demo-isolated-restore-20261114"
+FOLDER = "windows-demo-isolated-restore-v2-20261114"
 PREFIX = "tools/windows_demo_isolated_restore/"
 RECEIPT = "4aff6c186597d9ea97a12928101961f5143c93dfae36b5b647109d11676b6778"
 MANIFEST = "2a2af624a12c696868ec10ce2522a97b29c2824fe6571dc232840f22db3bdd9d"

@@ -1,3 +1,24 @@
+function Restore-CanonicalMetadataJson([object]$Value,[int]$Depth=0) {
+    if ($Depth -gt 16) { throw 'RESTORE_METADATA_DEPTH_INVALID' }
+    if ($null -eq $Value) { return 'null' }
+    if ($Value -is [string] -or $Value -is [ValueType]) { return (ConvertTo-Json -InputObject $Value -Compress) }
+    if ($Value -is [System.Array]) {
+        $parts=@()
+        foreach ($entry in $Value) { $parts+=,(Restore-CanonicalMetadataJson $entry ($Depth+1)) }
+        return ('['+($parts -join ',')+']')
+    }
+    $parts=@()
+    foreach ($property in @($Value.PSObject.Properties | Sort-Object -Property Name)) {
+        $key=ConvertTo-Json -InputObject ([string]$property.Name) -Compress
+        $parts+=,($key+':'+(Restore-CanonicalMetadataJson $property.Value ($Depth+1)))
+    }
+    return ('{'+($parts -join ',')+'}')
+}
+function Resolve-RestoreImageMatch([string]$Reference,[string]$Expected) {
+    if ($Reference -cnotmatch '^sha256:[0-9a-f]{64}$' -or $Expected -cnotmatch '^sha256:[0-9a-f]{64}$') { return $false }
+    $values=@(Backup-Docker @('image','inspect','--format','{{.Id}}',$Reference) 1)
+    return ($values.Count -eq 1 -and $values[0] -ceq $Expected)
+}
 function Restore-SnapshotComparableJson([object]$Item) {
     # Mount list order is not a Docker identity. Preserve EVERY mount field/value.
     $record=[ordered]@{}
@@ -5,7 +26,7 @@ function Restore-SnapshotComparableJson([object]$Item) {
         if ($property.Name -ceq 'mounts') { $record[$property.Name]=@($Item.mounts | Sort-Object -Property Destination) }
         else { $record[$property.Name]=$property.Value }
     }
-    return ([pscustomobject]$record | ConvertTo-Json -Depth 12 -Compress)
+    return (Restore-CanonicalMetadataJson ([pscustomobject]$record))
 }
 function Assert-RestoreSourceSnapshot([object[]]$Original,[string[]]$Helpers,[bool]$Frozen=$false) {
     if ($Frozen) { throw 'RESTORE_SNAPSHOT_MODE_INVALID' }
@@ -96,8 +117,18 @@ function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
     foreach ($id in $State.canonical_images) { if ($id -isnot [string] -or $id -cnotmatch '^sha256:[0-9a-f]{64}$') { throw 'RESTORE_STATE_INVALID' } }
     if (@($Receipt.helper_container_ids).Count -ne 1 -or $Receipt.helper_container_ids[0] -cnotmatch '^[0-9a-f]{64}$') { throw 'RESTORE_STATE_INVALID' }
     $items=@(@(Container-Ids) | ForEach-Object {Read-Container $_})
-    $project=@($items | Where-Object {(Project $_) -ceq 'hybrid-windows'})
-    $script:RestoreScopeProbe=[pscustomobject]@{step='CONTAINER_COUNTS';project_count=$project.Count;saved_count=@($State.source_snapshots).Count}
+    $script:RestoreScopeProbe=[pscustomobject]@{step='PRESERVATION_HELPER'}
+    $oldWorker=@($items | Where-Object {$_.id -ceq $Receipt.helper_container_ids[0]})
+    if ($oldWorker.Count -ne 1 -or $oldWorker[0].running -or $oldWorker[0].paused -or $oldWorker[0].restarting -or $oldWorker[0].dead -or $oldWorker[0].restart.Name -cne 'no' -or $oldWorker[0].restart.MaximumRetryCount -ne 0 -or -not (Resolve-RestoreImageMatch $oldWorker[0].image $State.canonical_images[0]) -or @($oldWorker[0].mounts).Count -ne 3) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
+    if (@($State.source_snapshots | ForEach-Object {$_.id}) -ccontains $oldWorker[0].id -or @($Config.api_container_id,$Config.database_container_id) -ccontains $oldWorker[0].id) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
+    foreach ($spec in @(@('/source/database',$State.database_volume,$false),@('/source/runtime',$State.runtime_volume,$false),@('/output',$Receipt.output_volume,$true))) {
+        $mount=@($oldWorker[0].mounts | Where-Object {$_.Destination -ceq $spec[0]})
+        if ($mount.Count -ne 1 -or $mount[0].Type -cne 'volume' -or $mount[0].Name -cne $spec[1] -or $mount[0].RW -ne $spec[2]) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
+    }
+    $labelled=@($items | Where-Object {(Project $_) -ceq 'hybrid-windows'})
+    # Only this verified, receipt-bound reader is excluded, never a label/name pattern.
+    $project=@($labelled | Where-Object {$_.id -cne $oldWorker[0].id})
+    $script:RestoreScopeProbe=[pscustomobject]@{step='CONTAINER_COUNTS';labelled_project_count=$labelled.Count;project_count=$project.Count;saved_count=@($State.source_snapshots).Count;verified_helper_excluded=$true;helper_had_project_label=((Project $oldWorker[0]) -ceq 'hybrid-windows')}
     if ($project.Count -ne 7 -or @($State.source_snapshots).Count -ne 6) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     foreach ($role in @('api','db','web','alerts','key-session')) {
         $expected=1; if ($role -ceq 'api') { $expected=3 }
@@ -115,21 +146,16 @@ function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
     if ($api.Count -ne 1 -or $db.Count -ne 1) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     $database=Volume-Mount $db[0] '/var/lib/postgresql'; $runtime=Volume-Mount $api[0] '/app/demo-export-state'
     $script:RestoreScopeProbe=[pscustomobject]@{step='PRIMARY_BINDINGS';database_volume_match=($database.Name -ceq $State.database_volume);runtime_volume_match=($runtime.Name -ceq $State.runtime_volume);api_image_reference_match=($api[0].image -ceq $State.canonical_images[0]);database_image_reference_match=($db[0].image -ceq $State.canonical_images[1]);api_image_resolves_to_canonical=$null;database_image_resolves_to_canonical=$null}
-    # Diagnostic resolution does not change the existing raw-reference guard below.
-    foreach ($spec in @(@($api[0].image,$State.canonical_images[0],'api_image_resolves_to_canonical'),@($db[0].image,$State.canonical_images[1],'database_image_resolves_to_canonical'))) {
-        try {
-            $resolved=@(Backup-Docker @('image','inspect','--format','{{.Id}}',$spec[0]) 1)
-            if ($resolved.Count -eq 1 -and $resolved[0] -cmatch '^sha256:[0-9a-f]{64}$') { $script:RestoreScopeProbe.($spec[2])=($resolved[0] -ceq $spec[1]) }
-        } catch { }
-    }
-    if ($database.Name -cne $State.database_volume -or $runtime.Name -cne $State.runtime_volume -or $api[0].image -cne $State.canonical_images[0] -or $db[0].image -cne $State.canonical_images[1]) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
+    $script:RestoreScopeProbe.api_image_resolves_to_canonical=(Resolve-RestoreImageMatch $api[0].image $State.canonical_images[0])
+    $script:RestoreScopeProbe.database_image_resolves_to_canonical=(Resolve-RestoreImageMatch $db[0].image $State.canonical_images[1])
+    if ($database.Name -cne $State.database_volume -or $runtime.Name -cne $State.runtime_volume -or -not $script:RestoreScopeProbe.api_image_resolves_to_canonical -or -not $script:RestoreScopeProbe.database_image_resolves_to_canonical) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     $snapshotIndex=-1
     foreach ($saved in $State.source_snapshots) {
         $snapshotIndex++
         $now=@($project | Where-Object {$_.id -ceq $saved.id -and (Service $_) -cne 'key-session'})
         $safeRole='OTHER'
         if (@('api','db','alerts','web') -ccontains $saved.service) { $safeRole=$saved.service }
-        $script:RestoreScopeProbe=[pscustomobject]@{step='SAVED_SNAPSHOT';snapshot_index=$snapshotIndex;role=$safeRole;container_matches=$now.Count;image_match=$null;service_match=$null;restart_json_match=$null;restart_values_match=$null;mounts_json_match=$null;mounts_values_match=$null}
+        $script:RestoreScopeProbe=[pscustomobject]@{step='SAVED_SNAPSHOT';snapshot_index=$snapshotIndex;role=$safeRole;container_matches=$now.Count;image_match=$null;service_match=$null;restart_json_match=$null;restart_values_match=$null;mounts_json_match=$null;mounts_values_match=$null;restart_metadata_match=$null;mounts_metadata_match=$null}
         if ($now.Count -eq 1) {
             $script:RestoreScopeProbe.image_match=($now[0].image -ceq $saved.image)
             $script:RestoreScopeProbe.service_match=((Service $now[0]) -ceq $saved.service)
@@ -138,15 +164,10 @@ function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
             $currentMounts=@($now[0].mounts | Where-Object {$_.Destination -cne '/run/demo-keys'})
             $script:RestoreScopeProbe.mounts_json_match=(($currentMounts | ConvertTo-Json -Depth 8 -Compress) -ceq (@($saved.mounts) | ConvertTo-Json -Depth 8 -Compress))
             $script:RestoreScopeProbe.mounts_values_match=((Restore-MountDiagnosticValues $currentMounts) -ceq (Restore-MountDiagnosticValues @($saved.mounts)))
+            $script:RestoreScopeProbe.restart_metadata_match=((Restore-CanonicalMetadataJson $now[0].restart) -ceq (Restore-CanonicalMetadataJson $saved.restart))
+            $script:RestoreScopeProbe.mounts_metadata_match=((Restore-CanonicalMetadataJson @($currentMounts | Sort-Object -Property Destination)) -ceq (Restore-CanonicalMetadataJson @($saved.mounts | Sort-Object -Property Destination)))
         }
-        if ($now.Count -ne 1 -or $now[0].image -cne $saved.image -or (Service $now[0]) -cne $saved.service -or ($now[0].restart | ConvertTo-Json -Compress) -cne ($saved.restart | ConvertTo-Json -Compress) -or (@($now[0].mounts | Where-Object {$_.Destination -cne '/run/demo-keys'}) | ConvertTo-Json -Depth 8 -Compress) -cne (@($saved.mounts) | ConvertTo-Json -Depth 8 -Compress)) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
-    }
-    $script:RestoreScopeProbe=[pscustomobject]@{step='PRESERVATION_HELPER'}
-    $oldWorker=@($items | Where-Object {$_.id -ceq $Receipt.helper_container_ids[0]})
-    if ($oldWorker.Count -ne 1 -or $oldWorker[0].running -or $oldWorker[0].image -cne $State.canonical_images[0] -or @($oldWorker[0].mounts).Count -ne 3) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
-    foreach ($spec in @(@('/source/database',$State.database_volume,$false),@('/source/runtime',$State.runtime_volume,$false),@('/output',$Receipt.output_volume,$true))) {
-        $mount=@($oldWorker[0].mounts | Where-Object {$_.Destination -ceq $spec[0]})
-        if ($mount.Count -ne 1 -or $mount[0].Type -cne 'volume' -or $mount[0].Name -cne $spec[1] -or $mount[0].RW -ne $spec[2]) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
+        if ($now.Count -ne 1 -or -not $script:RestoreScopeProbe.image_match -or -not $script:RestoreScopeProbe.service_match -or -not $script:RestoreScopeProbe.restart_metadata_match -or -not $script:RestoreScopeProbe.mounts_metadata_match) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     }
     $script:RestoreScopeProbe=[pscustomobject]@{step='EXTERNAL_CONSUMERS'}
     foreach ($item in $items) {
@@ -154,7 +175,7 @@ function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
     }
     $script:RestoreScopeProbe=[pscustomobject]@{step='FINAL_SNAPSHOT'}
     Assert-RestoreSourceSnapshot $items @() $false
-    $script:RestoreScopeProbe=[pscustomobject]@{step='COMPLETE'}
+    $script:RestoreScopeProbe=[pscustomobject]@{step='COMPLETE';source_project_count=$project.Count;labelled_project_count=$labelled.Count;verified_helper_excluded=$true;helper_had_project_label=((Project $oldWorker[0]) -ceq 'hybrid-windows')}
     return ,$items
 }
 function Assert-NewClone([string]$Id,[string]$Volume,[object[]]$Original) {

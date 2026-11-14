@@ -27,9 +27,9 @@ from tests.unit.test_stopped_preservation import (
 )
 
 
-def docker(*args, stdin=None, timeout=60):
+def docker(*args, stdin=None, timeout=60, env=None):
     result = subprocess.run(
-        ["docker", *args], input=stdin, text=True, capture_output=True, timeout=timeout
+        ["docker", *args], input=stdin, text=True, capture_output=True, timeout=timeout, env=env
     )
     assert result.returncode == 0, result.stderr
     return result.stdout.strip()
@@ -52,11 +52,34 @@ def test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked(tmp_path
     containers = []
     volumes = []
     network = None
+    helper_image = HELPER_IMAGE
+    owned_image = None
     output = tmp_path / "private backup output"
     source_runtime = prefix + "-runtime"
     source_database = prefix + "-database"
     original_volume_names = set(docker("volume", "ls", "--format", "{{.Name}}").splitlines())
     try:
+        if preserve_stopped:
+            owned_image = prefix + ":compose-labelled"
+            docker(
+                "build",
+                "--pull=false",
+                "--network",
+                "none",
+                "-t",
+                owned_image,
+                "-",
+                stdin="FROM "
+                + HELPER_IMAGE
+                + "\nLABEL com.docker.compose.project=hybrid-windows com.docker.compose.service=api\n",
+                timeout=60,
+                env=dict(
+                    os.environ,
+                    DOCKER_CONFIG=str(tmp_path / "docker-config"),
+                    BUILDX_CONFIG=str(tmp_path / "buildx"),
+                ),
+            )
+            helper_image = owned_image
         for name in (
             source_runtime,
             source_database,
@@ -127,7 +150,7 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
             f"type=volume,source={source_runtime},target=/app/demo-export-state",
             "--entrypoint",
             "python",
-            HELPER_IMAGE,
+            helper_image,
             "-I",
             "-B",
             "-c",
@@ -151,7 +174,7 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
                 f"type=volume,source={source_runtime},target=/app/demo-export-state",
                 "--entrypoint",
                 "python",
-                HELPER_IMAGE,
+                helper_image,
                 "-I",
                 "-B",
                 "-c",
@@ -174,7 +197,7 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
                     "com.docker.compose.service=" + role,
                     "--entrypoint",
                     "python",
-                    HELPER_IMAGE,
+                    helper_image,
                     "-I",
                     "-B",
                     "-c",
@@ -197,7 +220,7 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
             "com.docker.compose.service=key-session",
             "--entrypoint",
             "python",
-            HELPER_IMAGE,
+            helper_image,
             "-I",
             "-B",
             "-c",
@@ -413,7 +436,11 @@ function Assert-PrivateBackupFiles {{ }}
                 diagnostic.stdout + diagnostic.stderr
             )
             assert "RESTORE_CHECK_PASSED_NO_CLONE_NO_SOURCE_START_NO_ORDERS" in diagnostic.stdout
-            assert '"scope_probe":{"step":"COMPLETE"}' in diagnostic.stdout
+            assert (
+                '"step":"COMPLETE"' in diagnostic.stdout
+                and '"labelled_project_count":8' in diagnostic.stdout
+                and '"source_project_count":7' in diagnostic.stdout
+            )
             assert docker("ps", "--all", "--quiet", "--no-trunc") == ids_before
             assert docker("volume", "ls", "--format", "{{.Name}}") == volumes_before
             assert not restore_output.exists()
@@ -480,6 +507,8 @@ function Assert-PrivateBackupFiles {{ }}
                             real_launcher_and_docker=True,
                             diagnostic_forced_check_only_with_execute_switch_verified=True,
                             diagnostic_created_no_containers_volumes_or_report_directory=True,
+                            preservation_helper_inherits_compose_image_labels=True,
+                            only_receipt_bound_verified_helper_excluded_from_source_count=True,
                             legacy_argument_mode=True,
                             receipt_and_all_backup_hashes_verified_before_and_after=True,
                             originals_kept_stopped=True,
@@ -534,7 +563,7 @@ function Assert-PrivateBackupFiles {{ }}
             f"type=volume,source={volumes[3]},target=/restore/runtime,volume-nocopy",
             "--entrypoint",
             "python",
-            HELPER_IMAGE,
+            helper_image,
             "-I",
             "-B",
             "-",
@@ -567,7 +596,7 @@ function Assert-PrivateBackupFiles {{ }}
                 f"type=volume,source={volumes[2]},target=/copy,volume-nocopy",
                 "--entrypoint",
                 "python",
-                HELPER_IMAGE,
+                helper_image,
                 "-I",
                 "-B",
                 "-c",
@@ -649,7 +678,7 @@ function Assert-PrivateBackupFiles {{ }}
                 f"type=volume,source={source_database},target=/source,readonly,volume-nocopy",
                 "--entrypoint",
                 "python",
-                HELPER_IMAGE,
+                helper_image,
                 "-I",
                 "-B",
                 "-c",
@@ -672,7 +701,7 @@ function Assert-PrivateBackupFiles {{ }}
                 f"type=volume,source={source_database},target=/source,readonly,volume-nocopy",
                 "--entrypoint",
                 "python",
-                HELPER_IMAGE,
+                helper_image,
                 "-I",
                 "-B",
                 "-c",
@@ -682,6 +711,19 @@ function Assert-PrivateBackupFiles {{ }}
             assert docker("inspect", "--format", "{{.State.ExitCode}}", db) == "137"
             assert receipt["source_clean_shutdown_verified"] is False
             assert receipt["account_pause_rechecked"] is False
+            assert restore_receipt["clone_stopped"]
+            inherited_labels = json.loads(
+                docker(
+                    "inspect",
+                    "--format",
+                    "{{json .Config.Labels}}",
+                    receipt["helper_container_ids"][0],
+                )
+            )
+            assert (
+                inherited_labels["com.docker.compose.project"] == "hybrid-windows"
+                and inherited_labels["com.docker.compose.service"] == "api"
+            )
         report = dict(
             scope="FRESH_SYNTHETIC_PG_AND_SIX_PARTICIPANTS_NOT_ACTUAL_WINDOWS",
             windows_ntfs_acl_mocked=True,
@@ -729,5 +771,7 @@ function Assert-PrivateBackupFiles {{ }}
             subprocess.run(["docker", "rm", "--force", c], capture_output=True, timeout=20)
         for v in reversed(list(dict.fromkeys(volumes))):
             subprocess.run(["docker", "volume", "rm", v], capture_output=True, timeout=20)
+        if owned_image:
+            subprocess.run(["docker", "image", "rm", owned_image], capture_output=True, timeout=20)
         if network:
             subprocess.run(["docker", "network", "rm", network], capture_output=True, timeout=20)

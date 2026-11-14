@@ -81,9 +81,17 @@ def test_package_pins_user_supplied_hashes_and_has_no_source_commands():
         ("helper-running", "RESTORE_PRESERVATION_HELPER_CHANGED"),
         ("external", "RESTORE_EXTERNAL_SOURCE_CONSUMER"),
         ("state-scope", "RESTORE_SOURCE_SCOPE_CHANGED"),
-        ("mount-json-order", "RESTORE_SOURCE_SCOPE_CHANGED"),
-        ("restart-json-order", "RESTORE_SOURCE_SCOPE_CHANGED"),
-        ("canonical-alias", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("mount-json-order", None),
+        ("restart-json-order", None),
+        ("canonical-alias", None),
+        ("helper-labelled", None),
+        ("helper-labelled-running", "RESTORE_PRESERVATION_HELPER_CHANGED"),
+        ("helper-labelled-writable", "RESTORE_PRESERVATION_HELPER_CHANGED"),
+        ("helper-labelled-wrong-image", "RESTORE_PRESERVATION_HELPER_CHANGED"),
+        ("unexpected-labelled-extra", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("canonical-alias-mismatch", "RESTORE_PRESERVATION_HELPER_CHANGED"),
+        ("saved-mount-value-changed", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("saved-mount-field-added", "RESTORE_SOURCE_SCOPE_CHANGED"),
         ("no-optin", "RESTORE_EXPLICIT_MODE_REQUIRED"),
         ("both-modes", "RESTORE_EXPLICIT_MODE_REQUIRED"),
     ],
@@ -228,12 +236,31 @@ def test_check_refuses_mutation_before_creating_any_resources(tmp_path, case, re
         records[0]["mounts"] = [dict(reversed(list(runtime.items())))]
     if case == "restart-json-order":
         records[0]["restart"] = dict(MaximumRetryCount=0, Name="no")
-    if case == "canonical-alias":
+    if case in {"canonical-alias", "canonical-alias-mismatch"}:
         state["canonical_images"][0] = "sha256:" + "5" * 64
         (backup / "BACKUP_STATE.json").write_text(json.dumps(state))
         receipt["state_sha256"] = digest("BACKUP_STATE.json")
         (backup / "BACKUP_RECEIPT.json").write_text(json.dumps(receipt))
         config["receipt_sha256"] = digest("BACKUP_RECEIPT.json")
+    if case.startswith("helper-labelled"):
+        helper["labels"] = {
+            "com.docker.compose.project": "hybrid-windows",
+            "com.docker.compose.service": "api",
+        }
+    if case == "helper-labelled-running":
+        helper["running"] = True
+    if case == "helper-labelled-writable":
+        helper["mounts"][0]["RW"] = True
+    if case == "helper-labelled-wrong-image":
+        helper["image"] = "sha256:" + "4" * 64
+    if case == "unexpected-labelled-extra":
+        records.append(dict(records[4], id="3" * 64))
+    if case in {"saved-mount-value-changed", "saved-mount-field-added"}:
+        records[0]["mounts"] = [dict(runtime)]
+        if case == "saved-mount-value-changed":
+            records[0]["mounts"][0]["Mode"] = "CHANGED"
+        else:
+            records[0]["mounts"][0]["Unrecognized"] = "PRIVATE_SENTINEL"
     (tmp_path / "CONFIG.json").write_text(json.dumps(config))
     (tmp_path / "records.json").write_text(json.dumps(records))
     mode = {"no-optin": "", "both-modes": "-ExecuteRestore -CheckOnly"}.get(case, "-CheckOnly")
@@ -295,17 +322,22 @@ Invoke-IsolatedRestore -Root $PSScriptRoot """
         )
     else:
         assert "RESTORE_CHECK_PASSED_NO_CLONE_NO_SOURCE_START_NO_ORDERS" in result.stdout
-    if case in {"mount-json-order", "restart-json-order", "canonical-alias"}:
-        probe = json.loads(result.stdout.splitlines()[-1])["scope_probe"]
-        if case == "canonical-alias":
-            assert probe["step"] == "PRIMARY_BINDINGS"
-            assert probe["api_image_reference_match"] is False
-            assert probe["api_image_resolves_to_canonical"] is True
-        else:
-            assert probe["step"] == "SAVED_SNAPSHOT" and probe["snapshot_index"] == 0
-            kind = "mounts" if case == "mount-json-order" else "restart"
-            assert probe[kind + "_json_match"] is False and probe[kind + "_values_match"] is True
-        assert "/vol/" not in result.stdout and "sha256:" not in result.stdout
+    if case == "helper-labelled":
+        report = json.loads(
+            next(line for line in result.stdout.splitlines() if line.startswith("{"))
+        )
+        assert report["scope_probe"] == dict(
+            step="COMPLETE",
+            source_project_count=7,
+            labelled_project_count=8,
+            verified_helper_excluded=True,
+            helper_had_project_label=True,
+        )
+    assert (
+        "PRIVATE_SENTINEL" not in result.stdout
+        and "/vol/" not in result.stdout
+        and "sha256:" not in result.stdout
+    )
 
 
 @pytest.mark.parametrize(
