@@ -1,0 +1,41 @@
+{
+  "artifact": "windows-demo-isolated-restore-20261114.zip",
+  "artifact_bytes": 24128,
+  "artifact_sha256": "23af639f252d513dc3a2002eb313fe67276f31a906afe8cbc691afbebefad16b",
+  "checks": [
+    "Exact release ZIP exercised through native PowerShell Legacy mode and real Docker",
+    "Ruff: four changed Python files",
+    "Strict mypy: builder and worker",
+    "git diff --check",
+    "Pinned user receipt and manifest hash checks",
+    "Only freshly created networkless clone ID can be signalled",
+    "Source directories and all archive bytes/metadata restored before clone PID adjustment",
+    "Fresh synthetic PG forced shutdown, clone recovery, repeated READ ONLY account hash equality",
+    "Clone clean exit verified and retained backup files rehashed"
+  ],
+  "limitations": [
+    "No actual Windows execution",
+    "NTFS ACL and backup directory discovery mocked only in Linux integration test copy",
+    "Docker Desktop host bind mount with Windows read-sharing handles needs actual Windows result",
+    "Actual financial proof, remote exchange state, trading readiness and offline handoff not verified"
+  ],
+  "manifest_source_files": 9,
+  "seconds": 137.46,
+  "source_reference": "01d64cbf901ad7cb94ee77dedeb49808c1025b4a",
+  "source_test_corrections": [
+    "Receipt hash is checked before JSON parsing so tampering gets a closed diagnostic",
+    "Official PG data directory may have GID 0 with nonroot UID; nonroot UID remains required, Linux capabilities dropped"
+  ],
+  "status": "PASSED",
+  "tests": [
+    "tests/unit/test_isolated_restore.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/unit/test_stopped_preservation.py",
+    "tests/unit/test_stopped_preservation_worker.py",
+    "tests/integration/test_cold_backup_executor_docker.py"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 87,
+  "tests_skipped": 0,
+  "zip_entries": 12
+}

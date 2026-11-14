@@ -1,0 +1,17 @@
+{
+  "actual_windows_touched": false,
+  "clone_gracefully_stopped_with_exit_zero": true,
+  "clone_network_none": true,
+  "legacy_argument_mode": true,
+  "live_trading_enabled": false,
+  "new_clone_volumes_only": true,
+  "orders_enabled": false,
+  "original_volumes_not_mounted_by_restore_helpers": true,
+  "originals_kept_stopped": true,
+  "readonly_account_state_hash_matches": true,
+  "real_launcher_and_docker": true,
+  "receipt_and_all_backup_hashes_verified_before_and_after": true,
+  "scope": "FRESH_SYNTHETIC_CRASHED_PG_NOT_ACTUAL_WINDOWS",
+  "source_pid_retained_clone_pid_removed": true,
+  "windows_acl_and_backup_discovery_mocked": true
+}
