@@ -1,0 +1,59 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_backup_created": false,
+  "actual_windows_ntfs_acl_tested": false,
+  "actual_windows_restore_tested": false,
+  "actual_windows_source_stop_performed": false,
+  "archive_entries": 15,
+  "artifact": "windows-demo-cold-backup-20261114.zip",
+  "artifact_bytes": 30846,
+  "artifact_sha256": "51d14debdb158e210eb09db29916930f3a6caa38c6e5a4c2f844785a6e2d6788",
+  "committed_sources_and_transfer_manifest_verified": true,
+  "execution_approved": false,
+  "execution_effects": [
+    "USER_RUN_COMMAND_GRACEFULLY_STOPS_REVIEWED_API_AND_DATABASE",
+    "ORIGINALS_KEPT_STOPPED_ON_SUCCESS_OR_FAILURE",
+    "KEY_SESSION_KEPT_RUNNING_AND_NOT_COPIED",
+    "LOCAL_PRIVATE_IMAGES_AND_DATABASE_RUNTIME_TARS_CREATED",
+    "NO_SOURCE_RESTART_NO_POLICY_UPDATE_NO_SOURCE_DELETE_NO_ORDER_RETRY"
+  ],
+  "installation_ready": false,
+  "limitations": [
+    "ACTUAL_WINDOWS_ACL_VALIDATION_HAPPENS_ON_OPERATOR_MACHINE",
+    "THIS_RELEASE_HAS_NOT_RUN_ON_ACTUAL_WINDOWS",
+    "COLD_BACKUP_SUCCESS_IS_LOCAL_HASH_VERIFICATION_NOT_ACTUAL_WINDOWS_RESTORE_PROOF",
+    "CONTAINER_WRITABLE_LAYER_AND_FULL_RUNTIME_ENV_NOT_EXPORTED",
+    "EXTERNAL_OFFLINE_CUSTODY_AND_LATESTNESS_NOT_ESTABLISHED",
+    "DOCKER_QUIESCENCE_OBSERVATION_NOT_PRIVILEGED_HOST_ADVERSARY_PROOF"
+  ],
+  "linux_test_acl_functions_mocked_in_test_copy_only": true,
+  "live_trading_enabled": false,
+  "mypy": {
+    "source_files": 4,
+    "status": "PASS",
+    "strict": true
+  },
+  "native_argument_mode": "Legacy",
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "platform_guard_tested": true,
+  "policy": "WINDOWS_GUARDED_COLD_BACKUP_LOCAL_EXPORT_V1",
+  "powershell_test_host": "LINUX_POWERSHELL_7_7.5.4",
+  "release_zip_tests": {
+    "passed": 59,
+    "seconds": 64.06,
+    "skipped": 0
+  },
+  "ruff": {
+    "files": 8,
+    "status": "PASS"
+  },
+  "source_reference": "bb1c68f35be13c878fb3115e93a2825aedd81630",
+  "source_tests": {
+    "passed": 106,
+    "seconds": 122.38,
+    "skipped": 0
+  },
+  "test_sets_overlap": true
+}
