@@ -240,6 +240,14 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
             "-c",
             "from pathlib import Path; import sqlite3; p=Path('/app/demo-export-state'); c=sqlite3.connect(p/'state.db'); c.execute('CREATE TABLE test(value text)'); c.execute(\"INSERT INTO test VALUES ('SYNTHETIC_RUNTIME')\"); c.commit(); c.close()",
         )
+        if preserve_stopped and os.getenv("COPY_REVIEW_DOCKER_REPORT"):
+            from tests.fixtures.copy_transition_runner import seed
+
+            seed(api, docker)
+            expected = sql(
+                db,
+                "SELECT encode(sha256(convert_to(state::text,'UTF8')),'hex') FROM demo_accounts;",
+            )
         if preserve_stopped:
             # Abrupt death is confined to this fresh synthetic fixture, never originals.
             docker("kill", "--signal=SIGKILL", db)
@@ -748,6 +756,10 @@ function Assert-PrivateBackupFiles {{}}
                 candidate_report["candidate_installed"] is False
                 and candidate_report["schema_provisioned"] is False
             )
+            if os.getenv("COPY_REVIEW_DOCKER_REPORT"):
+                from tests.fixtures.copy_transition_runner import exercise
+
+                exercise(tmp_path, output, restore_output, handoff_config, containers, volumes)
             candidate_target = os.environ.get("CANDIDATE_IMAGE_REVIEW_DOCKER_REPORT")
             if candidate_target:
                 Path(candidate_target).write_text(
@@ -950,7 +962,13 @@ function Assert-PrivateBackupFiles {{}}
         assert (
             sql(
                 clone,
-                "BEGIN READ ONLY; SELECT count(*) FROM read_response_evidence_events_v2; COMMIT;",
+                "BEGIN READ ONLY; SELECT count(*) FROM "
+                + (
+                    "unprefixed_copy_fixture"
+                    if os.getenv("COPY_REVIEW_DOCKER_REPORT")
+                    else "read_response_evidence_events_v2"
+                )
+                + "; COMMIT;",
                 "/tmp",
             )
             == "1"

@@ -1,0 +1,14 @@
+{
+  "actual_windows_execution_performed": false,
+  "automatic_retry": false,
+  "date_client_kst": "2026-11-15",
+  "execution_approved": false,
+  "initial_real_docker_pipeline_passed": true,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_FRESH_COPY_TRANSITION_RUNNER_V1",
+  "release_zip_validation": "PENDING",
+  "windows_acl_and_input_discovery_verified": false,
+  "worktree_unit_tests_passed": 14
+}
