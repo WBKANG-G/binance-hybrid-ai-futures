@@ -214,3 +214,8 @@ function New-PrivateBackupDirectory {{ $null=[IO.Directory]::CreateDirectory('{d
         )
         + "\n"
     )
+
+    if os.getenv("COPY_CLOCK_DOCKER_REPORT"):
+        from tests.fixtures.copy_clock_runner import exercise as exercise_clock
+
+        exercise_clock(root, backup, restore_report, pins, output, containers, volumes)

@@ -1,0 +1,17 @@
+{
+  "actual_windows_clock_rehearsal_performed": false,
+  "automatic_retry": false,
+  "core_regression_tests_passed": 79,
+  "date_client_kst": "2026-11-15",
+  "execution_approved": false,
+  "final_core_and_bundle_tests_passed": 23,
+  "initial_real_docker_with_actual_hold_passed": true,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_FRESH_COPY_V1_CLOCK_REHEARSAL_V1",
+  "prior_copy_receipt_sha256": "df50d9b96a9cc67b2d46110eeb75858c2ad6057eb95c796b31a881a6c2937365",
+  "prior_windows_audit_events": 55,
+  "prior_windows_evidence_source": "USER_CONSOLE_SCREENSHOT",
+  "sealed_zip_validation": "PENDING"
+}
