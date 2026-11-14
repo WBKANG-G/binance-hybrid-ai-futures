@@ -1,0 +1,38 @@
+{
+  "artifact": "windows-demo-offline-handoff-v2-20261114.zip",
+  "artifact_bytes": 65705,
+  "artifact_sha256": "bcf1b99b3c9a040169b4cf6a079985ac9b4b228b90f295e11d8491e3367cc36d",
+  "checks": [
+    "Exact release ZIP used by native PowerShell Legacy launcher and real Docker metadata scope checks",
+    "Destination policy supports USB D: NTFS and exFAT; rejects system/internal disks, unsupported FAT32, and media/filesystem swaps",
+    "Real exFAT directory branch exercised using regular Linux folders without destination NTFS ACL calls",
+    "Original NTFS source ACL checks retained and source ACL failures still block exFAT copy",
+    "New UUID directories only; CreateNew prevents overwrite; unexpected nested files/directories/reparse points rejected",
+    "File length and SHA256 verified for all ten payload files in both destination branches",
+    "Destination filesystem and NTFS ACL status recorded truthfully; exFAT ACL protection explicitly false",
+    "Source/restore receipt binding, stopped originals and stopped clone checked against real synthetic Docker fixture",
+    "Offline portable verifier passes on both copies without Docker or writes",
+    "Ruff: three changed Python files; strict mypy: builder; git diff --check"
+  ],
+  "limitations": [
+    "User D: exFAT format observed from screenshot, but no actual Windows copy performed by cloud agent",
+    "Actual exFAT filesystem not mounted in Linux tests; branch tested on regular folders",
+    "Windows storage discovery and NTFS ACL mocked only in integration fixture copies",
+    "exFAT destination provides no added NTFS ACL protection or file encryption",
+    "Physical safe eject, disconnected custody, separate-device verification and installation readiness not verified"
+  ],
+  "manifest_source_files": 10,
+  "seconds": 117.98,
+  "source_reference": "de05e4dce4b61dec1f45c7741ac79c49334ff2b1",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_offline_handoff.py",
+    "tests/unit/test_isolated_restore.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 123,
+  "tests_skipped": 0,
+  "zip_entries": 13
+}
