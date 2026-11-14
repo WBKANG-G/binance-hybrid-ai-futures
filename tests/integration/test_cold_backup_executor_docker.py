@@ -19,6 +19,9 @@ from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE, PG_IMA
 from tests.unit.test_cold_backup_executor import PWSH, materialize, package
 from tests.unit.test_isolated_restore import materialize as restore_materialize
 from tests.unit.test_offline_handoff import materialize as handoff_materialize
+from tests.unit.test_response_candidate_image_review import (
+    materialize as candidate_review_materialize,
+)
 from tests.unit.test_restore_scope_diagnostic import materialize as diagnostic_materialize
 from tests.unit.test_stopped_preservation import (
     materialize as preserve_materialize,
@@ -668,6 +671,112 @@ function Read-HandoffMedia {{return [pscustomobject]@{{root='{safe_exfat}';ident
             assert portable_exfat.returncode == 0 and not portable_exfat.stderr, (
                 portable_exfat.stdout + portable_exfat.stderr
             )
+            candidate_root = tmp_path / "candidate image review"
+            candidate_review_materialize(candidate_root)
+            candidate_config = json.loads((candidate_root / "CONFIG.json").read_text())
+            for key in (
+                "api_container_id",
+                "database_container_id",
+                "preservation_source_reference",
+                "restore_source_reference",
+                "receipt_sha256",
+                "manifest_sha256",
+                "restore_receipt_sha256",
+            ):
+                candidate_config[key] = handoff_config[key]
+            (candidate_root / "CONFIG.json").write_text(json.dumps(candidate_config))
+            candidate_core = candidate_root / "REVIEW_CORE.ps1"
+            candidate_core.write_text(
+                candidate_core.read_text()
+                + f"""
+# TEST ONLY: Linux substitutes only for private NTFS input discovery/ACL.
+function Find-RetainedBackup {{return '{safe}'}}
+function Find-RestoreEvidence {{return '{safe_report}/ISOLATED_RESTORE_RECEIPT.json'}}
+function Assert-PrivateBackupDirectory {{}}
+function Assert-PrivateBackupFiles {{}}
+"""
+            )
+            candidate_files = {
+                p: (candidate_root / p).read_bytes()
+                for p in json.loads((candidate_root / "TRANSFER_MANIFEST.json").read_text())[
+                    "files"
+                ]
+            }
+            candidate_manifest = json.dumps(
+                dict(files=hashes(candidate_files)), sort_keys=True
+            ).encode()
+            (candidate_root / "TRANSFER_MANIFEST.json").write_bytes(candidate_manifest)
+            candidate_launch = candidate_root / "test-launch.ps1"
+            candidate_launch.write_text(
+                f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(candidate_root / 'REVIEW.ps1')}' -ManifestSHA256 '{hashlib.sha256(candidate_manifest).hexdigest()}'\nexit $LASTEXITCODE\n"
+            )
+            checked_candidate = subprocess.run(
+                [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(candidate_launch)],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            for line in checked_candidate.stdout.splitlines():
+                if line.startswith("{"):
+                    value = json.loads(line)
+                    if value.get("review_helper_id"):
+                        containers.append(value["review_helper_id"])
+                    elif value.get("retained_review_helper_id"):
+                        containers.append(value["retained_review_helper_id"])
+            assert checked_candidate.returncode == 0 and not checked_candidate.stderr, (
+                checked_candidate.stdout + checked_candidate.stderr
+            )
+            assert (
+                "GET_CANDIDATE_IMAGE_REVIEW_PASSED_NOT_INSTALLED_NO_ORDERS"
+                in checked_candidate.stdout
+            )
+            candidate_report = json.loads(
+                next(line for line in checked_candidate.stdout.splitlines() if line.startswith("{"))
+            )
+            assert (
+                candidate_report["baseline_image_files_verified"] == 89
+                and candidate_report["candidate_files_verified"] == 2
+                and candidate_report["default_denials_verified"] == 5
+            )
+            assert (
+                candidate_report["candidate_installed"] is False
+                and candidate_report["schema_provisioned"] is False
+            )
+            candidate_target = os.environ.get("CANDIDATE_IMAGE_REVIEW_DOCKER_REPORT")
+            if candidate_target:
+                Path(candidate_target).write_text(
+                    json.dumps(
+                        dict(
+                            scope="FRESH_SYNTHETIC_SOURCE_BACKUP_RESTORE_AND_IMAGE_REVIEW_NOT_ACTUAL_WINDOWS",
+                            actual_windows_touched=False,
+                            windows_input_discovery_and_acl_mocked=True,
+                            native_legacy_launcher=True,
+                            real_docker_source_metadata_verified=True,
+                            retained_restore_and_backup_proofs_rehashed=True,
+                            baseline_image_files=89,
+                            candidate_files=2,
+                            default_denials=5,
+                            originals_and_restore_copy_kept_stopped=True,
+                            no_source_volumes_mounted=True,
+                            review_helper_stopped=True,
+                            review_helper_uses_separate_project_label=True,
+                            candidate_installed=False,
+                            schema_provisioned=False,
+                            actual_exchange_requests=0,
+                            orders_enabled=False,
+                            live_trading_enabled=False,
+                        ),
+                        sort_keys=True,
+                        indent=2,
+                    )
+                    + "\n"
+                )
             handoff_target = os.environ.get("OFFLINE_HANDOFF_DOCKER_REPORT")
             if handoff_target:
                 Path(handoff_target).write_text(
