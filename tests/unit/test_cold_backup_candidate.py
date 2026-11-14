@@ -219,3 +219,19 @@ def test_restore_rejects_a_linked_destination_before_writing_other_group(case):
         restore(case, digest)
     assert not list(case[2]["database"].iterdir())
     assert not list(original.iterdir())
+
+
+@pytest.mark.parametrize("kind", ["root", "directory", "file"])
+def test_extended_metadata_is_rejected_instead_of_silently_dropped(case, kind):
+    target = case[0]["database"]
+    if kind == "directory":
+        target = target / "nested"
+    elif kind == "file":
+        target = target / "nested" / "PRIVATE_NAME"
+    try:
+        os.setxattr(target, "user.synthetic_backup_attribute", b"not_to_drop")
+    except OSError:
+        pytest.skip("Extended attributes unavailable on this test filesystem")
+    with pytest.raises(ValueError, match="COLD_EXTENDED_METADATA_UNSUPPORTED"):
+        backup(case)
+    assert not (case[1] / "manifest.json").exists()

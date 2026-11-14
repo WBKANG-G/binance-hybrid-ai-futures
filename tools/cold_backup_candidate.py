@@ -124,6 +124,7 @@ def write_group(source: Path, target: Path, deadline: float) -> dict[str, Any]:
     source_fd = directory(source)
     root_info = os.fstat(source_fd)
     try:
+        require(not os.listxattr(source_fd), "COLD_EXTENDED_METADATA_UNSUPPORTED")
         fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         with (
             os.fdopen(fd, "wb") as output,
@@ -135,6 +136,7 @@ def write_group(source: Path, target: Path, deadline: float) -> dict[str, Any]:
                 require(depth <= 32, "COLD_DEPTH_LIMIT")
                 require(time.monotonic() <= deadline, "COLD_TIME_LIMIT")
                 start = os.fstat(parent)
+                require(not os.listxattr(parent), "COLD_EXTENDED_METADATA_UNSUPPORTED")
                 with os.scandir(parent) as iterator:
                     names: list[str] = []
                     for entry in iterator:
@@ -183,6 +185,10 @@ def write_group(source: Path, target: Path, deadline: float) -> dict[str, Any]:
                         )
                         with os.fdopen(file_fd, "rb") as stream:
                             unchanged(info, os.fstat(stream.fileno()))
+                            require(
+                                not os.listxattr(stream.fileno()),
+                                "COLD_EXTENDED_METADATA_UNSUPPORTED",
+                            )
                             reader = HashReader(stream, info.st_size, deadline)
                             tar.size = info.st_size
                             archive.addfile(tar, reader)  # type: ignore[arg-type]
