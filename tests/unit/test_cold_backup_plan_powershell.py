@@ -93,6 +93,11 @@ def test_plan_package_has_no_mutation_candidate_and_is_pinned():
         "missing-env",
         "duplicate-env-output",
         "unsupported-server",
+        "malformed-json-field",
+        "missing-restart-field",
+        "missing-mount-field",
+        "scalar-mounts",
+        "count-mismatch",
     ],
 )
 @pytest.mark.parametrize("argument_mode", ["Standard", "Legacy"])
@@ -122,7 +127,8 @@ if args==['ps','--all','--quiet','--no-trunc']:
     if case=='changed-container-list' and sum(x==args for x in calls)>1: ids.append('2'*64)
     print('\\n'.join(ids)); sys.exit(0)
 if args[:2]==['volume','inspect']:
-    print(json.dumps(dict(driver='local',scope='local',options={'PRIVATE_OPTION':'PRIVATE_NEVER_ECHO'} if case=='volume-options' else None))); sys.exit(0)
+    volume=dict(driver='local',scope='local',options={'PRIVATE_OPTION':'PRIVATE_NEVER_ECHO'} if case=='volume-options' else None)
+    print('\\n'.join(json.dumps(volume[k]) for k in ['driver','scope','options'])); sys.exit(0)
 if args[0]=='inspect':
     ident=args[-1]
     if case=='private-raw-json': print('PRIVATE_NEVER_ECHO'); sys.exit(0)
@@ -143,7 +149,14 @@ if args[0]=='inspect':
     network='d'*64 if ident[0]!='1' or case=='foreign-db-network' else 'e'*64
     value=dict(id=ident,name='/hybrid-windows-api-1' if ident[0]=='a' else '/PRIVATE_NAME',image='sha256:'+('c'*64 if case=='changed-source' and count>1 and ident[0]=='a' else 'b'*64),labels=labels,mounts=mounts,running=ident[0]!='f',restarting=case=='restarting-source' and ident[0]=='a',paused=case=='unrelated-paused' and ident[0]=='1',dead=False,restart=dict(Name='no',MaximumRetryCount=0),networks={'PRIVATE_NETWORK':dict(NetworkID=network)})
     if case=='api-stopped' and ident[0]=='a': value['running']=False
-    print(json.dumps(value)); sys.exit(0)
+    if case=='missing-restart-field' and ident[0]=='a': value['restart']={}
+    if case=='missing-mount-field' and ident[0]=='a': value['mounts'][0].pop('Source')
+    if case=='scalar-mounts' and ident[0]=='a': value['mounts']=value['mounts'][0]
+    fields=['id','name','image','labels','mounts','running','restarting','paused','dead','restart','networks']
+    rows=[json.dumps(value[k]) for k in fields]
+    if case=='malformed-json-field' and ident[0]=='a': rows[2]='PRIVATE_NEVER_ECHO'
+    if case=='count-mismatch' and ident[0]=='a': rows=rows[:-1]
+    print('\\n'.join(rows)); sys.exit(0)
 if args[:2]==['exec','b'*64]:
     command=args[2:]
     allowed=[['printenv','PGDATA'],['printenv','POSTGRES_USER'],['printenv','POSTGRES_DB'],['postgres','--version'],['pg_controldata','--version']]
@@ -232,5 +245,36 @@ sys.exit(9)
             "unsupported-server": ("server_version", "UNSUPPORTED_VERSION"),
         }[scenario]
         assert failed["postgres_probe"][key] == status
+    if scenario in {
+        "malformed-json-field",
+        "missing-restart-field",
+        "missing-mount-field",
+        "scalar-mounts",
+        "count-mismatch",
+    }:
+        failed = json.loads(next(x for x in result.stdout.splitlines() if x.startswith("{")))
+        operation, field, code = {
+            "malformed-json-field": (
+                "PARSE_JSON_FIELD",
+                "image",
+                "BACKUP_PLAN_TOPOLOGY_JSON_INVALID",
+            ),
+            "missing-restart-field": (
+                "VALIDATE_FIELD",
+                "restart",
+                "BACKUP_PLAN_TOPOLOGY_FIELD_INVALID",
+            ),
+            "missing-mount-field": (
+                "VALIDATE_FIELD",
+                "mounts",
+                "BACKUP_PLAN_TOPOLOGY_FIELD_INVALID",
+            ),
+            "scalar-mounts": ("VALIDATE_FIELD", "mounts", "BACKUP_PLAN_CONTEXT_INVALID"),
+            "count-mismatch": ("INSPECT_CONTAINER", "RECORD", "BACKUP_PLAN_TOPOLOGY_FIELD_COUNT"),
+        }[scenario]
+        assert failed["failure_category"] == code, result.stdout
+        assert failed["topology_probe"] == dict(
+            operation=operation, field=field, container_ref="a" * 64
+        )
     if scenario == "tampered-transfer":
         assert not calls

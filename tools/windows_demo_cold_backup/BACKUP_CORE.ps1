@@ -73,7 +73,7 @@ function Backup-FreeBytes([string]$Directory) {
 }
 function Read-BackupPlan([string]$Root) {
     # Data-only mode in the current PowerShell process: no child console or line protocol.
-    $script:ColdPlanDiagnostic=[pscustomobject]@{status='NO_VALID_PLAN_RESPONSE';stage='UNKNOWN';failure_category='BACKUP_PLAN_RESPONSE_INVALID';postgres_probe=$null}
+    $script:ColdPlanDiagnostic=[pscustomobject]@{status='NO_VALID_PLAN_RESPONSE';stage='UNKNOWN';failure_category='BACKUP_PLAN_RESPONSE_INVALID';topology_probe=$null;postgres_probe=$null}
     $manifest=Join-Path $Root 'plan/TRANSFER_MANIFEST.json'
     $digest=(Get-FileHash -Algorithm SHA256 -LiteralPath $manifest).Hash.ToLowerInvariant()
     try { $values=@(& (Join-Path $Root 'plan/PLAN.ps1') -ManifestSHA256 $digest -ReturnPlanObject) }
@@ -88,14 +88,21 @@ function Read-BackupPlan([string]$Root) {
     $probeValues=@('NOT_CHECKED','READ_FAILED','OBSERVED','UNSUPPORTED_LAYOUT','SUPPORTED_LAYOUT','INVALID_FORMAT','VALID_IDENTIFIER','UNSUPPORTED_VERSION','SUPPORTED_VERSION','VERSION_MISMATCH_OR_INVALID','MATCHING_VERSION')
     if ($probe -isnot [pscustomobject] -or (@($probe.PSObject.Properties.Name | Sort-Object) -join '|') -cne (@($probeFields | Sort-Object) -join '|')) { throw 'COLD_FRESH_PLAN_BLOCKED' }
     foreach ($field in $probeFields) { if ($probe.$field -isnot [string] -or $probeValues -cnotcontains $probe.$field) { throw 'COLD_FRESH_PLAN_BLOCKED' } }
+    $topology=$null
+    if ($null -ne $plan.PSObject.Properties['topology_probe']) {
+        $topology=$plan.topology_probe
+        $operations=@('NOT_STARTED','LIST_CONTAINERS','INSPECT_CONTAINER','PARSE_JSON_FIELD','VALIDATE_FIELD','CONTAINER_VALIDATED','INSPECT_VOLUME')
+        $fields=@('NONE','IDS','RECORD','VOLUME_RECORD','id','name','image','labels','mounts','running','restarting','paused','dead','restart','networks','driver','scope','options')
+        if ($topology -isnot [pscustomobject] -or (@($topology.PSObject.Properties.Name | Sort-Object) -join '|') -cne 'container_ref|field|operation' -or $operations -cnotcontains $topology.operation -or $fields -cnotcontains $topology.field -or ($null -ne $topology.container_ref -and ($topology.container_ref -isnot [string] -or $topology.container_ref -cnotmatch '^[0-9a-f]{64}$'))) { throw 'COLD_FRESH_PLAN_BLOCKED' }
+    }
     if ($plan.backup_plan -ceq 'READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED') {
-        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_OBSERVED';stage='COMPLETE';failure_category='NONE';postgres_probe=$probe}
+        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_OBSERVED';stage='COMPLETE';failure_category='NONE';topology_probe=$topology;postgres_probe=$probe}
         return $plan
     }
     $stages=@('TRANSFER_VERIFICATION','CONTAINER_TOPOLOGY','POSTGRES_CAPABILITY','PERSISTENT_VOLUME_SCOPE','CONTEXT_RECHECK')
-    $codes=@('BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED','BACKUP_PLAN_RUNNER_FAILED')
+    $codes=@('BACKUP_PLAN_TOPOLOGY_JSON_INVALID','BACKUP_PLAN_TOPOLOGY_FIELD_INVALID','BACKUP_PLAN_TOPOLOGY_FIELD_COUNT','BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED','BACKUP_PLAN_RUNNER_FAILED')
     if ($plan.backup_plan -ceq 'BLOCKED_KEEP_PAUSED' -and $stages -ccontains $plan.stage -and $codes -ccontains $plan.failure_category) {
-        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_BLOCKED';stage=$plan.stage;failure_category=$plan.failure_category;postgres_probe=$probe}
+        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_BLOCKED';stage=$plan.stage;failure_category=$plan.failure_category;topology_probe=$topology;postgres_probe=$probe}
     }
     throw 'COLD_FRESH_PLAN_BLOCKED'
 }

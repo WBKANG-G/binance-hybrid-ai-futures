@@ -122,10 +122,12 @@ if a==['ps','--all','--quiet','--no-trunc']:
 if a[0]=='inspect':
     if a[2]=='{{.State.Running}}': print('false' if a[3] in state['stopped'] else 'true')
     elif a[2]=='{{.State.ExitCode}} {{.State.OOMKilled}}': print('137 false' if case=='pg-exit-unclean' else '0 false')
-    else: print(json.dumps(item(a[-1])))
+    else:
+        value=item(a[-1])
+        print('\\n'.join(json.dumps(value[k]) for k in ['id','name','image','labels','mounts','running','restarting','paused','dead','restart','networks']))
     sys.exit(0)
 if a[:2]==['volume','inspect']:
-    print(json.dumps(dict(driver='local',scope='local',options=None))); sys.exit(0)
+    print('\\n'.join(json.dumps(v) for v in ['local','local',None])); sys.exit(0)
 if a[:2]==['exec','b'*64]: print('/var/lib/postgresql/18/docker'); sys.exit(0)
 if a[:3]==['exec','-i','a'*64]:
     assert '-I' in a and '-B' in a

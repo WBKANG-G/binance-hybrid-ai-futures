@@ -98,7 +98,13 @@ def test_plan_object_transport_exposes_only_allowed_diagnostic_fields(tmp_path, 
     assert not process.stderr
     assert "PRIVATE_SENTINEL" not in process.stdout
     diagnostic = json.loads(process.stdout)
-    assert set(diagnostic) == {"status", "stage", "failure_category", "postgres_probe"}
+    assert set(diagnostic) == {
+        "status",
+        "stage",
+        "failure_category",
+        "topology_probe",
+        "postgres_probe",
+    }
     if scenario == "success":
         assert process.returncode == 0 and diagnostic["status"] == "PLAN_OBSERVED"
     elif scenario == "blocked":

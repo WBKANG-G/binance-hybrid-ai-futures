@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=$PSScriptRoot
 $stage='TRANSFER_VERIFICATION'
+$script:TopologyProbe=[pscustomobject]@{operation='NOT_STARTED';field='NONE';container_ref=$null}
 $postgresProbe=[pscustomobject]@{pgdata='NOT_CHECKED';database_user='NOT_CHECKED';database_name='NOT_CHECKED';server_version='NOT_CHECKED';control_version='NOT_CHECKED'}
 $oldOutput=$OutputEncoding
 $oldConsole=[Console]::OutputEncoding
@@ -19,26 +20,76 @@ function Docker-Lines([string[]]$Arguments,[int]$Maximum=128) {
     foreach ($line in $lines) { if (([string]$line).Length -gt 65536) { throw 'BACKUP_PLAN_DOCKER_READ_FAILED' } }
     return $lines
 }
+function Set-TopologyProbe([string]$Operation,[string]$Field,[string]$Id='') {
+    $reference=$null
+    if ($Id -cmatch '^[0-9a-f]{64}$') { $reference=$Id }
+    $script:TopologyProbe=[pscustomobject]@{operation=$Operation;field=$Field;container_ref=$reference}
+}
 function Container-Ids {
+    Set-TopologyProbe 'LIST_CONTAINERS' 'IDS'
     $values=@(Docker-Lines @('ps','--all','--quiet','--no-trunc'))
     if ($values.Count -eq 0 -or @($values | Select-Object -Unique).Count -ne $values.Count) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
     foreach ($id in $values) { if ($id -isnot [string] -or $id -cnotmatch '^[0-9a-f]{64}$') { throw 'BACKUP_PLAN_CONTEXT_INVALID' } }
     return @($values | Sort-Object)
 }
+function Convert-TopologyJson([string]$Text,[string]$Field,[string]$Id='') {
+    Set-TopologyProbe 'PARSE_JSON_FIELD' $Field $Id
+    try {
+        # Wrap each field so PS5 primitive/array pipeline unrolling cannot alter its type.
+        $parsed=ConvertFrom-Json -InputObject ('{"value":'+$Text+'}')
+        return ,$parsed
+    } catch { throw 'BACKUP_PLAN_TOPOLOGY_JSON_INVALID' }
+}
+function Assert-TopologyProperties([object]$Value,[string[]]$Fields,[string]$Field,[string]$Id='') {
+    Set-TopologyProbe 'VALIDATE_FIELD' $Field $Id
+    if ($Value -isnot [pscustomobject]) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_INVALID' }
+    foreach ($name in $Fields) { if ($null -eq $Value.PSObject.Properties[$name]) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_INVALID' } }
+}
 function Read-Container([string]$Id) {
-    $format='{"id":{{json .Id}},"name":{{json .Name}},"image":{{json .Image}},"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"running":{{json .State.Running}},"restarting":{{json .State.Restarting}},"paused":{{json .State.Paused}},"dead":{{json .State.Dead}},"restart":{{json .HostConfig.RestartPolicy}},"networks":{{json .NetworkSettings.Networks}}}'
-    $lines=@(Docker-Lines @('inspect','--format',$format,$Id) 1)
-    if ($lines.Count -ne 1) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
-    $value=$lines[0] | ConvertFrom-Json
-    if ($value -isnot [pscustomobject] -or $value.id -cne $Id -or $value.image -cnotmatch '^sha256:[0-9a-f]{64}$' -or $value.name -isnot [string]) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
-    foreach ($flag in @('running','restarting','paused','dead')) { if ($value.$flag -isnot [bool]) { throw 'BACKUP_PLAN_CONTEXT_INVALID' } }
+    $names=@('id','name','image','labels','mounts','running','restarting','paused','dead','restart','networks')
+    $paths=@('.Id','.Name','.Image','.Config.Labels','.Mounts','.State.Running','.State.Restarting','.State.Paused','.State.Dead','.HostConfig.RestartPolicy','.NetworkSettings.Networks')
+    # All JSON quoting is produced by Docker, never literal quotes in native argv.
+    $format=(@($paths | ForEach-Object {'{{json '+$_+'}}'}) -join '{{println}}')
+    Set-TopologyProbe 'INSPECT_CONTAINER' 'RECORD' $Id
+    $lines=@(Docker-Lines @('inspect','--format',$format,$Id) 11)
+    if ($lines.Count -ne 11 -or ($lines -join '').Length -gt 65536) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_COUNT' }
+    $record=[ordered]@{}
+    for ($index=0;$index -lt $names.Count;$index++) {
+        $wrapped=Convert-TopologyJson ([string]$lines[$index]) $names[$index] $Id
+        $record[$names[$index]]=$wrapped.value
+    }
+    $value=[pscustomobject]$record
+    Set-TopologyProbe 'VALIDATE_FIELD' 'id' $Id
+    if ($value.id -isnot [string] -or $value.id -cne $Id) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
+    Set-TopologyProbe 'VALIDATE_FIELD' 'image' $Id
+    if ($value.image -isnot [string] -or $value.image -cnotmatch '^sha256:[0-9a-f]{64}$') { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
+    Set-TopologyProbe 'VALIDATE_FIELD' 'name' $Id
+    if ($value.name -isnot [string]) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
+    foreach ($flag in @('running','restarting','paused','dead')) {
+        Set-TopologyProbe 'VALIDATE_FIELD' $flag $Id
+        if ($value.$flag -isnot [bool]) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
+    }
+    Assert-TopologyProperties $value.restart @('Name','MaximumRetryCount') 'restart' $Id
     if (@('no','always','unless-stopped','on-failure') -cnotcontains $value.restart.Name -or ($value.restart.MaximumRetryCount -isnot [int] -and $value.restart.MaximumRetryCount -isnot [long]) -or $value.restart.MaximumRetryCount -lt 0 -or $value.restart.MaximumRetryCount -gt 100000) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
+    Set-TopologyProbe 'VALIDATE_FIELD' 'labels' $Id
+    if ($null -ne $value.labels -and $value.labels -isnot [pscustomobject]) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_INVALID' }
+    Set-TopologyProbe 'VALIDATE_FIELD' 'mounts' $Id
     if ($null -ne $value.mounts -and $value.mounts -isnot [System.Array]) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
     if (@($value.mounts).Count -gt 32) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
     foreach ($mount in @($value.mounts)) {
         if ($null -eq $mount) { continue }
+        Assert-TopologyProperties $mount @('Type','Source','Destination','RW') 'mounts' $Id
         if ($mount.Type -isnot [string] -or $mount.Source -isnot [string] -or $mount.Destination -isnot [string] -or $mount.RW -isnot [bool] -or $mount.Source.Length -gt 4096 -or $mount.Destination.Length -gt 1024) { throw 'BACKUP_PLAN_CONTEXT_INVALID' }
     }
+    Set-TopologyProbe 'VALIDATE_FIELD' 'networks' $Id
+    if ($null -ne $value.networks -and $value.networks -isnot [pscustomobject]) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_INVALID' }
+    if ($null -ne $value.networks) {
+        foreach ($network in $value.networks.PSObject.Properties) {
+            Assert-TopologyProperties $network.Value @('NetworkID') 'networks' $Id
+            if ($network.Value.NetworkID -isnot [string]) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_INVALID' }
+        }
+    }
+    Set-TopologyProbe 'CONTAINER_VALIDATED' 'NONE' $Id
     return $value
 }
 function Project([object]$Item) {
@@ -58,10 +109,11 @@ function Volume-Mount([object]$Item,[string]$Destination) {
     if ($selected.Count -ne 1) { throw 'BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED' }
     $mount=$selected[0]
     if ($mount.Type -cne 'volume' -or $mount.RW -ne $true -or $mount.Name -isnot [string] -or $mount.Name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$' -or -not $mount.Source.StartsWith('/') -or $mount.Source -ceq '/') { throw 'BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED' }
-    $format='{"driver":{{json .Driver}},"scope":{{json .Scope}},"options":{{json .Options}}}'
-    $lines=@(Docker-Lines @('volume','inspect','--format',$format,$mount.Name) 1)
-    if ($lines.Count -ne 1) { throw 'BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED' }
-    $volume=$lines[0] | ConvertFrom-Json
+    Set-TopologyProbe 'INSPECT_VOLUME' 'VOLUME_RECORD' $Item.id
+    $format='{{json .Driver}}{{println}}{{json .Scope}}{{println}}{{json .Options}}'
+    $lines=@(Docker-Lines @('volume','inspect','--format',$format,$mount.Name) 3)
+    if ($lines.Count -ne 3) { throw 'BACKUP_PLAN_TOPOLOGY_FIELD_COUNT' }
+    $volume=[pscustomobject]@{driver=(Convert-TopologyJson $lines[0] 'driver' $Item.id).value;scope=(Convert-TopologyJson $lines[1] 'scope' $Item.id).value;options=(Convert-TopologyJson $lines[2] 'options' $Item.id).value}
     if ($volume.driver -cne 'local' -or $volume.scope -cne 'local') { throw 'BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED' }
     if ($null -ne $volume.options -and @($volume.options.PSObject.Properties).Count -ne 0) { throw 'BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW' }
     return $mount
@@ -186,16 +238,16 @@ try {
         if (($item | ConvertTo-Json -Depth 12 -Compress) -cne ($fresh | ConvertTo-Json -Depth 12 -Compress)) { throw 'BACKUP_PLAN_CONTEXT_CHANGED' }
     }
     $contextDigest=Digest ($items | ConvertTo-Json -Depth 12 -Compress)
-    $planResult=[pscustomobject]@{backup_plan='READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED';source_reference=$configuration.source_reference;metadata_only=$true;postgres_probe=$postgresProbe;automatic_retry=$false;source_context_sha256=$contextDigest;api_container_id=$api.id;api_image_id=$api.image;database_container_id=$db.id;database_image_id=$db.image;postgresql_major=$major;database_mount_destination=$database.Destination;database_volume_identity_sha256=(Digest ($database.Source));runtime_volume_identity_sha256=(Digest ($runtime.Source));database_connection_identity_sha256=(Digest ($properties -join "`n"));participants=$participants;excluded_key_session_containers=$keySessions;key_session_volume_copy_in_scope=$false;local_volume_options_verified=$true;source_database_clean_shutdown_verified=$false;account_pause_rechecked=$false;writer_quiescence_verified=$false;backup_created=$false;restore_tested_on_actual_windows=$false;offline_handoff_performed=$false;backup_ready=$false;installation_ready=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;exchange_credentials_accessed=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;next_action='REVIEW_COLD_STOP_SCOPE_AND_PROTECTED_BACKUP_LOCATION_NO_AUTOMATIC_APPLY'}
+    $planResult=[pscustomobject]@{backup_plan='READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED';source_reference=$configuration.source_reference;metadata_only=$true;topology_probe=$script:TopologyProbe;postgres_probe=$postgresProbe;automatic_retry=$false;source_context_sha256=$contextDigest;api_container_id=$api.id;api_image_id=$api.image;database_container_id=$db.id;database_image_id=$db.image;postgresql_major=$major;database_mount_destination=$database.Destination;database_volume_identity_sha256=(Digest ($database.Source));runtime_volume_identity_sha256=(Digest ($runtime.Source));database_connection_identity_sha256=(Digest ($properties -join "`n"));participants=$participants;excluded_key_session_containers=$keySessions;key_session_volume_copy_in_scope=$false;local_volume_options_verified=$true;source_database_clean_shutdown_verified=$false;account_pause_rechecked=$false;writer_quiescence_verified=$false;backup_created=$false;restore_tested_on_actual_windows=$false;offline_handoff_performed=$false;backup_ready=$false;installation_ready=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;exchange_credentials_accessed=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;next_action='REVIEW_COLD_STOP_SCOPE_AND_PROTECTED_BACKUP_LOCATION_NO_AUTOMATIC_APPLY'}
     if ($ReturnPlanObject) { return $planResult }
     $planResult | ConvertTo-Json -Depth 8 -Compress | Write-Output
     Write-Output 'COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED_NO_STOP_NO_BACKUP_NO_ORDERS'
     exit 0
 } catch {
     $code='BACKUP_PLAN_RUNNER_FAILED'
-    $allowed=@('BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED')
+    $allowed=@('BACKUP_PLAN_TOPOLOGY_JSON_INVALID','BACKUP_PLAN_TOPOLOGY_FIELD_INVALID','BACKUP_PLAN_TOPOLOGY_FIELD_COUNT','BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED')
     if ($allowed -ccontains $_.Exception.Message) { $code=$_.Exception.Message }
-    $failureResult=[pscustomobject]@{backup_plan='BLOCKED_KEEP_PAUSED';stage=$stage;failure_category=$code;postgres_probe=$postgresProbe;automatic_retry=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;backup_created=$false;backup_ready=$false;installation_ready=$false;actual_http_attempts=0;order_writes=0;exchange_credentials_accessed=$false;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false}
+    $failureResult=[pscustomobject]@{backup_plan='BLOCKED_KEEP_PAUSED';stage=$stage;failure_category=$code;topology_probe=$script:TopologyProbe;postgres_probe=$postgresProbe;automatic_retry=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;backup_created=$false;backup_ready=$false;installation_ready=$false;actual_http_attempts=0;order_writes=0;exchange_credentials_accessed=$false;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false}
     if ($ReturnPlanObject) { return $failureResult }
     $failureResult | ConvertTo-Json -Compress | Write-Output
     exit 2

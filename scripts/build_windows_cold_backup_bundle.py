@@ -8,7 +8,7 @@ from pathlib import Path
 from scripts.build_demo_read_review_bundle import archive, git, hashes
 from scripts.build_windows_cold_backup_plan_bundle import package_files as plan_files
 
-FOLDER = "windows-demo-cold-backup-v2-20261114"
+FOLDER = "windows-demo-cold-backup-v3-20261114"
 PREFIX = "tools/windows_demo_cold_backup/"
 API = "4a8c061be784c3d73bd808a2da39d2374ed49f69294d1c64a2487db828e96026"
 DB = "42bb757768213d35c4322c15e68982aef690b572fc061615cbdc27649dadb041"

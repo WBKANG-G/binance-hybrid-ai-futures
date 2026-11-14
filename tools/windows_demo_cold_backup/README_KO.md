@@ -1,4 +1,4 @@
-# Windows 콜드 백업 v2 — 2026-11-14 KST
+# Windows 콜드 백업 v3 — 2026-11-14 KST
 
 먼저 **조회 전용 `RUN_CHECK.cmd`**로 내부 계획 결과를 확인합니다. 이 명령은 서비스 정지·이미지 저장·백업 폴더 생성·백업 생성을 하지 않습니다. 계정 pause/lease 판독을 위한 READ ONLY SQL은 수행합니다.
 
@@ -7,7 +7,7 @@
 바탕화면에 압축을 풀고 CMD에서 실행하세요. 키 세션 등록은 필요 없습니다.
 
 ```cmd
-cd /d "%USERPROFILE%\Desktop\windows-demo-cold-backup-v2-20261114"
+cd /d "%USERPROFILE%\Desktop\windows-demo-cold-backup-v3-20261114"
 RUN_CHECK.cmd
 ```
 
@@ -50,3 +50,7 @@ archive는 소스 링크·특수 파일·파일 hard link·ACL/xattr 등 지원�
 ## v2 내부 계획 전달 수정
 
 내부 계획 검사를 별도 powershell.exe의 출력 3줄로 판정하던 방식을 제거했습니다. 해시가 고정된 동일 계획 스크립트를 같은 프로세스에서 data-only 모드로 실행합니다. 단독 계획 명령의 기본 출력과 경로·버전·볼륨·정지 조건은 유지합니다. `fresh_plan`에는 허용된 단계·차단 코드·PG probe 상태만 표시하며 원문/예외/비밀값을 출력하지 않습니다. 화면의 기존 `COLD_FRESH_PLAN_BLOCKED`만으로 실제 Windows 내부 원인을 확정할 수는 없습니다. 우선 RUN_CHECK 결과를 확인하세요. 조회 모드는 NTFS ACL이나 실제 백업 준비 완료를 증명하지 않습니다.
+
+## v3 컨테이너 정보 판독 수정
+
+Docker --format 인수 안에 JSON 키의 따옴표를 직접 넣어 객체를 조립하던 방식을 제거했습니다. Docker가 생성하는 각 필드 JSON을 11개 프레임(볼륨은 3개 프레임)으로 읽고, PowerShell 내부의 객체 래퍼로 타입을 유지합니다. 빈 배열·단일 항목 배열·null을 구분하고 누락된 속성을 명시적으로 거부합니다. `fresh_plan.topology_probe`에는 허용된 작업·필드·컨테이너 ID만 표시하며 원문·호스트 경로·label·예외는 표시하지 않습니다. 실제 Windows에서의 원인은 아직 확정하지 않았으므로 RUN_CHECK 결과부터 확인합니다.

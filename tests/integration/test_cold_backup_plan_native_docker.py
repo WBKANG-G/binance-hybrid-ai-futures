@@ -154,6 +154,64 @@ def test_real_docker_read_only_plan_and_old_probe_regression(tmp_path, argument_
             assert old.stdout.splitlines() != expected
         else:
             assert old.stdout.splitlines() == expected
+        # New native format contains no literal quote characters; every output row is strict JSON.
+        paths = [
+            ".Id",
+            ".Name",
+            ".Image",
+            ".Config.Labels",
+            ".Mounts",
+            ".State.Running",
+            ".State.Restarting",
+            ".State.Paused",
+            ".State.Dead",
+            ".HostConfig.RestartPolicy",
+            ".NetworkSettings.Networks",
+        ]
+        native_format = "{{println}}".join("{{json " + p + "}}" for p in paths)
+        framed = tmp_path / "framed.ps1"
+        framed.write_text(
+            "$PSNativeCommandArgumentPassing='"
+            + argument_mode
+            + "'\n$format='"
+            + native_format
+            + "'\n& docker inspect --format $format "
+            + api
+            + "\n"
+        )
+        frame_output = subprocess.run(
+            [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(framed)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=environment,
+        )
+        assert frame_output.returncode == 0 and not frame_output.stderr
+        assert len(frame_output.stdout.splitlines()) == 11
+        decoded = [json.loads(row) for row in frame_output.stdout.splitlines()]
+        assert decoded[0] == api and isinstance(decoded[4], list) and len(decoded[4]) == 1
+        old_json = tmp_path / "old-json.ps1"
+        old_json.write_text(
+            "$PSNativeCommandArgumentPassing='"
+            + argument_mode
+            + '\'\n$format=\'{"id":{{json .Id}},"name":{{json .Name}}}\'\n& docker inspect --format $format '
+            + api
+            + "\n"
+        )
+        old_json_output = subprocess.run(
+            [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(old_json)],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=environment,
+        )
+        assert old_json_output.returncode == 0 and not old_json_output.stderr
+        old_json_valid = True
+        try:
+            json.loads(old_json_output.stdout)
+        except json.JSONDecodeError:
+            old_json_valid = False
+        assert old_json_valid == (argument_mode == "Standard")
         target = os.environ.get("COLD_PLAN_NATIVE_REPORT_DIR")
         if target:
             path = Path(target)
@@ -164,6 +222,8 @@ def test_real_docker_read_only_plan_and_old_probe_regression(tmp_path, argument_
                         scope="FRESH_SLEEPING_SYNTHETIC_CONTAINERS_REAL_DOCKER_NOT_ACTUAL_WINDOWS",
                         argument_mode=argument_mode,
                         postgresql_major=18,
+                        framed_fields_strict_json_valid=True,
+                        legacy_custom_json_strict_valid=old_json_valid,
                         postgres_fields_validated=True,
                         source_containers_kept_running=True,
                         database_server_initialized=False,
