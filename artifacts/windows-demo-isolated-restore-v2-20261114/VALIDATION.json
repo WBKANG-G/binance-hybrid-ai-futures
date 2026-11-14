@@ -1,0 +1,38 @@
+{
+  "artifact": "windows-demo-isolated-restore-v2-20261114.zip",
+  "artifact_bytes": 26470,
+  "artifact_sha256": "bbcc0ba69dc37a0198d9384cc24c0b75b520cfce152f162e70abd334a6220d60",
+  "checks": [
+    "Exact released ZIP exercised in native PowerShell Legacy mode and real Docker",
+    "Fresh synthetic API image genuinely inherits Compose project/service labels into preservation helper",
+    "Receipt-bound helper validated before exclusion: exact ID, stopped state, restart=no, canonical image, three precise mounts and original volumes readonly",
+    "Eight labelled containers correctly separate into seven originals plus one verified helper",
+    "Unbound extra project containers and unsafe/helper image changes still rejected",
+    "Image references must resolve to exact retained canonical ID and source raw references still match saved snapshots",
+    "Full metadata fields/values compared after object-key and mount-list order normalization; unknown extra fields and changed values rejected",
+    "Pinned receipt, state, manifest, images and archives validated; source volumes absent from restore helper mounts",
+    "Synthetic PG crash, exact clone restore, repeated readonly account hash equality, copy clean stop and input rehash verified",
+    "Ruff: three changed Python files; strict mypy: builder; git diff --check"
+  ],
+  "environment_test_setup": "Docker build client cache redirected to test-local DOCKER_CONFIG and BUILDX_CONFIG; only UUID-owned images/containers/volumes cleaned",
+  "limitations": [
+    "Actual Windows result pending",
+    "Windows NTFS ACL and backup discovery mocked only in Linux integration test copies",
+    "No original Windows container, backup contents, real exchange credentials or trading accessed",
+    "Financial proof, exchange readiness, installation readiness and offline handoff not verified"
+  ],
+  "manifest_source_files": 9,
+  "seconds": 95.74,
+  "source_reference": "ef24f29a44fe58bfcc23099b81a1ca9ca59801d7",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_isolated_restore.py",
+    "tests/unit/test_restore_scope_diagnostic.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 84,
+  "tests_skipped": 0,
+  "zip_entries": 12
+}
