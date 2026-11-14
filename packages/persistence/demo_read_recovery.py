@@ -331,6 +331,28 @@ def recover_completed_read_clock(
     clocks = clocks or RuntimeClocks()
     changed = False
     with _raw(directory, scope, journal, anchor) as (cp, c, path):
+        # V1 CLOCK_REBASE has no matching V2 response-evidence transition.
+        # Deny before creating intents or changing SQLite/PG, including orphans.
+        from sqlalchemy import inspect, text
+
+        v2 = {"read_response_evidence_bindings_v2", "read_response_evidence_events_v2"}
+        present = set(inspect(cp.connection).get_table_names()) & v2
+        require(len(present) in (0, 2), "READ_RECOVERY_PARTIAL_V2_SCHEMA")
+        witness = directory / (
+            hashlib.sha256(scope.encode()).hexdigest() + ".response-evidence-v2.log"
+        )
+        bound = (
+            bool(present)
+            and cp.connection.execute(
+                text("SELECT 1 FROM read_response_evidence_bindings_v2 WHERE scope=:scope"),
+                dict(scope=scope),
+            ).first()
+            is not None
+        )
+        require(
+            not bound and not witness.exists() and not witness.is_symlink(),
+            "READ_RECOVERY_V2_EVIDENCE_REQUIRES_REVIEW",
+        )
         rows, before = audit._verified_history(cp, c)
         verify_recovery_backups(directory, rows)
         meta = before[1][0]

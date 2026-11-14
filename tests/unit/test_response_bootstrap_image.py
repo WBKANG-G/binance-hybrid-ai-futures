@@ -12,8 +12,12 @@ from tests.unit.test_cold_backup_executor import ROOT
 from tests.unit.test_response_candidate_image_review import package
 
 
-@pytest.mark.parametrize("include_snapshot", [False, True])
-def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(include_snapshot):
+@pytest.mark.parametrize(
+    "include_snapshot,include_copy", [(False, False), (True, False), (True, True)]
+)
+def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
+    include_snapshot, include_copy
+):
     files = package()
     config = json.loads(files["CONFIG.json"])
     config = {k: config[k] for k in ("baseline_files", "candidate_files")}
@@ -28,6 +32,11 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(include_s
         bodies[path] = (ROOT / path).read_bytes()
         config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
         extras.append(("services.execution.demo_evidence_snapshot", path))
+    if include_copy:
+        path = "services/execution/demo_copy_transition_review.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_copy_transition_review", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
@@ -43,6 +52,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(include_s
                 ),
 """,
     )
+    if include_copy:
+        worker = worker.replace(
+            marker,
+            marker
+            + """                (
+                    lambda: sys.modules["services.execution.demo_copy_transition_review"].review_copy_transition(None, None, None, None, None, None),
+                    "COPY_TRANSITION_EXPLICIT_COPY_REVIEW_REQUIRED",
+                ),
+""",
+        )
     sources = {p: base64.b64encode(body).decode() for p, body in bodies.items()}
     payload = "CONFIG=" + repr(config) + "\nSOURCES=" + repr(sources) + "\n" + worker
     result = subprocess.run(
@@ -83,8 +102,8 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(include_s
     report = json.loads(result.stdout)
     assert report["baseline_files_verified"] == 89
     assert (
-        report["candidate_files_verified"] == 3 + include_snapshot
-        and report["default_denials_verified"] == 6
+        report["candidate_files_verified"] == 3 + include_snapshot + include_copy
+        and report["default_denials_verified"] == 6 + include_copy
     )
     assert (
         report["database_attempts"]

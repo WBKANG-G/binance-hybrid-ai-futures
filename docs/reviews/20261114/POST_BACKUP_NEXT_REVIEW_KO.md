@@ -13,3 +13,5 @@
 2026-11-14 후속 기록: 사용자의 Windows 화면에서 위 2개 후보 검토 통과를 확인했다. 이어 명시적 GET 연결과 재시작·시계 변경 시 차단 정책 후보를 구현하고 개발 환경 테스트 95개를 통과했다. 상세 결과와 남은 설치 조건은 `GET_BOOTSTRAP_AND_CLOCK_POLICY_KO.md`, `GET_BOOTSTRAP_VALIDATION.json`에 기록했다. 앞의 2개 후보 Windows 결과는 수정된 후보 3개의 Windows 실행을 증명하지 않는다.
 
 추가 후속 기록: V2 전체 스냅샷과 쓰기 경계 검토를 개발 환경에서 완료했다. 현재 스키마의 테이블·함수·트리거·규칙을 포함한 지문, 적용 전후 기존 기록 보존, 파일/DB 실패 뒤 자동 재시도 차단을 확인했다. 결과는 `GET_FULL_SNAPSHOT_BOUNDARIES_KO.md`와 `GET_FULL_SNAPSHOT_VALIDATION.json`에 기록했다. Windows 설치 준비는 여전히 false이며 다음 범위는 복사본 전용 날짜·부팅 변경 처리 설계다.
+
+복사본 날짜·부팅 검토 후속 기록: 읽기 전용 진단 후보와 기존 V1 시계 복구의 V2 차단 가드를 구현했다. 관련 테스트 171개를 통과했고, 합성 V1 시계 복구 뒤에도 오래된 계좌 일자와 미해결 요청 4개가 그대로 차단 사유로 남는 것을 확인했다. 상세 절차는 `COPY_CLOCK_PERIOD_PROCEDURE_KO.md`, 검증 기록은 `COPY_TRANSITION_VALIDATION.json`에 있다. 실제 Windows 실행과 USB 재연결은 없었다. 다음은 원본·보존된 복구 사본을 시작하지 않고 새 임시 복사본만 검증하는 Windows 실행기 준비다.
