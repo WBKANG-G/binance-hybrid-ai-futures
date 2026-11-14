@@ -1,0 +1,36 @@
+{
+  "date_client_kst": "2026-11-14",
+  "evidence_source": "USER_SCREENSHOTS_AND_EXPLICIT_USER_REPLIES",
+  "execution_approved": false,
+  "external_bytes_copied": 392955529,
+  "external_copy_verified_from_console": true,
+  "external_file_count": 10,
+  "external_filesystem": "exFAT",
+  "external_handoff_receipt_sha256": "61ac120d52d38e172f845734edcf089747e1695f22fb3a50905c00177cf9cc83",
+  "external_reference_sha256": "b209c9f583a04cfd3a18440c3c3683232921c9ee9531c52ff4595fc51eaf05bc",
+  "fresh_windows_tool_access": false,
+  "independent_latest_reference_custody_verified": false,
+  "installation_ready": false,
+  "isolated_copy_recovery_and_readonly_account_checks_observed": true,
+  "live_trading_enabled": false,
+  "local_preservation_hashes_verified_from_console": true,
+  "next_scope": "IMAGE_ONLY_TWO_GET_CANDIDATES_IMPORT_AND_DEFAULT_DENIAL_REVIEW_NO_INSTALL_NO_EXCHANGE",
+  "notes": [
+    "Separate PC unavailability is recorded, not treated as successful independent verification.",
+    "Disconnected external copy must remain separate during image-only review.",
+    "Existing synthetic wire/checkpoint candidates and core demo.py change remain excluded from Windows GET stage."
+  ],
+  "orders_enabled": false,
+  "physical_disconnect_independently_verified": false,
+  "physical_disconnect_operator_attested": true,
+  "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
+  "remaining_install_prerequisites": [
+    "EXPLICIT_GET_BOOTSTRAP_AND_CLOCK_CHANGE_POLICY",
+    "FULL_V2_SNAPSHOT_AND_WRITE_BOUNDARY_FAILURE_REVIEW",
+    "CURRENT_SOURCE_IMAGE_AND_CONTAINER_IDENTITY_RECHECK"
+  ],
+  "separate_pc_reverification_performed": false,
+  "separate_storage_operator_attested": false,
+  "separate_windows_pc_available": false,
+  "whole_financial_proof_verified": false
+}

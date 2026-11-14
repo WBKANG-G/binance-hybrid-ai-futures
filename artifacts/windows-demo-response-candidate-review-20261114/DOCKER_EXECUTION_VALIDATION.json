@@ -1,0 +1,20 @@
+{
+  "actual_exchange_requests": 0,
+  "actual_windows_touched": false,
+  "baseline_image_files": 89,
+  "candidate_files": 2,
+  "candidate_installed": false,
+  "default_denials": 5,
+  "live_trading_enabled": false,
+  "native_legacy_launcher": true,
+  "no_source_volumes_mounted": true,
+  "orders_enabled": false,
+  "originals_and_restore_copy_kept_stopped": true,
+  "real_docker_source_metadata_verified": true,
+  "retained_restore_and_backup_proofs_rehashed": true,
+  "review_helper_stopped": true,
+  "review_helper_uses_separate_project_label": true,
+  "schema_provisioned": false,
+  "scope": "FRESH_SYNTHETIC_SOURCE_BACKUP_RESTORE_AND_IMAGE_REVIEW_NOT_ACTUAL_WINDOWS",
+  "windows_input_discovery_and_acl_mocked": true
+}

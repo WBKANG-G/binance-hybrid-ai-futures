@@ -1,0 +1,39 @@
+{
+  "artifact": "windows-demo-response-candidate-review-20261114.zip",
+  "artifact_bytes": 32240,
+  "artifact_sha256": "a2a57d2b989b01a79cfd6e20f421577099d0a2247de868f074e0e714352d1ac8",
+  "checks": [
+    "Exact released ZIP native PowerShell Legacy launcher with fresh synthetic backup/restore evidence and real Docker metadata",
+    "Baseline image Python files 89 and exactly two candidate modules verified",
+    "Candidate code compiled/imported in memory, never installed to image filesystem or source",
+    "Five default-denial guards verified before database or sender access",
+    "Network/database/write synthetic payload attempts rejected and counted without private output",
+    "No source volumes, read-only root, nonroot helper, network=none, separate project label, helper stopped",
+    "Existing GET response evidence and V1 bootstrap integration regressions pass on dedicated cloud PG/SQLite/files",
+    "Ruff: four new/changed Python files; strict mypy: builder; git diff --check"
+  ],
+  "limitations": [
+    "User has no separate Windows PC; separate-PC revalidation remains not performed",
+    "USB physical disconnect is operator attestation, not independent observation",
+    "User separate storage location and independent latest-reference custody not explicitly verified",
+    "Windows input directory discovery/NTFS ACL mocked only in Linux integration fixture copies",
+    "Base image validation does not verify the source container writable layer",
+    "No actual Windows code/schema installation, GET, account reconciliation or trading",
+    "GET bootstrap/clock-change policy and write-boundary installation work remain prerequisites"
+  ],
+  "manifest_source_files": 11,
+  "seconds": 106.08,
+  "source_reference": "8c57f268f61c1d16b7c74ba4271695585a0ef285",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_response_candidate_image_review.py",
+    "tests/unit/test_response_evidence_metadata.py",
+    "tests/integration/test_response_evidence_candidate.py",
+    "tests/integration/test_read_audit_bootstrap.py",
+    "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 64,
+  "tests_skipped": 0,
+  "zip_entries": 13
+}
