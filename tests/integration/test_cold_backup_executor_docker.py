@@ -18,6 +18,7 @@ from scripts.build_demo_read_review_bundle import hashes
 from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE, PG_IMAGE, ready, sql
 from tests.unit.test_cold_backup_executor import PWSH, materialize, package
 from tests.unit.test_isolated_restore import materialize as restore_materialize
+from tests.unit.test_offline_handoff import materialize as handoff_materialize
 from tests.unit.test_restore_scope_diagnostic import materialize as diagnostic_materialize
 from tests.unit.test_stopped_preservation import (
     materialize as preserve_materialize,
@@ -496,6 +497,123 @@ function Assert-PrivateBackupFiles {{ }}
                 and restore_receipt["account"]["unresolved_requests"] == 4
             )
             assert restore_receipt["clone_pid_removed"]
+            handoff_root = tmp_path / "handoff package"
+            handoff_materialize(handoff_root)
+            handoff_config = json.loads((handoff_root / "CONFIG.json").read_text())
+            handoff_config.update(
+                api_container_id=api,
+                database_container_id=db,
+                preservation_source_reference=receipt["source_reference"],
+                restore_source_reference=restore_receipt["source_reference"],
+                receipt_sha256=hashlib.sha256(
+                    (output / "BACKUP_RECEIPT.json").read_bytes()
+                ).hexdigest(),
+                manifest_sha256=receipt["manifest_sha256"],
+                restore_receipt_sha256=hashlib.sha256(
+                    (restore_output / "ISOLATED_RESTORE_RECEIPT.json").read_bytes()
+                ).hexdigest(),
+            )
+            (handoff_root / "CONFIG.json").write_text(json.dumps(handoff_config))
+            external_root = tmp_path / "external media"
+            external_root.mkdir()
+            safe_external = str(external_root).replace("'", "''")
+            handoff_core = handoff_root / "HANDOFF_CORE.ps1"
+            handoff_core.write_text(
+                handoff_core.read_text()
+                + f"""
+# TEST ONLY: disk discovery and NTFS ACL replaced on Linux. No production bypass.
+function Find-RetainedBackup {{return '{safe}'}}
+function Find-RestoreEvidence {{return '{safe_report}/ISOLATED_RESTORE_RECEIPT.json'}}
+function Assert-PrivateBackupDirectory {{}}
+function Assert-PrivateBackupFiles {{}}
+function Read-HandoffMedia {{return [pscustomobject]@{{root='{safe_external}';identity_sha256=('a'*64);free_bytes=100000000000L;filesystem='NTFS';bus='USB'}}}}
+function New-HandoffDirectory {{ $path=Join-Path '{safe_external}' 'new-handoff'; $null=[IO.Directory]::CreateDirectory($path); return $path }}
+"""
+            )
+            handoff_files = {
+                p: (handoff_root / p).read_bytes()
+                for p in json.loads((handoff_root / "TRANSFER_MANIFEST.json").read_text())["files"]
+            }
+            handoff_manifest = json.dumps(
+                dict(files=hashes(handoff_files)), sort_keys=True
+            ).encode()
+            (handoff_root / "TRANSFER_MANIFEST.json").write_bytes(handoff_manifest)
+            handoff_launch = handoff_root / "test-handoff.ps1"
+            handoff_launch.write_text(
+                f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(handoff_root / 'RUN_HANDOFF.ps1')}' -ManifestSHA256 '{hashlib.sha256(handoff_manifest).hexdigest()}' -ExecuteHandoff\nexit $LASTEXITCODE\n"
+            )
+            copied = subprocess.run(
+                [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(handoff_launch)],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            assert copied.returncode == 0 and not copied.stderr, copied.stdout + copied.stderr
+            assert (
+                "EXTERNAL_COPY_VERIFIED_SAFE_EJECT_AND_SEPARATE_CUSTODY_PENDING_NO_ORDERS"
+                in copied.stdout
+            )
+            external = external_root / "new-handoff"
+            handoff_receipt = json.loads((external / "HANDOFF_RECEIPT.json").read_text())
+            assert (
+                handoff_receipt["file_count"] == 10
+                and not handoff_receipt["physical_disconnect_verified"]
+            )
+            assert len(list(external.iterdir())) == 13
+            verified = subprocess.run(
+                [
+                    str(PWSH),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-File",
+                    str(external / "VERIFY_OFFLINE.ps1"),
+                    "-ReferenceSHA256",
+                    handoff_receipt["reference_sha256"],
+                ],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            assert verified.returncode == 0 and not verified.stderr, (
+                verified.stdout + verified.stderr
+            )
+            assert "OFFLINE_FILES_HASH_VERIFIED_NO_DOCKER_NO_WRITES" in verified.stdout
+            handoff_target = os.environ.get("OFFLINE_HANDOFF_DOCKER_REPORT")
+            if handoff_target:
+                Path(handoff_target).write_text(
+                    json.dumps(
+                        dict(
+                            scope="FRESH_SYNTHETIC_PG_BACKUP_AND_RESTORE_NOT_ACTUAL_WINDOWS",
+                            actual_windows_touched=False,
+                            windows_media_discovery_and_acl_mocked=True,
+                            native_legacy_launcher_used=True,
+                            real_docker_metadata_stopped_scope_check=True,
+                            source_and_recovery_receipts_bound=True,
+                            all_ten_files_copied_and_hashes_match=True,
+                            portable_verifier_passed_without_docker=True,
+                            source_files_unchanged=True,
+                            originals_and_copy_kept_stopped=True,
+                            physical_disconnect_verified=False,
+                            orders_enabled=False,
+                            live_trading_enabled=False,
+                        ),
+                        sort_keys=True,
+                        indent=2,
+                    )
+                    + "\n"
+                )
             report_target = os.environ.get("ISOLATED_RESTORE_DOCKER_REPORT")
             if report_target:
                 Path(report_target).write_text(
