@@ -1,0 +1,22 @@
+{
+  "actual_windows_touched": false,
+  "check_only_verified_without_stopping_sources": true,
+  "execution_approved": false,
+  "exported_archives_restored_to_fresh_volumes": true,
+  "graceful_source_stop_verified": true,
+  "in_process_plan_transport": true,
+  "key_session_kept_running": true,
+  "legacy_argument_mode": true,
+  "live_trading_enabled": false,
+  "non_demo_prefixed_table_preserved": true,
+  "orders_enabled": false,
+  "production_acl_executed": false,
+  "real_native_launcher_and_docker": true,
+  "restored_pg_account_hash_matches": true,
+  "scope": "FRESH_SYNTHETIC_PG_AND_SIX_PARTICIPANTS_NOT_ACTUAL_WINDOWS",
+  "source_images_saved": true,
+  "source_originals_not_restarted": true,
+  "source_period_key_preserved": "2026-11-13",
+  "source_restart_policies_unchanged": true,
+  "windows_ntfs_acl_mocked": true
+}

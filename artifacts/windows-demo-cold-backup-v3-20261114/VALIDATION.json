@@ -1,0 +1,65 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_backup_created": false,
+  "actual_windows_inner_failure_cause_confirmed": false,
+  "actual_windows_new_package_executed": false,
+  "actual_windows_source_stopped": false,
+  "archive_entries": 16,
+  "artifact": "windows-demo-cold-backup-v3-20261114.zip",
+  "artifact_bytes": 34619,
+  "artifact_sha256": "96d9c7d02e75c85193946610ae84360f88c03d255b6e76741a7e66d63c59c5b2",
+  "committed_sources_and_transfer_manifest_verified": true,
+  "container_frame_count": 11,
+  "diagnostic_fields": [
+    "operation",
+    "field",
+    "container_ref"
+  ],
+  "execution_approved": false,
+  "installation_ready": false,
+  "limitations": [
+    "LINUX_POWERSHELL7_NATIVE_MODES_NOT_ACTUAL_WINDOWS_POWERSHELL51",
+    "ACTUAL_WINDOWS_RESULT_AWAITS_RUN_CHECK",
+    "READ_ONLY_CHECK_NOT_BACKUP_OR_NTFS_ACL_READINESS_PROOF",
+    "RUN_BACKUP_REMAINS_EXPLICIT_SOURCE_STOP_AND_BACKUP_COMMAND"
+  ],
+  "live_trading_enabled": false,
+  "mypy": {
+    "source_files": 1,
+    "status": "PASS",
+    "strict": true
+  },
+  "native_argument_modes": [
+    "Standard",
+    "Legacy"
+  ],
+  "observed_user_failure": {
+    "backup_completed": false,
+    "failure_category": "BACKUP_PLAN_RUNNER_FAILED",
+    "postgres_probe_started": false,
+    "source": "USER_SCREENSHOT_NOT_REMOTE_READ",
+    "source_stop_attempted": false,
+    "stage": "CONTAINER_TOPOLOGY"
+  },
+  "offline_handoff_performed": false,
+  "old_literal_key_json_invalid_in_legacy_reproduced": true,
+  "orders_enabled": false,
+  "policy": "WINDOWS_COLD_BACKUP_V3_NATIVE_JSON_FIELD_FRAMING",
+  "read_only_entrypoint": "RUN_CHECK.cmd",
+  "read_only_mode_creates_backup": false,
+  "read_only_mode_stops_sources": false,
+  "release_tests": {
+    "passed": 128,
+    "seconds": 155.14,
+    "skipped": 0
+  },
+  "ruff": {
+    "files": 5,
+    "status": "PASS"
+  },
+  "source_reference": "d8cb7cfa08c9fed11a7c52d1c2905bda7fd53408",
+  "strict_json_frames_valid_in_real_docker": true,
+  "volume_frame_count": 3,
+  "windows_ntfs_acl_mocked_in_linux_tests_only": true
+}
