@@ -17,6 +17,12 @@ import pytest
 from scripts.build_demo_read_review_bundle import hashes
 from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE, PG_IMAGE, ready, sql
 from tests.unit.test_cold_backup_executor import PWSH, materialize, package
+from tests.unit.test_stopped_preservation import (
+    materialize as preserve_materialize,
+)
+from tests.unit.test_stopped_preservation import (
+    package as preserve_package,
+)
 
 
 def docker(*args, stdin=None, timeout=60):
@@ -28,7 +34,8 @@ def docker(*args, stdin=None, timeout=60):
 
 
 @pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
-def test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked(tmp_path):
+@pytest.mark.parametrize("preserve_stopped", [False, True])
+def test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked(tmp_path, preserve_stopped):
     for image in (PG_IMAGE, HELPER_IMAGE):
         if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode:
             pytest.skip("Cached image unavailable")
@@ -204,11 +211,34 @@ INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDEN
             "-c",
             "from pathlib import Path; import sqlite3; p=Path('/app/demo-export-state'); c=sqlite3.connect(p/'state.db'); c.execute('CREATE TABLE test(value text)'); c.execute(\"INSERT INTO test VALUES ('SYNTHETIC_RUNTIME')\"); c.commit(); c.close()",
         )
-        materialize(tmp_path)
-        config = json.loads((tmp_path / "BACKUP_CONFIG.json").read_text())
+        if preserve_stopped:
+            # Abrupt death is confined to this fresh synthetic fixture, never originals.
+            docker("kill", "--signal=SIGKILL", db)
+            docker("kill", "--signal=SIGKILL", api)
+            docker("kill", "--signal=SIGKILL", key)
+            assert docker("inspect", "--format", "{{.State.ExitCode}}", db) == "137"
+            control = docker(
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--mount",
+                f"type=volume,source={source_database},target=/var/lib/postgresql,readonly,volume-nocopy",
+                "--entrypoint",
+                "pg_controldata",
+                PG_IMAGE,
+                "/var/lib/postgresql/18/docker",
+            )
+            assert "in production" in control
+            preserve_materialize(tmp_path)
+        else:
+            materialize(tmp_path)
+        config_name = "CONFIG.json" if preserve_stopped else "BACKUP_CONFIG.json"
+        config = json.loads((tmp_path / config_name).read_text())
         config.update(api_container_id=api, database_container_id=db)
-        (tmp_path / "BACKUP_CONFIG.json").write_text(json.dumps(config))
-        core = tmp_path / "BACKUP_CORE.ps1"
+        (tmp_path / config_name).write_text(json.dumps(config))
+        core = tmp_path / ("COMMON.ps1" if preserve_stopped else "BACKUP_CORE.ps1")
         safe = str(output).replace("'", "''")
         core.write_text(
             core.read_text()
@@ -227,9 +257,12 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
         manifest = json.dumps(dict(files=hashes(files)), sort_keys=True).encode()
         (tmp_path / "TRANSFER_MANIFEST.json").write_bytes(manifest)
         launcher = tmp_path / "test-launch.ps1"
-        safe_script = str(tmp_path / "RUN_BACKUP.ps1").replace("'", "''")
+        safe_script = str(
+            tmp_path / ("RUN_PRESERVE.ps1" if preserve_stopped else "RUN_BACKUP.ps1")
+        ).replace("'", "''")
+        execute_mode = "ExecutePreservation" if preserve_stopped else "ExecuteColdBackup"
         launcher.write_text(
-            f"$PSNativeCommandArgumentPassing='Legacy'\n& '{safe_script}' -ManifestSHA256 '{hashlib.sha256(manifest).hexdigest()}' -ExecuteColdBackup\nexit $LASTEXITCODE\n"
+            f"$PSNativeCommandArgumentPassing='Legacy'\n& '{safe_script}' -ManifestSHA256 '{hashlib.sha256(manifest).hexdigest()}' -{execute_mode}\nexit $LASTEXITCODE\n"
         )
         check_script = tmp_path / "check-launch.ps1"
         check_script.write_text(
@@ -251,11 +284,20 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
         assert check.returncode == 0, check.stdout + check.stderr
         assert (
             not check.stderr
-            and "COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS" in check.stdout
+            and (
+                "STOPPED_SCOPE_CHECKED_NO_SOURCE_START_NO_BACKUP_NO_ORDERS"
+                if preserve_stopped
+                else "COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS"
+            )
+            in check.stdout
         )
         assert not output.exists()
-        assert docker("inspect", "--format", "{{.State.Running}}", api) == "true"
-        assert docker("inspect", "--format", "{{.State.Running}}", db) == "true"
+        assert docker("inspect", "--format", "{{.State.Running}}", api) == (
+            "false" if preserve_stopped else "true"
+        )
+        assert docker("inspect", "--format", "{{.State.Running}}", db) == (
+            "false" if preserve_stopped else "true"
+        )
         result = subprocess.run(
             [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(launcher)],
             capture_output=True,
@@ -271,17 +313,32 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert not result.stderr and "SYNTHETIC_PRIVATE_EVIDENCE" not in result.stdout
-        assert "COLD_BACKUP_SAVED_LOCAL_VERIFIED_KEEP_STOPPED_NO_ORDERS" in result.stdout
+        assert (
+            "STOPPED_RAW_COPY_SAVED_NOT_RECOVERY_VERIFIED_NO_ORDERS"
+            if preserve_stopped
+            else "COLD_BACKUP_SAVED_LOCAL_VERIFIED_KEEP_STOPPED_NO_ORDERS"
+        ) in result.stdout
         receipt = json.loads((output / "BACKUP_RECEIPT.json").read_text())
-        assert receipt["source_services_stopped"] and not receipt["automatic_resume"]
+        assert (
+            receipt[
+                "source_services_observed_stopped"
+                if preserve_stopped
+                else "source_services_stopped"
+            ]
+            and not receipt["automatic_resume"]
+        )
         assert all(
             docker("inspect", "--format", "{{.State.Running}}", c) == "false"
             for c in containers[:-1]
         )
-        assert docker("inspect", "--format", "{{.State.Running}}", key) == "true"
+        assert docker("inspect", "--format", "{{.State.Running}}", key) == (
+            "false" if preserve_stopped else "true"
+        )
         assert receipt["source_data_archive_restore_tested"] is False
         # Independently restore the EXPORTED host archives into fresh volumes.
-        archive_source = base64.b64encode(package()["cold_archive.py"]).decode()
+        archive_source = base64.b64encode(
+            (preserve_package() if preserve_stopped else package())["cold_archive.py"]
+        ).decode()
         payload = (
             "import base64\nexec(compile(base64.b64decode('"
             + archive_source
@@ -322,6 +379,38 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
             stdin=payload,
             timeout=120,
         )
+        if preserve_stopped:
+            # Verify exact source bytes still present after capture and before recovery.
+            # Only clone PID is removed; retained archive and original remain unchanged.
+            import tarfile
+
+            with tarfile.open(output / "database.tar") as tar:
+                pid_members = [m for m in tar.getmembers() if m.name.endswith("/postmaster.pid")]
+                assert len(pid_members) == 1
+                pid_data = tar.extractfile(pid_members[0]).read()
+            check_pid = (
+                "from pathlib import Path; import hashlib; p=Path('/copy/18/docker/postmaster.pid'); assert hashlib.sha256(p.read_bytes()).hexdigest()=='"
+                + hashlib.sha256(pid_data).hexdigest()
+                + "'; p.unlink()"
+            )
+            docker(
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--user",
+                "0:0",
+                "--mount",
+                f"type=volume,source={volumes[2]},target=/copy,volume-nocopy",
+                "--entrypoint",
+                "python",
+                HELPER_IMAGE,
+                "-I",
+                "-B",
+                "-c",
+                check_pid,
+            )
         clone = docker(
             "run",
             "-d",
@@ -371,6 +460,66 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
                 hashlib.sha256((output / (name + ".tar")).read_bytes()).hexdigest()
                 == entry["sha256"]
             )
+        if preserve_stopped:
+            recovery_logs = subprocess.run(
+                ["docker", "logs", clone], capture_output=True, text=True, timeout=10
+            )
+            assert recovery_logs.returncode == 0
+            recovery_text = recovery_logs.stdout + recovery_logs.stderr
+            assert (
+                "automatic recovery in progress" in recovery_text and "redo done" in recovery_text
+            )
+            # Original PID/WAL contents remain readable and unchanged; source stays stopped.
+            check_source = (
+                "from pathlib import Path; import hashlib; p=Path('/source/18/docker/postmaster.pid'); assert hashlib.sha256(p.read_bytes()).hexdigest()=='"
+                + hashlib.sha256(pid_data).hexdigest()
+                + "'"
+            )
+            docker(
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--user",
+                "0:0",
+                "--mount",
+                f"type=volume,source={source_database},target=/source,readonly,volume-nocopy",
+                "--entrypoint",
+                "python",
+                HELPER_IMAGE,
+                "-I",
+                "-B",
+                "-c",
+                check_source,
+            )
+            source_entries = json.loads((output / "manifest.json").read_text())["groups"][
+                "database"
+            ]["entries"]
+            source_check = "import json,hashlib; from pathlib import Path; entries=json.loads(input()); root=Path('/source'); assert all(hashlib.sha256((root/e['path']).read_bytes()).hexdigest()==e['sha256'] for e in entries if e['kind']=='file')"
+            docker(
+                "run",
+                "--rm",
+                "-i",
+                "--network",
+                "none",
+                "--read-only",
+                "--user",
+                "0:0",
+                "--mount",
+                f"type=volume,source={source_database},target=/source,readonly,volume-nocopy",
+                "--entrypoint",
+                "python",
+                HELPER_IMAGE,
+                "-I",
+                "-B",
+                "-c",
+                source_check,
+                stdin=json.dumps(source_entries) + "\n",
+            )
+            assert docker("inspect", "--format", "{{.State.ExitCode}}", db) == "137"
+            assert receipt["source_clean_shutdown_verified"] is False
+            assert receipt["account_pause_rechecked"] is False
         report = dict(
             scope="FRESH_SYNTHETIC_PG_AND_SIX_PARTICIPANTS_NOT_ACTUAL_WINDOWS",
             windows_ntfs_acl_mocked=True,
@@ -379,9 +528,11 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
             in_process_plan_transport=True,
             legacy_argument_mode=True,
             real_native_launcher_and_docker=True,
-            graceful_source_stop_verified=True,
+            graceful_source_stop_verified=not preserve_stopped,
+            abrupt_stopped_source_preserved=preserve_stopped,
+            recovery_only_on_clone=preserve_stopped,
             source_restart_policies_unchanged=True,
-            key_session_kept_running=True,
+            key_session_kept_running=not preserve_stopped,
             source_images_saved=True,
             exported_archives_restored_to_fresh_volumes=True,
             restored_pg_account_hash_matches=True,
@@ -393,7 +544,11 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
             orders_enabled=False,
             live_trading_enabled=False,
         )
-        target = os.environ.get("COLD_EXECUTOR_DOCKER_REPORT")
+        target = os.environ.get(
+            "STOPPED_PRESERVATION_DOCKER_REPORT"
+            if preserve_stopped
+            else "COLD_EXECUTOR_DOCKER_REPORT"
+        )
         if target:
             Path(target).write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
     finally:
