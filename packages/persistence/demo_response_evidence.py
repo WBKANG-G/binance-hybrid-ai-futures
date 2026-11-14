@@ -7,12 +7,14 @@ reopen; this module never refunds, resends or grants archive/execution authority
 
 import copy
 import hashlib
+import math
 import os
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl
@@ -222,6 +224,25 @@ def _append_line(path: Path, previous: bytes, line: bytes) -> None:
         os.close(fd)
 
 
+def verify_clock(meta: Any, now: float, wall: datetime, boot: str) -> None:
+    """A restart in the same boot may reopen; boot/drift changes require review.
+
+    This check only denies. It never writes a stop flag, changes clock metadata,
+    waits and retries, or authorizes V1 CLOCK_REBASE through the V2 event chain.
+    """
+    require(
+        boot == meta["boot"]
+        and type(now) in (float, int)
+        and math.isfinite(now)
+        and now >= meta["last"]
+        and isinstance(wall, datetime)
+        and wall.tzinfo is not None
+        and wall.utcoffset() == timedelta(0)
+        and abs((wall.timestamp() - meta["wall"]) - (now - meta["start"])) <= 1,
+        "RESPONSE_EVIDENCE_CLOCK_REVIEW_REQUIRED",
+    )
+
+
 class ResponseEvidenceStore:
     def __init__(self, engine: Engine):
         require(engine.dialect.name == "postgresql", "RESPONSE_EVIDENCE_POSTGRESQL_REQUIRED")
@@ -232,19 +253,22 @@ class ResponseEvidenceStore:
     def provision(self, *, apply: bool = False) -> None:
         require(apply is True, "RESPONSE_EVIDENCE_EXPLICIT_PROVISION_REQUIRED")
         with self.engine.begin() as c:
-            bindings.create(c, checkfirst=False)
-            events.create(c, checkfirst=False)
+            self._provision_on(c)
+
+    def _provision_on(self, c: Connection) -> None:
+        bindings.create(c, checkfirst=False)
+        events.create(c, checkfirst=False)
+        c.execute(
+            text(
+                "CREATE FUNCTION read_response_evidence_immutable_v2() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'response_evidence_append_only'; END $$"
+            )
+        )
+        for t in (bindings, events):
             c.execute(
                 text(
-                    "CREATE FUNCTION read_response_evidence_immutable_v2() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'response_evidence_append_only'; END $$"
+                    f"CREATE TRIGGER response_evidence_immutable_v2 BEFORE UPDATE OR DELETE ON {t.name} FOR EACH ROW EXECUTE FUNCTION read_response_evidence_immutable_v2()"
                 )
             )
-            for t in (bindings, events):
-                c.execute(
-                    text(
-                        f"CREATE TRIGGER response_evidence_immutable_v2 BEFORE UPDATE OR DELETE ON {t.name} FOR EACH ROW EXECUTE FUNCTION read_response_evidence_immutable_v2()"
-                    )
-                )
 
     @staticmethod
     def witness(directory: Path, scope: str) -> Path:
@@ -291,43 +315,55 @@ class ResponseEvidenceStore:
             marker = reader.checkpoint.set(cp)
             try:
                 with SharedWeightJournal._transaction(reader) as (local, meta, now):
-                    self._schema(cp.connection)
-                    old, state = self.audit._verified_history(cp, local)
-                    require(
-                        not any(r[4] is None for r in state[2]) and now - meta["start"] >= 70.001,
-                        "RESPONSE_EVIDENCE_COMPLETED_READY_HISTORY_REQUIRED",
-                    )
-                    existing = (
-                        cp.connection.execute(select(bindings).where(bindings.c.scope == cp.scope))
-                        .mappings()
-                        .one_or_none()
-                    )
-                    if existing is not None:
-                        self.verify(cp, shared.directory, account, old)
-                        return
-                    path = self.witness(shared.directory, shared.scope)
-                    require(
-                        not path.exists() and not path.is_symlink(),
-                        "RESPONSE_EVIDENCE_ORPHAN_WITNESS",
-                    )
-                    root = self.audit._binding(cp)
-                    record = dict(
-                        scope=cp.scope,
-                        journal=str(cp.journal),
-                        installation=root["installation"],
-                        account=account,
-                        policy=POLICY,
-                        base_sequence=len(old),
-                        base_audit_hash=old[-1]["hash"] if old else root["root_hash"],
-                        base_revision=cp.revision,
-                        base_digest=cp.digest,
-                    )
-                    record["root_hash"] = digest(record)
-                    cp.connection.execute(insert(bindings).values(**record))
-                    _write_new(path, _line(dict(root_hash=record["root_hash"])))
-                    _sync_directory(shared.directory)
+                    self._bind_on(cp, shared.directory, account, local, meta, now)
             finally:
                 reader.checkpoint.reset(marker)
+
+    def _bind_on(
+        self,
+        cp: CheckpointContext,
+        directory: Path,
+        account: str,
+        local: sqlite3.Connection,
+        meta: dict[str, Any],
+        now: float,
+    ) -> None:
+        """Attach in the caller's PG transaction; orphan witnesses are never repaired."""
+        self._schema(cp.connection)
+        old, state = self.audit._verified_history(cp, local)
+        require(
+            not any(r[4] is None for r in state[2]) and now - meta["start"] >= 70.001,
+            "RESPONSE_EVIDENCE_COMPLETED_READY_HISTORY_REQUIRED",
+        )
+        existing = (
+            cp.connection.execute(select(bindings).where(bindings.c.scope == cp.scope))
+            .mappings()
+            .one_or_none()
+        )
+        if existing is not None:
+            self.verify(cp, directory, account, old)
+            return
+        path = self.witness(directory, cp.scope)
+        require(
+            not path.exists() and not path.is_symlink(),
+            "RESPONSE_EVIDENCE_ORPHAN_WITNESS",
+        )
+        root = self.audit._binding(cp)
+        record = dict(
+            scope=cp.scope,
+            journal=str(cp.journal),
+            installation=root["installation"],
+            account=account,
+            policy=POLICY,
+            base_sequence=len(old),
+            base_audit_hash=old[-1]["hash"] if old else root["root_hash"],
+            base_revision=cp.revision,
+            base_digest=cp.digest,
+        )
+        record["root_hash"] = digest(record)
+        cp.connection.execute(insert(bindings).values(**record))
+        _write_new(path, _line(dict(root_hash=record["root_hash"])))
+        _sync_directory(directory)
 
     def verify(
         self, cp: CheckpointContext, directory: Path, account: str, old: list[Any]
@@ -649,6 +685,8 @@ class EvidenceReadJournal(AuditedDemoReadJournal):
         assert cp is not None
         old, _ = self.audit._verified_history(cp, c)
         self.evidence.verify(cp, self.directory, self.account, old)
+        meta = c.execute("SELECT * FROM meta").fetchone()
+        verify_clock(meta, self.monotonic(), self.wall_clock(), self.boot())
 
     def _stage_checkpoint(self, c: sqlite3.Connection) -> None:
         capture = self.capture.get()

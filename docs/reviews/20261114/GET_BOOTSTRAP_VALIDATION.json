@@ -1,0 +1,47 @@
+{
+  "policy": "GET_BOOTSTRAP_CLOCK_CANDIDATE_REVIEW_V1",
+  "date_client_kst": "2026-11-14",
+  "environment": "CLOUD_LINUX_FRESH_POSTGRESQL_SCHEMAS_SQLITE_PRIVATE_FILES_AND_CACHED_API_IMAGE",
+  "test_runs": [
+    {
+      "command": "TEST_DATABASE_URL=<LOCAL_FIXTURE> pytest -q tests/unit/test_response_evidence_clock.py tests/unit/test_response_evidence_metadata.py tests/unit/test_response_candidate_image_review.py tests/integration/test_response_evidence_candidate.py tests/integration/test_read_audit_bootstrap.py tests/integration/test_response_evidence_bootstrap.py",
+      "passed": 94,
+      "skipped": 0,
+      "duration_seconds": 42.09
+    },
+    {
+      "command": "pytest -q tests/unit/test_response_bootstrap_image.py",
+      "passed": 1,
+      "skipped": 0,
+      "duration_seconds": 5.48
+    }
+  ],
+  "checks_passed": [
+    "READ_ONLY_PLAN_CREATES_NO_SCHEMA_OR_FILES",
+    "USED_V1_HISTORY_PRESERVED_NO_BACKFILL",
+    "AUXILIARY_SCHEMA_AND_BINDING_SAME_PG_TRANSACTION",
+    "ACCOUNT_SHARED_LOCK_BLOCKS_MUTATION_DURING_BIND",
+    "ACCOUNT_PAUSE_OWNER_PERIOD_STORAGE_BINDING_AND_LOCAL_FLAT_GUARDS",
+    "PARTIAL_SCHEMA_REFUSED_WITHOUT_REPAIR",
+    "WITNESS_AND_PG_COMMIT_FAILURES_NO_SUCCESS_NO_ORPHAN_REPAIR",
+    "SAME_BOOT_REOPEN_AND_CLOCK_CHANGE_FAIL_CLOSED",
+    "PENDING_REQUESTS_AND_STARTUP_HOLD_BLOCK_SETUP",
+    "EXISTING_RESPONSE_EVIDENCE_AND_V1_BOOTSTRAP_REGRESSIONS",
+    "BASE_IMAGE_89_FILES_THREE_CANDIDATE_IMPORTS_SIX_DEFAULT_DENIALS",
+    "RUFF_AND_MYPY_CHANGED_SOURCE_FILES"
+  ],
+  "independent_pg_and_file_atomicity_claimed": false,
+  "automatic_clock_rebase": false,
+  "automatic_retry": false,
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "windows_new_candidate_execution_performed": false,
+  "windows_candidate_installed": false,
+  "originals_or_restore_copy_started": false,
+  "separate_pc_reverification_performed": false,
+  "installation_ready": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "next_action": "REVIEW_FULL_V2_SNAPSHOT_AND_WRITE_BOUNDARIES_KEEP_STOPPED"
+}
