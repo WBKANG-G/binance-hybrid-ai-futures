@@ -590,6 +590,84 @@ function New-HandoffDirectory {{ $path=Join-Path '{safe_external}' 'new-handoff'
                 verified.stdout + verified.stderr
             )
             assert "OFFLINE_FILES_HASH_VERIFIED_NO_DOCKER_NO_WRITES" in verified.stdout
+            exfat_root = tmp_path / "exfat handoff package"
+            handoff_materialize(exfat_root)
+            (exfat_root / "CONFIG.json").write_text(json.dumps(handoff_config))
+            exfat_media = tmp_path / "exfat external media"
+            exfat_media.mkdir()
+            safe_exfat = str(exfat_media).replace("'", "''")
+            exfat_core = exfat_root / "HANDOFF_CORE.ps1"
+            exfat_core.write_text(
+                exfat_core.read_text()
+                + f"""
+# TEST ONLY: hardware discovery and source NTFS ACL checks mocked; real exFAT branch retained.
+function Find-RetainedBackup {{return '{safe}'}}
+function Find-RestoreEvidence {{return '{safe_report}/ISOLATED_RESTORE_RECEIPT.json'}}
+function Assert-PrivateBackupDirectory([string]$Path) {{if ($Path.StartsWith('{safe_exfat}')) {{throw 'NTFS_DESTINATION_ACL_MUST_NOT_RUN'}}}}
+function Assert-PrivateBackupFiles([string]$Path) {{if ($Path.StartsWith('{safe_exfat}')) {{throw 'NTFS_DESTINATION_ACL_MUST_NOT_RUN'}}}}
+function Read-HandoffMedia {{return [pscustomobject]@{{root='{safe_exfat}';identity_sha256=('b'*64);free_bytes=100000000000L;filesystem='exFAT';bus='USB'}}}}
+"""
+            )
+            exfat_files = {
+                p: (exfat_root / p).read_bytes()
+                for p in json.loads((exfat_root / "TRANSFER_MANIFEST.json").read_text())["files"]
+            }
+            exfat_manifest = json.dumps(dict(files=hashes(exfat_files)), sort_keys=True).encode()
+            (exfat_root / "TRANSFER_MANIFEST.json").write_bytes(exfat_manifest)
+            exfat_launch = exfat_root / "test-launch.ps1"
+            exfat_launch.write_text(
+                f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(exfat_root / 'RUN_HANDOFF.ps1')}' -ManifestSHA256 '{hashlib.sha256(exfat_manifest).hexdigest()}' -ExecuteHandoff\nexit $LASTEXITCODE\n"
+            )
+            exfat_result = subprocess.run(
+                [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(exfat_launch)],
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            assert exfat_result.returncode == 0 and not exfat_result.stderr, (
+                exfat_result.stdout + exfat_result.stderr
+            )
+            exfat_directories = list(exfat_media.iterdir())
+            assert len(exfat_directories) == 1 and exfat_directories[0].is_dir()
+            exfat_destination = exfat_directories[0]
+            exfat_receipt = json.loads((exfat_destination / "HANDOFF_RECEIPT.json").read_text())
+            assert (
+                exfat_receipt["destination_filesystem"] == "exFAT"
+                and exfat_receipt["destination_ntfs_acl_verified"] is False
+            )
+            assert (
+                handoff_receipt["destination_filesystem"] == "NTFS"
+                and handoff_receipt["destination_ntfs_acl_verified"] is True
+            )
+            portable_exfat = subprocess.run(
+                [
+                    str(PWSH),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-File",
+                    str(exfat_destination / "VERIFY_OFFLINE.ps1"),
+                    "-ReferenceSHA256",
+                    exfat_receipt["reference_sha256"],
+                ],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            assert portable_exfat.returncode == 0 and not portable_exfat.stderr, (
+                portable_exfat.stdout + portable_exfat.stderr
+            )
             handoff_target = os.environ.get("OFFLINE_HANDOFF_DOCKER_REPORT")
             if handoff_target:
                 Path(handoff_target).write_text(
@@ -598,6 +676,10 @@ function New-HandoffDirectory {{ $path=Join-Path '{safe_external}' 'new-handoff'
                             scope="FRESH_SYNTHETIC_PG_BACKUP_AND_RESTORE_NOT_ACTUAL_WINDOWS",
                             actual_windows_touched=False,
                             windows_media_discovery_and_acl_mocked=True,
+                            destination_branches_tested=["NTFS", "exFAT"],
+                            actual_exfat_filesystem_mounted=False,
+                            exfat_directory_and_file_copy_branch_executed_without_ntfs_acl=True,
+                            destination_acl_status_truthful_for_both_filesystems=True,
                             native_legacy_launcher_used=True,
                             real_docker_metadata_stopped_scope_check=True,
                             source_and_recovery_receipts_bound=True,

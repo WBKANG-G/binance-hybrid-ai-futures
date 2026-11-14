@@ -9,7 +9,7 @@ from scripts.build_demo_read_review_bundle import archive, git, hashes
 from scripts.build_windows_cold_backup_bundle import API, DB
 from scripts.build_windows_isolated_restore_bundle import MANIFEST, PRESERVATION_SOURCE, RECEIPT
 
-FOLDER = "windows-demo-offline-handoff-20261114"
+FOLDER = "windows-demo-offline-handoff-v2-20261114"
 PREFIX = "tools/windows_demo_offline_handoff/"
 RESTORE_RECEIPT = "26395438e08500da24252eac7b11dfe76b22e0d660c86bb1c0d236b6b9e1da08"
 RESTORE_SOURCE = "ef24f29a44fe58bfcc23099b81a1ca9ca59801d7"

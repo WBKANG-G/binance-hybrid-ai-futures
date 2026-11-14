@@ -76,7 +76,7 @@ function Assert-HandoffMediaFacts([object]$Value) {
         if ($Value.$flag) { throw 'HANDOFF_EXTERNAL_USB_REQUIRED' }
     }
     if ($Value.bus -cne 'USB') { throw 'HANDOFF_EXTERNAL_USB_REQUIRED' }
-    if ($Value.filesystem -cne 'NTFS') { throw 'HANDOFF_NTFS_REQUIRED_NO_FORMAT_PERFORMED' }
+    if ($Value.filesystem -isnot [string] -or @('NTFS','exFAT') -notcontains $Value.filesystem) { throw 'HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED' }
     if ($Value.identity_sha256 -cnotmatch '^[0-9a-f]{64}$' -or ($Value.free_bytes -isnot [int] -and $Value.free_bytes -isnot [long]) -or $Value.free_bytes -lt 0) { throw 'HANDOFF_MEDIA_IDENTITY_UNVERIFIED' }
 }
 function Read-HandoffMedia([string]$Drive) {
@@ -92,21 +92,40 @@ function Read-HandoffMedia([string]$Drive) {
         if ($volume.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string]$volume[0].UniqueId) -or [string]::IsNullOrWhiteSpace([string]$disk.UniqueId)) { throw 'UNVERIFIED' }
     } catch { throw 'HANDOFF_MEDIA_IDENTITY_UNVERIFIED' }
     if (([IO.File]::GetAttributes($root) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'HANDOFF_REPARSE_POINT' }
-    $facts=[pscustomobject]@{root=$root;identity_sha256=(Digest (([string]$disk.UniqueId)+'|'+([string]$volume[0].UniqueId)+'|'+([string]$disk.Size)));free_bytes=$info.AvailableFreeSpace;filesystem=$info.DriveFormat;bus=([string]$disk.BusType);is_boot=$disk.IsBoot;is_system=$disk.IsSystem;is_offline=$disk.IsOffline;is_readonly=$disk.IsReadOnly}
+    $filesystem=$info.DriveFormat
+    if ($filesystem -ieq 'exFAT') { $filesystem='exFAT' }
+    if ($filesystem -ieq 'NTFS') { $filesystem='NTFS' }
+    $facts=[pscustomobject]@{root=$root;identity_sha256=(Digest (([string]$disk.UniqueId)+'|'+([string]$volume[0].UniqueId)+'|'+([string]$disk.Size)+'|'+$filesystem));free_bytes=$info.AvailableFreeSpace;filesystem=$filesystem;bus=([string]$disk.BusType);is_boot=$disk.IsBoot;is_system=$disk.IsSystem;is_offline=$disk.IsOffline;is_readonly=$disk.IsReadOnly}
     Assert-HandoffMediaFacts $facts
     return $facts
 }
-function New-HandoffDirectory([string]$Root,[string]$Token) {
-    $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
-    $acl=New-Object Security.AccessControl.DirectorySecurity
-    $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false)
-    foreach ($identity in @($sid,$system)) {
-        $rule=New-Object Security.AccessControl.FileSystemAccessRule($identity,[Security.AccessControl.FileSystemRights]::FullControl,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow)
-        $null=$acl.AddAccessRule($rule)
+function Assert-HandoffDestination([string]$Path,[string]$Filesystem) {
+    if (@('NTFS','exFAT') -cnotcontains $Filesystem) { throw 'HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED' }
+    $folder=Get-Item -LiteralPath $Path -Force
+    if (-not $folder.PSIsContainer -or ($folder.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'HANDOFF_REPARSE_POINT' }
+    $allowed=@('BACKUP_RECEIPT.json','BACKUP_STATE.json','manifest.json','database.tar','runtime.tar','images.tar','ISOLATED_RESTORE_RECEIPT.json','PRESERVATION_TOOL.zip','RESTORE_TOOL.zip','VERIFY_OFFLINE.ps1','OFFLINE_REFERENCE.json','HANDOFF_RECEIPT.json','VERIFY_OFFLINE.cmd')
+    foreach ($file in @(Get-ChildItem -LiteralPath $Path -Force)) {
+        if ($file.PSIsContainer -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or $allowed -cnotcontains $file.Name) { throw 'HANDOFF_DESTINATION_CONTENT_INVALID' }
     }
+    if ($Filesystem -ceq 'NTFS') { Assert-PrivateBackupDirectory $Path; Assert-PrivateBackupFiles $Path }
+}
+function New-HandoffDirectory([string]$Root,[string]$Token,[string]$Filesystem='NTFS') {
+    if ($Token -cnotmatch '^[0-9a-f]{32}$') { throw 'HANDOFF_DESTINATION_INVALID' }
+    if (@('NTFS','exFAT') -cnotcontains $Filesystem) { throw 'HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED' }
+    if (([IO.File]::GetAttributes($Root) -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'HANDOFF_REPARSE_POINT' }
     $path=Join-Path $Root ('WBKANG-DEMO-Offline-20261114-'+$Token)
-    if ([IO.Directory]::Exists($path)) { throw 'HANDOFF_DESTINATION_EXISTS' }
-    $null=[IO.Directory]::CreateDirectory($path,$acl); Assert-PrivateBackupDirectory $path
+    if ([IO.Directory]::Exists($path) -or [IO.File]::Exists($path)) { throw 'HANDOFF_DESTINATION_EXISTS' }
+    if ($Filesystem -ceq 'NTFS') {
+        $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User; $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+        $acl=New-Object Security.AccessControl.DirectorySecurity
+        $acl.SetOwner($sid); $acl.SetAccessRuleProtection($true,$false)
+        foreach ($identity in @($sid,$system)) {
+            $rule=New-Object Security.AccessControl.FileSystemAccessRule($identity,[Security.AccessControl.FileSystemRights]::FullControl,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow)
+            $null=$acl.AddAccessRule($rule)
+        }
+        $null=[IO.Directory]::CreateDirectory($path,$acl)
+    } else { $null=[IO.Directory]::CreateDirectory($path) }
+    Assert-HandoffDestination $path $Filesystem
     return $path
 }
 function Copy-HandoffFile([string]$Source,[string]$Destination,[long]$Length,[string]$Hash) {
@@ -146,28 +165,28 @@ function Invoke-OfflineHandoff([string]$Root,[switch]$ExecuteHandoff,[switch]$Ch
         $media=Read-HandoffMedia $config.destination_drive
         if ($media.free_bytes -lt ($total+128MB)) { throw 'HANDOFF_SPACE_INSUFFICIENT' }
         if ($CheckOnly) {
-            [pscustomobject]@{offline_handoff='SOURCE_HASHES_AND_EXTERNAL_MEDIA_CHECKED';destination_drive='D:';filesystem=$media.filesystem;bus=$media.bus;file_count=$records.Count;bytes_to_copy=$total;copy_performed=$false;physical_offline_custody_verified=$false;originals_or_copy_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
+            [pscustomobject]@{offline_handoff='SOURCE_HASHES_AND_EXTERNAL_MEDIA_CHECKED';destination_drive='D:';filesystem=$media.filesystem;destination_ntfs_acl_applicable=($media.filesystem -ceq 'NTFS');bus=$media.bus;file_count=$records.Count;bytes_to_copy=$total;copy_performed=$false;physical_offline_custody_verified=$false;originals_or_copy_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
             Write-Output 'OFFLINE_HANDOFF_CHECK_PASSED_NO_COPY_NO_ORDERS'
             return 0
         }
         $mutex=New-Object Threading.Mutex($false,'Global\WBKANG_DEMO_COLD_BACKUP'); $locked=$mutex.WaitOne(0)
         if (-not $locked) { throw 'COLD_ANOTHER_BACKUP_ACTIVE' }
-        $destination=New-HandoffDirectory $media.root ([Guid]::NewGuid().ToString('N'))
+        $destination=New-HandoffDirectory $media.root ([Guid]::NewGuid().ToString('N')) $media.filesystem
         $stage='COPY_TO_NEW_EXTERNAL_DIRECTORY'; Write-Output ('HANDOFF_STAGE='+$stage)
         for ($index=0;$index -lt $sources.Count;$index++) {
             $fresh=Read-HandoffMedia $config.destination_drive
-            if ($fresh.identity_sha256 -cne $media.identity_sha256) { throw 'HANDOFF_MEDIA_CHANGED' }
+            if ($fresh.identity_sha256 -cne $media.identity_sha256 -or $fresh.filesystem -cne $media.filesystem) { throw 'HANDOFF_MEDIA_CHANGED' }
             Copy-HandoffFile $sources[$index].path (Join-Path $destination $records[$index].name) $records[$index].bytes $records[$index].sha256
-            Assert-PrivateBackupDirectory $destination; Assert-PrivateBackupFiles $destination
+            Assert-HandoffDestination $destination $media.filesystem
         }
         $stage='REVERIFY_BOTH_COPIES_AND_STOPPED_SCOPE'; Write-Output ('HANDOFF_STAGE='+$stage)
         for ($index=0;$index -lt $sources.Count;$index++) {
             if ((Restore-Hash $sources[$index].path) -cne $records[$index].sha256 -or (Restore-Hash (Join-Path $destination $records[$index].name)) -cne $records[$index].sha256) { throw 'HANDOFF_FINAL_HASH_MISMATCH' }
         }
         $fresh=Read-HandoffMedia $config.destination_drive
-        if ($fresh.identity_sha256 -cne $media.identity_sha256) { throw 'HANDOFF_MEDIA_CHANGED' }
+        if ($fresh.identity_sha256 -cne $media.identity_sha256 -or $fresh.filesystem -cne $media.filesystem) { throw 'HANDOFF_MEDIA_CHANGED' }
         Assert-RestoreSourceSnapshot $snapshot @() $false
-        $reference=[ordered]@{protocol='DEMO_EXTERNAL_COPY_REFERENCE_V1';source_reference=$config.source_reference;backup_manifest_sha256=$config.manifest_sha256;backup_receipt_sha256=$config.receipt_sha256;restore_receipt_sha256=$config.restore_receipt_sha256;files=$records;physical_offline_custody_verified=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}
+        $reference=[ordered]@{protocol='DEMO_EXTERNAL_COPY_REFERENCE_V1';source_reference=$config.source_reference;backup_manifest_sha256=$config.manifest_sha256;backup_receipt_sha256=$config.receipt_sha256;restore_receipt_sha256=$config.restore_receipt_sha256;files=$records;destination_filesystem=$media.filesystem;destination_ntfs_acl_verified=($media.filesystem -ceq 'NTFS');physical_offline_custody_verified=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}
         Write-BackupJson (Join-Path $destination 'OFFLINE_REFERENCE.json') $reference
         $referenceHash=Restore-Hash (Join-Path $destination 'OFFLINE_REFERENCE.json')
         $verifyCommand='@echo off'+"`r`n"+'powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0VERIFY_OFFLINE.ps1" -ReferenceSHA256 '+$referenceHash+"`r`n"+'exit /b %errorlevel%'+"`r`n"
@@ -175,14 +194,14 @@ function Invoke-OfflineHandoff([string]$Root,[switch]$ExecuteHandoff,[switch]$Ch
         $stream=New-Object IO.FileStream((Join-Path $destination 'VERIFY_OFFLINE.cmd'),[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
         try { $stream.Write($bytes,0,$bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
 
-        Write-BackupJson (Join-Path $destination 'HANDOFF_RECEIPT.json') @{status='EXTERNAL_COPY_HASHES_VERIFIED_PENDING_SAFE_EJECT';reference_sha256=$referenceHash;media_identity_sha256=$media.identity_sha256;file_count=$records.Count;bytes_copied=$total;originals_and_copy_observed_stopped=$true;physical_disconnect_verified=$false;separate_device_verification_performed=$false;automatic_retry=$false;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}
-        Assert-PrivateBackupFiles $destination
-        [pscustomobject]@{offline_handoff='EXTERNAL_COPY_HASHES_VERIFIED_PENDING_SAFE_EJECT';destination_directory=$destination;reference_sha256=$referenceHash;handoff_receipt_sha256=(Restore-Hash (Join-Path $destination 'HANDOFF_RECEIPT.json'));file_count=$records.Count;bytes_copied=$total;source_files_changed=$false;physical_disconnect_verified=$false;separate_device_verification_performed=$false;installation_ready=$false;originals_or_copy_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false;next_action='SAFELY_EJECT_DISCONNECT_AND_STORE_SEPARATELY_RETAIN_REFERENCE_HASH'} | ConvertTo-Json -Compress | Write-Output
+        Write-BackupJson (Join-Path $destination 'HANDOFF_RECEIPT.json') @{status='EXTERNAL_COPY_HASHES_VERIFIED_PENDING_SAFE_EJECT';destination_filesystem=$media.filesystem;destination_ntfs_acl_verified=($media.filesystem -ceq 'NTFS');reference_sha256=$referenceHash;media_identity_sha256=$media.identity_sha256;file_count=$records.Count;bytes_copied=$total;originals_and_copy_observed_stopped=$true;physical_disconnect_verified=$false;separate_device_verification_performed=$false;automatic_retry=$false;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}
+        Assert-HandoffDestination $destination $media.filesystem
+        [pscustomobject]@{offline_handoff='EXTERNAL_COPY_HASHES_VERIFIED_PENDING_SAFE_EJECT';destination_directory=$destination;destination_filesystem=$media.filesystem;destination_ntfs_acl_verified=($media.filesystem -ceq 'NTFS');file_hashes_verified=$true;reference_sha256=$referenceHash;handoff_receipt_sha256=(Restore-Hash (Join-Path $destination 'HANDOFF_RECEIPT.json'));file_count=$records.Count;bytes_copied=$total;source_files_changed=$false;physical_disconnect_verified=$false;separate_device_verification_performed=$false;installation_ready=$false;originals_or_copy_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false;next_action='SAFELY_EJECT_DISCONNECT_AND_STORE_SEPARATELY_RETAIN_REFERENCE_HASH'} | ConvertTo-Json -Compress | Write-Output
         Write-Output 'EXTERNAL_COPY_VERIFIED_SAFE_EJECT_AND_SEPARATE_CUSTODY_PENDING_NO_ORDERS'
         return 0
     } catch {
         $reason='HANDOFF_UNAVAILABLE'; $message=$_.Exception.Message
-        $allowed=@('HANDOFF_SEARCH_LIMIT','HANDOFF_REPARSE_POINT','HANDOFF_RESTORE_RECEIPT_NOT_UNIQUE','HANDOFF_RESTORE_RECEIPT_INVALID','HANDOFF_SCOPE_INVALID','HANDOFF_UNREVIEWED_PROJECT_CONTAINER','HANDOFF_CONTAINER_NOT_STOPPED','HANDOFF_ORIGINAL_CONFIGURATION_CHANGED','HANDOFF_EXTERNAL_SOURCE_CONSUMER','HANDOFF_HELPER_CONFIGURATION_CHANGED','HANDOFF_CLONE_EXIT_CHANGED','HANDOFF_WINDOWS_D_DRIVE_REQUIRED','HANDOFF_MEDIA_NOT_READY','HANDOFF_MEDIA_IDENTITY_UNVERIFIED','HANDOFF_EXTERNAL_USB_REQUIRED','HANDOFF_NTFS_REQUIRED_NO_FORMAT_PERFORMED','HANDOFF_DESTINATION_EXISTS','HANDOFF_SOURCE_CHANGED','HANDOFF_COPY_HASH_MISMATCH','HANDOFF_EXPLICIT_MODE_REQUIRED','HANDOFF_RESTORE_HASH_MISMATCH','HANDOFF_SPACE_INSUFFICIENT','HANDOFF_MEDIA_CHANGED','HANDOFF_FINAL_HASH_MISMATCH','COLD_ANOTHER_BACKUP_ACTIVE','COLD_BACKUP_ACL_INVALID','COLD_CONTAINER_SET_CHANGED','COLD_SOURCE_RUNNING_STATE_CHANGED','COLD_SOURCE_CONFIGURATION_CHANGED','RESTORE_INPUT_HASH_MISMATCH','RESTORE_RETAINED_HASH_MISMATCH','BACKUP_PLAN_DOCKER_READ_FAILED','COLD_DOCKER_COMMAND_FAILED')
+        $allowed=@('HANDOFF_SEARCH_LIMIT','HANDOFF_REPARSE_POINT','HANDOFF_RESTORE_RECEIPT_NOT_UNIQUE','HANDOFF_RESTORE_RECEIPT_INVALID','HANDOFF_SCOPE_INVALID','HANDOFF_UNREVIEWED_PROJECT_CONTAINER','HANDOFF_CONTAINER_NOT_STOPPED','HANDOFF_ORIGINAL_CONFIGURATION_CHANGED','HANDOFF_EXTERNAL_SOURCE_CONSUMER','HANDOFF_HELPER_CONFIGURATION_CHANGED','HANDOFF_CLONE_EXIT_CHANGED','HANDOFF_WINDOWS_D_DRIVE_REQUIRED','HANDOFF_MEDIA_NOT_READY','HANDOFF_MEDIA_IDENTITY_UNVERIFIED','HANDOFF_EXTERNAL_USB_REQUIRED','HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED','HANDOFF_DESTINATION_INVALID','HANDOFF_DESTINATION_CONTENT_INVALID','HANDOFF_DESTINATION_EXISTS','HANDOFF_SOURCE_CHANGED','HANDOFF_COPY_HASH_MISMATCH','HANDOFF_EXPLICIT_MODE_REQUIRED','HANDOFF_RESTORE_HASH_MISMATCH','HANDOFF_SPACE_INSUFFICIENT','HANDOFF_MEDIA_CHANGED','HANDOFF_FINAL_HASH_MISMATCH','COLD_ANOTHER_BACKUP_ACTIVE','COLD_BACKUP_ACL_INVALID','COLD_CONTAINER_SET_CHANGED','COLD_SOURCE_RUNNING_STATE_CHANGED','COLD_SOURCE_CONFIGURATION_CHANGED','RESTORE_INPUT_HASH_MISMATCH','RESTORE_RETAINED_HASH_MISMATCH','BACKUP_PLAN_DOCKER_READ_FAILED','COLD_DOCKER_COMMAND_FAILED')
         if ($allowed -ccontains $message) { $reason=$message }
         [pscustomobject]@{offline_handoff='BLOCKED_NO_RETRY';stage=$stage;failure_category=$reason;retained_partial_destination=$destination;copy_completed=$false;physical_offline_custody_verified=$false;originals_or_copy_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
         return 2

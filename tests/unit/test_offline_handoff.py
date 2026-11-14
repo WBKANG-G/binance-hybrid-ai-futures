@@ -171,7 +171,11 @@ def synthetic_inputs(root):
         ("manifest-tamper", "RESTORE_RETAINED_HASH_MISMATCH"),
         ("running", "HANDOFF_CONTAINER_NOT_STOPPED"),
         ("internal", "HANDOFF_EXTERNAL_USB_REQUIRED"),
-        ("exfat", "HANDOFF_NTFS_REQUIRED_NO_FORMAT_PERFORMED"),
+        ("exfat", None),
+        ("fat32", "HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED"),
+        ("exfat-check", None),
+        ("exfat-source-acl", "COLD_BACKUP_ACL_INVALID"),
+        ("filesystem-swap", "HANDOFF_MEDIA_CHANGED"),
         ("space", "HANDOFF_SPACE_INSUFFICIENT"),
         ("swap", "HANDOFF_MEDIA_CHANGED"),
         ("corrupt", "HANDOFF_FINAL_HASH_MISMATCH"),
@@ -201,7 +205,7 @@ Set-StrictMode -Version Latest
 function docker {throw 'DOCKER_MUTATION_FORBIDDEN'}
 function Find-RetainedBackup {return "$PSScriptRoot/backup"}
 function Find-RestoreEvidence {return "$PSScriptRoot/proof/ISOLATED_RESTORE_RECEIPT.json"}
-function Assert-PrivateBackupDirectory { }
+function Assert-PrivateBackupDirectory {if ($env:HANDOFF_CASE -ceq 'exfat-source-acl') {throw 'COLD_BACKUP_ACL_INVALID'}}
 function Assert-PrivateBackupFiles { }
 function Assert-HandoffStoppedScope {
  if ($env:HANDOFF_CASE -ceq 'running') {throw 'HANDOFF_CONTAINER_NOT_STOPPED'}
@@ -221,10 +225,12 @@ function New-HandoffDirectory {
 function Read-HandoffMedia {
  $script:mediaCalls++
  if ($env:HANDOFF_CASE -ceq 'internal') {throw 'HANDOFF_EXTERNAL_USB_REQUIRED'}
- if ($env:HANDOFF_CASE -ceq 'exfat') {throw 'HANDOFF_NTFS_REQUIRED_NO_FORMAT_PERFORMED'}
+ if ($env:HANDOFF_CASE -ceq 'fat32') {throw 'HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED'}
+ $fs='NTFS';if ($env:HANDOFF_CASE.StartsWith('exfat')) {$fs='exFAT'}
+ if ($env:HANDOFF_CASE -ceq 'filesystem-swap' -and $script:mediaCalls -gt 1) {$fs='exFAT'}
  $identity='same';if ($env:HANDOFF_CASE -ceq 'swap' -and $script:mediaCalls -gt 1) {$identity='different'}
  $free=100000000000L;if ($env:HANDOFF_CASE -ceq 'space') {$free=0L}
- return [pscustomobject]@{root="$PSScriptRoot/external";identity_sha256=$identity;free_bytes=$free;filesystem='NTFS';bus='USB'}
+ return [pscustomobject]@{root="$PSScriptRoot/external";identity_sha256=$identity;free_bytes=$free;filesystem=$fs;bus='USB'}
 }
 """
     if case == "corrupt":
@@ -235,9 +241,12 @@ function Copy-HandoffFile([string]$Source,[string]$Destination,[long]$Length,[st
  [IO.File]::WriteAllBytes($Destination,[byte[]]@(1,2,3))
 }
 """
-    mode = {"check": "-CheckOnly", "no-optin": "", "both": "-ExecuteHandoff -CheckOnly"}.get(
-        case, "-ExecuteHandoff"
-    )
+    mode = {
+        "check": "-CheckOnly",
+        "exfat-check": "-CheckOnly",
+        "no-optin": "",
+        "both": "-ExecuteHandoff -CheckOnly",
+    }.get(case, "-ExecuteHandoff")
     source += (
         "Invoke-OfflineHandoff -Root $PSScriptRoot "
         + mode
@@ -269,7 +278,7 @@ function Copy-HandoffFile([string]$Source,[string]$Destination,[long]$Length,[st
     if reason:
         assert report["failure_category"] == reason, result.stdout
         assert not (dest / "HANDOFF_RECEIPT.json").exists()
-    elif case == "check":
+    elif case in {"check", "exfat-check"}:
         assert (
             not dest.exists() and "OFFLINE_HANDOFF_CHECK_PASSED_NO_COPY_NO_ORDERS" in result.stdout
         )
@@ -319,7 +328,8 @@ def test_copy_create_new_never_overwrites_existing_file(tmp_path):
         ("system", "HANDOFF_EXTERNAL_USB_REQUIRED"),
         ("readonly", "HANDOFF_EXTERNAL_USB_REQUIRED"),
         ("offline", "HANDOFF_EXTERNAL_USB_REQUIRED"),
-        ("exfat", "HANDOFF_NTFS_REQUIRED_NO_FORMAT_PERFORMED"),
+        ("exfat", "OK"),
+        ("fat32", "HANDOFF_FILESYSTEM_UNSUPPORTED_NO_FORMAT_PERFORMED"),
         ("wrong-drive", "HANDOFF_WINDOWS_D_DRIVE_REQUIRED"),
         ("missing-identity", "HANDOFF_MEDIA_IDENTITY_UNVERIFIED"),
     ],
@@ -341,8 +351,8 @@ def test_media_policy_facts(tmp_path, case, expected):
         value["is_" + case] = True
     if case == "internal":
         value["bus"] = "NVMe"
-    if case == "exfat":
-        value["filesystem"] = "exFAT"
+    if case in {"exfat", "fat32"}:
+        value["filesystem"] = "exFAT" if case == "exfat" else "FAT32"
     if case == "wrong-drive":
         value["root"] = "C:\\"
     if case == "missing-identity":
@@ -608,3 +618,74 @@ try {$null=Assert-HandoffStoppedScope $script:scope.config $script:scope.backup 
     assert result.returncode == 0 and not result.stderr and result.stdout.strip() == expected, (
         result.stdout + result.stderr
     )
+
+
+@pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        ("create", "OK"),
+        ("existing", "HANDOFF_DESTINATION_EXISTS"),
+        ("extra-file", "HANDOFF_DESTINATION_CONTENT_INVALID"),
+        ("nested", "HANDOFF_DESTINATION_CONTENT_INVALID"),
+        ("link", "HANDOFF_DESTINATION_CONTENT_INVALID"),
+    ],
+)
+def test_exfat_directory_path_never_uses_ntfs_acl_and_keeps_existing_content(
+    tmp_path, case, expected
+):
+    materialize(tmp_path)
+    media = tmp_path / "media"
+    media.mkdir()
+    token = "a" * 32
+    target = media / ("WBKANG-DEMO-Offline-20261114-" + token)
+    if case in {"existing", "extra-file", "nested", "link"}:
+        target.mkdir()
+    if case == "existing":
+        (target / "keep").write_bytes(b"KEEP")
+    if case == "extra-file":
+        (target / "UNEXPECTED").write_bytes(b"PRIVATE_SENTINEL")
+    if case == "nested":
+        (target / "nested").mkdir()
+    if case == "link":
+        (target / "database.tar").symlink_to(tmp_path / "README_KO.md")
+    script = tmp_path / "exfat-directory-test.ps1"
+    script.write_text(
+        """
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+. "$PSScriptRoot/HANDOFF_CORE.ps1"
+function Assert-PrivateBackupDirectory {throw 'NTFS_ACL_MUST_NOT_RUN'}
+function Assert-PrivateBackupFiles {throw 'NTFS_ACL_MUST_NOT_RUN'}
+try {
+"""
+        + (
+            " $null=New-HandoffDirectory \"$PSScriptRoot/media\" ('a'*32) 'exFAT'\n"
+            if case in {"create", "existing"}
+            else ' Assert-HandoffDestination "$PSScriptRoot/media/WBKANG-DEMO-Offline-20261114-'
+            + token
+            + "\" 'exFAT'\n"
+        )
+        + """ Write-Output 'OK'
+} catch {Write-Output $_.Exception.Message}
+"""
+    )
+    result = subprocess.run(
+        [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(script)],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env=dict(
+            os.environ,
+            XDG_CACHE_HOME=str(tmp_path / "cache"),
+            XDG_CONFIG_HOME=str(tmp_path / "config"),
+            XDG_DATA_HOME=str(tmp_path / "data"),
+        ),
+    )
+    assert result.returncode == 0 and not result.stderr and result.stdout.strip() == expected, (
+        result.stdout + result.stderr
+    )
+    if case == "create":
+        assert target.is_dir() and not list(target.iterdir())
+    if case == "existing":
+        assert (target / "keep").read_bytes() == b"KEEP"
