@@ -28,9 +28,23 @@
   "installation_ready": false,
   "isolated_copy_recovery_and_readonly_account_checks_observed": true,
   "latest_review_date_client_kst": "2026-11-15",
+  "latest_windows_copy_diagnostic_observation": {
+    "backup_hashes_unchanged_reported": true,
+    "clock_matches": false,
+    "clone_stopped_reported": true,
+    "copy_review_receipt_sha256": "df50d9b96a9cc67b2d46110eeb75858c2ad6057eb95c796b31a881a6c2937365",
+    "current_day_kst": "2026-11-15",
+    "evidence_source": "USER_CONSOLE_SCREENSHOT",
+    "historical_unresolved_requests": 4,
+    "originals_started_reported": false,
+    "pending_read_attempts": 0,
+    "prior_audit_events": 55,
+    "stored_day_kst": "2026-11-13",
+    "v2_bound": false
+  },
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "ACTUAL_WINDOWS_FRESH_COPY_DIAGNOSTIC_OUTPUT_REVIEW_KEEP_ORIGINALS_STOPPED",
+  "next_scope": "ACTUAL_WINDOWS_FRESH_COPY_CLOCK_REHEARSAL_OUTPUT_REVIEW_KEEP_ORIGINALS_STOPPED",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -42,7 +56,7 @@
   "physical_disconnect_operator_attested": true,
   "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
   "remaining_install_prerequisites": [
-    "ACTUAL_WINDOWS_FRESH_DISPOSABLE_COPY_INPUT_SCOPE_AND_DIAGNOSTIC_REVIEW",
+    "WINDOWS_FRESH_COPY_CLOCK_REHEARSAL_RECEIPT_REVIEW",
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
     "V2_AWARE_CLOCK_TRANSITION_IF_ALREADY_BOUND",
     "WINDOWS_UPDATED_CANDIDATES_AND_FULL_SNAPSHOT_COMPATIBILITY_REVIEW",
@@ -54,6 +68,8 @@
   "usb_reconnection_required_for_runner": false,
   "v1_recovery_v2_guard_implemented_not_installed_on_windows": true,
   "whole_financial_proof_verified": false,
-  "windows_fresh_copy_runner_execution_observed": false,
+  "windows_copy_clock_rehearsal_execution_observed": false,
+  "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
+  "windows_fresh_copy_runner_execution_observed": true,
   "windows_fresh_copy_runner_prepared_and_cloud_tested": true
 }

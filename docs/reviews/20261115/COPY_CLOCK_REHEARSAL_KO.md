@@ -18,4 +18,4 @@ commit 완료 후부터 다시 최소 70.001초 이상을 기다리고 실제 Li
 
 합성 PG/SQLite 검사에서는 기존 복구 기록을 포함한 감사 55→56건과 누적 비용 135 보존, V2/미완료 요청 거부, 틀린 지문 거부, 다른 scope의 변경 거부, 대기 중 계좌/시간 변경 탐지, 중단 뒤 재처리 차단을 확인했다. 별도 실제 Docker 절차에서는 새 복사본의 Unix socket 쓰기와 실제 70초 이상 대기, 읽기 전용 후검사 및 정상 정지를 확인했다. Docker fixture의 사전 감사 이력은 0건이며 0→1건을 검증하므로 실제 Windows 55건 실행 결과와 혼동하지 않는다. Windows ACL과 입력 경로 탐색은 Linux 테스트에서 대체했고 실제 Windows 시계 전환은 아직 수행하지 않았다.
 
-최종 ZIP 검증 기록은 COPY_CLOCK_VALIDATION.json에 남긴다. USB를 연결하지 않고 RUN_CHECK.cmd 성공 후 RUN_CLOCK_REHEARSAL.cmd를 한 번 실행하는 범위다. 설치 준비와 거래 승인은 계속 false다.
+관련 테스트 91개가 통과했다. 최종 ZIP의 수명 주기 검증은 실제 70초 이상 대기를 포함해 176.10초에 통과했다. 상세 범위와 중복 집계 설명은 COPY_CLOCK_VALIDATION.json에 남겼다. USB를 연결하지 않고 RUN_CHECK.cmd 성공 후 RUN_CLOCK_REHEARSAL.cmd를 한 번 실행하는 범위다. 설치 준비와 거래 승인은 계속 false다.

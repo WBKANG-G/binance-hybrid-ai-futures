@@ -1,0 +1,57 @@
+{
+  "actual_70_second_hold_tested": true,
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_clock_rehearsal_performed": false,
+  "archive_entries": 22,
+  "archive_sha256": "05ce4b9fd7246ba355f2865346c94847fd7f076d0b650008fb778903da4f144f",
+  "automatic_retry": false,
+  "clock_changes_only_on_fresh_copy": true,
+  "core_fixture_audit_after": 56,
+  "core_fixture_audit_before": 55,
+  "core_fixture_weight_preserved": 135,
+  "counts_overlap_explained": "58 unchanged recovery/diagnostic regressions + 10 final clock core cases + 22 sealed bundle/source-scope cases + 1 real Docker pipeline",
+  "date_client_kst": "2026-11-15",
+  "distinct_tests_passed": 91,
+  "docker_fixture_audit_after": 1,
+  "docker_fixture_audit_before": 0,
+  "execution_approved": false,
+  "financial_ledger_changed": false,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "next_action": "RUN_CHECK_THEN_ONE_FRESH_COPY_CLOCK_REHEARSAL_AND_REVIEW_OUTPUT",
+  "orders_enabled": false,
+  "originals_or_existing_copies_started_by_runner": false,
+  "period_adopted": false,
+  "policy": "WINDOWS_FRESH_COPY_V1_CLOCK_REHEARSAL_RELEASE_V1",
+  "prior_copy_receipt_sha256": "df50d9b96a9cc67b2d46110eeb75858c2ad6057eb95c796b31a881a6c2937365",
+  "prior_copy_source_reference": "dce468d351738b92ef4651a395b7b8f47265baad",
+  "runs": [
+    {
+      "passed": 79,
+      "scope": "CORE_RECOVERY_COPY_DIAGNOSTIC_AND_INITIAL_BUNDLE",
+      "seconds": 115.08
+    },
+    {
+      "passed": 23,
+      "scope": "FINAL_55_TO_56_CORE_AND_BUNDLE_WITH_HOLD_INTRUSION",
+      "seconds": 23.98
+    },
+    {
+      "passed": 22,
+      "scope": "SEALED_ZIP_AND_REUSED_ORIGINAL_SCOPE_REFUSALS",
+      "seconds": 12.54
+    },
+    {
+      "passed": 1,
+      "scope": "SEALED_ZIP_REAL_DOCKER_UNIX_SOCKET_WRITES_REAL_HOLD_AND_CLEAN_STOP",
+      "seconds": 176.1
+    }
+  ],
+  "sealed_zip_validation": "PASSED",
+  "source_reference": "4d1d90e8815e405d8f338a8e972ae1acff10b7e6",
+  "tests_skipped": 0,
+  "transfer_files": 19,
+  "usb_reconnection_required": false,
+  "windows_acl_and_input_discovery_mocked": true
+}

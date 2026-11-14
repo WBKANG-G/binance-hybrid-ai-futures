@@ -1,0 +1,28 @@
+{
+  "archive_sha256": "05ce4b9fd7246ba355f2865346c94847fd7f076d0b650008fb778903da4f144f",
+  "entries": {
+    "CLOCK_EXT.ps1": "9c0c5d2cfc26d13f0803ce98e22027388843c015ae027f7de8f92bcc050f1741",
+    "COMMON.ps1": "394fa03d3b2c51a7c68442cda8526483eb0e227f095a029eacabc3f74685687e",
+    "CONFIG.json": "56441567fb6759d15f6bb5d1736278410632bb135018527b1e0afdadb35d32e7",
+    "CONTEXT.ps1": "05ff4084d637dea17f132c8ced1ecd51c40d10f384c46dcfcc9a8484fd99393b",
+    "COPY_CORE.ps1": "18a5fcb02fe05ac6364ac25154b0dfdf613d3d6776d2c772b93140c7e5049fdc",
+    "COPY_EXT.ps1": "bd5b23884e5825ce8f670d058346894c105ddb93718c2ff78baad48db34e7553",
+    "README_KO.md": "4ac4397f3d1726a7c8b5e7743a53c577db63c3418ee7943708eeda65a3804977",
+    "RUN_CHECK.cmd": "fb9890cdef50c350433ba531e90ddb11f108114949fed146fd22ece60cf77c11",
+    "RUN_CLOCK_REHEARSAL.cmd": "cc0e21f452146f137b86e769a4168c478091f1ac860533a6b4c481a8b43c7bf3",
+    "RUN_COPY.ps1": "de9deb4e7b7b07a046b7a0fb1b0571ae376e8ba77c518a33949d4f37d4db6986",
+    "SOURCE_SCOPE.ps1": "3a32d199200b3fabf10b85da13c31b46756932ae4553101305c46f434ab5f87f",
+    "SUPPORT.ps1": "83d1fb3ef15c22cb34d95af4a44012fc910907c8ef444eece4be213e213dfd48",
+    "TRANSFER_MANIFEST.json": "bb123756a18f5feb189a838d1e7f68570eea86c0950d2f8fb9d0dfde683b9b0a",
+    "account_check.sql": "872406dff759394e35a6ada75b9d0031a16b65932497160df9e0f9e038d9f9f0",
+    "cold_archive.py": "7465b663a0572fb1a3b620e9cc48aaaedf09b295bd6e17b32d87e6932d72ddb8",
+    "copy_worker.py": "f2355df7e4d86ec8277f23f5a186cad25390c17abc1a6b51a1846db4765cb227",
+    "payload/packages/persistence/demo_read_recovery.py": "cc688c6f1c67a627ba4bdd557a52df4d2280ebf2ebf3019672aa434d7ebfb20f",
+    "payload/packages/persistence/demo_response_evidence.py": "19b72aace20ecd716162816828b93163fdefa51896a42dea1615e07e097a4e66",
+    "payload/services/execution/demo_copy_clock_rehearsal.py": "8eac0c9d2f9f055b4a2f167789eb961587e67ca8d2a307b36f0d10f06f54498d",
+    "payload/services/execution/demo_copy_transition_review.py": "27937cef1f9abb5cec632322af692ffaf1307a14995d8bf083cc53260ff1db46",
+    "payload/services/execution/demo_evidence_snapshot.py": "8b97a4c56215553dc6cebbb9e037310a56f88f6164f871f3efafcf256bd2e298",
+    "restore_worker.py": "90df55e53f440ee30deabd2b9fe64058701d0e0d447021fe9bdafced254f9f24"
+  },
+  "source_reference": "4d1d90e8815e405d8f338a8e972ae1acff10b7e6"
+}
