@@ -18,6 +18,7 @@ from scripts.build_demo_read_review_bundle import hashes
 from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE, PG_IMAGE, ready, sql
 from tests.unit.test_cold_backup_executor import PWSH, materialize, package
 from tests.unit.test_isolated_restore import materialize as restore_materialize
+from tests.unit.test_restore_scope_diagnostic import materialize as diagnostic_materialize
 from tests.unit.test_stopped_preservation import (
     materialize as preserve_materialize,
 )
@@ -361,6 +362,7 @@ function Find-RetainedBackup {{ return '{safe}' }}
 function New-PrivateBackupDirectory([string]$Token) {{ $null=[IO.Directory]::CreateDirectory('{safe_report}'); return '{safe_report}' }}
 function Assert-PrivateBackupDirectory([string]$Path) {{ if (@('{safe}','{safe_report}') -cnotcontains $Path) {{ throw 'COLD_BACKUP_ACL_INVALID' }} }}
 function Assert-PrivateBackupFiles {{ }}
+
 """
             )
             restore_files = {
@@ -375,6 +377,46 @@ function Assert-PrivateBackupFiles {{ }}
             restore_script.write_text(
                 f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(restore_root / 'RUN_RESTORE.ps1')}' -ManifestSHA256 '{hashlib.sha256(restore_manifest).hexdigest()}' -ExecuteRestore\nexit $LASTEXITCODE\n"
             )
+            diagnostic_root = tmp_path / "scope diagnostic package"
+            diagnostic_materialize(diagnostic_root)
+            (diagnostic_root / "CONFIG.json").write_text(json.dumps(restore_config))
+            (diagnostic_root / "RESTORE_CORE.ps1").write_bytes(restore_core.read_bytes())
+            diagnostic_files = {
+                p: (diagnostic_root / p).read_bytes()
+                for p in json.loads((diagnostic_root / "TRANSFER_MANIFEST.json").read_text())[
+                    "files"
+                ]
+            }
+            diagnostic_manifest = json.dumps(
+                dict(files=hashes(diagnostic_files)), sort_keys=True
+            ).encode()
+            (diagnostic_root / "TRANSFER_MANIFEST.json").write_bytes(diagnostic_manifest)
+            diagnostic_script = diagnostic_root / "test-diagnostic.ps1"
+            diagnostic_script.write_text(
+                f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(diagnostic_root / 'RUN_RESTORE.ps1')}' -ManifestSHA256 '{hashlib.sha256(diagnostic_manifest).hexdigest()}' -ExecuteRestore\nexit $LASTEXITCODE\n"
+            )
+            ids_before = docker("ps", "--all", "--quiet", "--no-trunc")
+            volumes_before = docker("volume", "ls", "--format", "{{.Name}}")
+            diagnostic = subprocess.run(
+                [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(diagnostic_script)],
+                capture_output=True,
+                text=True,
+                timeout=90,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                ),
+            )
+            assert diagnostic.returncode == 0 and not diagnostic.stderr, (
+                diagnostic.stdout + diagnostic.stderr
+            )
+            assert "RESTORE_CHECK_PASSED_NO_CLONE_NO_SOURCE_START_NO_ORDERS" in diagnostic.stdout
+            assert '"scope_probe":{"step":"COMPLETE"}' in diagnostic.stdout
+            assert docker("ps", "--all", "--quiet", "--no-trunc") == ids_before
+            assert docker("volume", "ls", "--format", "{{.Name}}") == volumes_before
+            assert not restore_output.exists()
             recovered = subprocess.run(
                 [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(restore_script)],
                 capture_output=True,
@@ -436,6 +478,8 @@ function Assert-PrivateBackupFiles {{ }}
                             actual_windows_touched=False,
                             windows_acl_and_backup_discovery_mocked=True,
                             real_launcher_and_docker=True,
+                            diagnostic_forced_check_only_with_execute_switch_verified=True,
+                            diagnostic_created_no_containers_volumes_or_report_directory=True,
                             legacy_argument_mode=True,
                             receipt_and_all_backup_hashes_verified_before_and_after=True,
                             originals_kept_stopped=True,

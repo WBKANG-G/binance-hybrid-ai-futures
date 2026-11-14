@@ -81,6 +81,9 @@ def test_package_pins_user_supplied_hashes_and_has_no_source_commands():
         ("helper-running", "RESTORE_PRESERVATION_HELPER_CHANGED"),
         ("external", "RESTORE_EXTERNAL_SOURCE_CONSUMER"),
         ("state-scope", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("mount-json-order", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("restart-json-order", "RESTORE_SOURCE_SCOPE_CHANGED"),
+        ("canonical-alias", "RESTORE_SOURCE_SCOPE_CHANGED"),
         ("no-optin", "RESTORE_EXPLICIT_MODE_REQUIRED"),
         ("both-modes", "RESTORE_EXPLICIT_MODE_REQUIRED"),
     ],
@@ -221,6 +224,16 @@ def test_check_refuses_mutation_before_creating_any_resources(tmp_path, case, re
         records.append(dict(records[2], id="3" * 64, labels={}))
     if case == "state-scope":
         records[0]["image"] = "sha256:" + "4" * 64
+    if case == "mount-json-order":
+        records[0]["mounts"] = [dict(reversed(list(runtime.items())))]
+    if case == "restart-json-order":
+        records[0]["restart"] = dict(MaximumRetryCount=0, Name="no")
+    if case == "canonical-alias":
+        state["canonical_images"][0] = "sha256:" + "5" * 64
+        (backup / "BACKUP_STATE.json").write_text(json.dumps(state))
+        receipt["state_sha256"] = digest("BACKUP_STATE.json")
+        (backup / "BACKUP_RECEIPT.json").write_text(json.dumps(receipt))
+        config["receipt_sha256"] = digest("BACKUP_RECEIPT.json")
     (tmp_path / "CONFIG.json").write_text(json.dumps(config))
     (tmp_path / "records.json").write_text(json.dumps(records))
     mode = {"no-optin": "", "both-modes": "-ExecuteRestore -CheckOnly"}.get(case, "-CheckOnly")
@@ -251,6 +264,13 @@ Invoke-IsolatedRestore -Root $PSScriptRoot """
         + """ | ForEach-Object {if ($_ -is [int]) {exit $_} else {Write-Output $_}}
 """
     )
+    if case == "canonical-alias":
+        harness.write_text(
+            harness.read_text().replace(
+                "{return $Arguments[-1]}",
+                "{ if ($Arguments[-1] -ceq ('sha256:'+('8'*64))) { return ('sha256:'+('5'*64)) }; return $Arguments[-1] }",
+            )
+        )
     result = subprocess.run(
         [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(harness)],
         capture_output=True,
@@ -275,6 +295,17 @@ Invoke-IsolatedRestore -Root $PSScriptRoot """
         )
     else:
         assert "RESTORE_CHECK_PASSED_NO_CLONE_NO_SOURCE_START_NO_ORDERS" in result.stdout
+    if case in {"mount-json-order", "restart-json-order", "canonical-alias"}:
+        probe = json.loads(result.stdout.splitlines()[-1])["scope_probe"]
+        if case == "canonical-alias":
+            assert probe["step"] == "PRIMARY_BINDINGS"
+            assert probe["api_image_reference_match"] is False
+            assert probe["api_image_resolves_to_canonical"] is True
+        else:
+            assert probe["step"] == "SAVED_SNAPSHOT" and probe["snapshot_index"] == 0
+            kind = "mounts" if case == "mount-json-order" else "restart"
+            assert probe[kind + "_json_match"] is False and probe[kind + "_values_match"] is True
+        assert "/vol/" not in result.stdout and "sha256:" not in result.stdout
 
 
 @pytest.mark.parametrize(

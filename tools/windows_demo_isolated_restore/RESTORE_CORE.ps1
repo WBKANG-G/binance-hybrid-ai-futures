@@ -1,3 +1,46 @@
+function Restore-SnapshotComparableJson([object]$Item) {
+    # Mount list order is not a Docker identity. Preserve EVERY mount field/value.
+    $record=[ordered]@{}
+    foreach ($property in $Item.PSObject.Properties) {
+        if ($property.Name -ceq 'mounts') { $record[$property.Name]=@($Item.mounts | Sort-Object -Property Destination) }
+        else { $record[$property.Name]=$property.Value }
+    }
+    return ([pscustomobject]$record | ConvertTo-Json -Depth 12 -Compress)
+}
+function Assert-RestoreSourceSnapshot([object[]]$Original,[string[]]$Helpers,[bool]$Frozen=$false) {
+    if ($Frozen) { throw 'RESTORE_SNAPSHOT_MODE_INVALID' }
+    $current=@(Container-Ids)
+    $expected=@(@($Original | ForEach-Object {$_.id})+$Helpers | Sort-Object)
+    if (($current -join '|') -cne ($expected -join '|')) { $script:RestoreScopeProbe=[pscustomobject]@{step='FRESH_CONTAINER_SET';expected_count=$expected.Count;actual_count=$current.Count}; throw 'COLD_CONTAINER_SET_CHANGED' }
+    foreach ($old in $Original) {
+        $fresh=Read-Container $old.id
+        if ($fresh.running -ne $old.running -or $fresh.restarting -or $fresh.paused -or $fresh.dead) { throw 'COLD_SOURCE_RUNNING_STATE_CHANGED' }
+        if ((Restore-SnapshotComparableJson $fresh) -cne (Restore-SnapshotComparableJson $old)) {
+            $fields=@()
+            foreach ($field in @('id','name','image','labels','mounts','running','restarting','paused','dead','restart','networks')) {
+                if ($null -eq $old.PSObject.Properties[$field] -or $null -eq $fresh.PSObject.Properties[$field]) { continue }
+                $a=$old.$field; $b=$fresh.$field
+                if ($field -ceq 'mounts') { $a=@($a | Sort-Object -Property Destination); $b=@($b | Sort-Object -Property Destination) }
+                if ((ConvertTo-Json -InputObject $a -Depth 12 -Compress) -cne (ConvertTo-Json -InputObject $b -Depth 12 -Compress)) { $fields+=,$field }
+            }
+            $script:RestoreScopeProbe=[pscustomobject]@{step='FRESH_SNAPSHOT_MISMATCH';fields=$fields}
+            throw 'COLD_SOURCE_CONFIGURATION_CHANGED'
+        }
+    }
+}
+function Restore-MountDiagnosticValues([object[]]$Mounts) {
+    # Normalize known metadata values ONLY for diagnosis; no authorization uses this.
+    $values=@()
+    foreach ($mount in @($Mounts | Sort-Object -Property Destination)) {
+        $record=[ordered]@{}
+        foreach ($field in @('Type','Source','Destination','RW','Name','Driver','Mode','Propagation')) {
+            $record[$field]=$null
+            if ($null -ne $mount.PSObject.Properties[$field]) { $record[$field]=$mount.$field }
+        }
+        $values+=,[pscustomobject]$record
+    }
+    return (ConvertTo-Json -InputObject $values -Depth 8 -Compress)
+}
 function Assert-RestoredWorkerReport([object]$restored,[object]$receipt) {
     if ((@($restored.PSObject.Properties.Name | Sort-Object) -join '|') -cne (@(@('status','file_counts','pg_uid','pg_gid','clone_pid_removed','source_changed') | Sort-Object) -join '|') -or $restored.status -cne 'CLONE_BYTES_AND_METADATA_RESTORED' -or $restored.source_changed -isnot [bool] -or $restored.source_changed -or $restored.clone_pid_removed -isnot [bool]) { throw 'RESTORE_WORKER_OUTPUT_INVALID' }
     foreach ($name in @('pg_uid','pg_gid')) { $minimum=0; if ($name -ceq 'pg_uid') { $minimum=1 }; if (($restored.$name -isnot [int] -and $restored.$name -isnot [long]) -or $restored.$name -lt $minimum -or $restored.$name -gt 65535) { throw 'RESTORE_WORKER_OUTPUT_INVALID' } }
@@ -46,6 +89,7 @@ function Assert-InputHashes([string]$Directory,[object]$Config,[object]$Receipt)
     }
 }
 function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
+    $script:RestoreScopeProbe=[pscustomobject]@{step='STATE_HEADER'}
     if ($State.protocol -cne 'STOPPED_UNCLEAN_PRESERVATION_V1' -or $State.source_reference -cne $Config.preservation_source_reference -or $State.pgdata_relative -cne '18/docker' -or $State.key_session_excluded -isnot [bool] -or -not $State.key_session_excluded -or $State.automatic_resume_authorized -isnot [bool] -or $State.automatic_resume_authorized -or @($State.canonical_images).Count -ne 2) { throw 'RESTORE_STATE_INVALID' }
     foreach ($name in @($State.database_volume,$State.runtime_volume,$Receipt.output_volume)) { if ($name -isnot [string] -or $name -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$') { throw 'RESTORE_STATE_INVALID' } }
     if ($State.database_volume -ceq $State.runtime_volume -or @($State.database_volume,$State.runtime_volume) -ccontains $Receipt.output_volume) { throw 'RESTORE_STATE_INVALID' }
@@ -53,33 +97,64 @@ function Read-RestoreSources([object]$Config,[object]$Receipt,[object]$State) {
     if (@($Receipt.helper_container_ids).Count -ne 1 -or $Receipt.helper_container_ids[0] -cnotmatch '^[0-9a-f]{64}$') { throw 'RESTORE_STATE_INVALID' }
     $items=@(@(Container-Ids) | ForEach-Object {Read-Container $_})
     $project=@($items | Where-Object {(Project $_) -ceq 'hybrid-windows'})
+    $script:RestoreScopeProbe=[pscustomobject]@{step='CONTAINER_COUNTS';project_count=$project.Count;saved_count=@($State.source_snapshots).Count}
     if ($project.Count -ne 7 -or @($State.source_snapshots).Count -ne 6) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     foreach ($role in @('api','db','web','alerts','key-session')) {
         $expected=1; if ($role -ceq 'api') { $expected=3 }
-        if (@($project | Where-Object {(Service $_) -ceq $role}).Count -ne $expected) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
+        $actual=@($project | Where-Object {(Service $_) -ceq $role}).Count
+        $script:RestoreScopeProbe=[pscustomobject]@{step='ROLE_COUNT';role=$role;expected=$expected;actual=$actual}
+        if ($actual -ne $expected) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     }
+    $script:RestoreScopeProbe=[pscustomobject]@{step='STOPPED_STATE'}
     foreach ($item in $project) {
         if ($item.running -or $item.paused -or $item.dead -or $item.restarting -or $item.restart.Name -cne 'no' -or $item.restart.MaximumRetryCount -ne 0) { throw 'RESTORE_ORIGINAL_NOT_STOPPED' }
     }
     $api=@($project | Where-Object {$_.id -ceq $Config.api_container_id -and (Service $_) -ceq 'api' -and $_.name -ceq '/hybrid-windows-api-1'})
     $db=@($project | Where-Object {$_.id -ceq $Config.database_container_id -and (Service $_) -ceq 'db'})
+    $script:RestoreScopeProbe=[pscustomobject]@{step='PRIMARY_SELECTION';api_matches=$api.Count;database_matches=$db.Count}
     if ($api.Count -ne 1 -or $db.Count -ne 1) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     $database=Volume-Mount $db[0] '/var/lib/postgresql'; $runtime=Volume-Mount $api[0] '/app/demo-export-state'
+    $script:RestoreScopeProbe=[pscustomobject]@{step='PRIMARY_BINDINGS';database_volume_match=($database.Name -ceq $State.database_volume);runtime_volume_match=($runtime.Name -ceq $State.runtime_volume);api_image_reference_match=($api[0].image -ceq $State.canonical_images[0]);database_image_reference_match=($db[0].image -ceq $State.canonical_images[1]);api_image_resolves_to_canonical=$null;database_image_resolves_to_canonical=$null}
+    # Diagnostic resolution does not change the existing raw-reference guard below.
+    foreach ($spec in @(@($api[0].image,$State.canonical_images[0],'api_image_resolves_to_canonical'),@($db[0].image,$State.canonical_images[1],'database_image_resolves_to_canonical'))) {
+        try {
+            $resolved=@(Backup-Docker @('image','inspect','--format','{{.Id}}',$spec[0]) 1)
+            if ($resolved.Count -eq 1 -and $resolved[0] -cmatch '^sha256:[0-9a-f]{64}$') { $script:RestoreScopeProbe.($spec[2])=($resolved[0] -ceq $spec[1]) }
+        } catch { }
+    }
     if ($database.Name -cne $State.database_volume -or $runtime.Name -cne $State.runtime_volume -or $api[0].image -cne $State.canonical_images[0] -or $db[0].image -cne $State.canonical_images[1]) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
+    $snapshotIndex=-1
     foreach ($saved in $State.source_snapshots) {
+        $snapshotIndex++
         $now=@($project | Where-Object {$_.id -ceq $saved.id -and (Service $_) -cne 'key-session'})
+        $safeRole='OTHER'
+        if (@('api','db','alerts','web') -ccontains $saved.service) { $safeRole=$saved.service }
+        $script:RestoreScopeProbe=[pscustomobject]@{step='SAVED_SNAPSHOT';snapshot_index=$snapshotIndex;role=$safeRole;container_matches=$now.Count;image_match=$null;service_match=$null;restart_json_match=$null;restart_values_match=$null;mounts_json_match=$null;mounts_values_match=$null}
+        if ($now.Count -eq 1) {
+            $script:RestoreScopeProbe.image_match=($now[0].image -ceq $saved.image)
+            $script:RestoreScopeProbe.service_match=((Service $now[0]) -ceq $saved.service)
+            $script:RestoreScopeProbe.restart_json_match=(($now[0].restart | ConvertTo-Json -Compress) -ceq ($saved.restart | ConvertTo-Json -Compress))
+            $script:RestoreScopeProbe.restart_values_match=($now[0].restart.Name -ceq $saved.restart.Name -and $now[0].restart.MaximumRetryCount -eq $saved.restart.MaximumRetryCount)
+            $currentMounts=@($now[0].mounts | Where-Object {$_.Destination -cne '/run/demo-keys'})
+            $script:RestoreScopeProbe.mounts_json_match=(($currentMounts | ConvertTo-Json -Depth 8 -Compress) -ceq (@($saved.mounts) | ConvertTo-Json -Depth 8 -Compress))
+            $script:RestoreScopeProbe.mounts_values_match=((Restore-MountDiagnosticValues $currentMounts) -ceq (Restore-MountDiagnosticValues @($saved.mounts)))
+        }
         if ($now.Count -ne 1 -or $now[0].image -cne $saved.image -or (Service $now[0]) -cne $saved.service -or ($now[0].restart | ConvertTo-Json -Compress) -cne ($saved.restart | ConvertTo-Json -Compress) -or (@($now[0].mounts | Where-Object {$_.Destination -cne '/run/demo-keys'}) | ConvertTo-Json -Depth 8 -Compress) -cne (@($saved.mounts) | ConvertTo-Json -Depth 8 -Compress)) { throw 'RESTORE_SOURCE_SCOPE_CHANGED' }
     }
+    $script:RestoreScopeProbe=[pscustomobject]@{step='PRESERVATION_HELPER'}
     $oldWorker=@($items | Where-Object {$_.id -ceq $Receipt.helper_container_ids[0]})
     if ($oldWorker.Count -ne 1 -or $oldWorker[0].running -or $oldWorker[0].image -cne $State.canonical_images[0] -or @($oldWorker[0].mounts).Count -ne 3) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
     foreach ($spec in @(@('/source/database',$State.database_volume,$false),@('/source/runtime',$State.runtime_volume,$false),@('/output',$Receipt.output_volume,$true))) {
         $mount=@($oldWorker[0].mounts | Where-Object {$_.Destination -ceq $spec[0]})
         if ($mount.Count -ne 1 -or $mount[0].Type -cne 'volume' -or $mount[0].Name -cne $spec[1] -or $mount[0].RW -ne $spec[2]) { throw 'RESTORE_PRESERVATION_HELPER_CHANGED' }
     }
+    $script:RestoreScopeProbe=[pscustomobject]@{step='EXTERNAL_CONSUMERS'}
     foreach ($item in $items) {
         if ((Project $item) -cne 'hybrid-windows' -and $item.id -cne $Receipt.helper_container_ids[0] -and ((Uses-Source $item $database) -or (Uses-Source $item $runtime))) { throw 'RESTORE_EXTERNAL_SOURCE_CONSUMER' }
     }
-    Assert-SourceSnapshot $items @() $false
+    $script:RestoreScopeProbe=[pscustomobject]@{step='FINAL_SNAPSHOT'}
+    Assert-RestoreSourceSnapshot $items @() $false
+    $script:RestoreScopeProbe=[pscustomobject]@{step='COMPLETE'}
     return ,$items
 }
 function Assert-NewClone([string]$Id,[string]$Volume,[object[]]$Original) {
@@ -104,6 +179,7 @@ function Stop-OwnedClone([string]$Id,[string]$Volume,[object[]]$Original) {
     throw 'RESTORE_CLONE_STOP_TIMEOUT'
 }
 function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$CheckOnly) {
+    $script:RestoreScopeProbe=$null
     $stage='OPT_IN'; $handles=@(); $helpers=@(); $volumes=@(); $clone=$null; $original=@(); $directory=$null; $mutex=$null; $locked=$false; $cloneStopped=$false
     try {
         if (($ExecuteRestore -and $CheckOnly) -or (-not $ExecuteRestore -and -not $CheckOnly)) { throw 'RESTORE_EXPLICIT_MODE_REQUIRED' }
@@ -126,7 +202,7 @@ function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$C
             if ($image.Count -ne 1 -or $image[0] -cne $id) { throw 'RESTORE_CACHED_IMAGE_UNAVAILABLE' }
         }
         if ($CheckOnly) {
-            [pscustomobject]@{isolated_restore='INPUT_HASHES_AND_STOPPED_SCOPE_VERIFIED';clone_created=$false;restore_tested=$false;originals_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
+            [pscustomobject]@{isolated_restore='INPUT_HASHES_AND_STOPPED_SCOPE_VERIFIED';scope_probe=$script:RestoreScopeProbe;clone_created=$false;restore_tested=$false;originals_started=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
             Write-Output 'RESTORE_CHECK_PASSED_NO_CLONE_NO_SOURCE_START_NO_ORDERS'
             return 0
         }
@@ -149,7 +225,7 @@ function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$C
         $helpers+=,$worker[0]
         Write-BackupJson (Join-Path $directory 'RESTORE_RESOURCES.json') @{backup_receipt_sha256=$config.receipt_sha256;manifest_sha256=$config.manifest_sha256;owned_helper_ids=$helpers;clone_volumes=$volumes;automatic_resume=$false}
         Assert-PrivateBackupFiles $directory
-        Assert-SourceSnapshot $original $helpers $false
+        Assert-RestoreSourceSnapshot $original $helpers $false
         $stage='RESTORE_BYTES_AND_METADATA_TO_COPY'; Write-Output ('RESTORE_STAGE='+$stage)
         $archive=[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $Root 'cold_archive.py')))
         $driver=[Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $Root 'restore_worker.py')))
@@ -159,7 +235,7 @@ function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$C
         if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 1 -or ([string]$lines[0]).Length -gt 2048) { throw 'RESTORE_WORKER_BLOCKED' }
         $restored=$lines[0] | ConvertFrom-Json
         Assert-RestoredWorkerReport $restored $receipt
-        Assert-SourceSnapshot $original $helpers $false
+        Assert-RestoreSourceSnapshot $original $helpers $false
         $stage='START_NETWORKLESS_COPY_ONLY'; Write-Output ('RESTORE_STAGE='+$stage)
         $arguments=@('create','--pull=never','--network','none','--restart','no','--read-only','--memory','1g','--pids-limit','128','--cap-drop','ALL','--security-opt','no-new-privileges','--tmpfs','/tmp:rw,nosuid,nodev,noexec,size=64m,mode=1777','--user',([string]$restored.pg_uid+':'+[string]$restored.pg_gid),'--mount',('type=volume,source='+$volumes[0]+',target=/var/lib/postgresql,volume-nocopy'),'--entrypoint','postgres',$state.canonical_images[1],'-D','/var/lib/postgresql/18/docker')
         foreach ($setting in @('listen_addresses=','unix_socket_directories=/tmp','default_transaction_read_only=on','autovacuum=off','ssl=off','archive_mode=off','shared_preload_libraries=','session_preload_libraries=','local_preload_libraries=','max_worker_processes=0','primary_conninfo=','primary_slot_name=','restore_command=','archive_command=','archive_cleanup_command=','recovery_end_command=','logging_collector=off','log_destination=stderr')) { $arguments+=@('-c',$setting) }
@@ -193,7 +269,7 @@ function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$C
         Stop-OwnedClone $clone $volumes[0] $original; $cloneStopped=$true
         $exit=@(Backup-Docker @('inspect','--format','{{.State.ExitCode}} {{.State.OOMKilled}}',$clone) 1)
         if ($exit.Count -ne 1 -or $exit[0] -cne '0 false') { throw 'RESTORE_CLONE_NOT_CLEANLY_STOPPED' }
-        Assert-SourceSnapshot $original $helpers $false
+        Assert-RestoreSourceSnapshot $original $helpers $false
         Assert-InputHashes $backup $config $receipt
         $result=[ordered]@{isolated_restore='COPY_RECOVERED_AND_ACCOUNT_READS_VERIFIED';source_reference=$config.source_reference;backup_manifest_sha256=$config.manifest_sha256;backup_receipt_sha256=$config.receipt_sha256;original_services_started=$false;original_volume_mounted_in_restore_helpers=$false;input_hashes_reverified=$true;archive_bytes_and_metadata_verified_before_clone_recovery=$true;clone_pid_removed=$restored.clone_pid_removed;clone_container_id=$clone;retained_helper_ids=$helpers;retained_clone_volumes=$volumes;clone_network='none';clone_stopped=$true;clone_clean_exit_verified=$true;account=$account;financial_write_attempted=$false;full_financial_proof_verified=$false;offline_handoff_performed=$false;installation_ready=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false}
         Write-BackupJson (Join-Path $directory 'ISOLATED_RESTORE_RECEIPT.json') $result
@@ -207,7 +283,7 @@ function Invoke-IsolatedRestore([string]$Root,[switch]$ExecuteRestore,[switch]$C
         if ($allowed -ccontains $_.Exception.Message) { $reason=$_.Exception.Message }
         if ($null -ne $clone -and -not $cloneStopped -and $volumes.Count -eq 2) { try { Stop-OwnedClone $clone $volumes[0] $original; $cloneStopped=$true } catch {} }
         if ($null -ne $directory) { try { Write-BackupJson (Join-Path $directory 'FAILURE.json') @{stage=$stage;failure_category=$reason;retained_helper_ids=$helpers;retained_clone_volumes=$volumes;clone_stopped=$cloneStopped;automatic_retry=$false} } catch {} }
-        [pscustomobject]@{isolated_restore='BLOCKED_KEEP_ORIGINALS_STOPPED_NO_RETRY';stage=$stage;failure_category=$reason;retained_helper_ids=$helpers;retained_clone_volumes=$volumes;clone_stopped=$cloneStopped;originals_started=$false;restore_tested=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Depth 5 -Compress | Write-Output
+        [pscustomobject]@{isolated_restore='BLOCKED_KEEP_ORIGINALS_STOPPED_NO_RETRY';stage=$stage;failure_category=$reason;scope_probe=$script:RestoreScopeProbe;retained_helper_ids=$helpers;retained_clone_volumes=$volumes;clone_stopped=$cloneStopped;originals_started=$false;restore_tested=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Depth 5 -Compress | Write-Output
         return 2
     } finally {
         foreach ($handle in $handles) { $handle.Dispose() }
