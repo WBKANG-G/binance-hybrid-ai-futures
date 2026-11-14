@@ -1,0 +1,39 @@
+{
+  "artifact": "windows-demo-offline-handoff-20261114.zip",
+  "artifact_bytes": 65079,
+  "artifact_sha256": "a21947c9f8fdc1f624ea64c3668fd1b3994fe325f30f379cf3dd4e220612ed01",
+  "checks": [
+    "Exact released ZIP exercised by native PowerShell Legacy launcher",
+    "Pinned user backup/manifest and successful isolated restore receipt hashes",
+    "Read-only Docker metadata verifies six source snapshots, key-session and three retained helpers all stopped",
+    "D-only external USB, NTFS, non-boot/non-system and writable media policy",
+    "Space limit and media identity swap detection",
+    "No overwrites: FileMode.CreateNew; partial failures retained; Flush(true) and final source/destination hashes",
+    "Fresh synthetic PG crash, preserve, isolated recover, real stopped-scope queries and file copy end-to-end",
+    "All ten payload files plus reference/receipt/portable-verification command preserved",
+    "Portable verifier tested with clean/corrupt/tampered/traversal cases without Docker or writes",
+    "Ruff: three changed Python files; strict mypy: builder; git diff --check"
+  ],
+  "limitations": [
+    "Actual Windows D drive type, filesystem and space not yet observed",
+    "Windows storage discovery and NTFS ACL mocked only in Linux integration test copies",
+    "No actual Windows backup data or exchange credentials uploaded",
+    "Physical safe eject, disconnect, separate custody and separate-device verification not performed",
+    "No installation or trading activation"
+  ],
+  "manifest_source_files": 10,
+  "seconds": 110.58,
+  "source_reference": "7c0eedf393e0a647182ade1cf46207a6fb464032",
+  "source_test_correction": "PowerShell flattens a single nested mount specification; unary comma retains one-item clone mount list, verified by positive and negative scope tests",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_offline_handoff.py",
+    "tests/unit/test_isolated_restore.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 113,
+  "tests_skipped": 0,
+  "zip_entries": 13
+}

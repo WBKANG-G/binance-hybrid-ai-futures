@@ -1,0 +1,15 @@
+{
+  "actual_windows_touched": false,
+  "all_ten_files_copied_and_hashes_match": true,
+  "live_trading_enabled": false,
+  "native_legacy_launcher_used": true,
+  "orders_enabled": false,
+  "originals_and_copy_kept_stopped": true,
+  "physical_disconnect_verified": false,
+  "portable_verifier_passed_without_docker": true,
+  "real_docker_metadata_stopped_scope_check": true,
+  "scope": "FRESH_SYNTHETIC_PG_BACKUP_AND_RESTORE_NOT_ACTUAL_WINDOWS",
+  "source_and_recovery_receipts_bound": true,
+  "source_files_unchanged": true,
+  "windows_media_discovery_and_acl_mocked": true
+}
