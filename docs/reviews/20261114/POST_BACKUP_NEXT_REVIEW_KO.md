@@ -11,3 +11,5 @@
 통과 이후에도 실제 설치는 준비되지 않았다. 명시적 GET 부트스트랩, 재시작 및 시계 변경 정책, 새 테이블/함수/트리거까지 포함한 스냅샷, 기록 전후 실패 경계 검토가 필요하다. 합성 wire/checkpoint 모듈과 기존 demo.py 변경은 실제 Windows GET 설치 대상에서 계속 제외한다. 원본 writer 자동 재개, 기록 소급 채우기, 과거 요청 재실행/보관/정리는 허용하지 않는다.
 
 2026-11-14 후속 기록: 사용자의 Windows 화면에서 위 2개 후보 검토 통과를 확인했다. 이어 명시적 GET 연결과 재시작·시계 변경 시 차단 정책 후보를 구현하고 개발 환경 테스트 95개를 통과했다. 상세 결과와 남은 설치 조건은 `GET_BOOTSTRAP_AND_CLOCK_POLICY_KO.md`, `GET_BOOTSTRAP_VALIDATION.json`에 기록했다. 앞의 2개 후보 Windows 결과는 수정된 후보 3개의 Windows 실행을 증명하지 않는다.
+
+추가 후속 기록: V2 전체 스냅샷과 쓰기 경계 검토를 개발 환경에서 완료했다. 현재 스키마의 테이블·함수·트리거·규칙을 포함한 지문, 적용 전후 기존 기록 보존, 파일/DB 실패 뒤 자동 재시도 차단을 확인했다. 결과는 `GET_FULL_SNAPSHOT_BOUNDARIES_KO.md`와 `GET_FULL_SNAPSHOT_VALIDATION.json`에 기록했다. Windows 설치 준비는 여전히 false이며 다음 범위는 복사본 전용 날짜·부팅 변경 처리 설계다.

@@ -30,6 +30,7 @@ from sqlalchemy import (
     String,
     Table,
     insert,
+    inspect,
     select,
     text,
 )
@@ -277,6 +278,58 @@ class ResponseEvidenceStore:
         )
 
     def _schema(self, c: Connection) -> None:
+        inspector = inspect(c)
+        schema = c.execute(text("SELECT current_schema()")).scalar_one()
+        for table in (bindings, events):
+            columns = inspector.get_columns(table.name)
+            require(
+                [
+                    (
+                        x["name"],
+                        str(x["type"]),
+                        x["nullable"],
+                        x.get("default"),
+                        x.get("identity"),
+                        x.get("computed"),
+                    )
+                    for x in columns
+                ]
+                == [
+                    (x.name, x.type.compile(dialect=c.dialect), x.nullable, None, None, None)
+                    for x in table.columns
+                ],
+                "RESPONSE_EVIDENCE_TABLE_SCHEMA_INVALID",
+            )
+            require(
+                inspector.get_pk_constraint(table.name)["constrained_columns"]
+                == [x.name for x in table.primary_key.columns]
+                and not inspector.get_check_constraints(table.name)
+                and not inspector.get_unique_constraints(table.name)
+                and not inspector.get_indexes(table.name),
+                "RESPONSE_EVIDENCE_TABLE_CONSTRAINTS_INVALID",
+            )
+            foreign = inspector.get_foreign_keys(table.name)
+            expected = {
+                (
+                    tuple(x.parent.name for x in fk.elements),
+                    tuple(x.column.name for x in fk.elements),
+                    fk.referred_table.name,
+                )
+                for fk in table.foreign_key_constraints
+            }
+            actual = {
+                (tuple(x["constrained_columns"]), tuple(x["referred_columns"]), x["referred_table"])
+                for x in foreign
+            }
+            require(
+                actual == expected
+                and len(foreign) == len(expected)
+                and all(
+                    x.get("referred_schema") in (None, schema) and not x.get("options")
+                    for x in foreign
+                ),
+                "RESPONSE_EVIDENCE_TABLE_FOREIGN_KEYS_INVALID",
+            )
         rows = c.execute(
             text("""SELECT r.relname,t.tgname,t.tgtype,t.tgenabled,p.prosrc,p.prosecdef
          FROM pg_trigger t JOIN pg_class r ON r.oid=t.tgrelid JOIN pg_namespace n ON n.oid=r.relnamespace

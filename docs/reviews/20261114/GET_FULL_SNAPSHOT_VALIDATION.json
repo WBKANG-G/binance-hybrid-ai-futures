@@ -1,0 +1,53 @@
+{
+  "policy": "FULL_V2_SNAPSHOT_AND_WRITE_BOUNDARIES_REVIEW_V1",
+  "date_client_kst": "2026-11-14",
+  "environment": "CLOUD_LINUX_REAL_POSTGRESQL_SQLITE_PRIVATE_FILES_SYNTHETIC_RESPONSES",
+  "distinct_relevant_test_cases_passed": 112,
+  "runs": [
+    {
+      "scope": "EIGHT_RELEVANT_FILES_BEFORE_FINAL_SNAPSHOT_RULE_AND_IMAGE_ADDITIONS",
+      "passed": 108,
+      "skipped": 0,
+      "seconds": 64.70,
+      "unchanged_regression_cases_retained_in_final_total": 75
+    },
+    {
+      "command": "TEST_DATABASE_URL=<LOCAL_FIXTURE> pytest -q tests/integration/test_evidence_full_snapshot.py tests/integration/test_response_evidence_write_boundaries.py",
+      "passed": 35,
+      "skipped": 0,
+      "seconds": 20.12,
+      "scope": "FINAL_SNAPSHOT_AND_WRITE_BOUNDARY_CODE"
+    },
+    {
+      "command": "pytest -q tests/unit/test_response_bootstrap_image.py",
+      "passed": 2,
+      "skipped": 0,
+      "seconds": 9.70,
+      "scope": "THREE_AND_FOUR_CANDIDATE_MEMORY_IMPORTS_ON_CACHED_89_FILE_API_BASE"
+    }
+  ],
+  "snapshot_protocol": "FULL_SCHEMA_GET_EVIDENCE_REVIEW_SNAPSHOT_V1",
+  "postgres_snapshot_read_only": true,
+  "catalog_includes_v2_tables_functions_triggers_and_rules": true,
+  "prior_catalog_objects_and_all_prior_table_contents_preserved_on_setup": true,
+  "write_zero_fsync_and_after_fsync_failures_checked_for_reserve_and_finish": true,
+  "automatic_retry_observed": false,
+  "partial_witness_auto_repaired": false,
+  "raw_row_body_or_function_definition_returned": false,
+  "snapshot_is_recoverable_backup": false,
+  "snapshot_cross_store_atomic": false,
+  "snapshot_proves_writer_quiescence": false,
+  "separate_pc_reverification_performed": false,
+  "windows_new_candidate_execution_performed": false,
+  "windows_candidate_installed": false,
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "lint_passed": true,
+  "changed_source_mypy_passed": true,
+  "test_database_stopped_after_checks": true,
+  "installation_ready": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "next_scope": "COPY_ONLY_CLOCK_AND_PERIOD_TRANSITION_DESIGN_KEEP_ORIGINALS_STOPPED"
+}

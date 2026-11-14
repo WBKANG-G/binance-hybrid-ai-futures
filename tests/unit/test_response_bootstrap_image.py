@@ -5,12 +5,15 @@ import hashlib
 import json
 import subprocess
 
+import pytest
+
 from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE
 from tests.unit.test_cold_backup_executor import ROOT
 from tests.unit.test_response_candidate_image_review import package
 
 
-def test_bootstrap_import_and_explicit_guard_on_networkless_base_image():
+@pytest.mark.parametrize("include_snapshot", [False, True])
+def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(include_snapshot):
     files = package()
     config = json.loads(files["CONFIG.json"])
     config = {k: config[k] for k in ("baseline_files", "candidate_files")}
@@ -19,12 +22,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image():
     bodies = {p: files["payload/" + p] for p in config["candidate_files"]}
     bodies[path] = (ROOT / path).read_bytes()
     config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+    extras = [(module, path)]
+    if include_snapshot:
+        path = "services/execution/demo_evidence_snapshot.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_evidence_snapshot", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
-    worker = worker.replace(
-        marker, "\nMODULES = MODULES + (" + repr((module, path)) + ",)\n" + marker
-    )
+    worker = worker.replace(marker, "\nMODULES = MODULES + " + repr(tuple(extras)) + "\n" + marker)
     marker = "            checks = (\n"
     assert worker.count(marker) == 1
     worker = worker.replace(
@@ -75,7 +82,10 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image():
     assert result.returncode == 0 and not result.stderr, result.stdout + result.stderr
     report = json.loads(result.stdout)
     assert report["baseline_files_verified"] == 89
-    assert report["candidate_files_verified"] == 3 and report["default_denials_verified"] == 6
+    assert (
+        report["candidate_files_verified"] == 3 + include_snapshot
+        and report["default_denials_verified"] == 6
+    )
     assert (
         report["database_attempts"]
         == report["network_attempts"]
