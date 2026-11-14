@@ -1,15 +1,19 @@
-# Windows 콜드 백업 실행 — 2026-11-14 KST
+# Windows 콜드 백업 v2 — 2026-11-14 KST
 
-**이 명령은 현재 API를 정상 정지한 뒤 PostgreSQL DB를 정상 종료합니다. 완료·실패 후 원본 서비스를 자동으로 다시 시작하지 않습니다.** 키 세션 서비스는 유지합니다. 실행 중 앱 조회도 중단됩니다.
+먼저 **조회 전용 `RUN_CHECK.cmd`**로 내부 계획 결과를 확인합니다. 이 명령은 서비스 정지·이미지 저장·백업 폴더 생성·백업 생성을 하지 않습니다. 계정 pause/lease 판독을 위한 READ ONLY SQL은 수행합니다.
+
+`RUN_BACKUP.cmd`는 실제 실행 명령입니다. API를 정상 정지한 뒤 PostgreSQL DB를 정상 종료하고 백업합니다. 완료·실패 후 원본 서비스를 자동 재시작하지 않습니다. 키 세션은 유지하며, 실제 백업 실행 중 앱 조회도 중단됩니다.
 
 바탕화면에 압축을 풀고 CMD에서 실행하세요. 키 세션 등록은 필요 없습니다.
 
 ```cmd
-cd /d "%USERPROFILE%\Desktop\windows-demo-cold-backup-20261114"
-RUN_BACKUP.cmd
+cd /d "%USERPROFILE%\Desktop\windows-demo-cold-backup-v2-20261114"
+RUN_CHECK.cmd
 ```
 
-성공 문구: `COLD_BACKUP_SAVED_LOCAL_VERIFIED_KEEP_STOPPED_NO_ORDERS`
+조회 성공 문구: `COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS`
+
+실제 백업 성공 문구: `COLD_BACKUP_SAVED_LOCAL_VERIFIED_KEEP_STOPPED_NO_ORDERS`
 
 콘솔 JSON과 종료 문구만 공유하세요. 실제 백업 tar·manifest·상태 파일·영수증은 채팅/GitHub에 올리지 마세요. 실패하면 자동 재실행하거나 원본 컨테이너를 임의로 시작하지 말고 결과를 검토하세요. 부분 파일과 Docker 백업 볼륨·helper는 보존합니다.
 
@@ -42,3 +46,7 @@ archive는 소스 링크·특수 파일·파일 hard link·ACL/xattr 등 지원�
 호스트 디스크와 Docker 출력 볼륨의 여유 공간을 검사하지만 Docker/Windows의 전체 디스크 내구성·특권 사용자의 동시 조작까지 보장하지 않습니다. 확인하는 quiescence는 Docker 컨테이너/볼륨 소비자의 관측 범위입니다. source DB 정상 종료 과정의 WAL/체크포인트 쓰기는 발생하며, 실행기가 주문·재무 기간·잔고 기준을 변경하는 SQL을 수행하지는 않습니다.
 
 성공은 로컬 백업 생성·해시 검증까지입니다. 실제 Windows에서의 격리 복원 시험, 외부 오프라인 인계, 외부 최신 해시 보관, 설치·거래 준비는 완료된 것으로 표시하지 않습니다. 다음 단계에서 원본을 덮어쓰지 않는 복제 볼륨으로 복원을 검증합니다.
+
+## v2 내부 계획 전달 수정
+
+내부 계획 검사를 별도 powershell.exe의 출력 3줄로 판정하던 방식을 제거했습니다. 해시가 고정된 동일 계획 스크립트를 같은 프로세스에서 data-only 모드로 실행합니다. 단독 계획 명령의 기본 출력과 경로·버전·볼륨·정지 조건은 유지합니다. `fresh_plan`에는 허용된 단계·차단 코드·PG probe 상태만 표시하며 원문/예외/비밀값을 출력하지 않습니다. 화면의 기존 `COLD_FRESH_PLAN_BLOCKED`만으로 실제 Windows 내부 원인을 확정할 수는 없습니다. 우선 RUN_CHECK 결과를 확인하세요. 조회 모드는 NTFS ACL이나 실제 백업 준비 완료를 증명하지 않습니다.

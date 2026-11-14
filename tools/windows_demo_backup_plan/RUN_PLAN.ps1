@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ManifestSHA256)
+param([Parameter(Mandatory=$true)][string]$ManifestSHA256,[switch]$ReturnPlanObject)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $root=$PSScriptRoot
@@ -86,7 +86,7 @@ try {
         if ($entry.Value -isnot [string] -or $entry.Value -cnotmatch '^[0-9a-f]{64}$') { throw 'BACKUP_PLAN_TRANSFER_INVALID' }
         if ((Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $root $entry.Name)).Hash.ToLowerInvariant() -cne $entry.Value) { throw 'BACKUP_PLAN_TRANSFER_INVALID' }
     }
-    Write-Output 'TRANSFER_FILES_VERIFIED'
+    if (-not $ReturnPlanObject) { Write-Output 'TRANSFER_FILES_VERIFIED' }
     $configuration=Get-Content -Raw -LiteralPath (Join-Path $root 'PLAN_CONFIG.json') | ConvertFrom-Json
     if ($configuration.source_reference -cnotmatch '^[0-9a-f]{40}$' -or $configuration.project -cne 'hybrid-windows') { throw 'BACKUP_PLAN_TRANSFER_INVALID' }
     $stage='CONTAINER_TOPOLOGY'
@@ -186,14 +186,18 @@ try {
         if (($item | ConvertTo-Json -Depth 12 -Compress) -cne ($fresh | ConvertTo-Json -Depth 12 -Compress)) { throw 'BACKUP_PLAN_CONTEXT_CHANGED' }
     }
     $contextDigest=Digest ($items | ConvertTo-Json -Depth 12 -Compress)
-    [pscustomobject]@{backup_plan='READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED';source_reference=$configuration.source_reference;metadata_only=$true;postgres_probe=$postgresProbe;automatic_retry=$false;source_context_sha256=$contextDigest;api_container_id=$api.id;api_image_id=$api.image;database_container_id=$db.id;database_image_id=$db.image;postgresql_major=$major;database_mount_destination=$database.Destination;database_volume_identity_sha256=(Digest ($database.Source));runtime_volume_identity_sha256=(Digest ($runtime.Source));database_connection_identity_sha256=(Digest ($properties -join "`n"));participants=$participants;excluded_key_session_containers=$keySessions;key_session_volume_copy_in_scope=$false;local_volume_options_verified=$true;source_database_clean_shutdown_verified=$false;account_pause_rechecked=$false;writer_quiescence_verified=$false;backup_created=$false;restore_tested_on_actual_windows=$false;offline_handoff_performed=$false;backup_ready=$false;installation_ready=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;exchange_credentials_accessed=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;next_action='REVIEW_COLD_STOP_SCOPE_AND_PROTECTED_BACKUP_LOCATION_NO_AUTOMATIC_APPLY'} | ConvertTo-Json -Depth 8 -Compress | Write-Output
+    $planResult=[pscustomobject]@{backup_plan='READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED';source_reference=$configuration.source_reference;metadata_only=$true;postgres_probe=$postgresProbe;automatic_retry=$false;source_context_sha256=$contextDigest;api_container_id=$api.id;api_image_id=$api.image;database_container_id=$db.id;database_image_id=$db.image;postgresql_major=$major;database_mount_destination=$database.Destination;database_volume_identity_sha256=(Digest ($database.Source));runtime_volume_identity_sha256=(Digest ($runtime.Source));database_connection_identity_sha256=(Digest ($properties -join "`n"));participants=$participants;excluded_key_session_containers=$keySessions;key_session_volume_copy_in_scope=$false;local_volume_options_verified=$true;source_database_clean_shutdown_verified=$false;account_pause_rechecked=$false;writer_quiescence_verified=$false;backup_created=$false;restore_tested_on_actual_windows=$false;offline_handoff_performed=$false;backup_ready=$false;installation_ready=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;exchange_credentials_accessed=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false;next_action='REVIEW_COLD_STOP_SCOPE_AND_PROTECTED_BACKUP_LOCATION_NO_AUTOMATIC_APPLY'}
+    if ($ReturnPlanObject) { return $planResult }
+    $planResult | ConvertTo-Json -Depth 8 -Compress | Write-Output
     Write-Output 'COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED_NO_STOP_NO_BACKUP_NO_ORDERS'
     exit 0
 } catch {
     $code='BACKUP_PLAN_RUNNER_FAILED'
     $allowed=@('BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED')
     if ($allowed -ccontains $_.Exception.Message) { $code=$_.Exception.Message }
-    [pscustomobject]@{backup_plan='BLOCKED_KEEP_PAUSED';stage=$stage;failure_category=$code;postgres_probe=$postgresProbe;automatic_retry=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;backup_created=$false;backup_ready=$false;installation_ready=$false;actual_http_attempts=0;order_writes=0;exchange_credentials_accessed=$false;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
+    $failureResult=[pscustomobject]@{backup_plan='BLOCKED_KEEP_PAUSED';stage=$stage;failure_category=$code;postgres_probe=$postgresProbe;automatic_retry=$false;source_services_stopped=$false;source_restart_policies_changed=$false;database_changed=$false;files_changed=$false;backup_created=$false;backup_ready=$false;installation_ready=$false;actual_http_attempts=0;order_writes=0;exchange_credentials_accessed=$false;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false}
+    if ($ReturnPlanObject) { return $failureResult }
+    $failureResult | ConvertTo-Json -Compress | Write-Output
     exit 2
 } finally {
     $OutputEncoding=$oldOutput

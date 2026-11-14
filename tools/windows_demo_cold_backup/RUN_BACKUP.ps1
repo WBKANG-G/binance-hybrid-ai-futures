@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$ManifestSHA256,[switch]$ExecuteColdBackup)
+param([Parameter(Mandatory=$true)][string]$ManifestSHA256,[switch]$ExecuteColdBackup,[switch]$CheckOnly)
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $backupRoot=$PSScriptRoot
@@ -24,7 +24,7 @@ try {
     . (Join-Path $backupRoot 'BACKUP_CORE.ps1')
     $backupInvoked=$true
     $backupExit=$null
-    Invoke-ColdBackup -Root $backupRoot -ExecuteColdBackup:$ExecuteColdBackup | ForEach-Object {
+    Invoke-ColdBackup -Root $backupRoot -ExecuteColdBackup:$ExecuteColdBackup -CheckOnly:$CheckOnly | ForEach-Object {
         if ($_ -is [int]) { $backupExit=$_ } else { Write-Output $_ }
     }
     if (@(0,2) -notcontains $backupExit) { throw 'COLD_LAUNCHER_FAILED' }

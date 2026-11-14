@@ -72,15 +72,32 @@ function Backup-FreeBytes([string]$Directory) {
     return $drive.AvailableFreeSpace
 }
 function Read-BackupPlan([string]$Root) {
+    # Data-only mode in the current PowerShell process: no child console or line protocol.
+    $script:ColdPlanDiagnostic=[pscustomobject]@{status='NO_VALID_PLAN_RESPONSE';stage='UNKNOWN';failure_category='BACKUP_PLAN_RESPONSE_INVALID';postgres_probe=$null}
     $manifest=Join-Path $Root 'plan/TRANSFER_MANIFEST.json'
     $digest=(Get-FileHash -Algorithm SHA256 -LiteralPath $manifest).Hash.ToLowerInvariant()
-    $executable=Join-Path $PSHOME 'powershell.exe'
-    if (-not (Test-Path -LiteralPath $executable)) { $executable=Join-Path $PSHOME 'pwsh' }
-    $lines=@(& $executable -NoProfile -NonInteractive -File (Join-Path $Root 'plan/PLAN.ps1') -ManifestSHA256 $digest 2>$null)
-    if ($LASTEXITCODE -ne 0 -or $lines.Count -ne 3 -or $lines[0] -cne 'TRANSFER_FILES_VERIFIED' -or $lines[2] -cne 'COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED_NO_STOP_NO_BACKUP_NO_ORDERS') { throw 'COLD_FRESH_PLAN_BLOCKED' }
-    $plan=$lines[1] | ConvertFrom-Json
-    if ($plan.backup_plan -cne 'READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED') { throw 'COLD_FRESH_PLAN_BLOCKED' }
-    return $plan
+    try { $values=@(& (Join-Path $Root 'plan/PLAN.ps1') -ManifestSHA256 $digest -ReturnPlanObject) }
+    catch { throw 'COLD_FRESH_PLAN_BLOCKED' }
+    if ($values.Count -ne 1 -or $values[0] -isnot [pscustomobject]) { throw 'COLD_FRESH_PLAN_BLOCKED' }
+    $plan=$values[0]
+    foreach ($flag in @('source_services_stopped','source_restart_policies_changed','database_changed','files_changed','backup_created','execution_approved','orders_enabled','live_trading_enabled')) {
+        if ($plan.$flag -isnot [bool] -or $plan.$flag -ne $false) { throw 'COLD_FRESH_PLAN_BLOCKED' }
+    }
+    $probe=$plan.postgres_probe
+    $probeFields=@('pgdata','database_user','database_name','server_version','control_version')
+    $probeValues=@('NOT_CHECKED','READ_FAILED','OBSERVED','UNSUPPORTED_LAYOUT','SUPPORTED_LAYOUT','INVALID_FORMAT','VALID_IDENTIFIER','UNSUPPORTED_VERSION','SUPPORTED_VERSION','VERSION_MISMATCH_OR_INVALID','MATCHING_VERSION')
+    if ($probe -isnot [pscustomobject] -or (@($probe.PSObject.Properties.Name | Sort-Object) -join '|') -cne (@($probeFields | Sort-Object) -join '|')) { throw 'COLD_FRESH_PLAN_BLOCKED' }
+    foreach ($field in $probeFields) { if ($probe.$field -isnot [string] -or $probeValues -cnotcontains $probe.$field) { throw 'COLD_FRESH_PLAN_BLOCKED' } }
+    if ($plan.backup_plan -ceq 'READ_ONLY_COLD_BACKUP_PLAN_OBSERVED_KEEP_PAUSED') {
+        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_OBSERVED';stage='COMPLETE';failure_category='NONE';postgres_probe=$probe}
+        return $plan
+    }
+    $stages=@('TRANSFER_VERIFICATION','CONTAINER_TOPOLOGY','POSTGRES_CAPABILITY','PERSISTENT_VOLUME_SCOPE','CONTEXT_RECHECK')
+    $codes=@('BACKUP_PLAN_TRANSFER_INVALID','BACKUP_PLAN_DOCKER_READ_FAILED','BACKUP_PLAN_CONTEXT_INVALID','BACKUP_PLAN_UNSTABLE_CONTAINER','BACKUP_PLAN_VOLUME_LAYOUT_UNSUPPORTED','BACKUP_PLAN_VOLUME_OPTIONS_REQUIRE_REVIEW','BACKUP_PLAN_SOURCE_CONTAINER_REQUIRED','BACKUP_PLAN_POSTGRES_LAYOUT_UNSUPPORTED','BACKUP_PLAN_POSTGRES_FIELD_UNAVAILABLE','BACKUP_PLAN_KEY_SCOPE_INVALID','BACKUP_PLAN_EXTERNAL_VOLUME_CONSUMER','BACKUP_PLAN_EXTERNAL_DB_NETWORK_CONSUMER','BACKUP_PLAN_UNKNOWN_PROJECT_SERVICE','BACKUP_PLAN_CONTEXT_CHANGED','BACKUP_PLAN_RUNNER_FAILED')
+    if ($plan.backup_plan -ceq 'BLOCKED_KEEP_PAUSED' -and $stages -ccontains $plan.stage -and $codes -ccontains $plan.failure_category) {
+        $script:ColdPlanDiagnostic=[pscustomobject]@{status='PLAN_BLOCKED';stage=$plan.stage;failure_category=$plan.failure_category;postgres_probe=$probe}
+    }
+    throw 'COLD_FRESH_PLAN_BLOCKED'
 }
 function Assert-ReviewedBackupScope([object]$Plan,[object]$Config) {
     if ($Plan.api_container_id -cne $Config.api_container_id -or $Plan.database_container_id -cne $Config.database_container_id -or $Plan.postgresql_major -ne 18 -or $Plan.excluded_key_session_containers -ne 1 -or $Plan.participants.Count -ne 6) { throw 'COLD_REVIEWED_SCOPE_CHANGED' }
@@ -145,10 +162,12 @@ function Assert-WorkerReport([object]$Value) {
         if ((@($entry.PSObject.Properties.Name | Sort-Object) -join '|') -cne 'bytes|sha256' -or $entry.sha256 -cnotmatch '^[0-9a-f]{64}$' -or ($entry.bytes -isnot [int] -and $entry.bytes -isnot [long]) -or $entry.bytes -lt 10240 -or $entry.bytes -gt 9GB -or ($Value.file_counts.$group -isnot [int] -and $Value.file_counts.$group -isnot [long]) -or $Value.file_counts.$group -lt 1 -or $Value.file_counts.$group -gt 50000) { throw 'COLD_WORKER_OUTPUT_INVALID' }
     }
 }
-function Invoke-ColdBackup([string]$Root,[switch]$ExecuteColdBackup) {
+function Invoke-ColdBackup([string]$Root,[switch]$ExecuteColdBackup,[switch]$CheckOnly) {
     $stage='OPT_IN'; $directory=$null; $stopAttempted=$false; $stopped=$false; $imagesSaved=$false; $helpers=@(); $outputVolume=$null; $mutex=$null; $locked=$false
+    $script:ColdPlanDiagnostic=$null
     try {
-        if (-not $ExecuteColdBackup) { throw 'COLD_EXPLICIT_EXECUTION_REQUIRED' }
+        if ($ExecuteColdBackup -and $CheckOnly) { throw 'COLD_EXECUTION_MODE_INVALID' }
+        if (-not $ExecuteColdBackup -and -not $CheckOnly) { throw 'COLD_EXPLICIT_EXECUTION_REQUIRED' }
         $config=Get-Content -Raw -LiteralPath (Join-Path $Root 'BACKUP_CONFIG.json') | ConvertFrom-Json
         $stage='FRESH_READ_ONLY_PLAN'; Write-Output ('BACKUP_STAGE='+$stage)
         $plan=Read-BackupPlan $Root
@@ -162,6 +181,13 @@ function Invoke-ColdBackup([string]$Root,[switch]$ExecuteColdBackup) {
         if ((Digest ($original | ConvertTo-Json -Depth 12 -Compress)) -cne $plan.source_context_sha256) { throw 'COLD_SOURCE_CONFIGURATION_CHANGED' }
         $keyOwners=@($original | Where-Object { (Project $_) -ceq 'hybrid-windows' -and (Service $_) -ceq 'key-session' })
         if ($keyOwners.Count -ne 1 -or -not $keyOwners[0].running) { throw 'COLD_KEY_SESSION_OWNER_NOT_RUNNING' }
+        if ($CheckOnly) {
+            $header=Invoke-PauseHeader $Root $api.id
+            Assert-SourceSnapshot $original @() $false
+            [pscustomobject]@{cold_backup='READ_ONLY_PRECHECK_PASSED_KEEP_PAUSED';fresh_plan=$script:ColdPlanDiagnostic;source_stop_attempted=$false;source_services_stopped=$false;images_saved=$false;backup_created=$false;account_pause_rechecked=$true;windows_acl_checked=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Depth 8 -Compress | Write-Output
+            Write-Output 'COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS'
+            return 0
+        }
         $stage='PRIVATE_LOCAL_STORAGE'
         $mutex=New-Object Threading.Mutex($false,'Global\WBKANG_DEMO_COLD_BACKUP')
         $locked=$mutex.WaitOne(0)
@@ -255,10 +281,10 @@ function Invoke-ColdBackup([string]$Root,[switch]$ExecuteColdBackup) {
         return 0
     } catch {
         $reason='COLD_BACKUP_UNAVAILABLE'
-        $allowed=@('COLD_KEY_SESSION_OWNER_NOT_RUNNING','COLD_POSTMASTER_PID_PRESENT','COLD_PG_VERSION_INVALID','COLD_OUTPUT_SPACE_INSUFFICIENT','COLD_COUNT_LIMIT','COLD_LINK_OR_SPECIAL_FILE','COLD_EXTENDED_METADATA_UNSUPPORTED','COLD_SOURCE_CHANGED','COLD_BYTE_LIMIT','COLD_FILE_LIMIT','COLD_DEPTH_LIMIT','COLD_TIME_LIMIT','COLD_OUTPUT_NOT_EMPTY','COLD_MODE_INVALID','COLD_OWNER_INVALID','COLD_STOP_POLICY_INVALID','COLD_GRACEFUL_STOP_TIMEOUT','COLD_EXPLICIT_EXECUTION_REQUIRED','COLD_WINDOWS_ACL_REQUIRED','COLD_LOCALAPPDATA_INVALID','COLD_PRIVATE_STORAGE_UNAVAILABLE','COLD_BACKUP_PATH_REPARSE_POINT','COLD_BACKUP_DIRECTORY_EXISTS','COLD_BACKUP_ACL_INVALID','COLD_FRESH_PLAN_BLOCKED','COLD_REVIEWED_SCOPE_CHANGED','COLD_RESTART_POLICY_OR_SCOPE_CHANGED','COLD_REVIEWED_RUNNING_SET_CHANGED','COLD_PAUSE_OR_LEASE_CHECK_BLOCKED','COLD_REVIEWED_ACCOUNT_COUNTS_CHANGED','COLD_CONTAINER_SET_CHANGED','COLD_SOURCE_RUNNING_STATE_CHANGED','COLD_SOURCE_CONFIGURATION_CHANGED','COLD_WORKER_OUTPUT_INVALID','COLD_PGDATA_CHANGED','COLD_ANOTHER_BACKUP_ACTIVE','COLD_HOST_SPACE_INSUFFICIENT','COLD_IMAGE_ID_INVALID','COLD_DOCKER_COMMAND_FAILED','COLD_DOCKER_OUTPUT_INVALID','COLD_DATABASE_NOT_CLEANLY_STOPPED','COLD_HELPER_ID_INVALID','COLD_PG_CONTROL_NOT_SHUT_DOWN','COLD_OUTPUT_VOLUME_INVALID','COLD_ARCHIVE_WORKER_FAILED','COLD_LOCAL_ARCHIVE_HASH_MISMATCH','COLD_LOCAL_MANIFEST_HASH_MISMATCH','COLD_LOCAL_IMAGE_HASH_MISMATCH')
+        $allowed=@('COLD_EXECUTION_MODE_INVALID','COLD_KEY_SESSION_OWNER_NOT_RUNNING','COLD_POSTMASTER_PID_PRESENT','COLD_PG_VERSION_INVALID','COLD_OUTPUT_SPACE_INSUFFICIENT','COLD_COUNT_LIMIT','COLD_LINK_OR_SPECIAL_FILE','COLD_EXTENDED_METADATA_UNSUPPORTED','COLD_SOURCE_CHANGED','COLD_BYTE_LIMIT','COLD_FILE_LIMIT','COLD_DEPTH_LIMIT','COLD_TIME_LIMIT','COLD_OUTPUT_NOT_EMPTY','COLD_MODE_INVALID','COLD_OWNER_INVALID','COLD_STOP_POLICY_INVALID','COLD_GRACEFUL_STOP_TIMEOUT','COLD_EXPLICIT_EXECUTION_REQUIRED','COLD_WINDOWS_ACL_REQUIRED','COLD_LOCALAPPDATA_INVALID','COLD_PRIVATE_STORAGE_UNAVAILABLE','COLD_BACKUP_PATH_REPARSE_POINT','COLD_BACKUP_DIRECTORY_EXISTS','COLD_BACKUP_ACL_INVALID','COLD_FRESH_PLAN_BLOCKED','COLD_REVIEWED_SCOPE_CHANGED','COLD_RESTART_POLICY_OR_SCOPE_CHANGED','COLD_REVIEWED_RUNNING_SET_CHANGED','COLD_PAUSE_OR_LEASE_CHECK_BLOCKED','COLD_REVIEWED_ACCOUNT_COUNTS_CHANGED','COLD_CONTAINER_SET_CHANGED','COLD_SOURCE_RUNNING_STATE_CHANGED','COLD_SOURCE_CONFIGURATION_CHANGED','COLD_WORKER_OUTPUT_INVALID','COLD_PGDATA_CHANGED','COLD_ANOTHER_BACKUP_ACTIVE','COLD_HOST_SPACE_INSUFFICIENT','COLD_IMAGE_ID_INVALID','COLD_DOCKER_COMMAND_FAILED','COLD_DOCKER_OUTPUT_INVALID','COLD_DATABASE_NOT_CLEANLY_STOPPED','COLD_HELPER_ID_INVALID','COLD_PG_CONTROL_NOT_SHUT_DOWN','COLD_OUTPUT_VOLUME_INVALID','COLD_ARCHIVE_WORKER_FAILED','COLD_LOCAL_ARCHIVE_HASH_MISMATCH','COLD_LOCAL_MANIFEST_HASH_MISMATCH','COLD_LOCAL_IMAGE_HASH_MISMATCH')
         if ($allowed -ccontains $_.Exception.Message) { $reason=$_.Exception.Message }
         if ($null -ne $directory) { try { Write-BackupJson (Join-Path $directory 'FAILURE.json') @{stage=$stage;failure_category=$reason;source_stop_attempted=$stopAttempted;retained_helper_ids=$helpers;retained_output_volume=$outputVolume;automatic_resume=$false} } catch {} }
-        [pscustomobject]@{cold_backup='BLOCKED_KEEP_STOPPED_NO_AUTOMATIC_RETRY';stage=$stage;failure_category=$reason;private_backup_directory=$directory;source_stop_attempted=$stopAttempted;source_state_may_have_changed=$stopAttempted;source_services_stopped=$stopped;images_saved=$imagesSaved;retained_helper_ids=$helpers;retained_output_volume=$outputVolume;backup_completed=$false;automatic_resume=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Compress | Write-Output
+        [pscustomobject]@{cold_backup='BLOCKED_KEEP_STOPPED_NO_AUTOMATIC_RETRY';stage=$stage;failure_category=$reason;fresh_plan=$script:ColdPlanDiagnostic;private_backup_directory=$directory;source_stop_attempted=$stopAttempted;source_state_may_have_changed=$stopAttempted;source_services_stopped=$stopped;images_saved=$imagesSaved;retained_helper_ids=$helpers;retained_output_volume=$outputVolume;backup_completed=$false;automatic_resume=$false;automatic_retry=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false} | ConvertTo-Json -Depth 8 -Compress | Write-Output
         return 2
     } finally {
         if ($locked) { $mutex.ReleaseMutex() }; if ($null -ne $mutex) { $mutex.Dispose() }

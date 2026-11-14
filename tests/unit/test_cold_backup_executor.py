@@ -44,7 +44,7 @@ def materialize(root):
 
 def test_bundle_is_pinned_and_exactly_scoped_to_reviewed_sources():
     files = package()
-    assert len(files) == 15
+    assert len(files) == 16
     assert archive(files) == archive(package())
     manifest = json.loads(files["TRANSFER_MANIFEST.json"])
     assert len(manifest["files"]) == 13
@@ -55,6 +55,8 @@ def test_bundle_is_pinned_and_exactly_scoped_to_reviewed_sources():
         in files["RUN_BACKUP.cmd"]
     )
     assert b"-ExecuteColdBackup" in files["RUN_BACKUP.cmd"]
+    assert b"-CheckOnly" in files["RUN_CHECK.cmd"]
+    assert b"-ExecuteColdBackup" not in files["RUN_CHECK.cmd"]
     assert b"if ($ManifestSHA256" not in files["CONTEXT.ps1"]
     config = json.loads(files["BACKUP_CONFIG.json"])
     assert len(config["api_container_id"]) == len(config["database_container_id"]) == 64
@@ -69,6 +71,8 @@ def test_bundle_is_pinned_and_exactly_scoped_to_reviewed_sources():
     [
         "valid",
         "no-optin",
+        "check-only",
+        "both-modes",
         "acl-failed",
         "scope-changed",
         "policy-changed",
@@ -168,6 +172,11 @@ sys.exit(9)
     def safe(p):
         return "'" + str(p).replace("'", "''") + "'"
 
+    execution_switches = {
+        "no-optin": "",
+        "check-only": "-CheckOnly",
+        "both-modes": "-ExecuteColdBackup -CheckOnly",
+    }.get(scenario, "-ExecuteColdBackup")
     harness = tmp_path / "harness.ps1"
     harness.write_text(f"""
 $ErrorActionPreference='Stop'
@@ -203,7 +212,7 @@ if ($env:COLD_EXEC_CASE -eq 'graceful-timeout') {{
     }}
 }}
 $code=$null
-Invoke-ColdBackup -Root {safe(tmp_path)} {"" if scenario == "no-optin" else "-ExecuteColdBackup"} | ForEach-Object {{ if ($_ -is [int]) {{ $code=$_ }} else {{ Write-Output $_ }} }}
+Invoke-ColdBackup -Root {safe(tmp_path)} {execution_switches} | ForEach-Object {{ if ($_ -is [int]) {{ $code=$_ }} else {{ Write-Output $_ }} }}
 exit $code
 """)
     result = subprocess.run(
@@ -232,7 +241,14 @@ exit $code
     assert not any(row[0] in {"rm", "restart", "update"} for row in calls)
     assert not any(row[0] == "start" and row[-1] in {"a" * 64, "b" * 64} for row in calls)
     kills = [row for row in calls if row[0] == "kill"]
-    if scenario == "valid":
+    if scenario == "check-only":
+        assert result.returncode == 0, result.stdout
+        assert "COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS" in result.stdout
+        assert not output.exists()
+        assert not kills and not any(
+            r[0] in {"create", "cp", "start"} or r[:2] == ["image", "save"] for r in calls
+        )
+    elif scenario == "valid":
         assert result.returncode == 0, result.stdout
         assert "COLD_BACKUP_SAVED_LOCAL_VERIFIED_KEEP_STOPPED_NO_ORDERS" in result.stdout
         assert [r[-1] for r in kills] == ["a" * 64, "b" * 64]
@@ -247,6 +263,7 @@ exit $code
         )
         expected = {
             "no-optin": "COLD_EXPLICIT_EXECUTION_REQUIRED",
+            "both-modes": "COLD_EXECUTION_MODE_INVALID",
             "acl-failed": "COLD_BACKUP_ACL_INVALID",
             "scope-changed": "COLD_REVIEWED_SCOPE_CHANGED",
             "policy-changed": "COLD_RESTART_POLICY_OR_SCOPE_CHANGED",
@@ -267,6 +284,8 @@ exit $code
         assert failed["failure_category"] == expected[scenario], result.stdout
     if scenario in {
         "no-optin",
+        "check-only",
+        "both-modes",
         "acl-failed",
         "scope-changed",
         "policy-changed",

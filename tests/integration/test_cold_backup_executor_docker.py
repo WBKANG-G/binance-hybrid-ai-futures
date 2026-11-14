@@ -231,6 +231,31 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
         launcher.write_text(
             f"$PSNativeCommandArgumentPassing='Legacy'\n& '{safe_script}' -ManifestSHA256 '{hashlib.sha256(manifest).hexdigest()}' -ExecuteColdBackup\nexit $LASTEXITCODE\n"
         )
+        check_script = tmp_path / "check-launch.ps1"
+        check_script.write_text(
+            f"$PSNativeCommandArgumentPassing='Legacy'\n& '{safe_script}' -ManifestSHA256 '{hashlib.sha256(manifest).hexdigest()}' -CheckOnly\nexit $LASTEXITCODE\n"
+        )
+        check = subprocess.run(
+            [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(check_script)],
+            capture_output=True,
+            text=True,
+            timeout=90,
+            env=dict(
+                os.environ,
+                XDG_CACHE_HOME=str(tmp_path / "cache"),
+                XDG_CONFIG_HOME=str(tmp_path / "config"),
+                XDG_DATA_HOME=str(tmp_path / "data"),
+                POWERSHELL_TELEMETRY_OPTOUT="1",
+            ),
+        )
+        assert check.returncode == 0, check.stdout + check.stderr
+        assert (
+            not check.stderr
+            and "COLD_BACKUP_CHECK_PASSED_NO_STOP_NO_BACKUP_NO_ORDERS" in check.stdout
+        )
+        assert not output.exists()
+        assert docker("inspect", "--format", "{{.State.Running}}", api) == "true"
+        assert docker("inspect", "--format", "{{.State.Running}}", db) == "true"
         result = subprocess.run(
             [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(launcher)],
             capture_output=True,
@@ -350,6 +375,8 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
             scope="FRESH_SYNTHETIC_PG_AND_SIX_PARTICIPANTS_NOT_ACTUAL_WINDOWS",
             windows_ntfs_acl_mocked=True,
             production_acl_executed=False,
+            check_only_verified_without_stopping_sources=True,
+            in_process_plan_transport=True,
             legacy_argument_mode=True,
             real_native_launcher_and_docker=True,
             graceful_source_stop_verified=True,
