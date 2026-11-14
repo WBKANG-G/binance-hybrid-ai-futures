@@ -1,0 +1,63 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_backup_created": false,
+  "actual_windows_inner_failure_cause_identified": false,
+  "actual_windows_new_package_executed": false,
+  "actual_windows_source_stopped": false,
+  "archive_entries": 16,
+  "artifact": "windows-demo-cold-backup-v2-20261114.zip",
+  "artifact_bytes": 32550,
+  "artifact_sha256": "f7102cb4b7112d092099f677b70362f4c82a011a5d5ae8b6928710de9bc6514e",
+  "committed_sources_and_transfer_manifest_verified": true,
+  "diagnostic_projection_allowlisted": true,
+  "execution_approved": false,
+  "installation_ready": false,
+  "limitations": [
+    "ACTUAL_WINDOWS_INVOCATION_AND_INNER_BLOCK_REASON_AWAIT_RUN_CHECK_RESULT",
+    "RUN_BACKUP_IS_STILL_AN_EXPLICIT_STOP_AND_BACKUP_COMMAND",
+    "CHECK_ONLY_IS_NOT_BACKUP_OR_NTFS_ACL_READINESS_PROOF",
+    "NO_ACTUAL_WINDOWS_RESTORE_OR_EXTERNAL_CUSTODY_COMPLETED"
+  ],
+  "live_trading_enabled": false,
+  "mypy": {
+    "source_files": 1,
+    "status": "PASS",
+    "strict": true
+  },
+  "observed_user_failure": {
+    "backup_completed": false,
+    "failure_category": "COLD_FRESH_PLAN_BLOCKED",
+    "images_saved": false,
+    "source": "USER_SCREENSHOT_NOT_REMOTE_READ",
+    "source_stop_attempted": false,
+    "stage": "FRESH_READ_ONLY_PLAN"
+  },
+  "offline_handoff_performed": false,
+  "orders_enabled": false,
+  "plan_transport": "IN_PROCESS_DATA_OBJECT",
+  "policy": "WINDOWS_COLD_BACKUP_V2_IN_PROCESS_PLAN_AND_CHECK_ONLY",
+  "read_only_entrypoint": "RUN_CHECK.cmd",
+  "read_only_mode_checks_windows_acl": false,
+  "read_only_mode_creates_backup": false,
+  "read_only_mode_creates_backup_directory": false,
+  "read_only_mode_stops_sources": false,
+  "release_zip_tests": {
+    "passed": 69,
+    "seconds": 86.16,
+    "skipped": 0
+  },
+  "ruff": {
+    "files": 4,
+    "status": "PASS"
+  },
+  "source_reference": "b3b37641f4075fe1b27103a7a140a5e74eb584d6",
+  "source_tests": {
+    "passed": 116,
+    "seconds": 113.43,
+    "skipped": 0
+  },
+  "test_sets_overlap": true,
+  "underlying_plan_cli_default_protocol_retained": true,
+  "windows_ntfs_acl_mocked_in_linux_tests_only": true
+}
