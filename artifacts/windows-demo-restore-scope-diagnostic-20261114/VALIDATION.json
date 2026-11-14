@@ -1,0 +1,50 @@
+{
+  "artifact": "windows-demo-restore-scope-diagnostic-20261114.zip",
+  "artifact_bytes": 24687,
+  "artifact_sha256": "11f153f66633a85d91cc372237896af455afb1f6cd3f34f30b80a3cb163749e0",
+  "checks": [
+    "Exact released ZIP exercised in native PowerShell Legacy mode and real Docker",
+    "Forced CheckOnly even when ExecuteRestore or both switches supplied",
+    "Diagnostic creates no containers, volumes or report directory",
+    "Recognizes raw/canonical image-reference mismatch without accepting it",
+    "Recognizes JSON representation mismatch without changing saved-state guard",
+    "Fresh-snapshot mount list order normalized; all mount fields/values preserved, real changes blocked",
+    "No raw mount paths, image IDs, environment variables or exception contents in scope probe",
+    "Ruff: four changed Python files; strict mypy: diagnostic builder; git diff --check"
+  ],
+  "coverage_union": "All 75 unit cases plus fresh synthetic crashed-PG integration True; clean-backup integration False intentionally outside this diagnostic validation",
+  "limitations": [
+    "Actual Windows cause unknown until user runs diagnostic",
+    "Windows NTFS ACL and folder discovery mocked only in Linux integration test copy",
+    "Original full restore package remains blocked; this artifact provides diagnosis only",
+    "No actual Windows restore or exchange/trading performed"
+  ],
+  "manifest_source_files": 9,
+  "source_reference": "01fb0f9e567aa555feabe54ba8f949405586440f",
+  "source_test_issue_resolved": "Docker returned identical helper mounts in a different list order; reproduced with captured synthetic metadata and fixed fresh-snapshot comparison to sort mount lists while comparing every field/value",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_restore_scope_diagnostic.py",
+    "tests/unit/test_isolated_restore.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/integration/test_cold_backup_executor_docker.py"
+  ],
+  "test_runs": [
+    {
+      "deselected": 4,
+      "passed": 73,
+      "seconds": 84.11,
+      "selection": "unit diagnostic + unit restore + unit archive + real Docker restore integration, -k 'not False'"
+    },
+    {
+      "deselected": 27,
+      "passed": 3,
+      "seconds": 0.07,
+      "selection": "explicit False opt-in flag tests in archive library, -k False"
+    }
+  ],
+  "tests_failed": 0,
+  "tests_passed": 76,
+  "tests_skipped": 0,
+  "zip_entries": 11
+}
