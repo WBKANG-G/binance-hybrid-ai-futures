@@ -1,0 +1,40 @@
+{
+  "artifact": "windows-demo-stopped-preservation-20261114.zip",
+  "artifact_bytes": 21534,
+  "artifact_sha256": "74244ad8c1f0affaeb401b283d28c32a226aa3019e5f1ac35e5d52f88e7a39f3",
+  "checks": [
+    "ruff check: five changed Python files",
+    "mypy --strict: builder and worker",
+    "git diff --check",
+    "exact released ZIP tested via STOPPED_PRESERVATION_RELEASE_ZIP",
+    "normal clean-backup path retained and regression tested",
+    "fresh synthetic abrupt PG shutdown, RO capture, clone-only WAL recovery, source byte hashes unchanged"
+  ],
+  "earlier_test_harness_issues_resolved": [
+    "Shared named mutex correctly blocked overlapping test suites; final suite executed sequentially",
+    "Recovery logs emitted on stderr; assertion now inspects stdout and stderr and requires automatic recovery plus redo completion"
+  ],
+  "limitations": [
+    "Actual Windows PC not accessed",
+    "Windows NTFS ACL functions mocked only in Linux test copy; production ACL unchanged",
+    "Actual source clean shutdown, account paused state, restore and offline custody not verified",
+    "No real exchange requests or trading performed"
+  ],
+  "manifest_source_files": 8,
+  "seconds": 196.98,
+  "source_reference": "349831e2c1a70c9caa7ed8dedf172641eb1878e4",
+  "status": "PASSED",
+  "test_files": [
+    "tests/unit/test_stopped_preservation.py",
+    "tests/unit/test_stopped_preservation_worker.py",
+    "tests/unit/test_cold_backup_candidate.py",
+    "tests/unit/test_cold_backup_executor.py",
+    "tests/unit/test_cold_backup_plan_transport.py",
+    "tests/unit/test_cold_backup_plan_powershell.py",
+    "tests/integration/test_cold_backup_executor_docker.py"
+  ],
+  "tests_failed": 0,
+  "tests_passed": 143,
+  "tests_skipped": 0,
+  "zip_entries": 11
+}
