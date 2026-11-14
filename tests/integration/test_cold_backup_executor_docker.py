@@ -17,6 +17,7 @@ import pytest
 from scripts.build_demo_read_review_bundle import hashes
 from tests.integration.test_cold_backup_docker_drill import HELPER_IMAGE, PG_IMAGE, ready, sql
 from tests.unit.test_cold_backup_executor import PWSH, materialize, package
+from tests.unit.test_isolated_restore import materialize as restore_materialize
 from tests.unit.test_stopped_preservation import (
     materialize as preserve_materialize,
 )
@@ -94,7 +95,7 @@ def test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked(tmp_path
             db,
             """
 CREATE TABLE demo_accounts (account_id text PRIMARY KEY,state jsonb NOT NULL,lease_until timestamptz);
-INSERT INTO demo_accounts SELECT 'DEMO-WINDOWS-ISOLATED-BTC-V1',jsonb_build_object('paused',true,'daily_key','2026-11-13','orders',(SELECT jsonb_object_agg(i::text,'CLOSED') FROM generate_series(1,34) i),'requests','{"a":"UNKNOWN","b":"UNKNOWN","c":"UNKNOWN","d":"SUBMITTING"}'::jsonb),NULL;
+INSERT INTO demo_accounts SELECT 'DEMO-WINDOWS-ISOLATED-BTC-V1',jsonb_build_object('paused',true,'daily_key','2026-11-13','weekly_key','2026-11-09','orders',(SELECT jsonb_object_agg(i::text,'CLOSED') FROM generate_series(1,34) i),'requests','{"a":"UNKNOWN","b":"UNKNOWN","c":"UNKNOWN","d":"SUBMITTING"}'::jsonb),NULL;
 CREATE TABLE read_response_evidence_events_v2 (id int PRIMARY KEY,body text);
 INSERT INTO read_response_evidence_events_v2 VALUES (1,'SYNTHETIC_PRIVATE_EVIDENCE');
 """,
@@ -335,6 +336,123 @@ function Backup-FreeBytes([string]$Directory) {{ return 100000000000L }}
             "false" if preserve_stopped else "true"
         )
         assert receipt["source_data_archive_restore_tested"] is False
+        if preserve_stopped:
+            restore_root = tmp_path / "isolated restore package"
+            restore_materialize(restore_root)
+            restore_output = tmp_path / "private restore report"
+            restore_config = json.loads((restore_root / "CONFIG.json").read_text())
+            restore_config.update(
+                api_container_id=api,
+                database_container_id=db,
+                preservation_source_reference=receipt["source_reference"],
+                receipt_sha256=hashlib.sha256(
+                    (output / "BACKUP_RECEIPT.json").read_bytes()
+                ).hexdigest(),
+                manifest_sha256=receipt["manifest_sha256"],
+            )
+            (restore_root / "CONFIG.json").write_text(json.dumps(restore_config))
+            safe_report = str(restore_output).replace("'", "''")
+            restore_core = restore_root / "RESTORE_CORE.ps1"
+            restore_core.write_text(
+                restore_core.read_text()
+                + f"""
+# TEST-ONLY Linux substitutes; production ZIP retains real NTFS ACL and folder discovery.
+function Find-RetainedBackup {{ return '{safe}' }}
+function New-PrivateBackupDirectory([string]$Token) {{ $null=[IO.Directory]::CreateDirectory('{safe_report}'); return '{safe_report}' }}
+function Assert-PrivateBackupDirectory([string]$Path) {{ if (@('{safe}','{safe_report}') -cnotcontains $Path) {{ throw 'COLD_BACKUP_ACL_INVALID' }} }}
+function Assert-PrivateBackupFiles {{ }}
+"""
+            )
+            restore_files = {
+                p: (restore_root / p).read_bytes()
+                for p in json.loads((restore_root / "TRANSFER_MANIFEST.json").read_text())["files"]
+            }
+            restore_manifest = json.dumps(
+                dict(files=hashes(restore_files)), sort_keys=True
+            ).encode()
+            (restore_root / "TRANSFER_MANIFEST.json").write_bytes(restore_manifest)
+            restore_script = restore_root / "test-launch.ps1"
+            restore_script.write_text(
+                f"$PSNativeCommandArgumentPassing='Legacy'\n& '{str(restore_root / 'RUN_RESTORE.ps1')}' -ManifestSHA256 '{hashlib.sha256(restore_manifest).hexdigest()}' -ExecuteRestore\nexit $LASTEXITCODE\n"
+            )
+            recovered = subprocess.run(
+                [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(restore_script)],
+                capture_output=True,
+                text=True,
+                timeout=240,
+                env=dict(
+                    os.environ,
+                    XDG_CACHE_HOME=str(tmp_path / "cache"),
+                    XDG_CONFIG_HOME=str(tmp_path / "config"),
+                    XDG_DATA_HOME=str(tmp_path / "data"),
+                    POWERSHELL_TELEMETRY_OPTOUT="1",
+                ),
+            )
+            # Register only freshly owned resources even when a restore assertion fails.
+            for record in (
+                "RESTORE_RESOURCES.json",
+                "CLONE_CREATED.json",
+                "FAILURE.json",
+                "ISOLATED_RESTORE_RECEIPT.json",
+            ):
+                path = restore_output / record
+                if path.exists():
+                    value = json.loads(path.read_text())
+                    containers.extend(
+                        value.get("owned_helper_ids", value.get("retained_helper_ids", []))
+                    )
+                    if value.get("clone_container_id"):
+                        containers.append(value["clone_container_id"])
+                    volumes.extend(
+                        value.get("clone_volumes", value.get("retained_clone_volumes", []))
+                    )
+            assert recovered.returncode == 0, recovered.stdout + recovered.stderr
+            assert not recovered.stderr and "SYNTHETIC_PRIVATE_EVIDENCE" not in recovered.stdout
+            assert "ISOLATED_COPY_RECOVERED_READ_CHECKED_STOPPED_NO_ORDERS" in recovered.stdout
+            restore_receipt = json.loads(
+                (restore_output / "ISOLATED_RESTORE_RECEIPT.json").read_text()
+            )
+            assert (
+                restore_receipt["input_hashes_reverified"]
+                and restore_receipt["clone_stopped"]
+                and restore_receipt["clone_clean_exit_verified"]
+            )
+            assert (
+                not restore_receipt["original_services_started"]
+                and not restore_receipt["original_volume_mounted_in_restore_helpers"]
+            )
+            assert restore_receipt["account"]["account_state_sha256"] == expected
+            assert (
+                restore_receipt["account"]["orders"] == 34
+                and restore_receipt["account"]["unresolved_requests"] == 4
+            )
+            assert restore_receipt["clone_pid_removed"]
+            report_target = os.environ.get("ISOLATED_RESTORE_DOCKER_REPORT")
+            if report_target:
+                Path(report_target).write_text(
+                    json.dumps(
+                        dict(
+                            scope="FRESH_SYNTHETIC_CRASHED_PG_NOT_ACTUAL_WINDOWS",
+                            actual_windows_touched=False,
+                            windows_acl_and_backup_discovery_mocked=True,
+                            real_launcher_and_docker=True,
+                            legacy_argument_mode=True,
+                            receipt_and_all_backup_hashes_verified_before_and_after=True,
+                            originals_kept_stopped=True,
+                            original_volumes_not_mounted_by_restore_helpers=True,
+                            new_clone_volumes_only=True,
+                            clone_network_none=True,
+                            source_pid_retained_clone_pid_removed=True,
+                            readonly_account_state_hash_matches=True,
+                            clone_gracefully_stopped_with_exit_zero=True,
+                            orders_enabled=False,
+                            live_trading_enabled=False,
+                        ),
+                        sort_keys=True,
+                        indent=2,
+                    )
+                    + "\n"
+                )
         # Independently restore the EXPORTED host archives into fresh volumes.
         archive_source = base64.b64encode(
             (preserve_package() if preserve_stopped else package())["cold_archive.py"]
