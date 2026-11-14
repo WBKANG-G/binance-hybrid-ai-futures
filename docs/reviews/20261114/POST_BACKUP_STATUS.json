@@ -27,9 +27,10 @@
   "independent_latest_reference_custody_verified": false,
   "installation_ready": false,
   "isolated_copy_recovery_and_readonly_account_checks_observed": true,
+  "latest_review_date_client_kst": "2026-11-15",
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "PREPARE_WINDOWS_FRESH_DISPOSABLE_COPY_REVIEW_RUNNER_NO_ORIGINAL_START_NO_USB",
+  "next_scope": "ACTUAL_WINDOWS_FRESH_COPY_DIAGNOSTIC_OUTPUT_REVIEW_KEEP_ORIGINALS_STOPPED",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -41,7 +42,7 @@
   "physical_disconnect_operator_attested": true,
   "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
   "remaining_install_prerequisites": [
-    "WINDOWS_FRESH_DISPOSABLE_COPY_ISOLATION_AND_RECEIPT_BOUND_REVIEW_RUNNER",
+    "ACTUAL_WINDOWS_FRESH_DISPOSABLE_COPY_INPUT_SCOPE_AND_DIAGNOSTIC_REVIEW",
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
     "V2_AWARE_CLOCK_TRANSITION_IF_ALREADY_BOUND",
     "WINDOWS_UPDATED_CANDIDATES_AND_FULL_SNAPSHOT_COMPATIBILITY_REVIEW",
@@ -50,6 +51,9 @@
   "separate_pc_reverification_performed": false,
   "separate_storage_operator_attested": false,
   "separate_windows_pc_available": false,
+  "usb_reconnection_required_for_runner": false,
   "v1_recovery_v2_guard_implemented_not_installed_on_windows": true,
-  "whole_financial_proof_verified": false
+  "whole_financial_proof_verified": false,
+  "windows_fresh_copy_runner_execution_observed": false,
+  "windows_fresh_copy_runner_prepared_and_cloud_tested": true
 }

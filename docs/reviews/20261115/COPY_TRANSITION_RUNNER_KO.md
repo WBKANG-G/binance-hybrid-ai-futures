@@ -12,6 +12,6 @@
 
 시계 복구·날짜 채택·schema 생성·바인딩·실제 GET·주문은 없다. `blockers`가 있어도 진단 자체가 완료될 수 있다. 로컬 flat이나 시계만으로 미해결 요청 4개를 해소하지 않는다. 설치 준비/실행 승인은 false다.
 
-개발 환경에서 실제 Docker/PG18/API 이미지와 원시 백업→새 복구→Unix socket 진단→정상 정지의 전체 절차를 검증했다. 실제 Windows ACL과 입력 경로 탐색만 Linux 테스트에서 대체했으므로 실제 Windows 검증을 주장하지 않는다. 기준 이미지 hash/payload 변경 거부, mount/프로젝트/네트워크 변경 거부, 전송 manifest 변조 차단도 검사했다. 배포 ZIP의 최종 검증은 동봉 별도 실행 기록에 기록한다.
+개발 환경에서 실제 Docker/PG18/API 이미지와 원시 백업→새 복구→Unix socket 진단→정상 정지의 전체 절차를 검증했다. 실제 Windows ACL과 입력 경로 탐색만 Linux 테스트에서 대체했으므로 실제 Windows 검증을 주장하지 않는다. 기준 이미지 hash/payload 변경 거부, mount/프로젝트/네트워크 변경 거부, 전송 manifest 변조 차단도 검사했다. 최종 ZIP 단위/기존 scope 거부 검사 23개, 전체 스냅샷/301MB 데이터 검사 24개, 최종 ZIP의 실제 Docker 전체 절차 1개로 총 48개가 통과했다. 사전 검사의 컨테이너/볼륨/출력 폴더 미생성도 확인했다. source 및 artifact SHA는 COPY_RUNNER_VALIDATION.json과 배포 SOURCE_MANIFEST.json에 기록했다.
 
 실제 Windows에서는 Docker Desktop 엔진만 실행된 상태에서 ZIP을 새 폴더에 풀고 먼저 RUN_CHECK.cmd를 실행한다. 성공 메시지를 확인한 뒤 RUN_COPY_REVIEW.cmd를 한 번 실행한다. 출력 JSON/완료 메시지를 확인하기 전 반복 실행하지 않는다. USB를 다시 연결하거나 기존 컨테이너를 시작할 필요는 없다.

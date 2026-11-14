@@ -1,0 +1,48 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_windows_execution_performed": false,
+  "archive_entries": 19,
+  "archive_sha256": "e837e6b1eb6912502cb1a423601f4d1cb427eec80da8a430b2aebbbb0d909fb3",
+  "automatic_retry": false,
+  "clock_rebased": false,
+  "database_hash_bytes_limit": 536870912,
+  "date_client_kst": "2026-11-15",
+  "execution_approved": false,
+  "file_hash_bytes_limit": 134217728,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "measured_prior_event_bytes": 287240535,
+  "next_action": "RUN_CHECK_THEN_ONE_FRESH_COPY_REVIEW_ON_WINDOWS_AND_REVIEW_OUTPUT",
+  "orders_enabled": false,
+  "originals_or_preserved_restore_copy_started": false,
+  "period_adopted": false,
+  "policy": "WINDOWS_FRESH_COPY_TRANSITION_RUNNER_RELEASE_V1",
+  "read_only_preflight_creates_no_resources": true,
+  "real_unix_socket_readonly_diagnostic_verified": true,
+  "release_zip_validation": "PASSED",
+  "runs": [
+    {
+      "passed": 23,
+      "scope": "SEALED_ZIP_UNIT_AND_EXISTING_SOURCE_SCOPE_GUARDS",
+      "seconds": 25.84
+    },
+    {
+      "passed": 24,
+      "scope": "FULL_SCHEMA_SNAPSHOT_WITH_2300_ROWS_AND_301MB_BODY",
+      "seconds": 17.83
+    },
+    {
+      "passed": 1,
+      "scope": "SEALED_ZIP_REAL_DOCKER_BACKUP_RESTORE_UNIX_SOCKET_DIAGNOSTIC_PREFLIGHT_AND_STOP",
+      "seconds": 123.23
+    }
+  ],
+  "source_reference": "dce468d351738b92ef4651a395b7b8f47265baad",
+  "tests_passed": 48,
+  "tests_skipped": 0,
+  "transfer_files": 16,
+  "usb_reconnection_required": false,
+  "windows_acl_and_input_discovery_mocked_in_docker_test": true,
+  "windows_acl_and_input_discovery_verified": false
+}
