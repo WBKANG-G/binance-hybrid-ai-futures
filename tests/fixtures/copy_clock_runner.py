@@ -13,6 +13,10 @@ from tests.unit.test_copy_clock_bundle import materialize
 def exercise(root, backup, restore_report, pins, prior_directory, containers, volumes):
     target = root / "copy clock package"
     materialize(target)
+    if os.getenv("COPY_EVIDENCE_DOCKER_REPORT"):
+        from tests.fixtures.copy_evidence_runner import extend_package
+
+        extend_package(target)
     prior_path = prior_directory / "COPY_REVIEW_RECEIPT.json"
     prior = json.loads(prior_path.read_text())
     config = json.loads((target / "CONFIG.json").read_text())
@@ -107,6 +111,10 @@ function New-PrivateBackupDirectory {{$null=[IO.Directory]::CreateDirectory('{de
     assert "COPY_CLOCK_HOLD remaining_seconds=" in result.stdout
     receipt = json.loads((output / "COPY_CLOCK_RECEIPT.json").read_text())
     clock = receipt["copy_clock_result"]
+    if os.getenv("COPY_EVIDENCE_DOCKER_REPORT"):
+        from tests.fixtures.copy_evidence_runner import record_result
+
+        record_result(os.environ["COPY_EVIDENCE_DOCKER_REPORT"], receipt)
     assert clock["prior_audit_events"] == prior["copy_transition_diagnostic"]["prior_audit_events"]
     assert clock["audit_events_after"] == clock["prior_audit_events"] + 1
     assert clock["cumulative_weight_before"] == clock["cumulative_weight_after"]

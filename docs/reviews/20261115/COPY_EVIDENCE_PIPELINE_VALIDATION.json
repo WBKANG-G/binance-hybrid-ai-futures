@@ -1,0 +1,42 @@
+{
+  "base_commit": "0b595fd2053dd6669c1f9d97520c68db319766f7",
+  "cloud_test_database_stopped_after_validation": true,
+  "date_client_kst": "2026-11-15",
+  "distinct_passed_test_cases": 12,
+  "execution_approved": false,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "mypy_candidate_module": "PASS",
+  "orders_enabled": false,
+  "policy": "SYNTHETIC_COPY_EVIDENCE_PIPELINE_VALIDATION_V1",
+  "preliminary_failures_resolved": [
+    "PowerShell missing: prepared PowerShell 7.5.4 under /tmp with writable task-local XDG directories",
+    "Cloud test payload extras initially absent from strict transfer allowlist; fixed fixture allowlist and added allowlist/hash/worker syntax preflight",
+    "Fixture launcher replacement initially matched both allowlist and dot-source text; made replacement anchor unique; static package test passed before final Docker run"
+  ],
+  "real_70_second_hold_verified": true,
+  "real_exchange_http_attempts": 0,
+  "ruff": "PASS",
+  "synthetic_sender_calls": 1,
+  "test_runs": [
+    {
+      "elapsed_seconds": 33.47,
+      "file": "tests/integration/test_copy_evidence_pipeline.py",
+      "passed": 10
+    },
+    {
+      "elapsed_seconds": 0.42,
+      "file": "tests/unit/test_copy_evidence_fixture.py",
+      "passed": 1
+    },
+    {
+      "elapsed_seconds": 189.5,
+      "passed": 1,
+      "test": "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+    }
+  ],
+  "usb_reconnection_required": false,
+  "windows_acl_and_input_discovery_mocked": true,
+  "windows_applied": false,
+  "windows_runner_packaged": false
+}
