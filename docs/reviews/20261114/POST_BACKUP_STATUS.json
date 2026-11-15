@@ -38,6 +38,7 @@
   "independent_latest_reference_custody_verified": false,
   "installation_ready": false,
   "isolated_copy_recovery_and_readonly_account_checks_observed": true,
+  "latest_clock_receipt_sha256_confirmed_by_user_text": "8bd24518a93cb977479dbcaed2670236c256386ac400e9b129f35965a167d6f5",
   "latest_review_date_client_kst": "2026-11-15",
   "latest_windows_copy_clock_observation": {
     "audit_events_after": 56,
@@ -75,7 +76,7 @@
   },
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "PIN_AND_VALIDATE_WINDOWS_SYNTHETIC_COPY_EVIDENCE_REVIEW_PACKAGE_NO_REAL_GET",
+  "next_scope": "ACTUAL_WINDOWS_SYNTHETIC_COPY_EVIDENCE_REHEARSAL_OUTPUT_REVIEW_NO_REAL_GET",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -84,7 +85,8 @@
     "Fresh-copy V1 clock rehearsal succeeded on the user console; original clock/state was not changed. New-day auxiliary evidence setup is cloud-tested only, with regular operational period checks unchanged.",
     "One-shot copy-only account response archive candidate passed synthetic PG/SQLite and networkless image tests. Credential context is caller-supplied, not operator attestation or remote identity proof. No real exchange read or Windows install occurred.",
     "Read-only flat-USDT account content and proposed evidence input shape validated with synthetic responses. Format-valid reference hashes and caller claims never grant identity/history/valuation/source-acceptance authority. Stored periods still require actual-ledger recheck.",
-    "Synthetic-only fresh-copy pipeline passed real Docker clock hold, auxiliary setup, account response archive/content checks, input rehash and clean stop. Windows ACL/discovery substituted on Linux; fixture audit 0->1 clock then 1->3 synthetic reads differs from actual Windows 55->56 clock history."
+    "Synthetic-only fresh-copy pipeline passed real Docker clock hold, auxiliary setup, account response archive/content checks, input rehash and clean stop. Windows ACL/discovery substituted on Linux; fixture audit 0->1 clock then 1->3 synthetic reads differs from actual Windows 55->56 clock history.",
+    "Sealed Windows synthetic evidence ZIP prepared with operator-supplied 64-hex clock receipt pin. Final ZIP 24 checks and one matching-code Docker lifecycle passed; Windows ACL/discovery and synthetic receipt pins differ in cloud fixtures. Actual Windows execution pending."
   ],
   "orders_enabled": false,
   "physical_disconnect_independently_verified": false,
@@ -109,5 +111,7 @@
   "windows_copy_clock_rehearsal_execution_observed": true,
   "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
   "windows_fresh_copy_runner_execution_observed": true,
-  "windows_fresh_copy_runner_prepared_and_cloud_tested": true
+  "windows_fresh_copy_runner_prepared_and_cloud_tested": true,
+  "windows_synthetic_evidence_runner_execution_observed": false,
+  "windows_synthetic_evidence_runner_packaged_and_cloud_tested": true
 }

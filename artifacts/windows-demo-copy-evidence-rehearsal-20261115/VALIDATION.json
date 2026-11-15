@@ -1,0 +1,40 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_windows_executed": false,
+  "archive_sha256": "dd9fb020cfbc668a7cdb3d428ef68c60e57c82f7abbb8230965a164281868e63",
+  "baseline_files": 89,
+  "candidate_files": 10,
+  "date_client_kst": "2026-11-15",
+  "distinct_passed_tests": 25,
+  "docker_lifecycle_test": {
+    "elapsed_seconds": 288.34,
+    "passed": 1,
+    "test": "tests/integration/test_cold_backup_executor_docker.py::test_complete_executor_on_fresh_real_docker_with_windows_acl_mocked[True]"
+  },
+  "execution_approved": false,
+  "final_zip_code_bytes_match_docker_tested_code": true,
+  "final_zip_tests": {
+    "elapsed_seconds": 8.74,
+    "file": "tests/unit/test_copy_evidence_bundle.py",
+    "passed": 24
+  },
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_SYNTHETIC_COPY_EVIDENCE_BUNDLE_VALIDATION_V1",
+  "preliminary_failure_resolved": "Docker helper project creation label did not match the new assertion; fixed creation label and added consistency check; stopped synthetic copy before retry on fresh resources.",
+  "prior_clock_receipt_pin_source": "USER_TEXT_REPLY_64_HEX",
+  "prior_clock_receipt_sha256": "8bd24518a93cb977479dbcaed2670236c256386ac400e9b129f35965a167d6f5",
+  "ruff": "PASS",
+  "source_reference": "3ff5bc4358aee59797f5b25f259b6437cec7844e",
+  "source_tests": {
+    "elapsed_seconds": 11.83,
+    "file": "tests/unit/test_copy_evidence_bundle.py",
+    "passed": 24
+  },
+  "synthetic_sender_calls": 1,
+  "test_config_uses_fresh_synthetic_backup_restore_and_clock_receipt_pins": true,
+  "usb_reconnection_required": false,
+  "windows_acl_and_input_discovery_mocked": true,
+  "zip_entries": 28
+}
