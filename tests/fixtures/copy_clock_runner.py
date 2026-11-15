@@ -131,6 +131,12 @@ function New-PrivateBackupDirectory {{$null=[IO.Directory]::CreateDirectory('{de
     assert (
         hashlib.sha256(prior_path.read_bytes()).hexdigest() == config["prior_copy_receipt_sha256"]
     )
+    if os.getenv("COPY_EVIDENCE_BUNDLE_DOCKER_REPORT"):
+        from tests.fixtures.copy_evidence_bundle_runner import exercise as exercise_evidence
+
+        exercise_evidence(
+            root, backup, restore_report, pins, prior_directory, output, containers, volumes
+        )
     Path(os.environ["COPY_CLOCK_DOCKER_REPORT"]).write_text(
         json.dumps(
             dict(
