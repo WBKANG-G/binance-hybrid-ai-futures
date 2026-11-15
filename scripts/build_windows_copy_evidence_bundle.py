@@ -90,6 +90,21 @@ def package_files(ref: str, prior_clock_sha256: str) -> dict[str, bytes]:
         "if ($null -ne $script:ClockPriorHandle) { $script:ClockPriorHandle.Dispose() }",
         "if ($null -ne $script:ClockPriorHandle) { $script:ClockPriorHandle.Dispose() }; if ($null -ne $script:EvidencePriorHandle) { $script:EvidencePriorHandle.Dispose() }",
     )
+    # Default depth 2 turns nested content_review into a PSCustomObject string.
+    # The persisted receipts already use Write-BackupJson depth 16.
+    marker = "} | ConvertTo-Json -Compress | Write-Output"
+    lines = core.splitlines(keepends=True)
+    matches = [
+        i
+        for i, line in enumerate(lines)
+        if "copy_evidence_rehearsal='FRESH_COPY_SYNTHETIC_EVIDENCE_VERIFIED_ORIGINALS_UNCHANGED'"
+        in line
+    ]
+    if len(matches) != 1:
+        raise ValueError("EVIDENCE_CONSOLE_TEMPLATE_CHANGED")
+    i = matches[0]
+    lines[i] = once(lines[i], marker, "} | ConvertTo-Json -Depth 16 -Compress | Write-Output")
+    core = "".join(lines)
     files["COPY_CORE.ps1"] = core.encode()
     extension = files["CLOCK_EXT.ps1"].decode()
     extension = extension.replace("'demo-copy-clock'", "'demo-copy-evidence'")
