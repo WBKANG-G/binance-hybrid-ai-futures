@@ -13,18 +13,24 @@ from tests.unit.test_response_candidate_image_review import package
 
 
 @pytest.mark.parametrize(
-    "include_snapshot,include_copy,include_baseline,include_archive,include_content",
+    "include_snapshot,include_copy,include_baseline,include_archive,include_content,include_context",
     [
-        (False, False, False, False, False),
-        (True, False, False, False, False),
-        (True, True, False, False, False),
-        (True, True, True, False, False),
-        (True, True, True, True, False),
-        (True, True, True, True, True),
+        (False, False, False, False, False, False),
+        (True, False, False, False, False, False),
+        (True, True, False, False, False, False),
+        (True, True, True, False, False, False),
+        (True, True, True, True, False, False),
+        (True, True, True, True, True, False),
+        (True, True, True, True, True, True),
     ],
 )
 def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
-    include_snapshot, include_copy, include_baseline, include_archive, include_content
+    include_snapshot,
+    include_copy,
+    include_baseline,
+    include_archive,
+    include_content,
+    include_context,
 ):
     files = package()
     config = json.loads(files["CONFIG.json"])
@@ -60,6 +66,11 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
         bodies[path] = (ROOT / path).read_bytes()
         config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
         extras.append(("services.execution.demo_copy_account_content", path))
+    if include_context:
+        path = "services/execution/demo_read_credential_context.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_read_credential_context", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
@@ -115,6 +126,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
                 ),
 """,
         )
+    if include_context:
+        worker = worker.replace(
+            marker,
+            marker
+            + """                (
+                    lambda: sys.modules["services.execution.demo_read_credential_context"].LocalReadCredentialContext(None, None, None),
+                    "READ_CONTEXT_DISABLED",
+                ),
+""",
+        )
     sources = {p: base64.b64encode(body).decode() for p, body in bodies.items()}
     payload = "CONFIG=" + repr(config) + "\nSOURCES=" + repr(sources) + "\n" + worker
     result = subprocess.run(
@@ -162,8 +183,9 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
         + include_baseline
         + include_archive
         + include_content
+        + include_context
         and report["default_denials_verified"]
-        == 6 + include_copy + include_baseline + include_archive + include_content
+        == 6 + include_copy + include_baseline + include_archive + include_content + include_context
     )
     assert (
         report["database_attempts"]

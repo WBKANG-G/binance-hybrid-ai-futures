@@ -74,6 +74,18 @@
     "stored_day_kst": "2026-11-13",
     "v2_bound": false
   },
+  "latest_windows_receipt_structure_observation": {
+    "baseline_adoption_approved": false,
+    "companion_json_matches": true,
+    "docker_used": false,
+    "evidence_source": "USER_CONSOLE_SCREENSHOT",
+    "files_changed": false,
+    "nested_content_review_is_object": true,
+    "receipt_hash_compared_to_external_pin": false,
+    "remaining_requirements_count": 8,
+    "remote_account_identity_verified": false,
+    "services_started": false
+  },
   "latest_windows_synthetic_evidence_observation": {
     "actual_exchange_http_attempts": 0,
     "audit_events_after_clock": 56,
@@ -89,13 +101,15 @@
     "orders_preserved": 34,
     "originals_started_reported": false,
     "stored_day_kst": "2026-11-13",
-    "stored_receipt_structure_reviewed": false,
+    "stored_receipt_structure_reviewed": true,
     "synthetic_sender_calls": 1,
     "unresolved_requests_preserved": 4
   },
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "ACTUAL_WINDOWS_READ_ONLY_STORED_RECEIPT_STRUCTURE_OUTPUT_REVIEW_NO_REPLAY",
+  "local_read_credential_context_applied_on_windows": false,
+  "local_read_credential_context_candidate_cloud_tested": true,
+  "next_scope": "REVIEW_VOLATILE_CREDENTIAL_AND_COPY_ISOLATION_BOUNDARY_NO_AUTOMATIC_NETWORK",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -106,13 +120,16 @@
     "Read-only flat-USDT account content and proposed evidence input shape validated with synthetic responses. Format-valid reference hashes and caller claims never grant identity/history/valuation/source-acceptance authority. Stored periods still require actual-ledger recheck.",
     "Synthetic-only fresh-copy pipeline passed real Docker clock hold, auxiliary setup, account response archive/content checks, input rehash and clean stop. Windows ACL/discovery substituted on Linux; fixture audit 0->1 clock then 1->3 synthetic reads differs from actual Windows 55->56 clock history.",
     "Sealed Windows synthetic evidence ZIP prepared with operator-supplied 64-hex clock receipt pin. Final ZIP 24 checks and one matching-code Docker lifecycle passed; Windows ACL/discovery and synthetic receipt pins differ in cloud fixtures. Actual Windows execution pending.",
-    "User screenshots show successful Windows synthetic pipeline 55->56->58, original unchanged and new copy stopped. Console default JSON depth 2 explains content_review string; stored writer uses depth 16. Read-only companion receipt checker prepared; actual stored receipt verification remains pending. Earlier Windows applied flags now refer only to RAM-loaded synthetic disposable copy, not installation/original changes."
+    "User screenshots show successful Windows synthetic pipeline 55->56->58, original unchanged and new copy stopped. Console default JSON depth 2 explains content_review string; stored writer uses depth 16. Read-only companion receipt checker prepared; actual stored receipt verification remains pending. Earlier Windows applied flags now refer only to RAM-loaded synthetic disposable copy, not installation/original changes.",
+    "User screenshot confirms stored content_review object, eight requirements and matching companion JSON, without writes or Docker. External receipt hash comparison remains false. New RAM-only local signing/archive continuity candidate is cloud-tested with synthetic credentials; neither source identity nor remote account identity is established."
   ],
   "orders_enabled": false,
   "physical_disconnect_independently_verified": false,
   "physical_disconnect_operator_attested": true,
   "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
   "read_only_receipt_review_runner_packaged_and_cloud_tested": true,
+  "real_credential_session_loaded_in_current_phase": false,
+  "real_exchange_reads_in_current_phase": false,
   "receipt_console_depth_issue_native_reproduced": true,
   "remaining_install_prerequisites": [
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
@@ -135,7 +152,7 @@
   "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
   "windows_fresh_copy_runner_execution_observed": true,
   "windows_fresh_copy_runner_prepared_and_cloud_tested": true,
-  "windows_read_only_receipt_review_execution_observed": false,
+  "windows_read_only_receipt_review_execution_observed": true,
   "windows_synthetic_evidence_runner_execution_observed": true,
   "windows_synthetic_evidence_runner_packaged_and_cloud_tested": true
 }
