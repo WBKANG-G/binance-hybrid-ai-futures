@@ -1,0 +1,40 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_windows_receipts_reviewed": false,
+  "archive_sha256": "34a923f89654f2e6302ba7b7d26f1c16745226b9cd3a33ef719899385bb20c48",
+  "date_client_kst": "2026-11-15",
+  "distinct_passed_tests": 40,
+  "docker_used": false,
+  "execution_approved": false,
+  "external_evidence_receipt_hash_verified": false,
+  "final_zip_test_run": {
+    "elapsed_seconds": 8.98,
+    "file": "tests/unit/test_evidence_receipt_review.py",
+    "passed": 16
+  },
+  "future_console_depth": 16,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "native_powershell_fixed_console_object_preserved": true,
+  "native_powershell_old_console_string_reproduced": true,
+  "native_powershell_saved_object_preserved": true,
+  "orders_enabled": false,
+  "original_console_depth": 2,
+  "persisted_receipt_depth": 16,
+  "policy": "READ_ONLY_EVIDENCE_RECEIPT_REVIEW_VALIDATION_V1",
+  "powershell_case_insensitive_automatic_matches_variable_collision_fixed": true,
+  "prior_rehearsal_zip_changed": false,
+  "repair_or_replay_performed": false,
+  "ruff": "PASS",
+  "services_started": false,
+  "source_reference": "f7da9228ba14d6d6ac3c6e83ab953480b6854a54",
+  "source_test_run": {
+    "elapsed_seconds": 18.83,
+    "files": [
+      "tests/unit/test_evidence_receipt_review.py",
+      "tests/unit/test_copy_evidence_bundle.py"
+    ],
+    "passed": 40
+  },
+  "synthetic_file_hashes_and_modified_times_preserved": true
+}

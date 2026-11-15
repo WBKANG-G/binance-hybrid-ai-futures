@@ -1,0 +1,15 @@
+{
+  "archive_sha256": "34a923f89654f2e6302ba7b7d26f1c16745226b9cd3a33ef719899385bb20c48",
+  "docker_used": false,
+  "entries": {
+    "CONFIG.json": "e061e5158ca5078fd64413f3fdff93154b5637f6934a8e2ea4f2d5d379c0a99c",
+    "README_KO.md": "6f3de423e1f5edd3a8f03a1d3f71950f09228d6812e1f5cde0d5b0f92c7d95d7",
+    "REVIEW.ps1": "941315affe071cbbca2be44ca9bf9ed2b0e190d6e3138b8d3adadf3194ef74ad",
+    "REVIEW_CORE.ps1": "9b7cff89f30f716b087bceed1956508d3626b806f4b095506c7fa8bc73c79904",
+    "RUN_RECEIPT_CHECK.cmd": "d60c4ff506989aad40ad4e337169f9917380de730fdba99cdff1b5dfe91cf028",
+    "TRANSFER_MANIFEST.json": "6fb8862a0e1b3dd924c006fbb1bdeba27c7737c481f6b53589a18f1412b67035"
+  },
+  "inspected_runner_source_reference": "3ff5bc4358aee59797f5b25f259b6437cec7844e",
+  "source_reference": "f7da9228ba14d6d6ac3c6e83ab953480b6854a54",
+  "writes_receipts": false
+}
