@@ -13,17 +13,18 @@ from tests.unit.test_response_candidate_image_review import package
 
 
 @pytest.mark.parametrize(
-    "include_snapshot,include_copy,include_baseline,include_archive",
+    "include_snapshot,include_copy,include_baseline,include_archive,include_content",
     [
-        (False, False, False, False),
-        (True, False, False, False),
-        (True, True, False, False),
-        (True, True, True, False),
-        (True, True, True, True),
+        (False, False, False, False, False),
+        (True, False, False, False, False),
+        (True, True, False, False, False),
+        (True, True, True, False, False),
+        (True, True, True, True, False),
+        (True, True, True, True, True),
     ],
 )
 def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
-    include_snapshot, include_copy, include_baseline, include_archive
+    include_snapshot, include_copy, include_baseline, include_archive, include_content
 ):
     files = package()
     config = json.loads(files["CONFIG.json"])
@@ -54,6 +55,11 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
         bodies[path] = (ROOT / path).read_bytes()
         config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
         extras.append(("services.execution.demo_copy_response_archive", path))
+    if include_content:
+        path = "services/execution/demo_copy_account_content.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_copy_account_content", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
@@ -99,6 +105,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
                 ),
 """,
         )
+    if include_content:
+        worker = worker.replace(
+            marker,
+            marker
+            + """                (
+                    lambda: sys.modules["services.execution.demo_copy_account_content"].review_account_body(None),
+                    "COPY_CONTENT_BODY_LIMIT",
+                ),
+""",
+        )
     sources = {p: base64.b64encode(body).decode() for p, body in bodies.items()}
     payload = "CONFIG=" + repr(config) + "\nSOURCES=" + repr(sources) + "\n" + worker
     result = subprocess.run(
@@ -140,9 +156,14 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
     assert report["baseline_files_verified"] == 89
     assert (
         report["candidate_files_verified"]
-        == 3 + include_snapshot + include_copy + include_baseline + include_archive
+        == 3
+        + include_snapshot
+        + include_copy
+        + include_baseline
+        + include_archive
+        + include_content
         and report["default_denials_verified"]
-        == 6 + include_copy + include_baseline + include_archive
+        == 6 + include_copy + include_baseline + include_archive + include_content
     )
     assert (
         report["database_attempts"]

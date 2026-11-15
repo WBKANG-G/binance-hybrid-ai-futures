@@ -1,0 +1,32 @@
+{
+  "base_commit": "d6f62bb50cf84b3c97d071a3b56133d6a21d60ce",
+  "baseline_adoption_approved": false,
+  "baseline_source_accepted": false,
+  "cloud_test_database_stopped_after_validation": true,
+  "date_client_kst": "2026-11-15",
+  "execution_approved": false,
+  "final_test_run": {
+    "elapsed_seconds": 87.12,
+    "files": [
+      "tests/unit/test_copy_account_content.py",
+      "tests/integration/test_copy_account_inputs.py",
+      "tests/integration/test_copy_response_archive.py",
+      "tests/unit/test_response_bootstrap_image.py"
+    ],
+    "passed": 124
+  },
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "mypy_candidate_module": "PASS",
+  "operator_statement_independently_verified": false,
+  "orders_enabled": false,
+  "policy": "COPY_ACCOUNT_CONTENT_VALIDATION_V1",
+  "real_exchange_http_attempts": 0,
+  "referenced_proofs_verified": false,
+  "ruff": "PASS",
+  "scope": "PURE_CONTENT_CHECKS_SYNTHETIC_POSTGRES_SQLITE_ARCHIVES_AND_NETWORKLESS_IMAGE_IMPORT",
+  "stored_periods_verified_against_ledger": false,
+  "usb_reconnection_required": false,
+  "windows_applied": false,
+  "windows_runner_packaged": false
+}
