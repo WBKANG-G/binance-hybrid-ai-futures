@@ -1,5 +1,6 @@
 {
   "baseline_adoption_approved": false,
+  "baseline_source_acceptance_received": false,
   "candidate_image_review_observed_from_windows_console": {
     "baseline_files_verified": 89,
     "binding_created": false,
@@ -10,9 +11,13 @@
     "schema_provisioned": false,
     "source": "USER_SCREENSHOT_OF_PREVIOUS_TWO_FILE_PACKAGE"
   },
+  "copy_account_response_archive_candidate_applied_on_windows": false,
+  "copy_account_response_archive_candidate_cloud_tested": true,
+  "copy_account_response_archive_real_exchange_reads_performed": false,
   "copy_baseline_auxiliary_candidate_applied_on_windows": false,
   "copy_baseline_auxiliary_candidate_cloud_tested": true,
   "copy_clock_period_review_candidate_cloud_tested": true,
+  "credential_context_operator_attestation_received": false,
   "date_client_kst": "2026-11-14",
   "evidence_source": "USER_SCREENSHOTS_AND_EXPLICIT_USER_REPLIES",
   "execution_approved": false,
@@ -67,13 +72,14 @@
   },
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "FRESH_SIGNED_EVIDENCE_CAPTURE_BODY_ARCHIVE_AND_SOURCE_ACCEPTANCE_CONTRACT_REVIEW_ONLY",
+  "next_scope": "ACCOUNT_CONTEXT_RESPONSE_CONTENT_VALIDATION_AND_EVIDENCE_ACCEPTANCE_INPUT_CONTRACT_ONLY",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
     "Existing synthetic wire/checkpoint candidates and core demo.py change remain excluded from Windows GET stage.",
     "The previous Windows image-only pass covers the old two-file payload; revised evidence and new bootstrap candidate have only cloud fixture/image validation.",
-    "Fresh-copy V1 clock rehearsal succeeded on the user console; original clock/state was not changed. New-day auxiliary evidence setup is cloud-tested only, with regular operational period checks unchanged."
+    "Fresh-copy V1 clock rehearsal succeeded on the user console; original clock/state was not changed. New-day auxiliary evidence setup is cloud-tested only, with regular operational period checks unchanged.",
+    "One-shot copy-only account response archive candidate passed synthetic PG/SQLite and networkless image tests. Credential context is caller-supplied, not operator attestation or remote identity proof. No real exchange read or Windows install occurred."
   ],
   "orders_enabled": false,
   "physical_disconnect_independently_verified": false,

@@ -13,11 +13,17 @@ from tests.unit.test_response_candidate_image_review import package
 
 
 @pytest.mark.parametrize(
-    "include_snapshot,include_copy,include_baseline",
-    [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
+    "include_snapshot,include_copy,include_baseline,include_archive",
+    [
+        (False, False, False, False),
+        (True, False, False, False),
+        (True, True, False, False),
+        (True, True, True, False),
+        (True, True, True, True),
+    ],
 )
 def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
-    include_snapshot, include_copy, include_baseline
+    include_snapshot, include_copy, include_baseline, include_archive
 ):
     files = package()
     config = json.loads(files["CONFIG.json"])
@@ -43,6 +49,11 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
         bodies[path] = (ROOT / path).read_bytes()
         config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
         extras.append(("services.execution.demo_copy_baseline_evidence", path))
+    if include_archive:
+        path = "services/execution/demo_copy_response_archive.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_copy_response_archive", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
@@ -75,6 +86,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
             + """                (
                     lambda: sys.modules["services.execution.demo_copy_baseline_evidence"].prepare_copy_baseline_evidence(None, None, None, None, None, None, None),
                     "COPY_BASELINE_EXPLICIT_COPY_CONTEXT_REQUIRED",
+                ),
+""",
+        )
+    if include_archive:
+        worker = worker.replace(
+            marker,
+            marker
+            + """                (
+                    lambda: sys.modules["services.execution.demo_copy_response_archive"].CopyAccountArchiveTransport(None, None, None, credential_context_id="", expected_api_key=None, sender=None),
+                    "COPY_ARCHIVE_DISABLED",
                 ),
 """,
         )
@@ -118,8 +139,10 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
     report = json.loads(result.stdout)
     assert report["baseline_files_verified"] == 89
     assert (
-        report["candidate_files_verified"] == 3 + include_snapshot + include_copy + include_baseline
-        and report["default_denials_verified"] == 6 + include_copy + include_baseline
+        report["candidate_files_verified"]
+        == 3 + include_snapshot + include_copy + include_baseline + include_archive
+        and report["default_denials_verified"]
+        == 6 + include_copy + include_baseline + include_archive
     )
     assert (
         report["database_attempts"]
