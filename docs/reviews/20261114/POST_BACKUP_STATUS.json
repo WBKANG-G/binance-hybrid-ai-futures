@@ -109,7 +109,7 @@
   "local_preservation_hashes_verified_from_console": true,
   "local_read_credential_context_applied_on_windows": false,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "REVIEW_VOLATILE_CREDENTIAL_AND_COPY_ISOLATION_BOUNDARY_NO_AUTOMATIC_NETWORK",
+  "next_scope": "SYNTHETIC_FRESH_COPY_AND_PRIVATE_TMPFS_EXECUTOR_REVIEW_NO_REAL_KEYS_OR_HTTP",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -121,14 +121,20 @@
     "Synthetic-only fresh-copy pipeline passed real Docker clock hold, auxiliary setup, account response archive/content checks, input rehash and clean stop. Windows ACL/discovery substituted on Linux; fixture audit 0->1 clock then 1->3 synthetic reads differs from actual Windows 55->56 clock history.",
     "Sealed Windows synthetic evidence ZIP prepared with operator-supplied 64-hex clock receipt pin. Final ZIP 24 checks and one matching-code Docker lifecycle passed; Windows ACL/discovery and synthetic receipt pins differ in cloud fixtures. Actual Windows execution pending.",
     "User screenshots show successful Windows synthetic pipeline 55->56->58, original unchanged and new copy stopped. Console default JSON depth 2 explains content_review string; stored writer uses depth 16. Read-only companion receipt checker prepared; actual stored receipt verification remains pending. Earlier Windows applied flags now refer only to RAM-loaded synthetic disposable copy, not installation/original changes.",
-    "User screenshot confirms stored content_review object, eight requirements and matching companion JSON, without writes or Docker. External receipt hash comparison remains false. New RAM-only local signing/archive continuity candidate is cloud-tested with synthetic credentials; neither source identity nor remote account identity is established."
+    "User screenshot confirms stored content_review object, eight requirements and matching companion JSON, without writes or Docker. External receipt hash comparison remains false. New RAM-only local signing/archive continuity candidate is cloud-tested with synthetic credentials; neither source identity nor remote account identity is established.",
+    "Fresh cloud Docker tmpfs test validated RO reader, key-only registrar, read-directory lock, explicit close, expiry denial and disappearance after final unmount, with no Docker logs or credential environment/arguments. PostgreSQL archive bridge tested separately with a synthetic tmpfs substitute; no actual Windows/real key integration or host swap protection verified."
   ],
   "orders_enabled": false,
+  "original_key_session_used_in_current_phase": false,
   "physical_disconnect_independently_verified": false,
   "physical_disconnect_operator_attested": true,
   "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
+  "private_tmpfs_read_lease_applied_on_windows": false,
+  "private_tmpfs_read_lease_candidate_cloud_tested": true,
+  "private_tmpfs_read_scope_actual_docker_tested": true,
   "read_only_receipt_review_runner_packaged_and_cloud_tested": true,
   "real_credential_session_loaded_in_current_phase": false,
+  "real_credentials_loaded_in_current_phase": false,
   "real_exchange_reads_in_current_phase": false,
   "receipt_console_depth_issue_native_reproduced": true,
   "remaining_install_prerequisites": [

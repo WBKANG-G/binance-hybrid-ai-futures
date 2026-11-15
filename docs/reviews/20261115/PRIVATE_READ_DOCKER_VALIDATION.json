@@ -1,0 +1,30 @@
+{
+  "actual_http_attempts": 0,
+  "docker_log_driver": "none",
+  "expired_session_denied": true,
+  "explicit_close_releases_lock": true,
+  "host_swap_or_memory_snapshot_protection_verified": false,
+  "last_unmount_drops_session": true,
+  "network_mode": "none",
+  "no_credential_environment_or_arguments": true,
+  "original_containers_touched": false,
+  "read_helper_key_mount_readonly": true,
+  "real_credentials_used": false,
+  "real_docker_tmpfs": true,
+  "registrar_has_only_key_volume": true,
+  "root_filesystem_readonly": true,
+  "scope_policy": {
+    "copy_isolation_independently_verified": false,
+    "docker_socket_mounted": false,
+    "execution_approved": false,
+    "external_controller_freshness_attested": true,
+    "live_trading_enabled": false,
+    "network_enabled": false,
+    "orders_enabled": false,
+    "private_read_scope": "OWNED_RO_KEY_AND_FRESH_COPY_MOUNTS_CHECKED",
+    "reader_key_mount_readonly": true,
+    "registrar_has_only_key_volume": true,
+    "remote_account_identity_verified": false
+  },
+  "shared_lease_blocks_clear": true
+}

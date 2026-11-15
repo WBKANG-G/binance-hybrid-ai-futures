@@ -1,0 +1,51 @@
+{
+  "actual_docker_tmpfs_guest_checks": true,
+  "actual_exchange_http_attempts": 0,
+  "actual_windows_touched": false,
+  "base_commit": "9a0d6d4355a17e1f6c16095d14609e45be6b0b2a",
+  "baseline_adoption_approved": false,
+  "cloud_test_database_stopped_after_validation": true,
+  "combined_real_docker_pg_archive_and_key_session_not_yet_exercised": true,
+  "date_client_kst": "2026-11-15",
+  "distinct_passed_tests": 58,
+  "docker_test_runtime_socket_volumes_are_empty_scope_placeholders": true,
+  "execution_approved": false,
+  "files_sha256": {
+    "services/execution/demo_copy_volatile_credentials.py": "e1f91a9cce24f94ea7f9cd102883d9a5cd4a1e35a64b5445a93e8092a1bd73e4",
+    "services/execution/demo_private_read_scope.py": "ab3bc5e2548e07fdeedbbe583a9e4d68fc0e400b275e28827ac5c898a145cc75",
+    "tests/integration/test_private_copy_archive.py": "a6a912089fd451b0034b0e4e8eac6bfa74f9c3bd3f51cd4d0aa4969c2972da5a",
+    "tests/integration/test_private_read_keys_docker.py": "c907ce786a8ab1b83f34966d4f53299e4c1edc715bde2a531d6c59c84ddd55ea",
+    "tests/unit/test_private_read_credentials.py": "0f509813228ef1594617d0a55be025e0c442262dcbab58b201fe35b98b723d72",
+    "tests/unit/test_private_read_scope.py": "360527d1e2db44a95bf4c259155f528ecc51b1d89d6f1fd9ff6d918a6f011add"
+  },
+  "host_scope_policy_checked": true,
+  "host_swap_or_memory_snapshot_protection_verified": false,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "mypy_candidate_modules": "PASS",
+  "orders_enabled": false,
+  "policy": "PRIVATE_READ_TMPFS_LEASE_VALIDATION_V1",
+  "postgres_bridge_uses_mock_tmpfs_mount_metadata": true,
+  "real_credentials_loaded": false,
+  "remote_account_identity_verified": false,
+  "ruff": "PASS",
+  "synthetic_credentials_only": true,
+  "test_runs": [
+    {
+      "elapsed_seconds": 6.32,
+      "files": [
+        "tests/unit/test_private_read_credentials.py",
+        "tests/integration/test_private_copy_archive.py"
+      ],
+      "passed": 36
+    },
+    {
+      "elapsed_seconds": 29.07,
+      "files": [
+        "tests/unit/test_private_read_scope.py",
+        "tests/integration/test_private_read_keys_docker.py"
+      ],
+      "passed": 22
+    }
+  ]
+}
