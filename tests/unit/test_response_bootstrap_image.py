@@ -13,10 +13,11 @@ from tests.unit.test_response_candidate_image_review import package
 
 
 @pytest.mark.parametrize(
-    "include_snapshot,include_copy", [(False, False), (True, False), (True, True)]
+    "include_snapshot,include_copy,include_baseline",
+    [(False, False, False), (True, False, False), (True, True, False), (True, True, True)],
 )
 def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
-    include_snapshot, include_copy
+    include_snapshot, include_copy, include_baseline
 ):
     files = package()
     config = json.loads(files["CONFIG.json"])
@@ -37,6 +38,11 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
         bodies[path] = (ROOT / path).read_bytes()
         config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
         extras.append(("services.execution.demo_copy_transition_review", path))
+    if include_baseline:
+        path = "services/execution/demo_copy_baseline_evidence.py"
+        bodies[path] = (ROOT / path).read_bytes()
+        config["candidate_files"][path] = hashlib.sha256(bodies[path]).hexdigest()
+        extras.append(("services.execution.demo_copy_baseline_evidence", path))
     worker = files["worker.py"].decode()
     marker = "\ndef collect("
     assert worker.count(marker) == 1
@@ -59,6 +65,16 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
             + """                (
                     lambda: sys.modules["services.execution.demo_copy_transition_review"].review_copy_transition(None, None, None, None, None, None),
                     "COPY_TRANSITION_EXPLICIT_COPY_REVIEW_REQUIRED",
+                ),
+""",
+        )
+    if include_baseline:
+        worker = worker.replace(
+            marker,
+            marker
+            + """                (
+                    lambda: sys.modules["services.execution.demo_copy_baseline_evidence"].prepare_copy_baseline_evidence(None, None, None, None, None, None, None),
+                    "COPY_BASELINE_EXPLICIT_COPY_CONTEXT_REQUIRED",
                 ),
 """,
         )
@@ -102,8 +118,8 @@ def test_bootstrap_import_and_explicit_guard_on_networkless_base_image(
     report = json.loads(result.stdout)
     assert report["baseline_files_verified"] == 89
     assert (
-        report["candidate_files_verified"] == 3 + include_snapshot + include_copy
-        and report["default_denials_verified"] == 6 + include_copy
+        report["candidate_files_verified"] == 3 + include_snapshot + include_copy + include_baseline
+        and report["default_denials_verified"] == 6 + include_copy + include_baseline
     )
     assert (
         report["database_attempts"]

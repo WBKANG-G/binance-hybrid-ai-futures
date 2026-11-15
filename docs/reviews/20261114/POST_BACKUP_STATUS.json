@@ -1,4 +1,5 @@
 {
+  "baseline_adoption_approved": false,
   "candidate_image_review_observed_from_windows_console": {
     "baseline_files_verified": 89,
     "binding_created": false,
@@ -9,6 +10,8 @@
     "schema_provisioned": false,
     "source": "USER_SCREENSHOT_OF_PREVIOUS_TWO_FILE_PACKAGE"
   },
+  "copy_baseline_auxiliary_candidate_applied_on_windows": false,
+  "copy_baseline_auxiliary_candidate_cloud_tested": true,
   "copy_clock_period_review_candidate_cloud_tested": true,
   "date_client_kst": "2026-11-14",
   "evidence_source": "USER_SCREENSHOTS_AND_EXPLICIT_USER_REPLIES",
@@ -28,6 +31,26 @@
   "installation_ready": false,
   "isolated_copy_recovery_and_readonly_account_checks_observed": true,
   "latest_review_date_client_kst": "2026-11-15",
+  "latest_windows_copy_clock_observation": {
+    "audit_events_after": 56,
+    "audit_events_before": 55,
+    "backup_hashes_unchanged_reported": true,
+    "boot_matches": true,
+    "clock_matches": true,
+    "clone_stopped_reported": true,
+    "cumulative_weight_after": 284,
+    "cumulative_weight_before": 284,
+    "current_day_kst": "2026-11-15",
+    "current_week_kst": "2026-11-09",
+    "evidence_source": "USER_CONSOLE_SCREENSHOT",
+    "historical_unresolved_requests": 4,
+    "originals_started_reported": false,
+    "revision_after": 59,
+    "revision_before": 58,
+    "startup_hold_verified": true,
+    "stored_day_kst": "2026-11-13",
+    "stored_week_kst": "2026-11-09"
+  },
   "latest_windows_copy_diagnostic_observation": {
     "backup_hashes_unchanged_reported": true,
     "clock_matches": false,
@@ -44,19 +67,19 @@
   },
   "live_trading_enabled": false,
   "local_preservation_hashes_verified_from_console": true,
-  "next_scope": "ACTUAL_WINDOWS_FRESH_COPY_CLOCK_REHEARSAL_OUTPUT_REVIEW_KEEP_ORIGINALS_STOPPED",
+  "next_scope": "FRESH_SIGNED_EVIDENCE_CAPTURE_BODY_ARCHIVE_AND_SOURCE_ACCEPTANCE_CONTRACT_REVIEW_ONLY",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
     "Existing synthetic wire/checkpoint candidates and core demo.py change remain excluded from Windows GET stage.",
-    "The previous Windows image-only pass covers the old two-file payload; revised evidence and new bootstrap candidate have only cloud fixture/image validation."
+    "The previous Windows image-only pass covers the old two-file payload; revised evidence and new bootstrap candidate have only cloud fixture/image validation.",
+    "Fresh-copy V1 clock rehearsal succeeded on the user console; original clock/state was not changed. New-day auxiliary evidence setup is cloud-tested only, with regular operational period checks unchanged."
   ],
   "orders_enabled": false,
   "physical_disconnect_independently_verified": false,
   "physical_disconnect_operator_attested": true,
   "policy": "POST_BACKUP_NEXT_REVIEW_STATUS_V1",
   "remaining_install_prerequisites": [
-    "WINDOWS_FRESH_COPY_CLOCK_REHEARSAL_RECEIPT_REVIEW",
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
     "V2_AWARE_CLOCK_TRANSITION_IF_ALREADY_BOUND",
     "WINDOWS_UPDATED_CANDIDATES_AND_FULL_SNAPSHOT_COMPATIBILITY_REVIEW",
@@ -68,7 +91,7 @@
   "usb_reconnection_required_for_runner": false,
   "v1_recovery_v2_guard_implemented_not_installed_on_windows": true,
   "whole_financial_proof_verified": false,
-  "windows_copy_clock_rehearsal_execution_observed": false,
+  "windows_copy_clock_rehearsal_execution_observed": true,
   "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
   "windows_fresh_copy_runner_execution_observed": true,
   "windows_fresh_copy_runner_prepared_and_cloud_tested": true

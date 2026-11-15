@@ -1,0 +1,30 @@
+{
+  "base_commit": "ec37a667cda70f15e5a6b523b85469140e338eac",
+  "baseline_adoption_approved": false,
+  "cloud_test_database_stopped_after_validation": true,
+  "copy_isolation_independently_verified": false,
+  "date_client_kst": "2026-11-15",
+  "execution_approved": false,
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "mypy_candidate_module": "PASS",
+  "operational_period_guard_unchanged": true,
+  "orders_enabled": false,
+  "policy": "COPY_BASELINE_EVIDENCE_CANDIDATE_VALIDATION_V1",
+  "pytest": {
+    "elapsed_seconds": 51.97,
+    "files": [
+      "tests/integration/test_copy_baseline_evidence.py",
+      "tests/integration/test_response_evidence_bootstrap.py",
+      "tests/integration/test_response_evidence_candidate.py",
+      "tests/unit/test_response_bootstrap_image.py"
+    ],
+    "passed": 70
+  },
+  "real_exchange_http_attempts": 0,
+  "ruff": "PASS",
+  "test_environment": "SYNTHETIC_POSTGRES_SQLITE_AND_NETWORKLESS_IMAGE_IMPORT",
+  "usb_reconnection_required": false,
+  "windows_applied": false,
+  "windows_runner_packaged": false
+}
