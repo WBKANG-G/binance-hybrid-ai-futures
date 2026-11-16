@@ -533,3 +533,41 @@ try {{Assert-PrivateWeekResult (Read-RestoreJson '{tmp_path}/value.json') (Read-
         assert r.stdout.strip() == "OK"
     else:
         assert r.stdout.strip().startswith("PRIVATE_")
+
+
+@pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
+@pytest.mark.parametrize("original", [True, False])
+def test_stop_never_signals_original_or_unowned_id(tmp_path, original):
+    materialize(tmp_path)
+    r = native(
+        tmp_path,
+        f"""
+. '{tmp_path}/PRIVATE_EXT.ps1'
+function Backup-Docker {{throw 'DOCKER_CALLED_BEFORE_OWNERSHIP_CHECK'}}
+$old=@();if (${str(original).lower()}) {{$old=@([pscustomobject]@{{id=('a'*64)}})}}
+try {{Private-Stop ('a'*64) $old ('sha256:'+('b'*64));throw 'UNEXPECTED_SUCCESS'}}
+catch {{if ($_.Exception.Message -cne 'PRIVATE_HELPER_ID_INVALID') {{throw}}}}
+Write-Output 'NO_SIGNAL'
+""",
+    )
+    assert r.returncode == 0 and not r.stderr, r.stdout + r.stderr
+    assert r.stdout.strip() == "NO_SIGNAL"
+
+
+@pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
+def test_owned_stop_uses_portable_signal_and_rechecks_state(tmp_path):
+    materialize(tmp_path)
+    r = native(
+        tmp_path,
+        f"""
+. '{tmp_path}/PRIVATE_EXT.ps1'
+$script:checks=0;$script:commands=@()
+function Private-AssertManaged {{$script:checks++;return [pscustomobject]@{{State=[pscustomobject]@{{Running=($script:checks -eq 1);Restarting=$false}}}}}}
+function Backup-Docker([string[]]$Arguments) {{$script:commands+=,($Arguments -join '|');return $Arguments[-1]}}
+Private-Stop ('a'*64) @() ('sha256:'+('b'*64))
+if ($script:checks -ne 2 -or $script:commands.Count -ne 1 -or $script:commands[0] -cne ('kill|--signal=SIGINT|'+('a'*64))) {{throw 'UNEXPECTED_SIGNAL_OR_MISSING_RECHECK'}}
+Write-Output 'OWNED_STOP_CHECKED'
+""",
+    )
+    assert r.returncode == 0 and not r.stderr, r.stdout + r.stderr
+    assert r.stdout.strip() == "OWNED_STOP_CHECKED"

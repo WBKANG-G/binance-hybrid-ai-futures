@@ -140,7 +140,17 @@ function Private-RunWorker([string]$Id,[string]$Role,[string]$Root,[object]$Conf
 }
 function Private-Stop([string]$Id,[object[]]$Original,[string]$Image) {
     $item=Private-AssertManaged $Id $Original $Image
-    if ($item.State.Running) {$null=Backup-Docker @('stop','--time','2',$Id) 1}
+    if ($item.State.Running) {
+        $null=Backup-Docker @('kill','--signal=SIGINT',$Id) 1
+        $watch=[Diagnostics.Stopwatch]::StartNew()
+        while ($watch.Elapsed.TotalSeconds -lt 10) {
+            $item=Private-AssertManaged $Id $Original $Image
+            if (-not $item.State.Running -and -not $item.State.Restarting) {return}
+            Start-Sleep -Milliseconds 200
+        }
+        $null=Private-AssertManaged $Id $Original $Image
+        $null=Backup-Docker @('kill','--signal=SIGKILL',$Id) 1
+    }
     $item=Private-AssertManaged $Id $Original $Image
     if ($item.State.Running -or $item.State.Restarting) {throw 'PRIVATE_HELPER_STOP_FAILED'}
 }
