@@ -1,0 +1,47 @@
+{
+  "actual_http_attempts_reported": 0,
+  "client_day_kst": "2026-11-16",
+  "current_database_state_verified": false,
+  "docker_used_reported": false,
+  "event_transition_history_replayed": false,
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT_NOT_DIRECT_FILE_ACCESS",
+  "execution_approved": false,
+  "files_written_reported": false,
+  "finding_for_selected_requests": "NO_DURABLE_NO_SEND_REASON_IN_THIS_PRIOR_SNAPSHOT",
+  "global_map_empty_independently_checked": false,
+  "live_trading_enabled": false,
+  "order_writes_reported": 0,
+  "orders_enabled": false,
+  "prior_snapshot_no_send_map_present": true,
+  "recorded_reason_count_for_four_requests": 0,
+  "recorded_request_states": {
+    "ENTRY": [
+      "UNKNOWN",
+      "UNKNOWN"
+    ],
+    "EXIT": [
+      "SUBMITTING"
+    ],
+    "STOP_LOSS": [
+      "UNKNOWN"
+    ]
+  },
+  "request_count": 4,
+  "request_resolution_authorized": false,
+  "request_states_changed_reported": false,
+  "resend_authorized": false,
+  "stored_read_observations": {
+    "ENTRY": [
+      "FILLED",
+      "FILLED"
+    ],
+    "EXIT": [
+      "NOT_FOUND_UNRESOLVED"
+    ],
+    "STOP_LOSS": [
+      "NOT_FOUND_UNRESOLVED"
+    ]
+  },
+  "success_marker_observed": "PRIOR_NO_SEND_RECORDS_READ_NO_RESOLUTION_NO_WRITES_NO_DOCKER",
+  "wire_send_or_non_send_independently_verified": false
+}
