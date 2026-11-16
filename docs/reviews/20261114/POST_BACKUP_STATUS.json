@@ -44,6 +44,7 @@
   "isolated_copy_recovery_and_readonly_account_checks_observed": true,
   "latest_clock_receipt_sha256_confirmed_by_user_text": "8bd24518a93cb977479dbcaed2670236c256386ac400e9b129f35965a167d6f5",
   "latest_review_date_client_kst": "2026-11-16",
+  "latest_synthetic_evidence_receipt_sha256_from_user_screenshots": "0dc12ec08a82e708d31ce90e1846228016c5120a0ec24517ad282ab81eabe37e",
   "latest_windows_copy_clock_observation": {
     "audit_events_after": 56,
     "audit_events_before": 55,
@@ -113,7 +114,7 @@
   "local_preservation_hashes_verified_from_console": true,
   "local_read_credential_context_applied_on_windows": false,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "BUILD_WINDOWS_20261116_SYNTHETIC_PRIVATE_COPY_REHEARSAL_PACKAGE_NO_REAL_KEYS_OR_HTTP",
+  "next_scope": "USER_RUN_20261116_WINDOWS_PRIVATE_WEEK_CHECK_AND_SYNTHETIC_REHEARSAL_ONCE_NO_REAL_KEYS_OR_HTTP",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -127,7 +128,8 @@
     "User screenshots show successful Windows synthetic pipeline 55->56->58, original unchanged and new copy stopped. Console default JSON depth 2 explains content_review string; stored writer uses depth 16. Read-only companion receipt checker prepared; actual stored receipt verification remains pending. Earlier Windows applied flags now refer only to RAM-loaded synthetic disposable copy, not installation/original changes.",
     "User screenshot confirms stored content_review object, eight requirements and matching companion JSON, without writes or Docker. External receipt hash comparison remains false. New RAM-only local signing/archive continuity candidate is cloud-tested with synthetic credentials; neither source identity nor remote account identity is established.",
     "Fresh cloud Docker tmpfs test validated RO reader, key-only registrar, read-directory lock, explicit close, expiry denial and disappearance after final unmount, with no Docker logs or credential environment/arguments. PostgreSQL archive bridge tested separately with a synthetic tmpfs substitute; no actual Windows/real key integration or host swap protection verified.",
-    "Nov 16 is a day AND week boundary. New observation-only guard requires current day/week Nov16 and preserves stored Nov13/weekNov9. Actual Docker test combined a fresh logical PG/runtime clone, real RO tmpfs lease, local signing, archive/content check and clean clone stop; original synthetic runtime hashes unchanged. No user Windows, real credentials, HTTP or baseline adoption occurred."
+    "Nov 16 is a day AND week boundary. New observation-only guard requires current day/week Nov16 and preserves stored Nov13/weekNov9. Actual Docker test combined a fresh logical PG/runtime clone, real RO tmpfs lease, local signing, archive/content check and clean clone stop; original synthetic runtime hashes unchanged. No user Windows, real credentials, HTTP or baseline adoption occurred.",
+    "Nov16 sealed Windows private-week ZIP passed 38 final-ZIP native tests and one complete fresh Docker/PowerShell cold-byte-backup/restore/clock/private-tmpfs pipeline. Synthetic key disappearance after final holder stop verified; exact executed production code compared to final ZIP. Windows ACL/input discovery and synthetic receipt pins differ in cloud fixture. Actual user Windows execution, separate PC reverification, real keys/HTTP and baseline adoption remain unperformed. Latest Nov15 evidence pin is consistent across user screenshots, not user text or external independent proof."
   ],
   "orders_enabled": false,
   "original_key_session_used_in_current_phase": false,
@@ -165,6 +167,10 @@
   "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
   "windows_fresh_copy_runner_execution_observed": true,
   "windows_fresh_copy_runner_prepared_and_cloud_tested": true,
+  "windows_private_week_runner_sha256": "b265944224fff3af21582d3836d4cd720ccb5689e92a779cb95c530c7a04a52d",
+  "windows_private_week_runner_source_reference": "45ee90dd99c4a17b22ab157bc38a103176cd3911",
+  "windows_private_week_synthetic_runner_execution_observed": false,
+  "windows_private_week_synthetic_runner_packaged_and_cloud_tested": true,
   "windows_read_only_receipt_review_execution_observed": true,
   "windows_synthetic_evidence_runner_execution_observed": true,
   "windows_synthetic_evidence_runner_packaged_and_cloud_tested": true

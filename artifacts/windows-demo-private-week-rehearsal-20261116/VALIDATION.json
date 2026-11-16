@@ -1,0 +1,42 @@
+{
+  "additional_fresh_holder_register_stop_empty_probe": "PASSED_REAL_TMPFS_WITH_SYNTHETIC_KEYS_ONLY",
+  "artifact_sha256": "b265944224fff3af21582d3836d4cd720ccb5689e92a779cb95c530c7a04a52d",
+  "baseline_adoption_approved": false,
+  "execution_approved": false,
+  "final_zip_executed_code_matches": true,
+  "final_zip_native_unit_tests": {
+    "passed": 38,
+    "seconds": 20.42,
+    "skipped": 0
+  },
+  "full_fresh_docker_powershell_lifecycle": {
+    "passed": 1,
+    "seconds": 391.52,
+    "skipped": 0
+  },
+  "git_diff_check": "PASSED",
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_PRIVATE_WEEK_REHEARSAL_VALIDATION_V1",
+  "pre_release_regressions_fixed": [
+    "Append-only sequential resource records avoid CreateNew collision",
+    "Portable targeted SIGINT avoids deprecated Docker stop flag stdout contaminating bounded output; ownership and final state checked"
+  ],
+  "reproducible_zip_from_source_reference": true,
+  "ruff_check": "PASSED",
+  "ruff_format_check": "PASSED",
+  "source_reference": "45ee90dd99c4a17b22ab157bc38a103176cd3911",
+  "test_limits": [
+    "Windows ACL and input discovery substituted on Linux",
+    "Synthetic source and test-specific input receipt pins",
+    "No actual user Windows data or separate PC verification",
+    "CMD itself not executable on Linux; production PowerShell launcher exercised with Legacy argument passing",
+    "Host swap and memory snapshot protection not verified"
+  ],
+  "working_source_native_unit_tests": {
+    "passed": 38,
+    "seconds": 23.88,
+    "skipped": 0
+  }
+}
