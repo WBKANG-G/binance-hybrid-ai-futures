@@ -5,6 +5,7 @@ The external lifecycle boundary must attest copy isolation; failures retain stat
 """
 
 import hashlib
+import hmac
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -39,6 +40,9 @@ from services.execution.demo_copy_transition_review import review_copy_transitio
 from services.execution.demo_evidence_snapshot import evidence_snapshot
 from services.execution.demo_runtime_storage import RuntimeClocks
 
+SYNTHETIC_PRIVATE_KEY = "SYNTHETIC_TMPFS_DOCKER_KEY"
+SYNTHETIC_PRIVATE_SECRET = "SYNTHETIC_TMPFS_DOCKER_SECRET"
+
 
 def rehearse_synthetic_copy_evidence(
     read_engine: Engine,
@@ -56,6 +60,7 @@ def rehearse_synthetic_copy_evidence(
     synthetic_only: bool = False,
     clocks: RuntimeClocks | None = None,
     progress: Callable[[str], None] | None = None,
+    private_lease: Any = None,
 ) -> dict[str, Any]:
     require(copy_only is True and synthetic_only is True, "COPY_PIPELINE_SYNTHETIC_COPY_REQUIRED")
     require(
@@ -72,6 +77,30 @@ def rehearse_synthetic_copy_evidence(
         "COPY_PIPELINE_NO_RESUME",
     )
     review_account_body(synthetic_body)  # Reject invalid local fixture before any mutation.
+    if private_lease is not None:
+        # Lazy import keeps the sealed default synthetic pipeline independent of
+        # this later tmpfs-only candidate. No arbitrary sender is accepted.
+        from services.execution.demo_copy_volatile_credentials import PrivateReadCredentialLease
+
+        require(
+            type(private_lease) is PrivateReadCredentialLease,
+            "COPY_PIPELINE_PRIVATE_LEASE_REQUIRED",
+        )
+        private_lease.verify()
+        credentials = private_lease._credentials
+        require(
+            credentials is not None
+            and (private_lease._account, private_lease._scope) == (account, scope),
+            "COPY_PIPELINE_PRIVATE_SCOPE_MISMATCH",
+        )
+        assert credentials is not None
+        require(
+            hmac.compare_digest(credentials.api_key.get_secret_value(), SYNTHETIC_PRIVATE_KEY)
+            and hmac.compare_digest(
+                credentials.secret.get_secret_value(), SYNTHETIC_PRIVATE_SECRET
+            ),
+            "COPY_PIPELINE_SYNTHETIC_PRIVATE_KEYS_REQUIRED",
+        )
     clock = clocks or RuntimeClocks()
 
     def stage(name: str) -> None:
@@ -159,37 +188,55 @@ def rehearse_synthetic_copy_evidence(
             margin_mode="ISOLATED",
             symbols=("BTCUSDT",),
         )
-        transport = CopyAccountArchiveTransport(
-            settings,
-            shared,
-            archive_directory,
-            copy_only=True,
-            enable_capture=True,
-            credential_context_id=str(uuid4()),
-            expected_api_key=SecretStr("SYNTHETIC_NO_EXCHANGE_KEY"),
-            sender=synthetic_sender,
-            monotonic=clock.monotonic,
-        )
-        signed = prepare_signed_query(
-            {},
-            api_key=SecretStr("SYNTHETIC_NO_EXCHANGE_KEY"),
-            secret=SecretStr("SYNTHETIC_NO_EXCHANGE_SECRET"),
-            timestamp_ms=int(clock.wall_clock().timestamp() * 1000),
-        )
         stage("SYNTHETIC_GET_AND_ARCHIVE")
-        try:
-            transport("GET", "/fapi/v3/account", signed.query, signed.api_key)
-        finally:
-            transport.close()
-        require(
-            sent == 1 and transport.archive_report is not None, "COPY_PIPELINE_ARCHIVE_REQUIRED"
-        )
-        assert transport.archive_report is not None
+        if private_lease is None:
+            transport = CopyAccountArchiveTransport(
+                settings,
+                shared,
+                archive_directory,
+                copy_only=True,
+                enable_capture=True,
+                credential_context_id=str(uuid4()),
+                expected_api_key=SecretStr("SYNTHETIC_NO_EXCHANGE_KEY"),
+                sender=synthetic_sender,
+                monotonic=clock.monotonic,
+            )
+            signed = prepare_signed_query(
+                {},
+                api_key=SecretStr("SYNTHETIC_NO_EXCHANGE_KEY"),
+                secret=SecretStr("SYNTHETIC_NO_EXCHANGE_SECRET"),
+                timestamp_ms=int(clock.wall_clock().timestamp() * 1000),
+            )
+            try:
+                transport("GET", "/fapi/v3/account", signed.query, signed.api_key)
+            finally:
+                transport.close()
+            require(
+                sent == 1 and transport.archive_report is not None, "COPY_PIPELINE_ARCHIVE_REQUIRED"
+            )
+            assert transport.archive_report is not None
+            archive_report = transport.archive_report
+        else:
+            from services.execution.demo_copy_volatile_credentials import (
+                capture_with_private_copy_credentials,
+            )
+
+            private_result = capture_with_private_copy_credentials(
+                settings,
+                shared,
+                archive_directory,
+                private_lease,
+                enable_capture=True,
+                copy_only=True,
+                sender=synthetic_sender,
+            )
+            archive_report = private_result["read_context"]["archive"]
+            require(sent == 1, "COPY_PIPELINE_SYNTHETIC_SEND_LIMIT")
         stage("READ_ONLY_CONTENT_AND_PRESERVATION_CHECK")
         content = review_account_evidence_inputs(
             shared,
             archive_directory,
-            transport.archive_report["receipt_sha256"],
+            archive_report["receipt_sha256"],
             now=clock.wall_clock(),
         )
         after = evidence_snapshot(read_engine, directory)
@@ -258,9 +305,10 @@ def rehearse_synthetic_copy_evidence(
         startup_ready_observed=True,
         evidence_binding_created=True,
         synthetic_sender_calls=sent,
+        private_tmpfs_credentials_used=private_lease is not None,
         audit_events_before=before_report["prior_audit_events"],
         audit_events_after=final["prior_audit_events"],
-        archive_receipt_sha256=transport.archive_report["receipt_sha256"],
+        archive_receipt_sha256=archive_report["receipt_sha256"],
         content_review=content,
         protected_rows_and_files_preserved=True,
         shared_journal_changed=True,

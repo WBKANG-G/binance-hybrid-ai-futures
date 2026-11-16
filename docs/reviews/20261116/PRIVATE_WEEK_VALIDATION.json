@@ -1,0 +1,52 @@
+{
+  "actual_exchange_http_attempts": 0,
+  "actual_windows_touched": false,
+  "base_commit": "787d77bdd9ae51060485ede490a446903142a5e5",
+  "baseline_adoption_approved": false,
+  "baseline_source_accepted": false,
+  "cloud_test_database_stopped_after_validation": true,
+  "date_client_kst": "2026-11-16",
+  "day_and_week_evidence_still_required": true,
+  "distinct_passed_tests": 24,
+  "execution_approved": false,
+  "files_sha256": {
+    "services/execution/demo_copy_evidence_rehearsal.py": "c6b925a6eb3ed92213e543d01f4da5f136cf1730ec8c129d03ac3c1238ad9c76",
+    "services/execution/demo_copy_private_week_review.py": "76023a2bdf866ec6a84b30bfa7b513686369328638b84125f5f30caf73b76e6e",
+    "tests/integration/test_private_week_copy.py": "ccb6616165021ec9f6e9f8daee74eb15a742e8a531e12239fb8ab6f4e44b8576",
+    "tests/integration/test_private_week_docker.py": "d0fe86fe4068c44a77407959b3f3488a45f4b06e2a1039588c1a5bb6a98143ce"
+  },
+  "installation_ready": false,
+  "live_trading_enabled": false,
+  "mypy_candidate_modules": "PASS",
+  "operator_attestation_received": false,
+  "orders_enabled": false,
+  "original_synthetic_runtime_hashes_preserved": true,
+  "policy": "NOV16_PRIVATE_WEEK_COPY_REVIEW_VALIDATION_V1",
+  "preliminary_fixture_failure_resolved": "PG entrypoint initializes through /var/run/postgresql even with custom PGHOST. Added the internal default socket alongside the isolated shared socket; no TCP listening. Retried only with new synthetic resources.",
+  "real_70_second_hold": true,
+  "real_docker_logical_pg_clone": true,
+  "real_readonly_tmpfs_lease": true,
+  "review_day_kst": "2026-11-16",
+  "review_week_kst": "2026-11-16",
+  "ruff": "PASS",
+  "stored_day_kst": "2026-11-13",
+  "stored_week_kst": "2026-11-09",
+  "synthetic_keys_only": true,
+  "test_runs": [
+    {
+      "elapsed_seconds": 58.01,
+      "files": [
+        "tests/integration/test_private_week_copy.py",
+        "tests/integration/test_copy_evidence_pipeline.py",
+        "tests/integration/test_private_copy_archive.py"
+      ],
+      "passed": 23
+    },
+    {
+      "elapsed_seconds": 97.6,
+      "file": "tests/integration/test_private_week_docker.py",
+      "passed": 1
+    }
+  ],
+  "windows_package_built_in_current_phase": false
+}
