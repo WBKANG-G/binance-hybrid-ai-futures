@@ -1,0 +1,35 @@
+{
+  "actual_sealed_launcher_tested": true,
+  "artifact_sha256": "8b28b311d31c7eae3b002f1952a72baea754f2aaa0f39d36928bd599b24b8129",
+  "baseline_adoption_approved": false,
+  "changed_open_stream_length_and_bytes_denied": true,
+  "companion_property_order_normalized": true,
+  "decimal_and_double_supported": true,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_zip_native_tests": {
+    "passed": 49,
+    "seconds": 33.73,
+    "skipped": 0
+  },
+  "limits": [
+    "Synthetic receipt fixtures on Linux PowerShell 7, not actual Windows files",
+    "No Docker, source container, archive response or separate PC state inspected",
+    "Latest user success receipt has no external hash pin; self hashes and local consistency only"
+  ],
+  "live_trading_enabled": false,
+  "mutating_and_external_commands_ast_check": "PASSED",
+  "orders_enabled": false,
+  "policy": "READ_ONLY_PRIVATE_RECEIPT_REVIEW_VALIDATION_V1",
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "source_reference": "45ab5e6f9de6e0bfce3975a4c230b817e4ed4b6a",
+  "strings_bool_null_nan_infinity_denied": true,
+  "valid_and_denied_fixture_files_sha256_and_mtime_preserved": true,
+  "working_source_tests": {
+    "passed": 49,
+    "seconds": 34.26,
+    "skipped": 0
+  },
+  "zip_reproduced_from_source_commit": true
+}

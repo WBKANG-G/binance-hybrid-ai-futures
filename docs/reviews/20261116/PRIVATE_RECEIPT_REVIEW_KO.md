@@ -9,3 +9,5 @@
 일치하는 로컬 기록과 자체 해시를 읽는 것이며 외부 독립 해시 pin과 비교하지 않는다. 현재 Docker 상태, 실제 source/backup bytes, 원문 재생·서명·거래소 신원·별도 PC 검증도 수행하지 않는다. receipt_hash_compared_to_external_pin/current_docker_state_checked/archive_response_bytes_replayed는 false로 남기고, 채택·실행·주문 승인도 false다. 현 단계는 읽기 전용 검토 패키지 전달이며 사용자 실행 결과는 아직 관측하지 않았다.
 
 네이티브 PowerShell 검사에는 유효 기록과 손상/승인 오표시/원본 시작 주장/기간·카운터 오류, 동반 결과 차이, 순서만 다른 객체의 허용, seal 변조, Decimal/Double 및 잘못된 숫자형, 종료 시 길이·해시 재검사를 포함한다. 길이·해시 변경 주입은 가짜 메모리 stream으로 하며 실제 시험 파일도 변경하지 않는다. 명령 AST로 Docker·외부 프로세스·파일 쓰기 명령/메서드가 없는지 검사한다. 실제 Windows 파일을 읽은 것으로 표현하지 않는다.
+
+소스 검사 49개(34.26초)와 최종 ZIP 검사 49개(33.73초)가 통과했다. 두 집합은 같은 검사이며 98개로 계산하지 않는다. 실제 Windows 검토 결과는 아직 관측하지 않았다.

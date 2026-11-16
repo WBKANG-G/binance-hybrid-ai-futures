@@ -209,7 +209,7 @@
   "local_preservation_hashes_verified_from_console": true,
   "local_read_credential_context_applied_on_windows": true,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "READ_ONLY_REVIEW_SUCCESSFUL_V3_RECEIPT_AND_COMPANION_RESULTS_NO_REAL_GET_NO_BASELINE_ADOPTION_KEEP_STOPPED",
+  "next_scope": "USER_RUN_V3_RECEIPT_AND_FOUR_COMPANIONS_READ_ONLY_CHECK_NO_DOCKER_NO_WRITES",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -228,7 +228,8 @@
     "Nov16 user screenshot shows preflight success but private worker stopped with PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED. The 75-second lease also covers multiple full local-history checks before capture; timeout is plausible but the aggregate code also covers wall/monotonic/boot/source-session timing changes. No exact cause or successful private archive is established. Console reports clone stopped, synthetic key session destroyed, originals not started, HTTP/order writes zero. Retain partial copy and request read-only helper start/finish metadata; do not repeat the runner or extend/bypass its guard.",
     "V2 separates fixed-synthetic file-continuity preparation (300s bound, no credential object/signing authority) from one capture-time 75s lease; no signing deadline increase, renewal or retry. 200s simulated preparation succeeds; old 75s expiry, clock and source guards retained. 116 unit/native, 18 PG and one full synthetic Docker lifecycle passed; final ZIP 24 native checks also passed. Old failed resource IDs are pinned to the user screenshot and checked stopped/mounts/images before fresh copies. Actual Windows v2 execution remains pending; original failed timing branch still unconfirmed.",
     "V2 reached post-synthetic-capture checks but native late-lease result validation rejected its result. User confirmed Windows PowerShell 5.1.26100.9818 parses JSON 1.236 as System.Decimal. Full v2 result with Decimal 1.236 rejected while Double passes was reproduced; actual user preparation value remains unknown. V3 accepts finite Decimal under the unchanged 0<=seconds<300 range and true late flag; signing 75s guard unchanged. Final v3 ZIP 46 native tests passed. All Python payloads/workers/archive/SQL byte-identical to tested v2; no new full Docker lifecycle claimed. User v2 reader ID anchors local failure metadata and both old groups must remain stopped. Actual Windows v3 pending.",
-    "User screenshots show PRIVATE_WEEK_V3_SYNTHETIC_VERIFIED_NEW_COPY_STOPPED_NO_ORDERS. Actual Windows PowerShell Decimal preparation metric 101.004s accepted with diagnostic NONE, late lease flag true and unchanged 75s signing limit. Actual signing duration is not reported. Synthetic tmpfs signing/archive 1 call, audit 55->56->58, 34 orders/4 unresolved preserved, stored Nov13/weekNov9 unchanged. Console reports original not started, clone stopped, tmpfs destroyed and backup hashes unchanged. Windows-applied flags refer exclusively to this RAM-loaded synthetic disposable copy, not original installation/real credentials. Receipt content/hash has not yet been read independently; no remote identity, baseline adoption or execution approval."
+    "User screenshots show PRIVATE_WEEK_V3_SYNTHETIC_VERIFIED_NEW_COPY_STOPPED_NO_ORDERS. Actual Windows PowerShell Decimal preparation metric 101.004s accepted with diagnostic NONE, late lease flag true and unchanged 75s signing limit. Actual signing duration is not reported. Synthetic tmpfs signing/archive 1 call, audit 55->56->58, 34 orders/4 unresolved preserved, stored Nov13/weekNov9 unchanged. Console reports original not started, clone stopped, tmpfs destroyed and backup hashes unchanged. Windows-applied flags refer exclusively to this RAM-loaded synthetic disposable copy, not original installation/real credentials. Receipt content/hash has not yet been read independently; no remote identity, baseline adoption or execution approval.",
+    "V3 stored receipt inspector packaged: five read-only JSON streams, expected source/directory from successful user console, prior hash references, 55->56->58/34orders/4unresolved/stored13-week9/Decimal101.004/75s limit and authority boundaries checked. Four companion objects/IDs/volumes compared, final lengths and SHA256 rechecked; 49 final-ZIP native tests passed with fixture SHA256/mtime preserved and no mutating/external AST commands. No actual Windows review, live Docker state, raw response replay or external latest-receipt hash comparison performed. Output explicitly retains those boundaries."
   ],
   "orders_enabled": false,
   "original_key_session_used_in_current_phase": false,
@@ -266,6 +267,10 @@
   "windows_fresh_copy_clock_runner_prepared_and_cloud_tested": true,
   "windows_fresh_copy_runner_execution_observed": true,
   "windows_fresh_copy_runner_prepared_and_cloud_tested": true,
+  "windows_private_v3_receipt_readonly_execution_observed": false,
+  "windows_private_v3_receipt_readonly_runner_packaged_and_native_tested": true,
+  "windows_private_v3_receipt_review_source_reference": "45ab5e6f9de6e0bfce3975a4c230b817e4ed4b6a",
+  "windows_private_v3_receipt_review_zip_sha256": "8b28b311d31c7eae3b002f1952a72baea754f2aaa0f39d36928bd599b24b8129",
   "windows_private_week_runner_sha256": "b265944224fff3af21582d3836d4cd720ccb5689e92a779cb95c530c7a04a52d",
   "windows_private_week_runner_source_reference": "45ee90dd99c4a17b22ab157bc38a103176cd3911",
   "windows_private_week_synthetic_runner_execution_observed": true,

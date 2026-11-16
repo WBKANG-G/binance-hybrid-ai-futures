@@ -1,0 +1,21 @@
+{
+  "artifact": "windows-demo-private-receipt-review-20261116.zip",
+  "current_receipt_hash_pinned": false,
+  "docker_commands_included": false,
+  "entries": 6,
+  "expected_private_preparation_seconds": 101.004,
+  "file_write_operations_included": false,
+  "policy": "READ_ONLY_PRIVATE_RECEIPT_REVIEW_SOURCE_V1",
+  "reviewed_records": [
+    "COPY_PRIVATE_WEEK_V3_RECEIPT.json",
+    "PRIVATE_WEEK_RESULT.json",
+    "PRIVATE_RESOURCES.json",
+    "RESTORE_RESOURCES.json",
+    "CLONE_CREATED.json"
+  ],
+  "sha256": "8b28b311d31c7eae3b002f1952a72baea754f2aaa0f39d36928bd599b24b8129",
+  "source_reference": "45ab5e6f9de6e0bfce3975a4c230b817e4ed4b6a",
+  "target_directory_name": "copy-private-week-v3-20261116-57445e871754fd497063f55423bddae0",
+  "target_directory_provenance": "USER_V3_SUCCESS_SCREENSHOT",
+  "target_source_reference": "a70f103b3a5cd764ea43838d9a6e565637dafa32"
+}
