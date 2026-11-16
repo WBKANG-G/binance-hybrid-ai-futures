@@ -1,0 +1,52 @@
+{
+  "baseline_adoption_approved": false,
+  "client_day_kst": "2026-11-16",
+  "conditional_history_20261020_to_20261021": "NO_ORDER_HISTORY_DISPLAYED_NOT_PROOF_OF_NON_SUBMISSION",
+  "display_timezone_independently_verified": false,
+  "entry_web_comparisons": [
+    {
+      "executed_btc": "0.0007",
+      "limit_price_usdt": "77536.00",
+      "matches_web_true_observed_in_local_output": true,
+      "server_order_id": "28660002119",
+      "web_status": "Filled"
+    },
+    {
+      "average_fill_usdt": "77511.60",
+      "executed_btc": "0.0007",
+      "limit_price_usdt": "77516.10",
+      "server_number_and_fields_match_observed": true,
+      "server_order_id": "28660055059",
+      "web_status": "Filled"
+    }
+  ],
+  "evidence_source": "USER_SCREENSHOTS_AND_EXPLICIT_REPLIES_NOT_DIRECT_WINDOWS_OR_EXCHANGE_ACCESS",
+  "execution_approved": false,
+  "exit_remote_resolution_verified": false,
+  "history_coverage_complete": false,
+  "initial_funding_independently_verified": false,
+  "initial_usdt_funding_history_user_recollection": "UNKNOWN",
+  "live_trading_enabled": false,
+  "new_operator_attestation_or_baseline_source_acceptance_received": false,
+  "orders_enabled": false,
+  "prior_request_inspector_success_marker_observed": "FOUR_PRIOR_REQUEST_REFERENCES_READ_NO_WRITES_NO_DOCKER",
+  "related_entry_web_observation": {
+    "executed_btc": "0.0000",
+    "limit_price_usdt": "81726.50",
+    "server_order_id": "28641848630",
+    "web_status": "Canceled"
+  },
+  "request_states_changed": false,
+  "stop_loss_remote_resolution_verified": false,
+  "supporting_initial_funding_email_screenshot_or_download_user_reported": "NONE",
+  "visible_20261020_transfer": {
+    "amount": "5000.00000000",
+    "asset": "USDC",
+    "time_as_displayed": "2026-10-20 11:47:12"
+  },
+  "web_wallet_assets": {
+    "BTC": "0.01000000",
+    "USDC": "5000.00000000",
+    "USDT": "4998.74183608"
+  }
+}
