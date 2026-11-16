@@ -1,0 +1,49 @@
+{
+  "actual_user_backup_data_read_by_cloud": false,
+  "actual_user_windows_execution_observed": false,
+  "artifact_sha256": "2bc45401ccb9326721c8520b69a4ae00aee14159afe21fd25621f507a0b87f94",
+  "baseline_adoption_approved": false,
+  "corrupt_or_duplicate_source_refused": true,
+  "current_database_state_verified": false,
+  "decimal_arithmetic_and_output_invariant_under_de_DE_culture": true,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_rehash_failure_does_not_return_partial_review": true,
+  "final_zip_native_tests": {
+    "passed": 36,
+    "seconds": 22.71,
+    "skipped": 0
+  },
+  "historical_attestation_independently_verified_now": false,
+  "historical_report_claims_separated_from_current_verification": true,
+  "initial_funding_and_new_attestation_not_inferred": true,
+  "initial_funding_independently_verified": false,
+  "limits": [
+    "PowerShell 7/native tar on Linux with synthetic archive fixtures; actual Windows PowerShell 5.1 execution pending",
+    "Success launcher test substitutes synthetic manifest pin and maps Windows tar.exe name to Linux tar only",
+    "Only stored old_row and historical report fields are inspected; no current DB/hash or complete audit-chain verification",
+    "Recorded initial/high-water values are not proof of initial funding; recorded attestation is not new operator consent",
+    "No actual user files, credentials, exchange, Docker, orders or financial database accessed"
+  ],
+  "live_trading_enabled": false,
+  "missing_same_folder_records_and_bad_commit_amount_period_links_refused": true,
+  "native_tar_stdout_no_disk_extraction_tested": true,
+  "no_network_write_or_service_command_ast_check": "PASSED",
+  "noncanonical_float_bool_null_nonfinite_or_overprecise_money_refused": true,
+  "orders_enabled": false,
+  "policy": "PRIOR_BASELINE_REFERENCE_INSPECTION_VALIDATION_V1",
+  "raw_state_client_ids_and_sensitive_unknown_fields_redacted": true,
+  "reader_core_identical_to_windows_successful_release": true,
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "sealed_launcher_success_with_synthetic_pin_and_tar_name_substitution": true,
+  "source_native_tests": {
+    "passed": 36,
+    "seconds": 21.4,
+    "skipped": 0
+  },
+  "source_reference": "d6b210aa5e07b3440608d03ada41f41bc7912db9",
+  "source_sha256_and_mtime_preserved": true,
+  "transfer_manifest_and_cmd_pin_verified": true,
+  "zip_reproduced_from_source_commit": true
+}
