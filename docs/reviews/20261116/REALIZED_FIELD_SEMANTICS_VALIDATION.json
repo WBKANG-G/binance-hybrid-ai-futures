@@ -1,0 +1,44 @@
+{
+  "account_value_defaults": {
+    "fees": "0",
+    "funding": "0",
+    "unrealized": "0"
+  },
+  "actual_database_accessed": false,
+  "actual_exchange_http_attempts": 0,
+  "actual_order_writes": 0,
+  "actual_user_backup_accessed_by_cloud": false,
+  "actual_user_running_image_code_reverified_this_turn": false,
+  "adjusted_equity_formula": "initial + realized + unrealized - fees + funding",
+  "baseline_adoption_approved": false,
+  "baseline_current_merge_ast_identical": true,
+  "baseline_source_reference": "e03b6ba683732cd5872c30cf0d245a5b1fb6d325",
+  "complete_trade_fee_funding_transfer_history_verified": false,
+  "equity_formula": "adjusted_equity + net_deposits",
+  "execution_approved": false,
+  "formula": "realized = remote.equity - ledger.value.initial - ledger.net_transfers",
+  "initial_funding_independently_verified": false,
+  "limits": [
+    "Checks use in-memory synthetic ledger/snapshot and production _merge method with no client transport or database",
+    "Source AST equality against baseline commit is not independent verification of the user stopped image",
+    "No claim that all actual fees/funding/transfers are complete or that realized field is exchange realized-PNL subtotal",
+    "Initial amount, remote identity and midnight valuation remain unverified"
+  ],
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "policy": "RECORDED_REALIZED_FIELD_SEMANTICS_REVIEW_V1",
+  "recorded_equation": {
+    "initial": "5000.00000000",
+    "net_transfers": "0",
+    "realized_result": "-1.25816392",
+    "remote_equity_for_synthetic_check": "4998.74183608"
+  },
+  "runtime_source_changed": false,
+  "source_method": "services.execution.demo.DemoCoordinator._merge",
+  "synthetic_in_memory_checks_passed": [
+    "recorded_equity_residual_and_no_second_fee_subtraction",
+    "same_equity_repeat_does_not_accumulate_residual_again",
+    "new_100_usdt_transfer_separated_from_equity_residual",
+    "same_transfer_repeat_is_not_counted_again"
+  ]
+}
