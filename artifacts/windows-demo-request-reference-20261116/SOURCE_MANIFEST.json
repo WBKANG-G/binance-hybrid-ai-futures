@@ -1,0 +1,21 @@
+{
+  "archive_extraction_to_disk_included": false,
+  "artifact": "windows-demo-request-reference-20261116.zip",
+  "docker_operations_included": false,
+  "entries": 5,
+  "exchange_http_included": false,
+  "execution_approved": false,
+  "expected_order_count": 34,
+  "expected_unresolved_request_count": 4,
+  "generated_backup_data_or_key_files": false,
+  "live_trading_enabled": false,
+  "orders_enabled": false,
+  "original_manifest_sha256": "2a2af624a12c696868ec10ce2522a97b29c2824fe6571dc232840f22db3bdd9d",
+  "policy": "PRIOR_REQUEST_REFERENCE_INSPECTION_SOURCE_V1",
+  "raw_client_ids_output_included": false,
+  "remote_resolution_verified": false,
+  "sha256": "a66a928d33d98abcc17ba0ea905349321633626efed0a5b3dfa4c4c881d82cc0",
+  "snapshot_source": "ADOPTION_INTENT_OLD_ROW_STATE_NOT_CURRENT_DATABASE",
+  "source_plan": "HISTORICAL_ORIGINAL_ID_EVIDENCE_20261113_V1",
+  "source_reference": "f3f8e44d11bb4696fe06fc38aed4da14f52837e0"
+}

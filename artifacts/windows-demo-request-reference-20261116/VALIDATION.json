@@ -1,0 +1,44 @@
+{
+  "account_plan_hash_role_state_and_unique_order_scope_tested": true,
+  "actual_user_backup_read_by_cloud": false,
+  "artifact_sha256": "a66a928d33d98abcc17ba0ea905349321633626efed0a5b3dfa4c4c881d82cc0",
+  "baseline_adoption_approved": false,
+  "corruption_before_tar_denied": true,
+  "current_database_state_verified": false,
+  "diff_check": "PASSED",
+  "duplicate_backup_denied": true,
+  "execution_approved": false,
+  "final_zip_native_tests": {
+    "passed": 21,
+    "seconds": 12.25,
+    "skipped": 0
+  },
+  "limits": [
+    "PowerShell 7 and native tar on Linux with synthetic archive fixtures; not actual user Windows files",
+    "Windows tar.exe name maps to native Linux tar in successful tests; actual Windows PowerShell 5.1 run pending",
+    "Success launcher test substitutes synthetic backup pin and reseals test launcher only",
+    "Source snapshot is old_row before day13 adoption; not current database contents",
+    "No actual exchange HTTP, credentials, Docker, orders, or user backup data accessed"
+  ],
+  "live_trading_enabled": false,
+  "missing_exit_server_id_not_replaced_with_entry_id": true,
+  "native_tar_stdout_no_disk_extraction_tested": true,
+  "no_network_write_or_service_command_ast_check": "PASSED",
+  "orders_enabled": false,
+  "policy": "PRIOR_REQUEST_REFERENCE_INSPECTION_VALIDATION_V1",
+  "raw_client_ids_and_unknown_sensitive_fields_redacted": true,
+  "remote_resolution_verified": false,
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "sealed_launcher_success_with_synthetic_manifest_pin_and_linux_tar_name_substitution": true,
+  "source_native_tests": {
+    "passed": 21,
+    "seconds": 12.5,
+    "skipped": 0
+  },
+  "source_reference": "f3f8e44d11bb4696fe06fc38aed4da14f52837e0",
+  "source_sha256_and_mtime_preserved": true,
+  "transfer_manifest_and_cmd_seal_verified": true,
+  "user_windows_runner_execution_observed": false,
+  "zip_reproduced_from_source_commit": true
+}
