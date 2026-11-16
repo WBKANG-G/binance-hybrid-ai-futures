@@ -1,0 +1,40 @@
+{
+  "actual_post_inferred_from_intent_or_effect_marker": false,
+  "client_day_kst": "2026-11-16",
+  "correction_event_observed": {
+    "event_kind": "DEMO_CANCELLED_EXPOSURE_CORRECTED",
+    "exit_request_state": "SUBMITTING",
+    "local_position_state": "CLOSED",
+    "stop_loss_request_state": "UNKNOWN",
+    "utc_date": "2026-10-23"
+  },
+  "correction_receipt_and_quantity_delta_verified_from_user_output": false,
+  "evidence_source": "USER_SCREENSHOTS_OF_MATCHED_SAVED_REPORT_TABLES_NOT_DIRECT_FILE_ACCESS",
+  "execution_approved": false,
+  "exit_effect_observed": {
+    "local_exit_state": "UNKNOWN",
+    "request_state": "SUBMITTING"
+  },
+  "exit_intent_observed": {
+    "local_exit_state": "SUBMITTING",
+    "local_position_state": "EXIT_PENDING",
+    "request_state": "SUBMITTING"
+  },
+  "exit_transition_count_observed": 10,
+  "later_local_position_observed": "OPEN_UNPROTECTED_WHILE_LOCAL_ENTRY_REMAINED_CANCELED",
+  "live_trading_enabled": false,
+  "ordering": "STORED_AS_OF_UTC_THEN_EVENT_ID_NOT_INDEPENDENT_WIRE_ORDER",
+  "orders_enabled": false,
+  "quantity_columns_visible_in_user_screenshots": false,
+  "related_entry_local_cancel_observed_utc_date": "2026-10-20",
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "stop_loss_effect_observed": {
+    "request_state": "UNKNOWN"
+  },
+  "stop_loss_intent_observed": {
+    "request_state": "SUBMITTING"
+  },
+  "stop_loss_transition_count_observed": 12,
+  "wire_submission_or_non_submission_verified": false
+}
