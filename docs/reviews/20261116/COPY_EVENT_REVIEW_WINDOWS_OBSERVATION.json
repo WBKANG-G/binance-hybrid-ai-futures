@@ -1,0 +1,60 @@
+{
+  "actual_http_attempts_reported": 0,
+  "backup_hashes_unchanged_reported": true,
+  "check_result_observed": "INPUT_HASHES_AND_STOPPED_SCOPE_VERIFIED",
+  "client_day_kst": "2026-11-16",
+  "copy_mounts_and_network_verified_reported": true,
+  "current_original_database_checked": false,
+  "events_scanned_reported": 3802,
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT_NOT_DIRECT_TOOL_ACCESS",
+  "execution_approved": false,
+  "full_event_content_validated": false,
+  "full_timelines_saved_in_private_report_reported": true,
+  "live_trading_enabled": false,
+  "new_clone_stopped_reported": true,
+  "order_writes_reported": 0,
+  "orders_enabled": false,
+  "orders_preserved_reported": 34,
+  "originals_started_reported": false,
+  "private_receipt_hash_from_screenshot_used_as_external_pin": false,
+  "producer_source_reference": "68283b4e4d62fc491e26547b2cec28676128cdba",
+  "query_strategy_reported": "FOUR_REQUEST_FIELD_PROJECTION",
+  "request_resolution_authorized": false,
+  "requests": [
+    {
+      "first_by_stored_time": "ABSENT",
+      "last_by_stored_time": "UNKNOWN",
+      "recorded_no_send_reason_transition_count": 0,
+      "role": "ENTRY",
+      "transition_count": 9
+    },
+    {
+      "first_by_stored_time": "ABSENT",
+      "last_by_stored_time": "UNKNOWN",
+      "recorded_no_send_reason_transition_count": 0,
+      "role": "ENTRY",
+      "transition_count": 9
+    },
+    {
+      "first_by_stored_time": "ABSENT",
+      "last_by_stored_time": "SUBMITTING",
+      "recorded_no_send_reason_transition_count": 0,
+      "role": "EXIT",
+      "transition_count": 10
+    },
+    {
+      "first_by_stored_time": "ABSENT",
+      "last_by_stored_time": "UNKNOWN",
+      "recorded_no_send_reason_transition_count": 0,
+      "role": "STOP_LOSS",
+      "transition_count": 12
+    }
+  ],
+  "resend_authorized": false,
+  "run_result_observed": "FRESH_COPY_EVENT_TIMELINES_REVIEWED_ORIGINALS_UNCHANGED",
+  "source_row_coverage_verified_reported": true,
+  "strict_execution_order_verified": false,
+  "success_marker_observed": "COPY_EVENT_REVIEW_COMPLETE_ORIGINALS_UNCHANGED_NEW_COPY_STOPPED_NO_ORDERS",
+  "unresolved_requests_preserved_reported": 4,
+  "wire_submission_or_non_submission_verified": false
+}
