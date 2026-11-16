@@ -1,0 +1,39 @@
+{
+  "client_day_kst": "2026-11-16",
+  "evidence_source": "USER_SCREENSHOT_OF_PINNED_ARCHIVE_SUMMARY_NOT_DIRECT_USER_FILE_ACCESS",
+  "execution_approved": false,
+  "exit_followup_report": {
+    "observed_status": "NOT_FOUND_UNRESOLVED",
+    "remote_resolution_verified": false,
+    "requests_observed": 1,
+    "requests_unqueried": 0,
+    "response_identity_fields_match": false
+  },
+  "independent_account_credential_identity_verified": false,
+  "live_trading_enabled": false,
+  "manifest_hash_check_reported_passed": true,
+  "new_exchange_http_attempts_in_summary_read": 0,
+  "orders_enabled": false,
+  "original_report": {
+    "entry_observations": [
+      {
+        "observed_status": "FILLED",
+        "remote_resolution_verified": false,
+        "response_identity_fields_match": true
+      },
+      {
+        "observed_status": "FILLED",
+        "remote_resolution_verified": false,
+        "response_identity_fields_match": true
+      }
+    ],
+    "requests_observed": 3,
+    "requests_unqueried": 1,
+    "stop_loss_observed_status": "NOT_FOUND_UNRESOLVED",
+    "stop_loss_remote_resolution_verified": false
+  },
+  "original_request_states_changed": false,
+  "remote_resolution_verified": false,
+  "runtime_archive_hash_check_reported_passed": true,
+  "user_attests_same_demo_key_issuing_account": true
+}
