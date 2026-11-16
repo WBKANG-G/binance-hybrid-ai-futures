@@ -89,6 +89,11 @@
     "exact_timing_failure_cause_known": false,
     "execution_approved": false,
     "failure_category": "PRIVATE_WORKER_BLOCKED",
+    "helper_elapsed_seconds": 224.356,
+    "helper_exit_code": 2,
+    "helper_finished_at_utc_from_screenshot": "2026-11-16T05:12:29.893704677Z",
+    "helper_oom_killed": false,
+    "helper_started_at_utc_from_screenshot": "2026-11-16T05:08:45.537740973Z",
     "live_trading_enabled": false,
     "order_writes_reported": 0,
     "orders_enabled": false,
@@ -134,7 +139,7 @@
   "local_preservation_hashes_verified_from_console": true,
   "local_read_credential_context_applied_on_windows": false,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "READ_ONLY_FAILED_HELPER_START_FINISH_TIMESTAMPS_NO_REEXECUTION_NO_LEASE_EXTENSION",
+  "next_scope": "USER_RUN_20261116_PRIVATE_WEEK_V2_PREFLIGHT_AND_FRESH_SYNTHETIC_COPY_ONCE_KEEP_FAILED_COPY_STOPPED",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -150,7 +155,8 @@
     "Fresh cloud Docker tmpfs test validated RO reader, key-only registrar, read-directory lock, explicit close, expiry denial and disappearance after final unmount, with no Docker logs or credential environment/arguments. PostgreSQL archive bridge tested separately with a synthetic tmpfs substitute; no actual Windows/real key integration or host swap protection verified.",
     "Nov 16 is a day AND week boundary. New observation-only guard requires current day/week Nov16 and preserves stored Nov13/weekNov9. Actual Docker test combined a fresh logical PG/runtime clone, real RO tmpfs lease, local signing, archive/content check and clean clone stop; original synthetic runtime hashes unchanged. No user Windows, real credentials, HTTP or baseline adoption occurred.",
     "Nov16 sealed Windows private-week ZIP passed 38 final-ZIP native tests and one complete fresh Docker/PowerShell cold-byte-backup/restore/clock/private-tmpfs pipeline. Synthetic key disappearance after final holder stop verified; exact executed production code compared to final ZIP. Windows ACL/input discovery and synthetic receipt pins differ in cloud fixture. Actual user Windows execution, separate PC reverification, real keys/HTTP and baseline adoption remain unperformed. Latest Nov15 evidence pin is consistent across user screenshots, not user text or external independent proof.",
-    "Nov16 user screenshot shows preflight success but private worker stopped with PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED. The 75-second lease also covers multiple full local-history checks before capture; timeout is plausible but the aggregate code also covers wall/monotonic/boot/source-session timing changes. No exact cause or successful private archive is established. Console reports clone stopped, synthetic key session destroyed, originals not started, HTTP/order writes zero. Retain partial copy and request read-only helper start/finish metadata; do not repeat the runner or extend/bypass its guard."
+    "Nov16 user screenshot shows preflight success but private worker stopped with PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED. The 75-second lease also covers multiple full local-history checks before capture; timeout is plausible but the aggregate code also covers wall/monotonic/boot/source-session timing changes. No exact cause or successful private archive is established. Console reports clone stopped, synthetic key session destroyed, originals not started, HTTP/order writes zero. Retain partial copy and request read-only helper start/finish metadata; do not repeat the runner or extend/bypass its guard.",
+    "V2 separates fixed-synthetic file-continuity preparation (300s bound, no credential object/signing authority) from one capture-time 75s lease; no signing deadline increase, renewal or retry. 200s simulated preparation succeeds; old 75s expiry, clock and source guards retained. 116 unit/native, 18 PG and one full synthetic Docker lifecycle passed; final ZIP 24 native checks also passed. Old failed resource IDs are pinned to the user screenshot and checked stopped/mounts/images before fresh copies. Actual Windows v2 execution remains pending; original failed timing branch still unconfirmed."
   ],
   "orders_enabled": false,
   "original_key_session_used_in_current_phase": false,
@@ -193,6 +199,10 @@
   "windows_private_week_synthetic_runner_execution_observed": true,
   "windows_private_week_synthetic_runner_packaged_and_cloud_tested": true,
   "windows_private_week_synthetic_runner_success_observed": false,
+  "windows_private_week_v2_execution_observed": false,
+  "windows_private_week_v2_runner_packaged_and_cloud_tested": true,
+  "windows_private_week_v2_source_reference": "f9bcb171ebb3fdb25330ece9c3c20e1ad4db1ef3",
+  "windows_private_week_v2_zip_sha256": "af38979f9b0d976a4ffa4267b0c01979b53b5a3514b1199d60cb423148b5452e",
   "windows_read_only_receipt_review_execution_observed": true,
   "windows_synthetic_evidence_runner_execution_observed": true,
   "windows_synthetic_evidence_runner_packaged_and_cloud_tested": true

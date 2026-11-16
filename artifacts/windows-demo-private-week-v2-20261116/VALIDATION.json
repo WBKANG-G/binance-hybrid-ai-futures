@@ -1,0 +1,48 @@
+{
+  "artifact_sha256": "af38979f9b0d976a4ffa4267b0c01979b53b5a3514b1199d60cb423148b5452e",
+  "baseline_adoption_approved": false,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "failed_handoff_closes_lease_and_cannot_retry": true,
+  "final_zip_native_tests": {
+    "included_in_unit_regression_count": true,
+    "passed": 24,
+    "seconds": 15.77,
+    "skipped": 0
+  },
+  "full_fresh_docker_lifecycle": {
+    "passed": 1,
+    "seconds": 478.38,
+    "skipped": 0
+  },
+  "installation_ready": false,
+  "limits": [
+    "Cloud uses synthetic source and synthetic prior completed v1 resources; not actual user failure volumes",
+    "Windows ACL and input discovery substituted on Linux; Windows CMD itself not executed",
+    "The Docker fixture used worktree production files before source commit; transient package directory was cleaned by pytest so no exact fixture byte readback is claimed",
+    "Final ZIP separately checked against committed source and native transfer/guard tests",
+    "Actual Windows v2 execution, host swap protection and separate PC verification remain unperformed"
+  ],
+  "live_trading_enabled": false,
+  "mypy": "PASSED_4_RUNTIME_MODULES",
+  "orders_enabled": false,
+  "policy": "PRIVATE_WEEK_V2_VALIDATION_V1",
+  "postgres_pipeline_regressions": {
+    "passed": 18,
+    "seconds": 45.57,
+    "skipped": 0
+  },
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "signing_lease_denied_at_75_seconds": true,
+  "simulated_preparation_200_seconds_then_one_capture_passed": true,
+  "source_change_or_wrong_pair_denied_before_auxiliary_mutation": true,
+  "source_payload_hashes_match_git_commit": true,
+  "source_reference": "f9bcb171ebb3fdb25330ece9c3c20e1ad4db1ef3",
+  "unit_and_native_regressions": {
+    "passed": 116,
+    "seconds": 35.8,
+    "skipped": 0
+  },
+  "zip_reproducible_from_commit": true
+}
