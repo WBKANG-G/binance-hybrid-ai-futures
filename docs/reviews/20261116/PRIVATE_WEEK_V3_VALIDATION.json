@@ -1,0 +1,40 @@
+{
+  "all_python_payloads_workers_archive_and_sql_identical_to_tested_v2": true,
+  "artifact_sha256": "6cc3aea0c6868a525890b96ec9b3bca86369c89d0be93faae036e9b7cfa6f457",
+  "baseline_adoption_approved": false,
+  "bool_late_lease_flag_required": true,
+  "decimal_cases": "Explicit System.Decimal values on PowerShell 7: zero, 1.236 and 299.999 accepted; 300 and negative rejected",
+  "diagnostics_do_not_echo_arbitrary_input": true,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_zip_native_tests": {
+    "passed": 46,
+    "seconds": 26.29,
+    "skipped": 0
+  },
+  "installation_ready": false,
+  "invalid_types_rejected": [
+    "null",
+    "string",
+    "bool",
+    "NaN",
+    "positive infinity",
+    "negative infinity"
+  ],
+  "limits": [
+    "Actual Windows PowerShell 5.1 parser Decimal type confirmed by user screenshot; v3 execution not yet observed",
+    "Native tests use PowerShell 7 with explicitly constructed System.Decimal objects",
+    "Python and lifecycle code unchanged from v2; prior cloud synthetic Docker results reused, no new full lifecycle claimed",
+    "Prior v2 failure is bound by user reader ID and local ACL/metadata, not an independently pinned external record hash"
+  ],
+  "live_trading_enabled": false,
+  "new_docker_or_postgres_lifecycle_run": false,
+  "orders_enabled": false,
+  "policy": "WINDOWS_PRIVATE_WEEK_V3_VALIDATION_V1",
+  "prior_v2_failure_record_anchor_and_stopped_scope_checked": true,
+  "reused_v2_validation": "docs/reviews/20261116/PRIVATE_WEEK_V2_VALIDATION.json",
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "source_reference": "a70f103b3a5cd764ea43838d9a6e565637dafa32",
+  "zip_reproducible_from_source_commit": true
+}

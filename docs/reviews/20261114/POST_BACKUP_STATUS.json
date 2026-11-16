@@ -79,6 +79,12 @@
     "stored_day_kst": "2026-11-13",
     "v2_bound": false
   },
+  "latest_windows_powershell_observation": {
+    "evidence_source": "USER_CONSOLE_SCREENSHOT",
+    "scalar_json_number_sample": "1.236",
+    "scalar_json_number_type": "System.Decimal",
+    "version": "5.1.26100.9818"
+  },
   "latest_windows_private_week_observation": {
     "actual_http_attempts_reported": 0,
     "clock_application_may_have_completed_reported": true,
@@ -103,6 +109,21 @@
     "retained_diagnostic_helper_id": "9317632f1f16034a97da930d10183878278bfd69226a91c9c41f62c9b18c7a95",
     "source_reference": "45ee90dd99c4a17b22ab157bc38a103176cd3911",
     "status": "BLOCKED_COPY_MAY_HAVE_CHANGED_NO_RETRY"
+  },
+  "latest_windows_private_week_v2_observation": {
+    "actual_http_attempts_reported": 0,
+    "actual_preparation_seconds_known": false,
+    "clone_stopped_reported": true,
+    "diagnostic_failure_category": null,
+    "evidence_source": "USER_CONSOLE_SCREENSHOT",
+    "failure_category": "PRIVATE_LATE_LEASE_RESULT_INVALID",
+    "last_progress_stage": "READ_ONLY_CONTENT_AND_PRESERVATION_CHECK",
+    "order_writes_reported": 0,
+    "originals_started_reported": false,
+    "preflight_passed_reported": true,
+    "private_key_session_destroyed_reported": true,
+    "private_timing_reasons": [],
+    "retained_diagnostic_helper_id": "eb09666ae4235987563455557aca103bbc38018d0776f553fbb7cd0e2b8a0b43"
   },
   "latest_windows_receipt_structure_observation": {
     "baseline_adoption_approved": false,
@@ -139,7 +160,7 @@
   "local_preservation_hashes_verified_from_console": true,
   "local_read_credential_context_applied_on_windows": false,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "USER_RUN_20261116_PRIVATE_WEEK_V2_PREFLIGHT_AND_FRESH_SYNTHETIC_COPY_ONCE_KEEP_FAILED_COPY_STOPPED",
+  "next_scope": "USER_RUN_NOV16_PRIVATE_WEEK_V3_PREFLIGHT_AND_FRESH_SYNTHETIC_COPY_ONCE_KEEP_BOTH_FAILED_COPIES_STOPPED",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -156,7 +177,8 @@
     "Nov 16 is a day AND week boundary. New observation-only guard requires current day/week Nov16 and preserves stored Nov13/weekNov9. Actual Docker test combined a fresh logical PG/runtime clone, real RO tmpfs lease, local signing, archive/content check and clean clone stop; original synthetic runtime hashes unchanged. No user Windows, real credentials, HTTP or baseline adoption occurred.",
     "Nov16 sealed Windows private-week ZIP passed 38 final-ZIP native tests and one complete fresh Docker/PowerShell cold-byte-backup/restore/clock/private-tmpfs pipeline. Synthetic key disappearance after final holder stop verified; exact executed production code compared to final ZIP. Windows ACL/input discovery and synthetic receipt pins differ in cloud fixture. Actual user Windows execution, separate PC reverification, real keys/HTTP and baseline adoption remain unperformed. Latest Nov15 evidence pin is consistent across user screenshots, not user text or external independent proof.",
     "Nov16 user screenshot shows preflight success but private worker stopped with PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED. The 75-second lease also covers multiple full local-history checks before capture; timeout is plausible but the aggregate code also covers wall/monotonic/boot/source-session timing changes. No exact cause or successful private archive is established. Console reports clone stopped, synthetic key session destroyed, originals not started, HTTP/order writes zero. Retain partial copy and request read-only helper start/finish metadata; do not repeat the runner or extend/bypass its guard.",
-    "V2 separates fixed-synthetic file-continuity preparation (300s bound, no credential object/signing authority) from one capture-time 75s lease; no signing deadline increase, renewal or retry. 200s simulated preparation succeeds; old 75s expiry, clock and source guards retained. 116 unit/native, 18 PG and one full synthetic Docker lifecycle passed; final ZIP 24 native checks also passed. Old failed resource IDs are pinned to the user screenshot and checked stopped/mounts/images before fresh copies. Actual Windows v2 execution remains pending; original failed timing branch still unconfirmed."
+    "V2 separates fixed-synthetic file-continuity preparation (300s bound, no credential object/signing authority) from one capture-time 75s lease; no signing deadline increase, renewal or retry. 200s simulated preparation succeeds; old 75s expiry, clock and source guards retained. 116 unit/native, 18 PG and one full synthetic Docker lifecycle passed; final ZIP 24 native checks also passed. Old failed resource IDs are pinned to the user screenshot and checked stopped/mounts/images before fresh copies. Actual Windows v2 execution remains pending; original failed timing branch still unconfirmed.",
+    "V2 reached post-synthetic-capture checks but native late-lease result validation rejected its result. User confirmed Windows PowerShell 5.1.26100.9818 parses JSON 1.236 as System.Decimal. Full v2 result with Decimal 1.236 rejected while Double passes was reproduced; actual user preparation value remains unknown. V3 accepts finite Decimal under the unchanged 0<=seconds<300 range and true late flag; signing 75s guard unchanged. Final v3 ZIP 46 native tests passed. All Python payloads/workers/archive/SQL byte-identical to tested v2; no new full Docker lifecycle claimed. User v2 reader ID anchors local failure metadata and both old groups must remain stopped. Actual Windows v3 pending."
   ],
   "orders_enabled": false,
   "original_key_session_used_in_current_phase": false,
@@ -199,10 +221,15 @@
   "windows_private_week_synthetic_runner_execution_observed": true,
   "windows_private_week_synthetic_runner_packaged_and_cloud_tested": true,
   "windows_private_week_synthetic_runner_success_observed": false,
-  "windows_private_week_v2_execution_observed": false,
+  "windows_private_week_v2_execution_observed": true,
   "windows_private_week_v2_runner_packaged_and_cloud_tested": true,
   "windows_private_week_v2_source_reference": "f9bcb171ebb3fdb25330ece9c3c20e1ad4db1ef3",
+  "windows_private_week_v2_success_observed": false,
   "windows_private_week_v2_zip_sha256": "af38979f9b0d976a4ffa4267b0c01979b53b5a3514b1199d60cb423148b5452e",
+  "windows_private_week_v3_execution_observed": false,
+  "windows_private_week_v3_packaged_and_native_tested": true,
+  "windows_private_week_v3_source_reference": "a70f103b3a5cd764ea43838d9a6e565637dafa32",
+  "windows_private_week_v3_zip_sha256": "6cc3aea0c6868a525890b96ec9b3bca86369c89d0be93faae036e9b7cfa6f457",
   "windows_read_only_receipt_review_execution_observed": true,
   "windows_synthetic_evidence_runner_execution_observed": true,
   "windows_synthetic_evidence_runner_packaged_and_cloud_tested": true

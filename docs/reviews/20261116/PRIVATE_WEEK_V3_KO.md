@@ -9,3 +9,5 @@ v3는 결과 검증의 Decimal 누락을 수정한다. Double/Decimal/Int32/Int6
 Python worker·후보 16개·복구 worker·cold archive·SQL은 게시된 v2 ZIP과 바이트가 같다. 새 Docker lifecycle이나 PostgreSQL 로직을 추가하지 않고 PowerShell 결과 검증/읽기 전용 prior 검사와 진단·파일 이름만 변경했다. v2에서 통과한 실제 Docker 경로와 200초 준비/75초 서명 기한 검증을 재사용하고, v3에서는 네이티브 형식·범위·기존 보안 조건·둘째 실패 기록·seal 변조를 시험한다. PowerShell 7에서 Decimal 객체를 명시적으로 넣어 검증하며 실제 Windows PowerShell 5.1 실행을 주장하지 않는다.
 
 새 폴더 copy-private-week-v3-20261116-*와 COPY_PRIVATE_WEEK_V3_RECEIPT.json을 사용한다. 원본과 두 실패 사본은 정지, USB는 분리 상태를 유지한다. 실제 키·거래소 통신·주문·기간 채택·설치 승인은 없다. 한국 날짜 16일 전용이다.
+
+최종 ZIP의 검사 46개(26.29초)가 통과했고 ruff/format/diff 검사도 통과했다. 게시 v2 ZIP의 Python 후보 16개, private/copy/restore worker, cold archive와 SQL을 바이트 비교했다. 변경 없는 엔진 경로의 Docker/PostgreSQL 시험을 다시 실행하지 않았으며 그 결과를 새 검증으로 계산하지 않는다. 최종 ZIP은 소스 커밋에서 재생성한 바이트와 일치한다. 실제 Windows v3 결과는 아직 관측하지 않았다.
