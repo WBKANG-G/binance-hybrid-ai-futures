@@ -1,0 +1,40 @@
+{
+  "artifact_sha256": "0311607b013c255be9674b9bf93202174f7033dcd1d5bdaf2e108187436fafd3",
+  "baseline_adoption_approved": false,
+  "create_new_overwrite_denied": true,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_zip_native_tests": {
+    "passed": 18,
+    "seconds": 13.37,
+    "skipped": 0
+  },
+  "independent_external_custody_verified": false,
+  "limits": [
+    "PowerShell 7 on Linux with synthetic receipt fixtures",
+    "Windows destination/NTFS ACL creation substituted only in successful creation tests; actual Windows ACL execution pending",
+    "Only local hash references, not recovery backup/source receipt contents or external custody proof",
+    "No actual user files, keys, Docker or exchange accessed"
+  ],
+  "live_trading_enabled": false,
+  "manifest_and_receipt_readback_verified": true,
+  "no_external_process_or_docker_ast_check": "PASSED",
+  "orders_enabled": false,
+  "policy": "LOCAL_PRIVATE_HASH_REFERENCE_VALIDATION_V1",
+  "previous_source_tests": {
+    "final_sealed_create_case_added_after_this_run": true,
+    "passed": 17,
+    "seconds": 13.43
+  },
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "sealed_check_launcher_tested": true,
+  "sealed_create_launcher_tested_with_windows_destination_substitution": true,
+  "source_changes_and_manifest_readback_failure_leave_partial_without_retry": true,
+  "source_file_sha256_and_mtime_preserved": true,
+  "source_reference": "ee8aa302e90ec2b9227e03c557b2a226b78f0289",
+  "unchanged_readonly_reviewer_byte_compared": true,
+  "unknown_raw_source_field_not_exported": true,
+  "unsupported_linux_platform_refuses_without_acl_substitution": true,
+  "zip_reproduced_from_source_commit": true
+}

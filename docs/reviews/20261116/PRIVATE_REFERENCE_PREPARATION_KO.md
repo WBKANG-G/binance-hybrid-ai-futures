@@ -29,3 +29,5 @@ RUN_CHECK는 읽기 전용 source 검사만 한다. RUN_CREATE_REFERENCE는 로�
 않는다. 대체하지 않은 Linux 실행에서는 Windows ACL 필요 오류로 실패해야 한다. 원본의
 SHA256/mtime, 임의 원본 필드 비유출, 덮어쓰기 거부, source 변경과 readback 실패 시 부분
 생성 보존, preflight 무쓰기 및 sealed launcher를 검증한다.
+
+최종 ZIP 검사 18개(13.37초)가 통과했다. 성공한 Windows destination 생성 부분만 Linux용 새 경로 함수로 대체했고, 대체하지 않은 Linux에서는 ACL 필요 오류가 나는 것도 확인했다. 실제 Windows 생성 결과와 외부 보관은 아직 관측하지 않았다.

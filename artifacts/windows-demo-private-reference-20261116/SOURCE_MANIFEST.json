@@ -1,0 +1,21 @@
+{
+  "artifact": "windows-demo-private-reference-20261116.zip",
+  "docker_operations_included": false,
+  "entries": 9,
+  "expected_producer_source_reference": "a70f103b3a5cd764ea43838d9a6e565637dafa32",
+  "external_usb_copy_included": false,
+  "generated_file_limit_bytes": 32768,
+  "generated_file_names": [
+    "REFERENCE_MANIFEST.json",
+    "REFERENCE_RECEIPT.json"
+  ],
+  "policy": "LOCAL_PRIVATE_HASH_REFERENCE_SOURCE_V1",
+  "raw_keys_or_responses_included": false,
+  "reviewer_core_identical_to_previous_release": true,
+  "reviewer_release_sha256": "93869970aca2d82c102bdc3b894769cfc3c506092906d6b170ad76cad1cdf074",
+  "sha256": "0311607b013c255be9674b9bf93202174f7033dcd1d5bdaf2e108187436fafd3",
+  "source_receipt_contents_copied": false,
+  "source_records_checked": 5,
+  "source_reference": "ee8aa302e90ec2b9227e03c557b2a226b78f0289",
+  "source_selector": "UNIQUE_EXPECTED_PRODUCER_SUCCESS_RECEIPT"
+}
