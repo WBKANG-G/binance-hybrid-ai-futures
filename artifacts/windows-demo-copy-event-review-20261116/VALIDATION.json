@@ -1,0 +1,64 @@
+{
+  "actual_user_archives_or_containers_accessed_by_cloud": false,
+  "actual_user_windows_execution_observed": false,
+  "actual_worker_checked_89_baseline_and_2_candidate_files_on_cached_image": true,
+  "actual_worker_network_none_readonly_root_and_readonly_mounts_verified": true,
+  "actual_worker_stopped_exit_zero": true,
+  "artifact_sha256": "c5a8e30f15966e1c8690c2030dfb9af193c21830a78a8e9ba6c939eeafef772a",
+  "current_original_database_checked": false,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_zip_native_and_pg_tests": {
+    "passed": 23,
+    "seconds": 9.25,
+    "skipped": 0
+  },
+  "full_event_content_validated": false,
+  "invalid_json_shape_and_row_limit_refused": true,
+  "limits": [
+    "Cloud native PowerShell 7 and synthetic PG18; actual Windows PowerShell 5.1 complete runner execution pending",
+    "Actual cached synthetic helper image test verifies baseline89/candidate2 and readonly Unix socket access, not user Windows image execution",
+    "Reused cold restore source and guard commands are unchanged; Windows complete lifecycle remains to be observed",
+    "New clone recovery and local private report writes are included; existing originals/copies are not started or mounted writable",
+    "Projection coverage is not complete event-content validation, independent audit-chain proof, strict clock ordering or wire send/non-send proof",
+    "No actual user secrets, exchange HTTP, financial orders or production/source database accessed"
+  ],
+  "live_trading_enabled": false,
+  "mypy_new_event_review_module": "PASSED",
+  "orders_enabled": false,
+  "policy": "FRESH_NETWORKLESS_COPY_EVENT_REVIEW_VALIDATION_V1",
+  "raw_client_ids_and_unknown_sensitive_fields_not_output": true,
+  "readonly_projection_preserved_synthetic_account_and_event_rows": true,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "restore_core_critical_docker_start_stop_snapshot_hash_command_ast_unchanged": true,
+  "reused_actual_cold_backup_and_restore_docker_drill": {
+    "passed": 1,
+    "seconds": 32.78
+  },
+  "reused_clone_scope_stop_guard_tests": {
+    "deselected": 8,
+    "passed": 7,
+    "seconds": 3.74
+  },
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "source_native_unit_tests": {
+    "passed": 17,
+    "seconds": 3.54,
+    "skipped": 0
+  },
+  "source_pg_tests_including_actual_networkless_worker": {
+    "passed": 6,
+    "seconds": 7.3,
+    "skipped": 0
+  },
+  "source_reference": "68283b4e4d62fc491e26547b2cec28676128cdba",
+  "source_scope_restore_metadata_and_account_check_support_byte_identical_to_previous_runner": true,
+  "stored_not_sent_reason_transition_does_not_resolve_current_backup_request": true,
+  "strict_execution_order_verified": false,
+  "synthetic_pg_cleanup_stopped_cleanly_exit_zero": true,
+  "transfer_hashes_and_both_cmd_pins_verified": true,
+  "wire_submission_or_non_submission_verified": false,
+  "zip_reproduced_from_source_commit": true
+}
