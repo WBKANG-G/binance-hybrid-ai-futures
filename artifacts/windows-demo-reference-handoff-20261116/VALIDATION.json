@@ -1,0 +1,48 @@
+{
+  "actual_user_usb_copy_performed": false,
+  "artifact_sha256": "ea8be0a4a87b3e71f8c506a3d591ccf945983c4f20c499188e4fb4e0d6493eb0",
+  "baseline_adoption_approved": false,
+  "changed_source_stream_refused_partial_retained_no_retry": true,
+  "check_only_no_writes": true,
+  "corrupt_target_refused_partial_retained_no_retry": true,
+  "create_new_overwrite_refused": true,
+  "diff_check": "PASSED",
+  "duplicate_reference_denied": true,
+  "execution_approved": false,
+  "exfat_directory_creation_tested_with_native_temp_root": true,
+  "existing_backup_sha256_and_mtime_preserved": true,
+  "final_zip_native_tests": {
+    "passed": 31,
+    "seconds": 46.83,
+    "skipped": 0
+  },
+  "independent_external_custody_verified": false,
+  "limits": [
+    "PowerShell 7 on Linux with synthetic receipt files; Windows PowerShell 5.1 not executed in cloud",
+    "Successful tests substitute Windows ACL/device discovery/destination path boundaries; no real USB or NTFS ACL claim",
+    "Actual USB copy and safe eject/disconnect pending user execution",
+    "Hash reference only; not recovery backup, remote account proof, or independent custody proof",
+    "No actual user files, credentials, Docker, exchange, or orders accessed"
+  ],
+  "live_trading_enabled": false,
+  "media_swap_refused_partial_retained_no_retry": true,
+  "no_external_or_destructive_command_ast_check": "PASSED",
+  "orders_enabled": false,
+  "physical_disconnect_verified": false,
+  "policy": "PRIVATE_REFERENCE_USB_HANDOFF_VALIDATION_V1",
+  "readonly_reviewer_identical_to_successful_v2_release": true,
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "sealed_check_and_copy_launchers_tested": true,
+  "separate_pc_verification_performed": false,
+  "source_native_tests": {
+    "passed": 31,
+    "seconds": 47.35,
+    "skipped": 0
+  },
+  "source_reference": "a0e08a89dc4fdb5741e80beb55a15da8a33a88fe",
+  "source_sha256_and_mtime_preserved": true,
+  "transfer_seal_and_cmd_manifest_pins_verified": true,
+  "unexpected_reference_fields_denied": true,
+  "zip_reproduced_from_source_commit": true
+}

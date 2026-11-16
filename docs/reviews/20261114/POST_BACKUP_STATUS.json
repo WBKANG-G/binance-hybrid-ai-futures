@@ -282,7 +282,7 @@
   "local_private_hash_reference_zip_sha256": "0311607b013c255be9674b9bf93202174f7033dcd1d5bdaf2e108187436fafd3",
   "local_read_credential_context_applied_on_windows": true,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "PREPARE_READ_ONLY_EXTERNAL_MEDIA_PREFLIGHT_AND_SEPARATE_HASH_REFERENCE_HANDOFF_NO_ORIGINAL_BACKUP_OVERWRITE",
+  "next_scope": "USER_CONNECT_PREVIOUS_USB_CONFIRM_D_RUN_CHECK_THEN_RUN_HANDOFF_ONCE_REVIEW_HASHES_BEFORE_SAFE_EJECT_KEEP_ORIGINALS_STOPPED",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -321,6 +321,11 @@
   "real_credentials_loaded_in_current_phase": false,
   "real_exchange_reads_in_current_phase": false,
   "receipt_console_depth_issue_native_reproduced": true,
+  "reference_usb_handoff_execution_observed": false,
+  "reference_usb_handoff_physical_disconnect_verified": false,
+  "reference_usb_handoff_runner_prepared_and_native_tested": true,
+  "reference_usb_handoff_source_reference": "a0e08a89dc4fdb5741e80beb55a15da8a33a88fe",
+  "reference_usb_handoff_zip_sha256": "ea8be0a4a87b3e71f8c506a3d591ccf945983c4f20c499188e4fb4e0d6493eb0",
   "remaining_install_prerequisites": [
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
     "V2_AWARE_CLOCK_TRANSITION_IF_ALREADY_BOUND",

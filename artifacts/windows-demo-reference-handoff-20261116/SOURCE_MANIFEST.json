@@ -1,0 +1,26 @@
+{
+  "additional_destination_record": "REFERENCE_HANDOFF_RECEIPT.json",
+  "artifact": "windows-demo-reference-handoff-20261116.zip",
+  "copied_reference_files": [
+    "REFERENCE_MANIFEST.json",
+    "REFERENCE_RECEIPT.json"
+  ],
+  "docker_operations_included": false,
+  "entries": 9,
+  "existing_backup_overwrite_included": false,
+  "expected_local_reference_producer": "ee8aa302e90ec2b9227e03c557b2a226b78f0289",
+  "expected_v3_receipt_producer": "a70f103b3a5cd764ea43838d9a6e565637dafa32",
+  "formatting_included": false,
+  "new_directory_prefix": "D:\\WBKANG-DEMO-Reference-20261116-",
+  "policy": "PRIVATE_REFERENCE_USB_HANDOFF_SOURCE_V1",
+  "raw_keys_or_responses_included": false,
+  "sha256": "ea8be0a4a87b3e71f8c506a3d591ccf945983c4f20c499188e4fb4e0d6493eb0",
+  "source_receipt_contents_copied": false,
+  "source_receipt_records_checked": 5,
+  "source_reference": "a0e08a89dc4fdb5741e80beb55a15da8a33a88fe",
+  "source_selector": "UNIQUE_EXPECTED_REFERENCE_PRODUCER_AND_VERIFIED_V3_RECEIPT_HASH",
+  "supported_filesystems": [
+    "NTFS",
+    "exFAT"
+  ]
+}
