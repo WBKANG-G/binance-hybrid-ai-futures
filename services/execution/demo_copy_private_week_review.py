@@ -3,8 +3,11 @@
 Observation-only acknowledgement never adopts a day/week baseline or account identity.
 """
 
+from __future__ import annotations
+
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.engine import Engine
@@ -14,6 +17,9 @@ from services.execution.demo_copy_baseline_evidence import review_copy_baseline_
 from services.execution.demo_copy_evidence_rehearsal import rehearse_synthetic_copy_evidence
 from services.execution.demo_copy_volatile_credentials import PrivateReadCredentialLease
 from services.execution.demo_runtime_storage import RuntimeClocks
+
+if TYPE_CHECKING:
+    from services.execution.demo_copy_private_preparation import SyntheticPrivatePreparation
 
 REVIEW_DAY = "2026-11-16"
 REVIEW_WEEK = "2026-11-16"
@@ -30,12 +36,13 @@ def rehearse_private_week_copy(
     expected_snapshot_sha256: str,
     archive_directory: Path,
     synthetic_body: bytes,
-    lease: PrivateReadCredentialLease,
+    lease: PrivateReadCredentialLease | SyntheticPrivatePreparation,
     *,
     copy_only: bool = False,
     synthetic_only: bool = False,
     acknowledge_week_boundary_observation: bool = False,
     clocks: RuntimeClocks | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     require(
         copy_only is True
@@ -43,7 +50,12 @@ def rehearse_private_week_copy(
         and acknowledge_week_boundary_observation is True,
         "PRIVATE_WEEK_EXPLICIT_SYNTHETIC_OBSERVATION_REQUIRED",
     )
-    require(type(lease) is PrivateReadCredentialLease, "PRIVATE_WEEK_LEASE_REQUIRED")
+    if type(lease) is not PrivateReadCredentialLease:
+        from services.execution.demo_copy_private_preparation import SyntheticPrivatePreparation
+
+        require(type(lease) is SyntheticPrivatePreparation, "PRIVATE_WEEK_LEASE_REQUIRED")
+        lease.verify()
+
     clock = clocks or RuntimeClocks()
     try:
         before = review_copy_baseline_requirements(
@@ -82,6 +94,7 @@ def rehearse_private_week_copy(
             synthetic_only=True,
             clocks=clock,
             private_lease=lease,
+            progress=progress,
         )
         after = review_copy_baseline_requirements(
             read_engine,

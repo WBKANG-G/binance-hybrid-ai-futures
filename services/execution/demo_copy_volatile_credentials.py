@@ -8,6 +8,7 @@ import fcntl
 import hashlib
 import hmac
 import json
+import math
 import os
 import stat
 import threading
@@ -239,15 +240,27 @@ class PrivateReadCredentialLease:
             assert self._directory_fd is not None and self._file_fd is not None
             now = self._clocks.monotonic()
             wall = self._clocks.wall_clock().timestamp()
-            require(
-                type(now) in (int, float)
-                and self._last_mono <= now
-                and 0 <= now - self._created_mono < MAX_LEASE_SECONDS
-                and self._session_created <= wall < self._expires
-                and self._clocks.boot() == self._boot
-                and abs((wall - self._created_wall) - (now - self._created_mono)) <= 1,
-                "PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED",
-            )
+            reasons = []
+            if type(now) not in (int, float) or not math.isfinite(now) or not math.isfinite(wall):
+                reasons.append("PRIVATE_READ_CLOCK_INVALID")
+            else:
+                if now < self._last_mono:
+                    reasons.append("PRIVATE_READ_MONOTONIC_ROLLBACK")
+                if not 0 <= now - self._created_mono < MAX_LEASE_SECONDS:
+                    reasons.append("PRIVATE_READ_LEASE_DEADLINE_EXCEEDED")
+                if not self._session_created <= wall < self._expires:
+                    reasons.append("PRIVATE_READ_SESSION_EXPIRED_OR_FUTURE")
+                if self._clocks.boot() != self._boot:
+                    reasons.append("PRIVATE_READ_BOOT_CHANGED")
+                if abs((wall - self._created_wall) - (now - self._created_mono)) > 1:
+                    reasons.append("PRIVATE_READ_CLOCK_DIVERGED")
+            if reasons:
+                try:
+                    require(False, "PRIVATE_READ_EXPIRED_OR_CLOCK_CHANGED")
+                except Exception as error:
+                    detail: Any = error
+                    detail.private_timing_reasons = tuple(reasons)
+                    raise
             self._last_mono = now
             require(
                 _identity(os.stat(keys.DIRECTORY, follow_symlinks=False))[:5]

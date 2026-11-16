@@ -160,6 +160,21 @@ function New-PrivateBackupDirectory {{$null=[IO.Directory]::CreateDirectory('{qu
     assert isinstance(
         console["diagnostic"]["private_week_review"]["pipeline"]["content_review"], dict
     )
+    if os.getenv("PRIVATE_WEEK_V2_BUNDLE_DOCKER_REPORT"):
+        from tests.fixtures.private_week_v2_bundle_runner import exercise as v2_exercise
+
+        v2_exercise(
+            root,
+            backup,
+            restore_report,
+            pins,
+            prior_directory,
+            clock_directory,
+            evidence_directory,
+            output,
+            containers,
+            volumes,
+        )
     Path(os.environ["PRIVATE_WEEK_BUNDLE_DOCKER_REPORT"]).write_text(
         json.dumps(
             dict(

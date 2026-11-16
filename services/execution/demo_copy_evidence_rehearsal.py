@@ -77,30 +77,45 @@ def rehearse_synthetic_copy_evidence(
         "COPY_PIPELINE_NO_RESUME",
     )
     review_account_body(synthetic_body)  # Reject invalid local fixture before any mutation.
+    preparation = None
     if private_lease is not None:
         # Lazy import keeps the sealed default synthetic pipeline independent of
         # this later tmpfs-only candidate. No arbitrary sender is accepted.
         from services.execution.demo_copy_volatile_credentials import PrivateReadCredentialLease
 
-        require(
-            type(private_lease) is PrivateReadCredentialLease,
-            "COPY_PIPELINE_PRIVATE_LEASE_REQUIRED",
-        )
-        private_lease.verify()
-        credentials = private_lease._credentials
-        require(
-            credentials is not None
-            and (private_lease._account, private_lease._scope) == (account, scope),
-            "COPY_PIPELINE_PRIVATE_SCOPE_MISMATCH",
-        )
-        assert credentials is not None
-        require(
-            hmac.compare_digest(credentials.api_key.get_secret_value(), SYNTHETIC_PRIVATE_KEY)
-            and hmac.compare_digest(
-                credentials.secret.get_secret_value(), SYNTHETIC_PRIVATE_SECRET
-            ),
-            "COPY_PIPELINE_SYNTHETIC_PRIVATE_KEYS_REQUIRED",
-        )
+        if type(private_lease) is not PrivateReadCredentialLease:
+            from services.execution.demo_copy_private_preparation import SyntheticPrivatePreparation
+
+            require(
+                type(private_lease) is SyntheticPrivatePreparation,
+                "COPY_PIPELINE_PRIVATE_LEASE_REQUIRED",
+            )
+            preparation = private_lease
+            require(
+                (preparation._account, preparation._scope) == (account, scope),
+                "COPY_PIPELINE_PRIVATE_SCOPE_MISMATCH",
+            )
+            preparation.verify()  # Includes fixed synthetic pair proof, before any auxiliary write.
+        else:
+            require(
+                type(private_lease) is PrivateReadCredentialLease,
+                "COPY_PIPELINE_PRIVATE_LEASE_REQUIRED",
+            )
+            private_lease.verify()
+            credentials = private_lease._credentials
+            require(
+                credentials is not None
+                and (private_lease._account, private_lease._scope) == (account, scope),
+                "COPY_PIPELINE_PRIVATE_SCOPE_MISMATCH",
+            )
+            assert credentials is not None
+            require(
+                hmac.compare_digest(credentials.api_key.get_secret_value(), SYNTHETIC_PRIVATE_KEY)
+                and hmac.compare_digest(
+                    credentials.secret.get_secret_value(), SYNTHETIC_PRIVATE_SECRET
+                ),
+                "COPY_PIPELINE_SYNTHETIC_PRIVATE_KEYS_REQUIRED",
+            )
     clock = clocks or RuntimeClocks()
 
     def stage(name: str) -> None:
@@ -221,6 +236,8 @@ def rehearse_synthetic_copy_evidence(
                 capture_with_private_copy_credentials,
             )
 
+            if preparation is not None:
+                private_lease = preparation.acquire_once()
             private_result = capture_with_private_copy_credentials(
                 settings,
                 shared,
@@ -306,6 +323,10 @@ def rehearse_synthetic_copy_evidence(
         evidence_binding_created=True,
         synthetic_sender_calls=sent,
         private_tmpfs_credentials_used=private_lease is not None,
+        private_lease_opened_at_capture=preparation is not None,
+        private_preparation_seconds=preparation.preparation_seconds
+        if preparation is not None
+        else None,
         audit_events_before=before_report["prior_audit_events"],
         audit_events_after=final["prior_audit_events"],
         archive_receipt_sha256=archive_report["receipt_sha256"],

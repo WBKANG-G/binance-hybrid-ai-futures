@@ -1,0 +1,194 @@
+"""Actual production private-week bundle on fresh synthetic Docker inputs only."""
+
+import hashlib
+import json
+import os
+import subprocess
+from pathlib import Path
+
+from tests.unit.test_cold_backup_executor import PWSH
+from tests.unit.test_private_week_v2_bundle import materialize
+
+
+def exercise(
+    root,
+    backup,
+    restore_report,
+    pins,
+    prior_directory,
+    clock_directory,
+    evidence_directory,
+    private_directory,
+    containers,
+    volumes,
+):
+    target = root / "private week v2 package"
+    materialize(target)
+    prior_path = prior_directory / "COPY_REVIEW_RECEIPT.json"
+    clock_path = clock_directory / "COPY_CLOCK_RECEIPT.json"
+    prior = json.loads(prior_path.read_bytes())
+    clock = json.loads(clock_path.read_bytes())
+    evidence_path = evidence_directory / "COPY_EVIDENCE_RECEIPT.json"
+    evidence = json.loads(evidence_path.read_bytes())
+    config = json.loads((target / "CONFIG.json").read_bytes())
+    for key in (
+        "api_container_id",
+        "database_container_id",
+        "preservation_source_reference",
+        "restore_source_reference",
+        "receipt_sha256",
+        "manifest_sha256",
+        "restore_receipt_sha256",
+    ):
+        config[key] = pins[key]
+    config.update(
+        prior_evidence_source_reference=evidence["source_reference"],
+        prior_evidence_receipt_sha256=hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
+        prior_copy_source_reference=prior["source_reference"],
+        prior_copy_receipt_sha256=hashlib.sha256(prior_path.read_bytes()).hexdigest(),
+        prior_clock_source_reference=clock["source_reference"],
+        prior_clock_receipt_sha256=hashlib.sha256(clock_path.read_bytes()).hexdigest(),
+    )
+    previous = json.loads((private_directory / "COPY_PRIVATE_WEEK_RECEIPT.json").read_bytes())
+    config["prior_private_helper_ids"] = (
+        previous["retained_helper_ids"][:2] + previous["private_helper_ids"]
+    )
+    (target / "CONFIG.json").write_text(json.dumps(config))
+    output = root / "private week v2 output"
+
+    def quote(value):
+        return str(value).replace("'", "''")
+
+    ext = target / "PRIVATE_EXT.ps1"
+    ext.write_text(
+        ext.read_text()
+        + f"""
+# TEST ONLY: Windows input discovery and ACL checks substituted on Linux.
+function Find-RetainedBackup {{return '{quote(backup)}'}}
+function Find-RestoreEvidence {{return '{quote(restore_report / "ISOLATED_RESTORE_RECEIPT.json")}'}}
+function Find-PriorCopyReceipt {{return '{quote(prior_path)}'}}
+function Find-PriorEvidenceReceipt {{return '{quote(evidence_path)}'}}
+function Find-PriorClockReceipt {{return '{quote(clock_path)}'}}
+function Assert-PrivateBackupDirectory {{}}
+function Assert-PrivateBackupFiles {{}}
+function New-PrivateBackupDirectory {{$null=[IO.Directory]::CreateDirectory('{quote(output)}');return '{quote(output)}'}}
+"""
+    )
+    manifest = json.loads((target / "TRANSFER_MANIFEST.json").read_bytes())
+    manifest["files"] = {
+        p: hashlib.sha256((target / p).read_bytes()).hexdigest() for p in manifest["files"]
+    }
+    body = json.dumps(manifest, sort_keys=True).encode()
+    (target / "TRANSFER_MANIFEST.json").write_bytes(body)
+    env = dict(
+        os.environ,
+        XDG_CACHE_HOME=str(root / "cache"),
+        XDG_CONFIG_HOME=str(root / "config"),
+        XDG_DATA_HOME=str(root / "data"),
+    )
+
+    def launch(mode):
+        script = target / (mode + ".ps1")
+        script.write_text(
+            f"$PSNativeCommandArgumentPassing='Legacy'\n& '{target / 'RUN_COPY.ps1'}' -ManifestSHA256 '{hashlib.sha256(body).hexdigest()}' -{mode}\nexit $LASTEXITCODE\n"
+        )
+        return subprocess.run(
+            [str(PWSH), "-NoProfile", "-NonInteractive", "-File", str(script)],
+            text=True,
+            capture_output=True,
+            timeout=500,
+            env=env,
+        )
+
+    def resources():
+        return tuple(
+            subprocess.check_output(["docker", *args], text=True)
+            for args in (
+                ["ps", "--all", "--quiet", "--no-trunc"],
+                ["volume", "ls", "--format", "{{.Name}}"],
+            )
+        )
+
+    before = resources()
+    check = launch("CheckOnly")
+    assert check.returncode == 0 and not check.stderr, check.stdout + check.stderr
+    assert before == resources() and not output.exists()
+    result = launch("ExecuteReview")
+    for name in (
+        "RESTORE_RESOURCES.json",
+        "CLONE_CREATED.json",
+        "FAILURE.json",
+        "COPY_CLOCK_RESOURCE.json",
+        "COPY_PRIVATE_WEEK_V2_RECEIPT.json",
+        "PRIVATE_RESOURCES.json",
+    ):
+        path = output / name
+        if path.exists():
+            value = json.loads(path.read_bytes())
+            containers.extend(value.get("owned_helper_ids", value.get("retained_helper_ids", [])))
+            containers.extend(value.get("private_helper_ids", []))
+            if value.get("private_key_volume"):
+                volumes.append(value["private_key_volume"])
+            for key in ("clone_container_id", "helper_id", "retained_diagnostic_helper_id"):
+                if value.get(key):
+                    containers.append(value[key])
+            volumes.extend(value.get("clone_volumes", value.get("retained_clone_volumes", [])))
+    assert result.returncode == 0 and not result.stderr, result.stdout + result.stderr
+    assert "PRIVATE_WEEK_V2_SYNTHETIC_VERIFIED_NEW_COPY_STOPPED_NO_ORDERS" in result.stdout
+    assert "PRIVATE_COPY_STAGE=PRIVATE_KEY_AND_WEEK_REVIEW" in result.stdout
+    receipt = json.loads((output / "COPY_PRIVATE_WEEK_V2_RECEIPT.json").read_bytes())
+    pipeline = receipt["private_week_result"]["synthetic_evidence_rehearsal"]
+    assert pipeline["synthetic_sender_calls"] == 1 and pipeline["exchange_http_attempts"] == 0
+    assert pipeline["audit_events_after"] == pipeline["audit_events_before"] + 2
+    assert (
+        receipt["clone_stopped"]
+        and receipt["clone_clean_exit_verified"]
+        and receipt["input_hashes_reverified"]
+    )
+    assert (
+        hashlib.sha256(clock_path.read_bytes()).hexdigest() == config["prior_clock_receipt_sha256"]
+    )
+    assert receipt["private_key_session_destroyed"] is True
+    assert len(receipt["private_helper_ids"]) == 3 and len(receipt["retained_helper_ids"]) == 5
+    assert pipeline["private_tmpfs_credentials_used"] is True
+    assert pipeline["private_lease_opened_at_capture"] is True
+    assert receipt["prior_private_resources_stopped_verified"] is True
+    assert 0 <= pipeline["private_preparation_seconds"] < 300
+    week = receipt["private_week_result"]["private_week_review"]
+    assert week["review_day_kst"] == week["review_week_kst"] == "2026-11-16"
+    assert week["stored_day_kst"] == "2026-11-13" and week["stored_week_kst"] == "2026-11-09"
+    assert not week["baseline_adoption_approved"] and not week["remote_account_identity_verified"]
+    assert (
+        json.loads((output / "PRIVATE_RESOURCES.json").read_bytes())[
+            "private_key_session_destroyed"
+        ]
+        is True
+    )
+    console = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("{")))
+    assert isinstance(
+        console["diagnostic"]["private_week_review"]["pipeline"]["content_review"], dict
+    )
+    Path(os.environ["PRIVATE_WEEK_V2_BUNDLE_DOCKER_REPORT"]).write_text(
+        json.dumps(
+            dict(
+                actual_windows_touched=False,
+                windows_acl_and_input_discovery_mocked=True,
+                real_docker_lifecycle=True,
+                real_70_second_hold=True,
+                prior_clock_receipt_and_resources_verified=True,
+                read_only_preflight_no_resources=True,
+                new_copy_stopped=True,
+                input_hashes_reverified=True,
+                candidate_files_verified=16,
+                baseline_files_verified=89,
+                pipeline=pipeline,
+                prior_private_resources_stopped_verified=True,
+                prior_resources_are_synthetic_completed_v1_copy_not_actual_user_failure=True,
+                private_key_session_destroyed=receipt["private_key_session_destroyed"],
+                private_week_result=receipt["private_week_result"],
+            ),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
