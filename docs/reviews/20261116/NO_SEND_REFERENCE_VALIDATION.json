@@ -1,0 +1,49 @@
+{
+  "absent_map_and_empty_map_not_treated_as_non_submission": true,
+  "actual_user_backup_accessed_by_cloud": false,
+  "actual_user_windows_execution_observed": false,
+  "artifact_sha256": "94456b9b5afda9ec5c32251ad517dfbac7ab022a5f4ef3a8b3511c9b9941b9dd",
+  "current_database_state_verified": false,
+  "diff_check": "PASSED",
+  "event_transition_history_replayed": false,
+  "execution_approved": false,
+  "final_source_change_returns_no_partial_review": true,
+  "final_zip_native_tests": {
+    "passed": 33,
+    "seconds": 21.17,
+    "skipped": 0
+  },
+  "invalid_reason_values_redacted_and_refused": true,
+  "known_reason_with_unknown_or_submitting_state_requires_review_not_reclassification": true,
+  "limits": [
+    "PowerShell 7/native tar on Linux with synthetic archives; actual Windows PowerShell 5.1 run pending",
+    "Success launcher test substitutes synthetic backup pin and maps tar.exe to native Linux tar only",
+    "Only prior old_row and stored query reports; no current database/event transitions/wire history replay",
+    "Recorded reasons do not establish independent non-submission; missing reasons do not establish submission or non-submission",
+    "No actual user archive, credentials, exchange, Docker, orders or database accessed"
+  ],
+  "live_trading_enabled": false,
+  "missing_reports_and_corrupt_or_duplicate_source_refused": true,
+  "native_tar_stdout_no_disk_extraction_tested": true,
+  "no_network_write_service_or_dynamic_execution_command_ast_check": "PASSED",
+  "not_found_not_treated_as_non_submission": true,
+  "orders_enabled": false,
+  "plan_and_report_scope_hash_role_identity_operation_and_count_checked": true,
+  "policy": "PRIOR_NO_SEND_REFERENCE_VALIDATION_V1",
+  "reader_core_identical_to_windows_successful_release": true,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "sealed_launcher_success_with_synthetic_pin_and_tar_name_substitution": true,
+  "source_native_tests": {
+    "passed": 33,
+    "seconds": 21.93,
+    "skipped": 0
+  },
+  "source_reference": "1bb2c53c76f86fe9a7732ec2c8a606750eaa474a",
+  "source_sha256_and_mtime_preserved": true,
+  "transfer_manifest_and_cmd_pin_verified": true,
+  "wire_send_or_non_send_independently_verified": false,
+  "zip_reproduced_from_source_commit": true
+}
