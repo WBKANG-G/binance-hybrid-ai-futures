@@ -1,0 +1,38 @@
+{
+  "artifact_sha256": "93869970aca2d82c102bdc3b894769cfc3c506092906d6b170ad76cad1cdf074",
+  "baseline_adoption_approved": false,
+  "changed_open_stream_hash_and_length_denied": true,
+  "decimal_double_and_invalid_types_checked": true,
+  "diff_check": "PASSED",
+  "execution_approved": false,
+  "final_zip_native_tests": {
+    "passed": 56,
+    "same_test_set_as_source": true,
+    "seconds": 38.15,
+    "skipped": 0
+  },
+  "foreign_source_not_selected": true,
+  "independent_uuid_selection_tested": true,
+  "invalid_or_reparse_directory_denied": true,
+  "limits": [
+    "Synthetic files on Linux PowerShell 7; actual user rerun pending",
+    "Local source reference and consistency are not external independent custody or archive-byte replay",
+    "No Docker or actual current container state inspection"
+  ],
+  "live_trading_enabled": false,
+  "mutating_and_external_command_ast_check": "PASSED",
+  "no_success_and_wrong_source_denied": true,
+  "orders_enabled": false,
+  "policy": "READ_ONLY_PRIVATE_RECEIPT_REVIEW_V2_VALIDATION_V1",
+  "reviewed_files_sha256_and_mtime_preserved": true,
+  "ruff": "PASSED",
+  "ruff_format": "PASSED",
+  "second_same_source_receipt_denied": true,
+  "source_native_tests": {
+    "passed": 56,
+    "seconds": 41.41,
+    "skipped": 0
+  },
+  "source_reference": "65090b3e9c0eccf197d06476b2da05a02247e1ed",
+  "zip_reproducible_from_source_commit": true
+}

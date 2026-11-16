@@ -1,0 +1,14 @@
+{
+  "artifact": "windows-demo-private-receipt-review-v2-20261116.zip",
+  "directory_prefix": "copy-private-week-v3-20261116-",
+  "docker_commands_included": false,
+  "entries": 6,
+  "expected_producer_reference": "a70f103b3a5cd764ea43838d9a6e565637dafa32",
+  "external_latest_receipt_hash_pin": false,
+  "file_write_operations_included": false,
+  "manual_directory_uuid_pin": false,
+  "policy": "READ_ONLY_PRIVATE_RECEIPT_REVIEW_V2_SOURCE_V1",
+  "selection": "EXACTLY_ONE_EXPECTED_PRODUCER_SUCCESS_RECEIPT",
+  "sha256": "93869970aca2d82c102bdc3b894769cfc3c506092906d6b170ad76cad1cdf074",
+  "source_reference": "65090b3e9c0eccf197d06476b2da05a02247e1ed"
+}
