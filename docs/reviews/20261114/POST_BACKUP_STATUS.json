@@ -1,4 +1,6 @@
 {
+  "actual_account_evidence_collection_started": false,
+  "actual_account_login_availability_known": false,
   "baseline_adoption_approved": false,
   "baseline_source_acceptance_received": false,
   "candidate_image_review_observed_from_windows_console": {
@@ -282,7 +284,7 @@
   "local_private_hash_reference_zip_sha256": "0311607b013c255be9674b9bf93202174f7033dcd1d5bdaf2e108187436fafd3",
   "local_read_credential_context_applied_on_windows": true,
   "local_read_credential_context_candidate_cloud_tested": true,
-  "next_scope": "USER_CONNECT_PREVIOUS_USB_CONFIRM_D_RUN_CHECK_THEN_RUN_HANDOFF_ONCE_REVIEW_HASHES_BEFORE_SAFE_EJECT_KEEP_ORIGINALS_STOPPED",
+  "next_scope": "CONFIRM_ACCESS_TO_ORIGINAL_BINANCE_FUTURES_DEMO_ACCOUNT_THEN_PREPARE_LOCAL_SOURCE_EVIDENCE_NO_KEY_SHARING_NO_RESTART_NO_BASELINE_ADOPTION",
   "notes": [
     "Separate PC unavailability is recorded, not treated as successful independent verification.",
     "Disconnected external copy must remain separate during image-only review.",
@@ -321,10 +323,13 @@
   "real_credentials_loaded_in_current_phase": false,
   "real_exchange_reads_in_current_phase": false,
   "receipt_console_depth_issue_native_reproduced": true,
-  "reference_usb_handoff_execution_observed": false,
+  "reference_usb_handoff_execution_observed": true,
+  "reference_usb_handoff_hash_verification_success_observed": true,
+  "reference_usb_handoff_physical_disconnect_user_reported": true,
   "reference_usb_handoff_physical_disconnect_verified": false,
   "reference_usb_handoff_runner_prepared_and_native_tested": true,
   "reference_usb_handoff_source_reference": "a0e08a89dc4fdb5741e80beb55a15da8a33a88fe",
+  "reference_usb_handoff_windows_safe_eject_separately_confirmed": false,
   "reference_usb_handoff_zip_sha256": "ea8be0a4a87b3e71f8c506a3d591ccf945983c4f20c499188e4fb4e0d6493eb0",
   "remaining_install_prerequisites": [
     "FRESH_PERIOD_BASELINE_EVIDENCE_AND_EXPLICIT_TRANSITION_CONTRACT",
