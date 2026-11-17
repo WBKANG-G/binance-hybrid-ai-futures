@@ -1,0 +1,21 @@
+{
+  "source_reference": "bd05e9c2854c6159034728f37af7ba8259165e5a",
+  "artifact": "artifacts/windows-demo-support-draft-20261117/windows-demo-support-draft-20261117.zip",
+  "sha256": "f4fb249aedffc4c9268d2af34b16f7548fe013a2f97da04851bd61d6711113dc",
+  "native_powershell": "7.5.4 Linux; synthetic tar archives; Windows ACL positive path substituted only in tests",
+  "support_tests_passed": 18,
+  "reused_reader_and_support_tests_passed": 39,
+  "final_zip_support_tests_passed": 18,
+  "ruff": "passed",
+  "windows_powershell_51_execution_observed": false,
+  "windows_private_acl_creation_observed": false,
+  "real_account_data_accessed": false,
+  "raw_client_identifiers_in_artifact": false,
+  "messages_sent": 0,
+  "actual_http_attempts_by_runner": 0,
+  "request_states_changed": false,
+  "baseline_adopted": false,
+  "originals_started": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
