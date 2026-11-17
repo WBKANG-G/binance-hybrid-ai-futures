@@ -1,0 +1,36 @@
+{
+  "policy": "UNRESOLVED_HOLD_REVIEW_20261117_V1",
+  "environment": "Cloud disposable PostgreSQL 18.6 tmpfs and synthetic ledger; no Windows machine access",
+  "tests": {
+    "paths": [
+      "tests/integration/test_copy_transition_review.py",
+      "tests/unit/test_demo_recovery_budget.py"
+    ],
+    "passed": 37,
+    "seconds": 13.91,
+    "skipped": 0
+  },
+  "new_regressions": 2,
+  "cases": [
+    "Closed canceled zero-fill local order and local draft receipt do not clear 3 UNKNOWN + 1 SUBMITTING requests",
+    "Current period keys do not substitute for independent historical request proof; stale period adds separate blocker"
+  ],
+  "verified": [
+    "Financial snapshot and local journal unchanged by review",
+    "Exchange request method forbidden in new regression",
+    "No order writes or exchange HTTP in review",
+    "No automatic retry, request resolution, baseline adoption or execution authorization"
+  ],
+  "limitations": [
+    "Synthetic scenarios are not a new inspection of the actual current ledger or exchange account",
+    "Current-period fixture changes only synthetic keys to isolate the request blocker; it is not evidence that real baselines are valid",
+    "Existing Windows originals and copies remain outside this cloud test scope"
+  ],
+  "initial_environment_setup": "First DB launch used an incorrect tmpfs path for PostgreSQL 18; 26 setup connection errors occurred. Corrected tmpfs path and confirmed pg_isready before rerun. Final run passed all 37 tests.",
+  "production_runtime_modified": false,
+  "real_credentials_accessed": false,
+  "support_message_sent": false,
+  "request_states_changed": false,
+  "baseline_adopted": false,
+  "execution_approved": false
+}

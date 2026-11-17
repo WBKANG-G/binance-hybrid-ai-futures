@@ -1,6 +1,7 @@
 """Copy-only rehearsal on fresh schemas; actual Windows sources are never used."""
 
 # ruff: noqa: F401,F811
+import json
 from datetime import timedelta
 from uuid import uuid4
 
@@ -287,4 +288,82 @@ def test_kst_day_crossing_at_final_snapshot_cannot_return_stale_period_report(
     monkeypatch.setattr(module, "evidence_snapshot", changed)
     with pytest.raises(LocalQuotaStopped, match="PERIOD_CHANGED_DURING_REVIEW"):
         call(a, clocks=clock(a, wall_clock=wall))
+    assert snapshot(a) == before
+
+
+@pytest.mark.parametrize("period_current", [False, True])
+def test_cancelled_zero_fill_and_local_support_draft_do_not_clear_historical_requests(
+    setup_ready, period_current, monkeypatch
+):
+    """The observed flat correction/draft cannot become remote request proof."""
+    from datetime import UTC, datetime
+
+    from integrations.binance_usdm.demo import DemoClient
+    from packages.domain.contracts import OrderState, PositionState
+    from services.execution.models import PaperOrder
+    from tests.integration.test_paper import signal
+    from tests.integration.test_paper import snapshot as market_snapshot
+
+    a = setup_ready
+    target = datetime(2026, 11, 17, 1, tzinfo=UTC)
+    a[2].seconds += (target - a[2].utc()).total_seconds()
+    with a[1].engine.begin() as c:
+        ledger = c.execute(select(accounts.c.state)).scalar_one()
+        order = PaperOrder(
+            client_id="synthetic-canceled-entry",
+            signal=signal(environment="DEMO", purpose="DEMO_VALIDATION", strategy=None),
+            snapshot=market_snapshot(),
+            group="BTC",
+            quantity=".0007",
+            quantity_step=".0001",
+            price_tick=".1",
+            loss_per_unit="1",
+            budget="1",
+            remaining="0",
+            filled="0",
+            open_quantity="0",
+            actual_risk="0",
+            state=OrderState.CANCELED,
+            position_state=PositionState.CLOSED,
+            algo_id="synthetic-stop",
+            exit_id="synthetic-exit",
+            exit_state="UNKNOWN",
+            protected=False,
+        )
+        ledger["orders"] = {"synthetic-order": order.model_dump(mode="json")}
+        ledger["positions"] = {}
+        ledger["requests"] = {
+            "synthetic-filled-entry-a": "UNKNOWN",
+            "synthetic-filled-entry-b": "UNKNOWN",
+            "synthetic-stop": "UNKNOWN",
+            "synthetic-exit": "SUBMITTING",
+        }
+        ledger["daily_key"] = "2026-11-17" if period_current else "2026-11-13"
+        ledger["weekly_key"] = "2026-11-16" if period_current else "2026-11-09"
+        # A local creation receipt attests only to a file, never to exchange status.
+        ledger["operations"]["synthetic-local-support-draft"] = json.dumps(
+            {"draft_created": True, "messages_sent": 0}
+        )
+        c.execute(update(accounts).values(state=ledger))
+    before = snapshot(a)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Review must not send exchange requests")
+
+    monkeypatch.setattr(DemoClient, "request", forbidden)
+    report = call(a)
+    assert report["historical_unresolved_requests"] == 4
+    assert "HISTORICAL_REQUESTS_REQUIRE_INDEPENDENT_REMOTE_PROOF" in report["blockers"]
+    assert "LOCAL_EXPOSURE_NOT_FLAT" not in report["blockers"]
+    assert ("NEW_PERIOD_BASELINE_EVIDENCE_REQUIRED_NO_AUTO_ADOPTION" in report["blockers"]) is (
+        not period_current
+    )
+    assert report["current_day_kst"] == "2026-11-17"
+    assert report["current_week_kst"] == "2026-11-16"
+    assert report["request_states_changed"] is False
+    assert report["period_baselines_changed"] is False
+    assert report["automatic_retry"] is False
+    assert report["exchange_http_attempts"] == report["order_writes"] == 0
+    assert not report["installation_ready"] and not report["execution_approved"]
+    assert not report["orders_enabled"] and not report["live_trading_enabled"]
     assert snapshot(a) == before

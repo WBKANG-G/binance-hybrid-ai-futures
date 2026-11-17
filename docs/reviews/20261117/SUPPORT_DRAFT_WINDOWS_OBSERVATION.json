@@ -1,0 +1,23 @@
+{
+  "evidence_source": "USER_SCREENSHOT_OF_WINDOWS_SUPPORT_DRAFT_RUNNER",
+  "check_succeeded_observed": true,
+  "creation_succeeded_observed": true,
+  "request_count": 2,
+  "draft_created_reported": true,
+  "private_draft_path_reported": true,
+  "raw_client_ids_displayed_reported": false,
+  "source_files_written_reported": false,
+  "credentials_accessed_reported": false,
+  "docker_used_reported": false,
+  "services_started_reported": false,
+  "actual_http_attempts_reported": 0,
+  "messages_sent_by_runner_reported": 0,
+  "request_resolution_authorized_reported": false,
+  "resend_authorized_reported": false,
+  "execution_approved_reported": false,
+  "orders_enabled_reported": false,
+  "live_trading_enabled_reported": false,
+  "windows_files_or_acl_independently_inspected": false,
+  "draft_contents_collected": false,
+  "user_manual_support_submission_verified": false
+}
