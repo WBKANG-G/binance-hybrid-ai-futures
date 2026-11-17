@@ -96,7 +96,7 @@ function Export-RateLimit([object]$Context) {
 }
 function Invoke-HistoryExport([object]$Plan,[string]$Mode) {
  $context=[pscustomobject]@{credentials=$null;watch=[Diagnostics.Stopwatch]::StartNew();server_time=$null;clock_observed_ms=0L;http_attempts=0;max_used_weight=0L;weight_observed=$false;weight_limit=0L}
- $directory=$null;$creationAttempted=$false;$jobRecorded=$false;$failure=$null
+ $directory=$null;$script:ReferenceAttemptPath=$null;$creationAttempted=$false;$jobRecorded=$false;$failure=$null
  try {
   Inspect-Require (@('RequestOnce','StatusOnce') -ccontains $Mode) 'EXPORT_EXPLICIT_MODE_REQUIRED'
   Inspect-Require (($null -eq $env:LIVE_TRADING_ENABLED -or $env:LIVE_TRADING_ENABLED -ieq 'false') -and $env:TRADING_MODE -ine 'LIVE') 'EXPORT_LIVE_CONTEXT_FORBIDDEN'
@@ -120,6 +120,7 @@ function Invoke-HistoryExport([object]$Plan,[string]$Mode) {
   $context.credentials=Export-Credentials
   $keyPin=Inspect-Hash ([Text.Encoding]::UTF8.GetBytes($context.credentials.key))
   if($Mode -ceq 'StatusOnce'){Inspect-Require ($keyPin -ceq $job.key_fingerprint_sha256) 'EXPORT_JOB_KEY_MISMATCH'}
+  $context.watch.Restart()
   Export-Clock $context
   if($Mode -ceq 'RequestOnce') {
    Export-RateLimit $context
@@ -147,6 +148,7 @@ function Invoke-HistoryExport([object]$Plan,[string]$Mode) {
    $jobRecorded=$true;$state='ONE_EXISTING_JOB_STATUS_SAVED_NO_ARCHIVE_DOWNLOADED'
   }
  } catch {
+  if($null -eq $directory -and $null -ne $script:ReferenceAttemptPath){$directory=$script:ReferenceAttemptPath}
   $failure='EXPORT_RUN_BLOCKED';if($_.Exception.Message -cmatch '^(EXPORT|INSPECT|REFERENCE)_[A-Z0-9_]{1,100}$'){$failure=$_.Exception.Message};$state='STOPPED_NO_AUTOMATIC_RETRY'
  } finally {
   if($null -ne $context.credentials){$context.credentials.key=$null;$context.credentials.secret=$null;$context.credentials=$null};$context.watch.Stop()
