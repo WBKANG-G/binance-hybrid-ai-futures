@@ -1,0 +1,38 @@
+{
+  "policy": "WINDOWS_HISTORY_READ_FOLLOWUP_VALIDATION_V1",
+  "source_reference": "45e8e0092abc878cd46f3536b7f4d625cab4e3aa",
+  "artifact": "artifacts/windows-demo-history-read-20261117/windows-demo-history-read-20261117.zip",
+  "sha256": "e4f46078684f06810bb6c18d0055ca36463561cb45f157faf68a7bd0dcbfcc47",
+  "final_zip_related_tests": {
+    "passed": 68,
+    "skipped": 0,
+    "seconds": 49.56,
+    "reader_tests": 20,
+    "export_diagnostic_and_no_retry_tests": 27,
+    "legacy_source_reader_tests": 21
+  },
+  "zip_reproduced_from_committed_source": true,
+  "manifest_hashes_verified": true,
+  "export_routes_absent_from_packaged_transport": true,
+  "original_export_guard_untouched_in_native_test": true,
+  "http_200_body_saved_before_schema_validation": true,
+  "creation_diagnostic_fix_source_only_not_a_request_retry_release": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "actual_cloud_binance_requests": 0,
+  "real_credentials_accessed_in_cloud": false,
+  "export_jobs_created_in_cloud": 0,
+  "windows_reader_execution_observed": false,
+  "originals_started": false,
+  "source_financial_state_changed": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limits": [
+    "Native PowerShell 7 synthetic HTTP factory; no actual Binance response collected in cloud",
+    "Production positive Windows NTFS ACL and Windows 5.1 TLS/hidden input unobserved for new reader",
+    "Old creation response was not saved and cannot be recovered from old local files",
+    "Candidate exact-ID count is not remote resolution",
+    "Empty or undersaturated pages cannot establish retention completeness or non-submission"
+  ]
+}
