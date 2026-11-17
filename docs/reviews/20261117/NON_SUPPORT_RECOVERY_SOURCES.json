@@ -1,0 +1,138 @@
+{
+  "sdk_commit": "6a75e7e5744904380ab0bfbd0bd3433b997010f5",
+  "sources": [
+    {
+      "file": "trade_api.py",
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/6a75e7e5744904380ab0bfbd0bd3433b997010f5/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/trade_api.py",
+      "sha256": "c369a6b1e7765779fad49e8218b67e7b2342bfde6f397de85ee74e6c478d9475",
+      "bytes": 90385
+    },
+    {
+      "file": "account_api.py",
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/6a75e7e5744904380ab0bfbd0bd3433b997010f5/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/api/account_api.py",
+      "sha256": "b666de8063bdbde0c4d6e511bd03cfb8d33b8d4afb87eb24ff1d54ecfdb7da39",
+      "bytes": 36121
+    },
+    {
+      "file": "all_orders_response.py",
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/6a75e7e5744904380ab0bfbd0bd3433b997010f5/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/models/all_orders_response.py",
+      "sha256": "2784762b0ffe50a283eb0862c4dab59edf9ea53039d628bb5abca3b88a7ab37f",
+      "bytes": 2424
+    },
+    {
+      "file": "query_all_algo_orders_response.py",
+      "url": "https://raw.githubusercontent.com/binance/binance-connector-python/6a75e7e5744904380ab0bfbd0bd3433b997010f5/clients/derivatives_trading_usds_futures/src/binance_sdk_derivatives_trading_usds_futures/rest_api/models/query_all_algo_orders_response.py",
+      "sha256": "76896c226e5f047a228cf364a442a7f3eec09171ac9f59ba9d3e4c6d03331876",
+      "bytes": 2480
+    }
+  ],
+  "actual_demo_api_requests": 0,
+  "credentials_accessed": false,
+  "limits": "Official SDK documentation, not demonstrated DEMO host retention or endpoint support",
+  "methods": [
+    {
+      "file": "trade_api.py",
+      "method": "account_trade_list",
+      "line": 102,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/userTrades",
+        "is_signed": true
+      },
+      "source_docstring": "        Account Trade List (USER_DATA)\n        GET /fapi/v1/userTrades\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade#account-trade-list\n\n        Get trades for a specific account and symbol.\n\nWeight(IP): 5\n\nSecurity Type: USER_DATA\n\nNotes:\n- If `startTime` and `endTime` are both not sent, then the last 7 days' data will be returned.\n- The time between `startTime` and `endTime` cannot be longer than 7 days.\n- The parameter `fromId` cannot be sent with `startTime` or `endTime`.\n- Only support querying trade in the past 3 months\n\n        Args:\n            symbol (Union[str, None]):\n            order_id (Optional[int] = None): Must be used together with parameter `symbol`.\n            start_time (Optional[int] = None): Start time\n            end_time (Optional[int] = None): End time\n            from_id (Optional[int] = None): Trade id to fetch from. Default gets most recent trades.\n            limit (Optional[int] = None):\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[AccountTradeListResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "trade_api.py",
+      "method": "all_orders",
+      "line": 175,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/allOrders",
+        "is_signed": true
+      },
+      "source_docstring": "        All Orders (USER_DATA)\n        GET /fapi/v1/allOrders\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade#all-orders\n\n        Get all account orders; active, canceled, or filled.\n\n- These orders will not be found:\n  - order status is `CANCELED` or `EXPIRED` **AND** order has NO filled trade **AND** created time + 3 days < current time\n  - order create time + 90 days < current time\n\nWeight(IP): 5\n\nSecurity Type: USER_DATA\n\nNotes:\n- If `orderId` is set, it will get orders >= that `orderId`. Otherwise most recent orders are returned.\n- The query time period must be less then 7 days( default as the recent 7 days).\n\n        Args:\n            symbol (Optional[str] = None):\n            order_id (Optional[int] = None):\n            start_time (Optional[int] = None): Start time\n            end_time (Optional[int] = None): End time\n            limit (Optional[int] = None):\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[AllOrdersResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "trade_api.py",
+      "method": "query_algo_order",
+      "line": 1805,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/algoOrder",
+        "is_signed": true
+      },
+      "source_docstring": "        Query Algo Order (USER_DATA)\n        GET /fapi/v1/algoOrder\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade#query-algo-order\n\n        Check the status of an algo (conditional) order, such as TP/SL (Take Profit / Stop Loss) or trailing stop orders on USD-M Futures.\n\n* These orders will not be found:\n  * order status is `CANCELED` or `EXPIRED` **AND** order has NO filled trade **AND** created time + 3 days < current time\n  * order create time + 90 days < current time\n\nWeight(IP): 1\n\nSecurity Type: USER_DATA\n\nNotes:\n- Either `algoId` or `clientAlgoId` must be sent.\n- `algoId` is self-increment for each specific `symbol`\n\n        Args:\n            algo_id (Optional[int] = None): Order ID\n            client_algo_id (Optional[str] = None): Client order ID\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[QueryAlgoOrderResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "trade_api.py",
+      "method": "query_all_algo_orders",
+      "line": 1863,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/allAlgoOrders",
+        "is_signed": true
+      },
+      "source_docstring": "        Query All Algo Orders (USER_DATA)\n        GET /fapi/v1/allAlgoOrders\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade#query-all-algo-orders\n\n        Get all algo (conditional) orders — active, CANCELED, TRIGGERED, or FINISHED — including TP/SL (Take Profit / Stop Loss) and trailing stop orders on USD-M Futures.\n\n* These orders will not be found:\n  * order status is `CANCELED` or `EXPIRED` **AND** order has NO filled trade **AND** created time + 3 days < current time\n  * order create time + 90 days < current time\n\nWeight(IP): 5\n\nSecurity Type: USER_DATA\n\nNotes:\n- If `algoId` is set, it will get orders >= that `algoId`. Otherwise most recent orders are returned.\n- The query time period must be less then 7 days( default as the recent 7 days).\n\n        Args:\n            symbol (Union[str, None]): Symbol\n            algo_id (Optional[int] = None):\n            start_time (Optional[int] = None):\n            end_time (Optional[int] = None):\n            limit (Optional[int] = None):\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[QueryAllAlgoOrdersResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "trade_api.py",
+      "method": "query_order",
+      "line": 1997,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/order",
+        "is_signed": true
+      },
+      "source_docstring": "        Query Order (USER_DATA)\n        GET /fapi/v1/order\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/trade#query-order\n\n        Check an order's status.\n\n* These orders will not be found:\n  * order status is `CANCELED` or `EXPIRED` **AND** order has NO filled trade **AND** created time + 3 days < current time\n  * order create time + 90 days < current time\n\nWeight(IP): 1\n\nSecurity Type: USER_DATA\n\nNotes:\n- Either `orderId` or `origClientOrderId` must be sent.\n- `orderId` is self-increment for each specific `symbol`\n\n        Args:\n            symbol (Union[str, None]):\n            order_id (Optional[int] = None):\n            orig_client_order_id (Optional[str] = None):\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[QueryOrderResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "account_api.py",
+      "method": "get_download_id_for_futures_order_history",
+      "line": 437,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/order/asyn",
+        "is_signed": true
+      },
+      "source_docstring": "        Get Download Id For Futures Order History (USER_DATA)\n        GET /fapi/v1/order/asyn\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account#get-download-id-for-futures-order-history\n\n        Get Download Id For Futures Order History\n\nWeight(IP): 1000\n\nSecurity Type: USER_DATA\n\nNotes:\n- Request Limitation is 10 times per month, shared by front end download page and rest api\n- The time between `startTime` and `endTime` can not be longer than 1 year\n\n        Args:\n            start_time (Union[int, None]): Timestamp in ms\n            end_time (Union[int, None]): Timestamp in ms\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[GetDownloadIdForFuturesOrderHistoryResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "account_api.py",
+      "method": "get_download_id_for_futures_trade_history",
+      "line": 501,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/trade/asyn",
+        "is_signed": true
+      },
+      "source_docstring": "        Get Download Id For Futures Trade History (USER_DATA)\n        GET /fapi/v1/trade/asyn\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account#get-download-id-for-futures-trade-history\n\n        Get download id for futures trade history\n\nWeight(IP): 1000\n\nSecurity Type: USER_DATA\n\nNotes:\n- Request Limitation is 5 times per month, shared by front end download page and rest api\n- The time between `startTime` and `endTime` can not be longer than 1 year\n\n        Args:\n            start_time (Union[int, None]): Timestamp in ms\n            end_time (Union[int, None]): Timestamp in ms\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[GetDownloadIdForFuturesTradeHistoryResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "account_api.py",
+      "method": "get_download_id_for_futures_transaction_history",
+      "line": 565,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/income/asyn",
+        "is_signed": true
+      },
+      "source_docstring": "        Get Download Id For Futures Transaction History (USER_DATA)\n        GET /fapi/v1/income/asyn\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account#get-download-id-for-futures-transaction-history\n\n        Get download id for futures transaction history\n\nWeight(IP): 1000\n\nSecurity Type: USER_DATA\n\nNotes:\n- The request limit is 100 times per month, shared across the front end download page and rest api, as well as between USDⓈ-M and COIN-M contracts.\n- The time between `startTime` and `endTime` can not be longer than 1 year\n\n        Args:\n            start_time (Union[int, None]): Timestamp in ms\n            end_time (Union[int, None]): Timestamp in ms\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[GetDownloadIdForFuturesTransactionHistoryResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    },
+    {
+      "file": "account_api.py",
+      "method": "get_income_history",
+      "line": 788,
+      "request": {
+        "method": "GET",
+        "path": "/fapi/v1/income",
+        "is_signed": true
+      },
+      "source_docstring": "        Get Income History (USER_DATA)\n        GET /fapi/v1/income\n        https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/account#get-income-history\n\n        Query income history\n\nWeight(IP): 30\n\nSecurity Type: USER_DATA\n\nNotes:\n- If `incomeType ` is not sent, all kinds of flow will be returned\n- If `startTime` and `endTime` are not sent, the recent 7-day data will be returned.\n- `trandId` is unique in the same `incomeType` for a user.\n- Income history only contains data for the last three months.\n\n        Args:\n            symbol (Optional[str] = None): Trading symbol.\n            income_type (Optional[GetIncomeHistoryIncomeTypeEnum] = None): Income type.\n            start_time (Optional[int] = None): Timestamp in milliseconds (inclusive start).\n            end_time (Optional[int] = None): Timestamp in milliseconds (inclusive end).\n            limit (Optional[int] = None): Maximum number of records to return.\n            recv_window (Optional[int] = None):\n\n        Returns:\n            ApiResponse[GetIncomeHistoryResponse]\n\n        Raises:\n            RequiredError: If a required parameter is missing."
+    }
+  ],
+  "public_source_validation": "Nine named SDK methods found by AST; signed GET method/path extracted and checked",
+  "actual_account_data_collected": false,
+  "production_allowlist_changed": false,
+  "export_jobs_created": 0,
+  "support_messages_sent": 0
+}
