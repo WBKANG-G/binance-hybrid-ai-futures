@@ -1,0 +1,45 @@
+{
+  "policy": "WINDOWS_HISTORY_EXPORT_REQUEST_VALIDATION_20261117_V1",
+  "source_reference": "a751fd81a4791c143d96ae6ddd49c9bfb5892969",
+  "artifact": "artifacts/windows-demo-history-export-20261117/windows-demo-history-export-20261117.zip",
+  "sha256": "59594e6d1bf71b8c92ed040c8762620d7bda23805cab1e648965e3b1dee6260c",
+  "final_zip_tests": {
+    "passed": 46,
+    "skipped": 0,
+    "seconds": 34.56,
+    "history_export_tests": 25,
+    "reused_backup_reader_tests": 21
+  },
+  "zip_reproduced_from_committed_source": true,
+  "exact_manifest_hashes_verified": true,
+  "read_core_identical_to_published_f3f8e44": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "powershell": "7.5.4 Linux; production WebRequest factory replaced with in-memory fake responses in transport tests; production ACL requires Windows",
+  "tested": [
+    "Real HMAC matches Python standard vector",
+    "Native route/parameter restrictions; fixed host; signed API-key header absent on public calls",
+    "Guard CreateNew/readback before creation; duplicate/ambiguous/write-failed attempts cannot regenerate",
+    "Two exact historical entry identity/quantity/price/status anchors",
+    "Current request-weight headroom; missing header refusal",
+    "Credential-value response rejection and console/file redaction",
+    "Status binds key fingerprint and stored job ID; never creates a job",
+    "Corrupt archive or seal refuses before credential input",
+    "Production Windows ACL refuses on Linux without substitution"
+  ],
+  "limitations": [
+    "No actual Binance API requests or actual credentials used in cloud tests",
+    "Windows PowerShell 5.1 hidden input, TLS connection and positive NTFS ACL execution unobserved",
+    "Actual DEMO support and remaining monthly quota unknown",
+    "Creates export job only; no CSV downloaded, parsed or completeness verified",
+    "No algo history, income history, request resolution, baseline adoption or trading readiness verified"
+  ],
+  "actual_binance_http_attempts": 0,
+  "real_credentials_accessed": false,
+  "export_jobs_created": 0,
+  "windows_execution_observed": false,
+  "originals_started": false,
+  "source_financial_state_changed": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
