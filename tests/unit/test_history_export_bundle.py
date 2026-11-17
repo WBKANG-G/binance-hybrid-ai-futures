@@ -101,6 +101,7 @@ function Export-NewWebRequest {{param($Uri)
  }}
  if($script:fault -ceq 'clock' -and $url.AbsolutePath -ceq '/fapi/v1/time'){{$reply.serverTime=1}}
  if($script:fault -ceq 'missing_id' -and $url.AbsolutePath -ceq '/fapi/v1/order/asyn'){{$reply=@{{code=-1}}}}
+ if($script:fault -ceq 'numeric_id' -and $url.AbsolutePath -ceq '/fapi/v1/order/asyn'){{$reply=@{{downloadId=123456789}}}}
  if($script:fault -ceq 'wrong_status_id' -and $url.AbsolutePath -ceq '/fapi/v1/order/asyn/id'){{$reply.downloadId='other-job'}}
  if($script:fault -ceq 'leak'){{$reply.secret='{SECRET}'}}
  $headers=New-Object Collections.Specialized.NameValueCollection
@@ -394,3 +395,17 @@ foreach($file in @('READ_CORE.ps1','PLAN_CORE.ps1','EXPORT_CORE.ps1','PRIVATE_ST
 """,
     )
     assert result.returncode == 0 and not result.stderr and result.stdout.strip() == "PARSED"
+
+
+@pytest.mark.parametrize("fault", ["missing_id", "numeric_id"])
+def test_unexpected_creation_response_is_retained_before_id_validation(tmp_path, fault):
+    root, _, pin = setup(tmp_path)
+    value = run(tmp_path, root, pin, fault=fault)
+    assert value["result"]["failure_category"] == "EXPORT_CREATION_OUTCOME_UNRESOLVED"
+    parent = tmp_path / "data/WBKANG-DEMO-Exports"
+    saved = list(parent.glob("history-export-*/CREATION_RESPONSE.json"))
+    assert len(saved) == 1
+    data = json.loads(saved[0].read_bytes())
+    assert data == (dict(code=-1) if fault == "missing_id" else dict(downloadId=123456789))
+    assert not list(parent.glob("history-export-*/JOB.json"))
+    assert run(tmp_path, root, pin)["calls"] == []

@@ -137,7 +137,9 @@ function Invoke-HistoryExport([object]$Plan,[string]$Mode) {
    Export-WriteJson $guard $intent
    $creationAttempted=$true
    $reply=Export-Http $context '/fapi/v1/order/asyn' @{startTime=[string]$Plan.start_ms;endTime=[string]$end}
-   $data=Export-Decode $reply.body;$id=Inspect-Member $data 'downloadId'
+   $data=Export-Decode $reply.body
+   Export-WriteJson (Join-Path $directory 'CREATION_RESPONSE.json') $data
+   $id=Inspect-Member $data 'downloadId'
    Inspect-Require ($id -is [string] -and $id -cmatch '^[A-Za-z0-9_-]{1,128}$') 'EXPORT_CREATION_OUTCOME_UNRESOLVED'
    Export-WriteJson (Join-Path $directory 'JOB.json') ([ordered]@{policy='DEMO_ORDER_EXPORT_JOB_V1';manifest_sha256=$Plan.manifest_sha256;key_fingerprint_sha256=$keyPin;download_id=$id;response=$data;source='SIGNED_DEMO_RESPONSE';automatic_retry=$false})
    $jobRecorded=$true;$state='ONE_EXPORT_JOB_RECORDED_NO_ARCHIVE_DOWNLOADED'
