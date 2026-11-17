@@ -1,0 +1,33 @@
+{
+  "evidence_source": "USER_SCREENSHOT_NOT_DIRECT_WINDOWS_FILE_ACCESS",
+  "corrected_at_utc": "2026-10-23T13:28:26.281380Z",
+  "other_order_fields_unchanged": true,
+  "before": {
+    "state": "CANCELED",
+    "position_state": "EXIT_PENDING",
+    "exit_state": "UNKNOWN",
+    "quantity": "0.0007",
+    "filled": "0.0000",
+    "remaining": "0",
+    "open_quantity": "0.0007",
+    "actual_risk": "57.50129",
+    "protected": false
+  },
+  "after": {
+    "state": "CANCELED",
+    "position_state": "CLOSED",
+    "exit_state": "UNKNOWN",
+    "quantity": "0.0007",
+    "filled": "0.0000",
+    "remaining": "0",
+    "open_quantity": "0",
+    "actual_risk": "0",
+    "protected": false
+  },
+  "stored_exit_request": "SUBMITTING",
+  "stored_stop_request": "UNKNOWN",
+  "exchange_exit_or_non_submission_proven": false,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "execution_approved": false
+}
