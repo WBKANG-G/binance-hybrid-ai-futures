@@ -1,0 +1,29 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOTS",
+  "project_container_count_reported": 9,
+  "post_preservation_exclusion_count_reported": 8,
+  "legacy_original_count_expected": 7,
+  "all_project_members_previously_reported_stopped": true,
+  "preservation_helper_role_observed": {
+    "network": "none",
+    "restart": "no",
+    "source_database_mount_read_only": true,
+    "source_runtime_mount_read_only": true,
+    "separate_output_volume_writable": true
+  },
+  "additional_helper_mount_profile_observed": {
+    "backup_bundle_bind_read_only": true,
+    "clone_database_volume_writable": true,
+    "clone_runtime_volume_writable": true,
+    "original_volume_mounted": false,
+    "network": "none",
+    "restart": "no"
+  },
+  "additional_helper_receipt_identity_independently_verified_on_windows": false,
+  "root_cause": "LEGACY_PRE_RESTORE_PROJECT_COUNT_GUARD_DOES_NOT_ADMIT_RECEIPT_BOUND_RESTORE_HELPER",
+  "containers_deleted": false,
+  "originals_started": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
