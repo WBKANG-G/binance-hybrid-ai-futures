@@ -1,0 +1,55 @@
+{
+  "policy": "DEMO_LEDGER_RECOVERY_PROPOSAL_20261118_V1",
+  "status": "PROPOSAL_ONLY_NOT_EXECUTABLE",
+  "account_id": "DEMO-WINDOWS-ISOLATED-BTC-V1",
+  "source_evidence": "USER_SCREENSHOTS_AND_REPOSITORY_CODE_REVIEW",
+  "current_database_independently_verified": false,
+  "conditional_period_candidate": {
+    "day_key_kst": "2026-11-18",
+    "week_key_kst": "2026-11-16",
+    "daily_base_usdt": "4998.74183608",
+    "weekly_base_usdt": "4998.74183608",
+    "classification": "WALLET_CANDIDATE_NOT_INDEPENDENT_MIDNIGHT_EQUITY",
+    "adoption_approved": false
+  },
+  "preserve_recorded_values": {
+    "initial_usdt": "5000",
+    "realized_residual_usdt": "-1.25816392",
+    "high_water_usdt": "5000",
+    "orders_count": 34,
+    "unresolved_requests_count": 4
+  },
+  "preserve_request_states": {
+    "ENTRY": [
+      "UNKNOWN",
+      "UNKNOWN"
+    ],
+    "EXIT": "SUBMITTING",
+    "STOP_LOSS": "UNKNOWN"
+  },
+  "legacy_apply_compatibility": {
+    "compatible": false,
+    "reason": "PERIOD_OR_ANCHOR_WINDOW_UNSUPPORTED",
+    "recorded_valuation_anchor_utc": "2026-11-06T07:25:25.109073Z",
+    "maximum_anchor_age_days": 7,
+    "anchor_must_not_be_rewritten_to_pass": true
+  },
+  "approval_and_implementation_requirements": [
+    "VERIFY_STOPPED_CURRENT_LEDGER_AND_SAVED_EVIDENCE_CHAIN_OFFLINE",
+    "DESIGN_AND_TEST_NEW_PERIOD_PREVIEW_FOR_UNSUPPORTED_ANCHOR_WITHOUT_WEAKENING_EXISTING_GUARDS",
+    "EXPLICIT_ACCEPTANCE_OF_PERIOD_SOURCE_AND_LIMITATIONS_BEFORE_APPLY",
+    "AUDITED_ORIGINAL_ID_RECONCILIATION_FOR_ENTRY_REQUEST_CHANGES",
+    "SEPARATE_REVIEWED_POLICY_BEFORE_ANY_HISTORICAL_REQUEST_QUARANTINE_OR_NEW_ACCOUNTING_EPOCH",
+    "INDEPENDENT_STARTUP_AND_RISK_GATES_BEFORE_ANY_DEMO_EXECUTION"
+  ],
+  "not_authorized_or_performed": {
+    "database_changes": true,
+    "baseline_adoption": true,
+    "request_resolution": true,
+    "historical_replay": true,
+    "export_retry": true,
+    "service_start": true,
+    "order_submission": true,
+    "live_trading": true
+  }
+}
