@@ -1,0 +1,43 @@
+{
+  "policy": "READ_ONLY_FULL_JSONB_PERIOD_DRAFT_VALIDATION_20261118_V1",
+  "source_reference": "771f0f1c5efc6849d05658d51942b0d686fe965f",
+  "artifact": "artifacts/windows-demo-period-draft-20261118/windows-demo-period-draft-20261118.zip",
+  "sha256": "72eca6b3093afd0547d10a619c908c36b6bd977a083b8edc8316ae4014f11dd5",
+  "final_zip_tests": {
+    "passed": 31,
+    "skipped": 0,
+    "seconds": 28.82
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "native_postgresql_full_state_draft_test_passed": true,
+  "table_state_unchanged_before_after_draft_sql": true,
+  "read_only_write_refusal_test_passed": true,
+  "snapshot_control_commands_unchanged": true,
+  "actual_cloud_binance_requests": 0,
+  "actual_user_source_files_accessed": false,
+  "windows_execution_observed": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "Exact deterministic full JSONB candidate and audit draft bound to evidence and before state/fence",
+    "All unreviewed fields including nested unknown fields preserved; prior operation map preserved",
+    "Allowed field actual values must match bound declared proposal",
+    "High water/value/orders/requests/paused preserved; fresh reconciliation and stream readiness required",
+    "Fence change or evidence change produces another review ID; expected/proposed audit fences match",
+    "Audit remains explicitly unapproved and unapplied; false commit/model/source claims refused",
+    "Native PostgreSQL table unchanged across repeated read-only computations; update refused",
+    "Real saved income/trade/current chain binds candidate without changing source files; changed raw hash refused",
+    "Sealed check creates no resources and transfer tamper blocks before access"
+  ],
+  "limitations": [
+    "Synthetic native PostgreSQL and PowerShell7 tests; actual Windows5.1/NTFS/full user workflow not yet observed",
+    "Whole JSONB draft validation is not Pydantic model validation or a real commit payload",
+    "No real audit event/outbox/CAS/lease transaction or apply implementation",
+    "A future accepted audit record differs from this explicitly unapproved draft and must be revalidated",
+    "No independently verified midnight equity, initial funding, historical request resolution, source acceptance, baseline adoption or execution approval"
+  ]
+}
