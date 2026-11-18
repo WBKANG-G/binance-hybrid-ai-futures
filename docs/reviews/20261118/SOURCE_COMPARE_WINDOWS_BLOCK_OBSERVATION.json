@@ -1,0 +1,19 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "source_compare_check_executed": true,
+  "source_compare_execute_executed_after_failed_check": true,
+  "both_failure_category": "RESTORE_SOURCE_SCOPE_CHANGED",
+  "both_stage": "INPUTS",
+  "both_retained_helper_id": null,
+  "originals_started_reported": false,
+  "source_data_written_reported": false,
+  "actual_http_attempts_reported": 0,
+  "order_writes_reported": 0,
+  "physical_comparison_performed": false,
+  "logical_account_row_queried": false,
+  "root_cause_identified": false,
+  "missing_scope_probe_in_original_output": true,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
