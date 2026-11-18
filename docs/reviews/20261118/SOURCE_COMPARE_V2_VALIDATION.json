@@ -1,0 +1,47 @@
+{
+  "policy": "RECEIPT_BOUND_POST_RESTORE_SOURCE_COMPARE_VALIDATION_20261118_V1",
+  "source_reference": "ef702b90d1b5450bd53380796e63351d84687c58",
+  "artifact": "artifacts/windows-demo-source-compare-v2-20261118/windows-demo-source-compare-v2-20261118.zip",
+  "sha256": "79cbf3ab4324fc766c4c07151ca87e69fbbf359656adcdb766a126c6ef5ee80a",
+  "final_zip_core_tests": {
+    "passed": 51,
+    "skipped": 0,
+    "seconds": 25.41
+  },
+  "final_zip_launcher_test": {
+    "passed": 1,
+    "skipped": 0,
+    "seconds": 0.69
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "worker_and_original_helper_admission_unchanged": true,
+  "post_restore_scope_guard_reused_from_pinned_source": true,
+  "restore_receipt_sha256": "26395438e08500da24252eac7b11dfe76b22e0d660c86bb1c0d236b6b9e1da08",
+  "name_or_label_only_exclusion": false,
+  "restore_bind_source_checked_against_pinned_backup_directory": true,
+  "real_docker_readonly_worker_and_helper_admission_tests_passed": true,
+  "actual_user_source_volumes_accessed": false,
+  "windows_v2_execution_observed": false,
+  "actual_cloud_binance_requests": 0,
+  "baseline_adopted": false,
+  "current_database_logical_state_verified": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "Matching two-pass file/metadata comparison and mismatch/special-file refusal",
+    "New read-only helper isolation and source-start prevention",
+    "Existing original snapshot and all reviewed helper/clone mount/image/network/exit admission",
+    "Unknown project resources and external source-volume consumers still blocked",
+    "Wrong restore receipt hash/link/helper ID or backup bind source fail closed",
+    "Sealed launcher check succeeds without creation or Docker mutation"
+  ],
+  "limitations": [
+    "Windows5.1 and protected NTFS ACL positive execution remain user-observed only",
+    "User helper identity must still pass pinned local restore-receipt validation",
+    "Physical byte equality does not independently query the current SQL ledger or approve financial changes",
+    "No arbitrary extra-resource acceptance, cleanup, automatic retry or order execution"
+  ]
+}

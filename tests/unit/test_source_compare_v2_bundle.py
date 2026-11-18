@@ -170,3 +170,43 @@ def test_scope_guards_and_worker_remain_pinned_and_no_helper_name_allowlist():
         b"'RESTORE_EVIDENCE.ps1','REVIEWED_SCOPE.ps1','COMPARE_CORE.ps1'"
         in files["RUN_COMPARE.ps1"]
     )
+
+
+@pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
+def test_sealed_v2_launcher_loads_receipt_scope_before_check_and_creates_nothing(tmp_path):
+    files = package()
+    for n, b in files.items():
+        (tmp_path / n).write_bytes(b)
+    backup = tmp_path / "backup"
+    backup.mkdir()
+    for name in (
+        "BACKUP_RECEIPT.json",
+        "BACKUP_STATE.json",
+        "manifest.json",
+        "database.tar",
+        "runtime.tar",
+        "images.tar",
+    ):
+        (backup / name).write_bytes(b"{}")
+    ext = tmp_path / "REVIEWED_SCOPE.ps1"
+    ext.write_text(
+        ext.read_text()
+        + f"""
+function Read-RestoreJson {{param($Path) return [pscustomobject]@{{}}}}
+function Find-RetainedBackup {{param($Config) return '{backup}'}}
+function Assert-InputHashes {{param($Directory,$Config,$Receipt)}}
+function Read-RestoreSources {{param($Config,$Receipt,$State) return ,@([pscustomobject]@{{id=('b'*64)}})}}
+function docker {{throw 'NO_DOCKER_COMMAND_ALLOWED'}}
+"""
+    )
+    m = json.loads(files["TRANSFER_MANIFEST.json"])
+    m["files"][ext.name] = hashlib.sha256(ext.read_bytes()).hexdigest()
+    raw = json.dumps(m).encode()
+    (tmp_path / "TRANSFER_MANIFEST.json").write_bytes(raw)
+    value = launch(
+        tmp_path,
+        f"& '{tmp_path}/RUN_COMPARE.ps1' -ManifestSHA256 '{hashlib.sha256(raw).hexdigest()}' -CheckOnly\nexit $LASTEXITCODE",
+    )
+    assert value.returncode == 0 and not value.stderr, value.stdout + value.stderr
+    assert "SOURCE_COMPARE_CHECK_PASSED_NO_SOURCE_START" in value.stdout
+    assert "NO_DOCKER_COMMAND_ALLOWED" not in value.stdout
