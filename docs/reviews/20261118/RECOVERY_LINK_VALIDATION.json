@@ -1,0 +1,37 @@
+{
+  "policy": "RESTORED_REPORT_RECOVERY_LINK_VALIDATION_20261118_V1",
+  "source_reference": "961744da7f3d1b921a09a7bd63f809c3dc2f56a6",
+  "artifact": "artifacts/windows-demo-recovery-link-20261118/windows-demo-recovery-link-20261118.zip",
+  "sha256": "d40088bd18730e2d0838eed9d1d25dbaff8d50235934498c250109bf24121265",
+  "final_zip_tests": {
+    "passed": 10,
+    "skipped": 0,
+    "seconds": 35.11
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "checks": [
+    "Sealed launcher full offline evidence/receipt link",
+    "Restore receipt source/backup pins, date, count, paused and read-only checks",
+    "Missing matching receipt and duplicate matching receipts block",
+    "Files retain SHA256 and mtimes on successful and failed linkage",
+    "Source flags distinguish stored SQL report from historical financial projection and user screenshot physical comparison",
+    "No transport/credentials/Docker/writer/apply code; tampered seal blocks"
+  ],
+  "actual_cloud_binance_requests": 0,
+  "windows_link_execution_observed": false,
+  "full_prospective_ledger_diff_verified": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "Windows5.1 and positive NTFS ACL checks still require user execution observation",
+    "Physical source comparison linked as user screenshot report, not independently rerun or backed by a newly validated durable local receipt",
+    "Restored SQL report contains full-state fingerprint/key/count but no full financial projection",
+    "Before amounts come from pinned historical financial and adoption records; no direct current-source SQL financial query",
+    "PG state::text fingerprint and canonical-JSON commit digest not directly compared",
+    "New apply path, period source acceptance, historical request resolution and startup/risk gates remain outstanding"
+  ]
+}
