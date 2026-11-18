@@ -1,0 +1,51 @@
+{
+  "policy": "DEMO_INCOME_COLLECTION_VALIDATION_20261118_V1",
+  "source_reference": "56dd3f5981595b133e9d858aeafe99f792df91d7",
+  "artifact": "artifacts/windows-demo-income-read-20261118/windows-demo-income-read-20261118.zip",
+  "sha256": "a74072d9a639f8632c5043b76f34055af43feeb8ebd663e73796fc54e9a9b1c9",
+  "final_zip_and_related_tests": {
+    "passed": 60,
+    "skipped": 0,
+    "seconds": 45.78,
+    "income_tests": 32,
+    "ps5_array_review_regressions": 28
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "corrected_array_parser_byte_identical_to_published_2db93a7": true,
+  "money_type": "System.Decimal from bounded fixed point strings; output monetary amounts are strings",
+  "amount_bound": "12 integer digits and 8 fractional digits; at most 3000 main window rows",
+  "maximum_http_requests": 10,
+  "maximum_income_pages": 3,
+  "tested": [
+    "USDT only; non-USDT excluded and no trade-table double counting",
+    "Deduplication by incomeType+tranId; identical rows ignored, conflicting financial values rejected",
+    "Different income types with same tranId remain separate",
+    "Empty arrays are zero rows; full/no-progress/max-page boundaries block incomplete candidates",
+    "Wallet change, interval event and unknown USDT type withhold candidates",
+    "Boundary millisecond events withhold affected candidate",
+    "KST configured week starts, locale invariant exact decimals, period crossing refusal",
+    "Key/header binding, creation route denial, source and old guard preservation, production Windows ACL refusal on Linux",
+    "Sealed offline check and tamper refusal before credential prompt"
+  ],
+  "actual_cloud_binance_http_requests": 0,
+  "real_credentials_accessed_in_cloud": false,
+  "windows_income_execution_observed": false,
+  "export_jobs_created": 0,
+  "source_financial_state_changed": false,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "limitations": [
+    "Native PowerShell 7 synthetic HTTP factory; actual Windows 5.1 TLS, hidden input and positive NTFS ACL unobserved for this package",
+    "Actual DEMO income/account responses not yet collected",
+    "Tail query and equal wallets are not an atomic server snapshot or independent history completeness proof",
+    "Wallet candidates do not verify past boundary positions, equity baselines, high water or initial issuance",
+    "Server retention, delayed posting and unrecorded recharge/reset remain unverified",
+    "External shared-IP usage is not fully known"
+  ]
+}
