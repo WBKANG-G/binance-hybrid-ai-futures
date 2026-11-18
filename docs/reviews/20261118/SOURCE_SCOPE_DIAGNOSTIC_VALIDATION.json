@@ -1,0 +1,29 @@
+{
+  "policy": "SOURCE_SCOPE_READ_ONLY_DIAGNOSTIC_VALIDATION_20261118_V1",
+  "source_reference": "f94a6f4a93fb83ad54af346f645ca69d38149b7e",
+  "artifact": "artifacts/windows-demo-source-scope-diagnostic-20261118/windows-demo-source-scope-diagnostic-20261118.zip",
+  "sha256": "ec0a89d92c5996047c247d5cc4229ad1456109690d8540d0abddf4b12c6a4d32",
+  "final_zip_tests": {
+    "passed": 8,
+    "skipped": 0,
+    "seconds": 3.68
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "original_scope_guards_byte_unchanged": true,
+  "mutating_docker_commands_bundled": false,
+  "actual_cloud_docker_commands_during_diagnostic_tests": 0,
+  "actual_cloud_binance_requests": 0,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "root_cause_on_user_windows_identified": false,
+  "windows_diagnostic_execution_observed": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "Synthetic PowerShell7 scope probes; actual Windows5.1 diagnosis not yet observed",
+    "An unchanged strict guard may still reject user scope; no bypass or correction implemented",
+    "Diagnostic completion marker reports output completion and does not mean source scope passed"
+  ]
+}
