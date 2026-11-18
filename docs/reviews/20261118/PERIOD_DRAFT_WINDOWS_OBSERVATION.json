@@ -1,0 +1,32 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "period_draft_check_success_observed": true,
+  "period_draft_review_success_observed": true,
+  "full_jsonb_draft_transition_verified_reported": true,
+  "changed_top_level_fields_reported": [
+    "daily_key",
+    "operations",
+    "weekly_key"
+  ],
+  "expected_fence_reported": 110,
+  "proposed_fence_reported": 111,
+  "database_changed_reported": false,
+  "orders_preserved_reported": true,
+  "requests_preserved_reported": true,
+  "valuation_preserved_reported": true,
+  "high_water_preserved_reported": true,
+  "prior_operations_preserved_reported": true,
+  "candidate_fields_match_proposal_reported": true,
+  "source_accepted": false,
+  "typed_ledger_model_validated": false,
+  "commit_payload_verified": false,
+  "apply_token_created": false,
+  "clone_stopped_reported": true,
+  "originals_started_reported": false,
+  "baseline_adopted": false,
+  "actual_http_attempts_reported": 0,
+  "order_writes_reported": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "actual_user_source_files_independently_accessed": false
+}
