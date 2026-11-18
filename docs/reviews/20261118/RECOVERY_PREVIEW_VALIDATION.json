@@ -1,0 +1,42 @@
+{
+  "policy": "DEMO_RECOVERY_PREVIEW_VALIDATION_20261118_V1",
+  "source_reference": "10261389aaad8322f29453357d61f0b6c7451943",
+  "artifact": "artifacts/windows-demo-recovery-preview-20261118/windows-demo-recovery-preview-20261118.zip",
+  "sha256": "1cec1c0f574b31e318f4f77db923c3d6c70d342d0ad788187a9906934819baaa",
+  "final_zip_tests": {
+    "passed": 17,
+    "skipped": 0,
+    "seconds": 60.57
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "actual_cloud_binance_requests": 0,
+  "real_credentials_accessed_in_cloud": false,
+  "windows_execution_observed": false,
+  "current_database_state_verified": false,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "Full saved income/trade/current evidence chain and all 14 current raw files",
+    "Source data SHA256 and mtimes unchanged after successful or blocked preview",
+    "Derived mode/config/exposure/margin checks override misleading success summary even with locally resealed raw input",
+    "Zero-valued gap events block an empty-gap claim",
+    "Bad intent links, raw hash changes, unexpected file paths, claimed adoption and window mismatch fail closed",
+    "Duplicate successful current observations rejected",
+    "Sealed launcher success and tamper refusal; no credential, transport or writer functions bundled",
+    "Financial components, high water and four historical request states preserved; no apply token"
+  ],
+  "limitations": [
+    "PowerShell7 native tests with synthetic local source data; Windows5.1 actual execution not observed",
+    "Linux test substitutes only positive Windows ACL validation; production ACL checks retained",
+    "Pinned backup old-row/stored report projection is not a verified current database diff",
+    "Local receipt SHA256 links do not independently establish exchange attestation or completeness",
+    "Saved observations are non-atomic and do not establish current conditions after cutoff",
+    "No independently verified midnight equity, initial funding, historical all-symbol trades or historical request resolution",
+    "No new adoption path, risk-gate bypass or historical quarantine policy implemented"
+  ]
+}
