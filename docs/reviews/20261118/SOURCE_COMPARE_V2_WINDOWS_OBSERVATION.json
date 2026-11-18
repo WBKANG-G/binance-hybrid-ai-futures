@@ -1,0 +1,22 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "check_success_marker_observed": "SOURCE_COMPARE_CHECK_PASSED_NO_SOURCE_START",
+  "comparison_success_marker_observed": "SOURCE_BYTES_MATCH_BACKUP_NO_ORIGINAL_START_NO_LEDGER_CHANGE",
+  "manifest_sha256_reported": "2a2af624a12c696868ec10ce2522a97b29c2824fe6571dc232840f22db3bdd9d",
+  "passes_reported": 2,
+  "database_files_reported": 1355,
+  "runtime_files_reported": 30,
+  "helper_stopped_verified_reported": true,
+  "originals_started_reported": false,
+  "source_data_written_reported": false,
+  "logical_account_row_queried": false,
+  "current_database_logical_state_verified": false,
+  "financial_diff_finalized": false,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "actual_http_attempts_reported": 0,
+  "order_writes_reported": 0,
+  "actual_windows_source_files_independently_accessed": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
