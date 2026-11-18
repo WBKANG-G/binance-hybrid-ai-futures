@@ -1,0 +1,46 @@
+{
+  "policy": "TYPED_LEDGER_AND_UNAPPROVED_AUDIT_REVIEW_VALIDATION_20261118_V1",
+  "source_reference": "486afd12d1f4439efdbf338a84f3273a02a80413",
+  "artifact": "artifacts/windows-demo-typed-draft-20261118/windows-demo-typed-draft-20261118.zip",
+  "sha256": "d9ea9b316b8190b0c220069f0a13c6dbedaeb0c7c4ef2f28954bed127917d6ad",
+  "final_zip_tests": {
+    "passed": 24,
+    "skipped": 0,
+    "seconds": 25.7
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "actual_postgresql_and_pinned_89_file_api_image_test_passed": true,
+  "actual_nonroot_networkless_readonly_socket_worker_passed": true,
+  "actual_powershell_helper_admission_payload_result_passed": true,
+  "table_state_and_fence_unchanged_in_tests": true,
+  "sealed_precheck_starts_no_resources": true,
+  "actual_user_source_files_accessed": false,
+  "actual_cloud_binance_requests": 0,
+  "windows_execution_observed": false,
+  "source_accepted": false,
+  "commit_payload_verified": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "Real DemoLedger validation before and after plus strict unapproved audit model",
+    "Raw JSON preservation independent of typed-model normalization",
+    "Resolved requests retained alongside four unresolved requests",
+    "Completed adoption schema refuses draft; accepted/applied/coerced audit flags refused",
+    "Original report/state/candidate/evidence/fence binding across SQL and model results",
+    "Pinned installed files/candidate/SQL hashes before import and local socket read-only query",
+    "Typed worker and SQL repeated twice; safe failure codes/stage/type without raw errors",
+    "Actual nonroot Docker execution and actual PowerShell creation/isolation/payload/exit/result path",
+    "Transfer tamper refusal and sealed no-create/no-start check"
+  ],
+  "limitations": [
+    "Windows5.1/NTFS and actual user full copy workflow await user execution observation",
+    "Existing SQL projection retains typed_ledger_model_validated=false; separate typed_model_review is the Python result",
+    "Only unapproved draft schema and existing completed-schema rejection are validated; no completed adoption record is created",
+    "No commit payload, CAS/lease/event/outbox write transaction or apply token",
+    "No source acceptance, midnight/initial-funding proof, historical request resolution, baseline adoption or execution approval"
+  ]
+}
