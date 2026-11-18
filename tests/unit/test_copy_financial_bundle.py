@@ -363,3 +363,63 @@ def test_all_sql_output_fields_are_bounded_and_only_safe_fields_selected():
     assert "state->>'operations'" not in text
     assert "Assert-CopyFinancial $account" in files["COPY_CORE.ps1"].decode()
     assert "Invoke-CopyDiagnostic" not in files["COPY_CORE.ps1"].decode()
+
+
+@pytest.mark.parametrize(
+    "fault,expected",
+    [
+        ("valid", "READY"),
+        ("receipt-hash", "HANDOFF_RESTORE_HASH_MISMATCH"),
+        ("bind", "HANDOFF_RESTORE_BIND_SOURCE_CHANGED"),
+        ("baseline-pin", "FINANCIAL_BASELINE_UNAVAILABLE"),
+    ],
+)
+def test_real_scope_loader_connects_backup_financials_plan_and_pinned_restore_receipt(
+    tmp_path, fault, expected
+):
+    from tests.unit.test_offline_handoff import synthetic_inputs
+    from tests.unit.test_private_receipt_review_v2 import snapshot
+    from tests.unit.test_recovery_preview_bundle import setup as prior_setup
+
+    root, pin = prior_setup(tmp_path)
+    backup = next(p for p in root.iterdir() if (p / "manifest.json").exists())
+    proof_root = tmp_path / "proof-fixture"
+    proof_root.mkdir()
+    _, proof = synthetic_inputs(proof_root)
+    record = json.loads(proof.read_bytes())
+    files = package()
+    for name, body in files.items():
+        (tmp_path / name).write_bytes(body)
+    config = json.loads(files["CONFIG.json"])
+    config.update(
+        manifest_sha256=pin,
+        receipt_sha256=record["backup_receipt_sha256"],
+        restore_source_reference=record["source_reference"],
+    )
+    record["backup_manifest_sha256"] = pin
+    proof.write_text(json.dumps(record))
+    config["restore_receipt_sha256"] = hashlib.sha256(proof.read_bytes()).hexdigest()
+    if fault == "receipt-hash":
+        config["restore_receipt_sha256"] = "0" * 64
+    if fault == "baseline-pin":
+        config["manifest_sha256"] = "0" * 64
+        record["backup_manifest_sha256"] = "0" * 64
+        proof.write_text(json.dumps(record))
+        config["restore_receipt_sha256"] = hashlib.sha256(proof.read_bytes()).hexdigest()
+    (tmp_path / "loader-config.json").write_text(json.dumps(config))
+    before = snapshot(root)
+    value = launch(
+        tmp_path,
+        f"""
+foreach($name in @('READ_CORE.ps1','BASELINE_CORE.ps1','PLAN_CORE.ps1','SUPPORT.ps1','SOURCE_SCOPE.ps1','COPY_EXT.ps1','FINANCIAL_EXT.ps1')){{. (Join-Path '{tmp_path}' $name)}}
+function tar.exe {{& tar @args}}
+function Find-RestoreEvidence {{param($Config) return '{proof}'}}
+function Find-RetainedBackup {{param($Config) return '{backup}'}}
+function Assert-HandoffStoppedScope {{param($Config,$Receipt,$State,$Recovery) return ,@([pscustomobject]@{{id=$Recovery.retained_helper_ids[0];mounts=@([pscustomobject]@{{Destination='/bundle';Source='{backup}'{("+'-OTHER'") if fault == "bind" else ""};Type='bind';RW=$false}})}})}}
+$config=Get-Content -Raw '{tmp_path}/loader-config.json'|ConvertFrom-Json
+try{{$items=Read-CopySources $config $null $null;if($script:FinancialPlan.anchors.Count -ne 2 -or $script:FinancialBaseline.recorded_prior_high_water_usdt -cne '5000.00000000'){{throw 'LOADER_CONTENT_WRONG'}};'READY'}}catch{{$_.Exception.Message}}finally{{if($null -ne $script:CopyRestoreHandle){{$script:CopyRestoreHandle.Dispose()}}}}
+""",
+    )
+    assert value.returncode == 0 and not value.stderr, value.stdout + value.stderr
+    assert value.stdout.strip() == expected
+    assert before == snapshot(root)

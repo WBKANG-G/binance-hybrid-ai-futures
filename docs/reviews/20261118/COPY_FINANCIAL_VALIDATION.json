@@ -1,0 +1,44 @@
+{
+  "policy": "FRESH_COPY_SQL_FINANCIAL_READ_VALIDATION_20261118_V1",
+  "source_reference": "c5cc61073e1ac159317b20af13aa106414f80960",
+  "artifact": "artifacts/windows-demo-copy-financial-20261118/windows-demo-copy-financial-20261118.zip",
+  "sha256": "6879f7fbfd5e79fcc0dd917d398f46a5a8e770ac5a0d488f80a595737763e341",
+  "final_zip_tests": {
+    "core_passed": 23,
+    "core_seconds": 15.58,
+    "scope_loader_passed": 4,
+    "scope_loader_seconds": 14.44,
+    "passed_total": 27,
+    "skipped": 0
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "actual_postgresql_sql_projection_test_passed": true,
+  "read_only_transaction_update_denial_test_passed": true,
+  "restore_create_start_stop_scope_control_ast_unchanged": true,
+  "pinned_original_copy_support_unchanged": true,
+  "actual_cloud_binance_requests": 0,
+  "actual_user_source_volumes_accessed": false,
+  "windows_execution_observed": false,
+  "financial_before_values_verified_on_user_copy": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "SQL financial values and four original request hashes",
+    "Mismatch in full-state fingerprint, financial components, high water, valuation time, paused/read-only flags or requests fails closed",
+    "Only one exact stopped read-only comparator helper ID filtered; unknown resources remain visible",
+    "Sealed check creates/starts nothing; tampered SQL cannot execute",
+    "Real PostgreSQL projection stable twice and UPDATE denied in read-only transaction",
+    "Real backup baseline/request-plan/restore-receipt loader positive and refusal paths preserve input bytes",
+    "Fresh restore/control commands and old post-restore scope guard pinned unchanged"
+  ],
+  "limitations": [
+    "Synthetic SQL state and cloud Docker PostgreSQL test; actual Windows5.1/NTFS positive/full fresh-copy workflow await user execution",
+    "Previously passed physical source comparison remains a user screenshot observation",
+    "Original source SQL is not queried; WAL/PID recovery writes are restricted to new copy volumes",
+    "No midnight equity reconstruction, independent initial funding, historical request resolution, source acceptance, full new ledger transition, baseline adoption or execution approval"
+  ]
+}
