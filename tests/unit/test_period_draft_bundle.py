@@ -177,6 +177,7 @@ def test_native_full_json_draft_is_deterministic_preserves_unknowns_and_does_not
     }
     for flag in (
         "only_allowed_top_level_changes",
+        "candidate_fields_match_proposal",
         "prior_operations_preserved",
         "audit_key_was_absent",
         "audit_entry_is_string",
@@ -225,6 +226,7 @@ def test_native_unreviewed_change_is_detected(native_database, tmp_path, field):
     "field",
     [
         "only_allowed_top_level_changes",
+        "candidate_fields_match_proposal",
         "prior_operations_preserved",
         "audit_key_was_absent",
         "audit_entry_matches_draft",
@@ -442,3 +444,21 @@ try{{$plan=Invoke-IncomePlan '{root}' '{pin}';Initialize-PeriodDraftEvidence $pl
     assert value.returncode == 0 and not value.stderr, value.stdout + value.stderr
     assert value.stdout.strip() == expected
     assert before == snapshot(tmp_path / "data")
+
+
+@pytest.mark.parametrize("field", ["daily_base", "weekly_key"])
+def test_allowed_field_still_must_equal_bound_proposal(native_database, tmp_path, field):
+    sql = (
+        package()["account_check.sql"]
+        .decode()
+        .replace(
+            "state || fields AS proposed",
+            "(state || fields) || jsonb_build_object('"
+            + field
+            + "','WRONG_PROPOSED_VALUE') AS proposed",
+        )
+    )
+    account = query(native_database, sql)
+    assert account["transition_draft"]["only_allowed_top_level_changes"] is True
+    assert account["transition_draft"]["candidate_fields_match_proposal"] is False
+    assert assert_result(tmp_path, account) == "DRAFT_PRESERVATION_CHECK_FAILED"

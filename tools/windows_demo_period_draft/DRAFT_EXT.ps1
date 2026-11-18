@@ -16,7 +16,7 @@ function Assert-PeriodDraft([object]$Account) {
  if($d.before_state_sha256 -cne $Account.account_state_sha256 -or $d.candidate_day -cne $e.day -or $d.candidate_week -cne $e.week -or $d.candidate_amount -cne $e.amount -or $d.evidence_sha256 -cne $e.sha256){throw 'DRAFT_EVIDENCE_OR_STATE_MISMATCH'}
  foreach($name in @('before_state_sha256','candidate_financial_state_sha256','candidate_draft_state_sha256')){if($d.$name -cnotmatch '^[0-9a-f]{64}$'){throw 'DRAFT_HASH_INVALID'}}
  if($d.review_id -cnotmatch '^period-review-draft-[0-9a-f]{64}$'){throw 'DRAFT_REVIEW_ID_INVALID'}
- foreach($name in @('only_allowed_top_level_changes','prior_operations_preserved','audit_key_was_absent','audit_entry_is_string','audit_entry_matches_draft','orders_preserved','requests_preserved','valuation_preserved','high_water_preserved','paused_preserved','fresh_reconciliation_required','draft_only_not_a_commit_payload')){if($d.$name -isnot [bool] -or -not $d.$name){throw 'DRAFT_PRESERVATION_CHECK_FAILED'}}
+ foreach($name in @('only_allowed_top_level_changes','candidate_fields_match_proposal','prior_operations_preserved','audit_key_was_absent','audit_entry_is_string','audit_entry_matches_draft','orders_preserved','requests_preserved','valuation_preserved','high_water_preserved','paused_preserved','fresh_reconciliation_required','draft_only_not_a_commit_payload')){if($d.$name -isnot [bool] -or -not $d.$name){throw 'DRAFT_PRESERVATION_CHECK_FAILED'}}
  foreach($name in @('database_changed','source_accepted','typed_ledger_model_validated')){if($d.$name -isnot [bool] -or $d.$name){throw 'DRAFT_UNSUPPORTED_CLAIM'}}
  $allowed=@('daily_key','weekly_key','daily_base','weekly_base','reconciled','stream_ready','operations')
  $changes=@($d.changed_top_level_fields)

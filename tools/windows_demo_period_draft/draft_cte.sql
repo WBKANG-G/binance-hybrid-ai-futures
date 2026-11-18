@@ -35,6 +35,7 @@ WITH original AS (
    SELECT name FROM jsonb_object_keys(state || after_state) AS name WHERE state->name IS DISTINCT FROM after_state->name
  ) AS changed),
  'only_allowed_top_level_changes',(state - ARRAY['daily_key','weekly_key','daily_base','weekly_base','reconciled','stream_ready','operations']) = (after_state - ARRAY['daily_key','weekly_key','daily_base','weekly_base','reconciled','stream_ready','operations']),
+ 'candidate_fields_match_proposal',after_state @> fields,
  'prior_operations_preserved', ((after_state->'operations') - review_id) = state->'operations',
  'audit_key_was_absent', NOT ((state->'operations') ? review_id),
  'audit_entry_is_string',jsonb_typeof(after_state->'operations'->review_id)='string',

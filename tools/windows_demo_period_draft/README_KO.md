@@ -21,3 +21,5 @@ stream_ready=false와 operations의 감사 초안 항목 한 개다. 기존 값�
 원본은 시작하지 않으며, 새 사본만 조회 후 정상 종료하고 private 결과와 새 자원을 보존한다.
 실패하면 재시도하지 말고 화면을 확인한다. 원본파일·영수증 원문·키는 공유하지 않는다.
 성공: PERIOD_DRAFT_REVIEW_COMPLETE_COPY_STOPPED_ORIGINALS_UNCHANGED_NO_APPLY
+
+허용된 필드라도 선언한 후보 값과 실제 메모리 원장 값이 다르면 차단한다. 변경 필드 이름뿐 아니라 값·형식도 증거에 묶인 후보와 일치해야 한다.
