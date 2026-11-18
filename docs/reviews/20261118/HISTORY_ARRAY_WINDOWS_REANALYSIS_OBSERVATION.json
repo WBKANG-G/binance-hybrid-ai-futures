@@ -1,0 +1,22 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "saved_history_reanalysis_success_observed": true,
+  "corrected_regular_count": 3,
+  "corrected_algo_count": 0,
+  "corrected_exit_exact_id_candidates": 0,
+  "corrected_stop_exact_id_candidates": 0,
+  "old_regular_count": 1,
+  "old_algo_count": 1,
+  "actual_http_attempts_reported": 0,
+  "credentials_accessed_reported": false,
+  "files_written_reported": false,
+  "request_states_changed_reported": false,
+  "baseline_adopted_reported": false,
+  "execution_approved_reported": false,
+  "orders_enabled_reported": false,
+  "live_trading_enabled_reported": false,
+  "receipt_hashes_matched_local_response_files_reported": true,
+  "regular_response_independent_hash_pin": false,
+  "exchange_request_resolution_verified": false,
+  "corrected_counts_observed_from_screen_not_direct_windows_file_access": true
+}
