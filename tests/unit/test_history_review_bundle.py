@@ -328,5 +328,5 @@ def test_unknown_sensitive_count_metadata_is_not_printed(tmp_path):
 
 def test_offline_parser_is_the_same_fix_used_by_future_collection(tmp_path):
     core = (ROOT / "tools/windows_demo_history_read/HISTORY_CORE.ps1").read_bytes()
-    parser = core[core.index(b"function Read-List("):core.index(b"function Invoke-HistoryRead(")]
+    parser = core[core.index(b"function Read-List(") : core.index(b"function Invoke-HistoryRead(")]
     assert package()["ARRAY_CORE.ps1"] == parser

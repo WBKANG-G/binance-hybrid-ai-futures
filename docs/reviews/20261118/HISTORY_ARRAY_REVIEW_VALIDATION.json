@@ -1,0 +1,48 @@
+{
+  "policy": "SAVED_HISTORY_ARRAY_REVIEW_VALIDATION_20261118_V1",
+  "source_reference": "2db93a7cfe9b33319b99abd677719fa13b76e8bf",
+  "artifact": "artifacts/windows-demo-history-review-20261118/windows-demo-history-review-20261118.zip",
+  "sha256": "862ffd4fd926ed512a404bf4605d0dc172f40cfed800c938aca7f0c62dbf89e4",
+  "final_zip_and_related_tests": {
+    "passed": 48,
+    "skipped": 0,
+    "seconds": 28.06,
+    "offline_review_tests": 28,
+    "future_collection_regressions": 20
+  },
+  "source_zip_reproduced": true,
+  "manifest_hashes_verified": true,
+  "old_empty_array_count_reproduced": 1,
+  "corrected_empty_array_count": 0,
+  "legacy_semantics": "PowerShell 7 ConvertFrom-Json -NoEnumerate reproduces command-output array boxing; actual Windows 5.1 not executed in cloud",
+  "array_cases_verified": [
+    "Empty, single and multi-row arrays with standard and PS5-like output",
+    "Nested arrays/null/scalars and standalone JSON root injection rejected",
+    "Exact-ID match beyond the former single array wrapper recovered in synthetic fixture"
+  ],
+  "integrity_cases_verified": [
+    "Protected directory requirement; Linux refusal without test ACL substitution",
+    "Stored response hashes match receipt; before/after input snapshots unchanged",
+    "Duplicate matching saved runs rejected",
+    "Unknown sensitive scalar metadata never printed",
+    "Sealed launcher succeeds after only fixture pin and ACL substitutions; tampering denied"
+  ],
+  "network_and_file_writes_by_review": 0,
+  "credentials_accessed": false,
+  "windows_corrected_reanalysis_observed": false,
+  "actual_original_saved_files_accessed_by_cloud": false,
+  "independent_regular_response_hash_pin": false,
+  "known_empty_algo_hash_observed_in_user_screen": true,
+  "request_states_changed": false,
+  "baseline_adopted": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "limits": [
+    "Hash/ACL connection is local evidence; not independent historical exchange resolution",
+    "Empty rows cannot establish non-submission or complete retention",
+    "Actual corrected EXIT row count and ID candidates await user offline run"
+  ]
+}
