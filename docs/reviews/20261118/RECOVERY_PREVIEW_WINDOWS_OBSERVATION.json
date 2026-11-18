@@ -1,0 +1,21 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "success_marker_observed": "RECOVERY_PREVIEW_COMPLETE_NO_APPLY_NO_HTTP_NO_WRITES_KEEP_STOPPED",
+  "saved_observations_end_utc_reported": "2026-11-18T05:40:00.9110000+00:00",
+  "current_raw_files_verified_reported": 14,
+  "candidate_daily_base_usdt_reported": "4998.74183608",
+  "candidate_weekly_base_usdt_reported": "4998.74183608",
+  "preserved_high_water_usdt_reported": "5000.00000000",
+  "preserved_orders_reported": 34,
+  "preserved_unresolved_requests_reported": 4,
+  "source_hashes_verified_before_after_reported": true,
+  "actual_windows_files_independently_accessed": false,
+  "current_database_state_verified": false,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "files_written_reported": false,
+  "actual_http_attempts_reported": 0,
+  "order_writes_reported": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
