@@ -1,0 +1,20 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "recovery_link_success_observed": true,
+  "restore_receipt_sha256_reported": "26395438e08500da24252eac7b11dfe76b22e0d660c86bb1c0d236b6b9e1da08",
+  "restored_day_kst_reported": "2026-11-13",
+  "restored_week_kst_reported": "2026-11-09",
+  "orders_reported": 34,
+  "unresolved_requests_reported": 4,
+  "conditional_daily_key": "2026-11-18",
+  "conditional_weekly_key": "2026-11-16",
+  "conditional_daily_base_usdt": "4998.74183608",
+  "conditional_weekly_base_usdt": "4998.74183608",
+  "financial_fields_directly_read_from_restored_sql_report": false,
+  "full_prospective_ledger_diff_verified": false,
+  "baseline_adopted": false,
+  "apply_token_created": false,
+  "order_writes_reported": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
