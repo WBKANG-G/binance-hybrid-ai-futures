@@ -37,7 +37,8 @@
   "copy_atomic_commit_final_zip_and_regression_tests_passed": 36,
   "copy_atomic_commit_real_pg_schema_tested": true,
   "copy_atomic_commit_rehearsal_prepared": true,
-  "copy_atomic_commit_windows_execution_observed": false,
+  "copy_atomic_commit_windows_execution_observed": true,
+  "copy_atomic_commit_windows_success_observed": true,
   "copy_baseline_auxiliary_candidate_applied_on_windows": true,
   "copy_baseline_auxiliary_candidate_cloud_tested": true,
   "copy_clock_period_review_candidate_cloud_tested": true,
@@ -422,7 +423,8 @@
     "User screenshots show typed before/candidate/audit model validation, rejection as completed adoption, 89 baseline files, preserved 34 orders/4 unresolved, and normal copy stop. No actual source acceptance, audit write, token, original modification or execution approval. Next preparation uses synthetic pg_temp transaction rehearsal only; no new source policy or production writer is installed.",
     "Completion audit model and COPY_REHEARSAL_ONLY memory candidate prepared with22 final-ZIP tests. Actual PostgreSQL/89-file image/nonroot readonly worker and PowerShell helper validated. Source SQL and restore workers byte-identical to successful typed-draft phase. Completion claims are simulated, record is refused for real application, no payload/acceptance record exported. No actual user source accessed, backup-copy COMMIT, source acceptance, original writer or adoption.",
     "User screenshot confirms completion model COPY_REHEARSAL_ONLY memory review success and normal stop with original untouched,34orders/4unresolved preserved,no actual acceptance/commit. Next authorized preparation is a real atomic transaction rehearsal only on a fresh disposable restored copy, with three injected rollback cases and one commit/idempotency/postcommit check. No original apply or source acceptance.",
-    "Fresh-copy commit package final ZIP plus completion-model regression36 tests passed. Real PostgreSQL permanent-table rollback3/unique-constraint rollback/COMMIT/idempotency/new-connection read and long JSON numeric preservation verified. Actual PowerShell checks new-owned clone/network/two mounts/image/socket then runs nonroot helper. Source restore worker/SQL/snapshot code retained. Actual user backup full workflow pending; original source acceptance/apply and execution remain false."
+    "Fresh-copy commit package final ZIP plus completion-model regression36 tests passed. Real PostgreSQL permanent-table rollback3/unique-constraint rollback/COMMIT/idempotency/new-connection read and long JSON numeric preservation verified. Actual PowerShell checks new-owned clone/network/two mounts/image/socket then runs nonroot helper. Source restore worker/SQL/snapshot code retained. Actual user backup full workflow pending; original source acceptance/apply and execution remain false.",
+    "User screenshots confirm fresh-copy COMMIT,three rollback cases,idempotency,new-connection read,events/outbox+1,fence110->111,34orders/4unresolved preserved,normal stop and original unchanged. Saved-wallet source acceptance review now binds exact Nov18/day and Nov16/week candidate4998.74183608 and explicitly retains midnight/history/funding uncertainty. No source acceptance receipt, original write authority, ownership takeover, guard bypass or execution approval recorded."
   ],
   "operator_activity_report_as_of_kst_day": "2026-11-18",
   "operator_activity_report_independently_verified": false,
@@ -484,6 +486,8 @@
   "separate_pc_reverification_performed": false,
   "separate_storage_operator_attested": false,
   "separate_windows_pc_available": false,
+  "source_acceptance_review_id": "saved-wallet-source-review-20261118-455f05eb38e26b8a",
+  "source_acceptance_review_prepared": true,
   "source_compare_count_block_cause": "LEGACY_PRE_RESTORE_SCOPE_EXCLUDED_ONLY_PRESERVATION_HELPER",
   "source_compare_failure_category_observed": "RESTORE_SOURCE_SCOPE_CHANGED",
   "source_compare_helper_created_reported": false,

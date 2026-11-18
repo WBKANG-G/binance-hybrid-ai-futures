@@ -1,0 +1,13 @@
+{
+  "policy": "SOURCE_ACCEPTANCE_REVIEW_DOCUMENT_VALIDATION_V1",
+  "proposal_sha256": "455f05eb38e26b8a495297ae867bf7667c2ed0330b285a8fa9d1c4ec68520da2",
+  "canonical_proposal_hash_verified": true,
+  "utc_kst_boundaries_verified": true,
+  "amount_and_scope_checked": true,
+  "source_acceptance_received": false,
+  "source_acceptance_receipt_created": false,
+  "original_changes": 0,
+  "actual_http_attempts": 0,
+  "order_writes": 0,
+  "validation_scope": "DOCUMENT_AND_JSON_METADATA_ONLY_NO_RUNTIME_TESTS_OR_NEW_ACCOUNT_READS"
+}
