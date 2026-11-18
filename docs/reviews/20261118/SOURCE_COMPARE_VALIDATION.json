@@ -1,0 +1,46 @@
+{
+  "policy": "STOPPED_SOURCE_COMPARISON_VALIDATION_20261118_V1",
+  "source_reference": "938aa72101858d42582b9d838c2e786f98c64b88",
+  "artifact": "artifacts/windows-demo-source-compare-20261118/windows-demo-source-compare-20261118.zip",
+  "sha256": "86b4f4cf65e2c662ba5914f7685105a50b2c5f36430d63f6903ba797e80ba137",
+  "final_zip_tests": {
+    "passed": 61,
+    "skipped": 0,
+    "seconds": 30.35
+  },
+  "new_comparator_cases": 36,
+  "reused_source_admission_cases": 25,
+  "real_docker_readonly_worker_test_passed": true,
+  "real_docker_helper_isolation_admission_passed": true,
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "actual_user_source_volumes_accessed": false,
+  "actual_cloud_binance_requests": 0,
+  "real_credentials_accessed": false,
+  "windows_execution_observed": false,
+  "current_database_logical_state_verified": false,
+  "financial_diff_finalized": false,
+  "baseline_adopted": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "checks": [
+    "Two full tree passes against file SHA256, metadata and manifest set",
+    "Mismatch, extra/missing files, symlink/hardlink/special files/xattr refusal",
+    "Exact read-only mount and new-helper identity admission",
+    "Isolation/network/rootfs/capability/entrypoint refusal including canonical CAP_DAC_OVERRIDE",
+    "Execution modes, preflight refusal, worker failure and changed scope retain stopped source",
+    "Original start is never issued; only newly admitted helper is started",
+    "Transfer seal and archive/input hash refusal before resource creation",
+    "Existing running/restart/external-consumer/source identity refusal cases"
+  ],
+  "limitations": [
+    "Synthetic files and test Docker resources only; user Windows source files not accessed",
+    "Production Windows5.1 and positive NTFS ACL validation require user execution observation",
+    "Physical byte equality does not query current SQL account rows or finalize a financial diff",
+    "Source quiescence relies on observed Docker states and no malicious concurrent Docker control",
+    "Helper retained after user execution; no automatic cleanup or retry",
+    "No database recovery, period source acceptance, historic request resolution or order execution"
+  ]
+}
