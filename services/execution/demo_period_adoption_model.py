@@ -86,8 +86,8 @@ def validate_real_completion(value, *, verified_acceptance_sha256):
     return record
 
 
-def completion_rehearsal(before, expected):
-    """Construct a marked simulation in memory; never return a completion payload."""
+def build_copy_candidate(before, expected):
+    """Internal COPY-only fixture construction; caller must enforce clone isolation."""
     fields = ProposedFields.model_validate(expected["proposed_fields"]).model_dump()
     old = {k: before[k] for k in fields}
     # Deterministic test identity/time enable repeated reviews; neither is real authority.
@@ -135,6 +135,12 @@ def completion_rehearsal(before, expected):
         == before["operations"],
         "MODEL_COMPLETION_PROTECTED_STATE_CHANGED",
     )
+    return candidate, receipt
+
+
+def completion_rehearsal(before, expected):
+    """Construct a marked simulation in memory; never export a completion payload."""
+    build_copy_candidate(before, expected)
     return dict(
         completion_rehearsal_context="COPY_REHEARSAL_ONLY",
         completion_audit_model_validated=True,
