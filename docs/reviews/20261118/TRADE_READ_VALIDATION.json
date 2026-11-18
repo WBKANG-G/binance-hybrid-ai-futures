@@ -1,0 +1,49 @@
+{
+  "policy": "SAVED_INCOME_BTC_TRADE_READ_VALIDATION_20261118_V1",
+  "source_reference": "83823a69488e2417cc41089fb664fda555940343",
+  "artifact": "artifacts/windows-demo-trade-read-20261118/windows-demo-trade-read-20261118.zip",
+  "sha256": "db60543455d2ce449c161b9aa84c1bbdc9541474493f9b4fc8ef6c4256994337",
+  "final_zip_tests": {
+    "passed": 27,
+    "skipped": 0,
+    "seconds": 45.45
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "pure_income_helpers_identical_to_reviewed_56dd3f5": true,
+  "maximum_http_calls": 7,
+  "maximum_trade_requests": 3,
+  "symbol_scope": "BTCUSDT",
+  "tests": [
+    "Saved income integrity, raw hash/window/duplicate source refusal before credentials",
+    "Source financial bytes and saved income files unchanged before/after query",
+    "Empty trade response counts zero and does not claim account-wide or boundary proof",
+    "One-level disjoint time split, 1500 unique fills deduplicated across parent/children",
+    "Full child, conflicting trade ID, invalid response and out-of-range timestamps stop without retry",
+    "Nonzero trade cashflows cannot be hidden by net PNL cancellation",
+    "Later fills separated from saved income window; no double application to wallet candidate",
+    "No export, new income/account reads, other symbol or incompatible fromId parameters",
+    "Sealed check uses saved files only; native Linux cannot claim Windows ACL",
+    "Live context and expired 7-day window cannot fall back to a shortened proof"
+  ],
+  "actual_cloud_binance_requests": 0,
+  "real_credentials_accessed_in_cloud": false,
+  "windows_trade_execution_observed": false,
+  "account_wide_trade_history_verified": false,
+  "operator_statement_independently_verified": false,
+  "operator_statement_extended_to_new_query_end": false,
+  "boundary_positions_independently_verified": false,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "limits": [
+    "Native PowerShell 7 with synthetic transport; Windows 5.1 TLS/hidden input and positive ACL unobserved for new tool",
+    "BTCUSDT is the only queried symbol; operator absence statement is separate evidence",
+    "Current account snapshot is not refreshed; previous income snapshots remain historical",
+    "Saved response chain is local; no independent custody/hash proof added",
+    "Endpoint empty result/pagination end is not independent exchange-history completeness"
+  ]
+}
