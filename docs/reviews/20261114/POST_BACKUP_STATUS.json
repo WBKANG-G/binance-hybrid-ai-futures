@@ -33,6 +33,9 @@
   "copy_account_response_archive_candidate_applied_on_windows": true,
   "copy_account_response_archive_candidate_cloud_tested": true,
   "copy_account_response_archive_real_exchange_reads_performed": false,
+  "copy_atomic_commit_actual_powershell_clone_admission_tested": true,
+  "copy_atomic_commit_final_zip_and_regression_tests_passed": 36,
+  "copy_atomic_commit_real_pg_schema_tested": true,
   "copy_atomic_commit_rehearsal_prepared": true,
   "copy_atomic_commit_windows_execution_observed": false,
   "copy_baseline_auxiliary_candidate_applied_on_windows": true,
@@ -418,7 +421,8 @@
     "User screenshot confirms successful readonly source check then LOCAL_REFERENCE_VERIFIED_EXTERNAL_CUSTODY_PENDING. Two hash-only reference JSON files created, five source records checked, no source changes/raw receipt copying/key material/Docker/service starts reported. This is local reference metadata, not a recovery backup. Manifest/receipt hashes are displayed but not transcribed as external pins. USB copy and independent separate custody remain false. Existing external cold-backup copies must not be overwritten in any later handoff.",
     "User screenshots show typed before/candidate/audit model validation, rejection as completed adoption, 89 baseline files, preserved 34 orders/4 unresolved, and normal copy stop. No actual source acceptance, audit write, token, original modification or execution approval. Next preparation uses synthetic pg_temp transaction rehearsal only; no new source policy or production writer is installed.",
     "Completion audit model and COPY_REHEARSAL_ONLY memory candidate prepared with22 final-ZIP tests. Actual PostgreSQL/89-file image/nonroot readonly worker and PowerShell helper validated. Source SQL and restore workers byte-identical to successful typed-draft phase. Completion claims are simulated, record is refused for real application, no payload/acceptance record exported. No actual user source accessed, backup-copy COMMIT, source acceptance, original writer or adoption.",
-    "User screenshot confirms completion model COPY_REHEARSAL_ONLY memory review success and normal stop with original untouched,34orders/4unresolved preserved,no actual acceptance/commit. Next authorized preparation is a real atomic transaction rehearsal only on a fresh disposable restored copy, with three injected rollback cases and one commit/idempotency/postcommit check. No original apply or source acceptance."
+    "User screenshot confirms completion model COPY_REHEARSAL_ONLY memory review success and normal stop with original untouched,34orders/4unresolved preserved,no actual acceptance/commit. Next authorized preparation is a real atomic transaction rehearsal only on a fresh disposable restored copy, with three injected rollback cases and one commit/idempotency/postcommit check. No original apply or source acceptance.",
+    "Fresh-copy commit package final ZIP plus completion-model regression36 tests passed. Real PostgreSQL permanent-table rollback3/unique-constraint rollback/COMMIT/idempotency/new-connection read and long JSON numeric preservation verified. Actual PowerShell checks new-owned clone/network/two mounts/image/socket then runs nonroot helper. Source restore worker/SQL/snapshot code retained. Actual user backup full workflow pending; original source acceptance/apply and execution remain false."
   ],
   "operator_activity_report_as_of_kst_day": "2026-11-18",
   "operator_activity_report_independently_verified": false,
