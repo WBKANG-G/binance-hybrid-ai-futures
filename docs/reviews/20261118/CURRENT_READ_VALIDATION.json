@@ -1,0 +1,48 @@
+{
+  "policy": "CURRENT_DEMO_ACCOUNT_READ_VALIDATION_20261118_V1",
+  "source_reference": "4422debcb2849a609d359f4b4f9516034de89477",
+  "artifact": "artifacts/windows-demo-current-read-20261118/windows-demo-current-read-20261118.zip",
+  "sha256": "320b5f3a76fba7b75cabb9c106f542a7ff58c76e58f3c73e77e521851a11fbff",
+  "final_zip_tests": {
+    "passed": 31,
+    "skipped": 0,
+    "seconds": 68.87
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "pinned_saved_income_reader_and_money_helpers_byte_verified": true,
+  "maximum_http_requests": 18,
+  "open_order_position_scope": "ALL_SYMBOLS",
+  "settings_and_gap_trade_scope": "BTCUSDT",
+  "account_modes_observed_twice": true,
+  "open_order_position_account_rounds": 2,
+  "settings_modified": false,
+  "actual_cloud_binance_requests": 0,
+  "real_credentials_accessed_in_cloud": false,
+  "windows_current_read_execution_observed": false,
+  "baseline_adopted": false,
+  "historic_requests_resolved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "tested": [
+    "Both prior saved runs and raw hashes linked without changing files",
+    "Unfiltered all-symbol regular/algo open lists and positionRisk",
+    "Read-only mismatch reports for other-symbol exposure, hedge/multi-asset, leverage, margin, wallet and mode changes",
+    "Gap income and BTC trade activity including zero-valued events and page saturation cannot look empty",
+    "Unexpected response body retained before schema rejection",
+    "Credential binding, weight, response leak refusal and fixed demo GET routes",
+    "Saved trade hash change and transfer seal corruption block before key access",
+    "Live context, stale day, midnight crossing and late network failure stop without retry",
+    "Original source bytes and both saved run folders remain unchanged"
+  ],
+  "limitations": [
+    "PowerShell 7 synthetic HTTP factory; actual Windows 5.1 TLS/hidden input and positive ACL unobserved for this tool",
+    "Multiple reads are non-atomic and cannot rule out every transient change or activity after the observation cutoff",
+    "Gap end is based on client server-clock estimate",
+    "Current all-symbol open/exposure coverage is not all-symbol historical trade verification",
+    "No midnight equity, initial funding, high water, unresolved-request resolution or execution approval established",
+    "External IP usage is not fully known"
+  ]
+}
