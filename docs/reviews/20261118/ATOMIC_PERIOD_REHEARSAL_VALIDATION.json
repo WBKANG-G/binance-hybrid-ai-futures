@@ -1,0 +1,43 @@
+{
+  "policy": "SYNTHETIC_PG_TEMP_PERIOD_TRANSACTION_REHEARSAL_VALIDATION_V1",
+  "base_release": "effbee73c2e1f7ab2cbedac8cd597ef1c17fec1a",
+  "test_command": "pytest -q tests/unit/test_period_atomic_rehearsal.py",
+  "passed": 20,
+  "skipped": 0,
+  "seconds": 8.8,
+  "real_postgresql_used": true,
+  "synthetic_ledger_only": true,
+  "transaction_tables": "SESSION_LOCAL_PG_TEMP_ONLY",
+  "atomic_account_event_outbox_success_tested": true,
+  "failure_after_each_write_rolls_back_tested": true,
+  "constraint_failure_and_caller_rollback_tested": true,
+  "exact_idempotent_retry_tested": true,
+  "modified_prior_audit_and_state_retry_refused_tested": true,
+  "active_owner_lease_and_stale_hash_fence_refused_tested": true,
+  "user_original_or_backup_files_accessed": false,
+  "source_accepted": false,
+  "apply_token_created": false,
+  "production_commit_payload_verified": false,
+  "production_writer_implemented": false,
+  "completed_audit_schema_implemented": false,
+  "baseline_adopted": false,
+  "originals_started": false,
+  "actual_binance_http_attempts": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "files_sha256": {
+    "tools/windows_demo_atomic_rehearsal/transaction.sql": "27213543af0f59f5590f8d8ff77922d598a2e1ac35bd1dc662815d64dc97c3f7",
+    "tests/unit/test_period_atomic_rehearsal.py": "b354ea492a70bcefdfc67e7801b4e984c02bf3a76e930b6293b671914a5acec4",
+    "docs/reviews/20261118/ATOMIC_PERIOD_REHEARSAL_KO.md": "4539b0c82306a9527e410abc8c72740d7087526c9caa2acfdfd2997dff8edc87",
+    "docs/reviews/20261118/TYPED_DRAFT_WINDOWS_OBSERVATION.json": "238eabb085d88576032df29038ead01e8def3bb4f940a0ff5fb71c8797e58061"
+  },
+  "limitations": [
+    "Temporary synthetic tables do not exercise production constraints, triggers or cross-session lock contention.",
+    "No Windows workflow or actual user backup transaction was executed in this phase.",
+    "Dedicated source acceptance and completed audit model remain proposals, not authority or deployed schema.",
+    "Existing seven-day review guard and persistent store behavior are unchanged.",
+    "Observed saved wallet is not independent midnight-equity, historical account-wide trade or initial-funding proof."
+  ]
+}

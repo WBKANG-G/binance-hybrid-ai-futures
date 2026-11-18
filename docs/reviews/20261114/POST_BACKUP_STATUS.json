@@ -1,6 +1,7 @@
 {
   "actual_account_evidence_collection_started": false,
   "actual_account_login_availability_known": true,
+  "atomic_period_transaction_synthetic_rehearsal_prepared": true,
   "baseline_adoption_approved": false,
   "baseline_reference_reader_prepared_and_native_tested": true,
   "baseline_reference_reader_source_reference": "d6b210aa5e07b3440608d03ada41f41bc7912db9",
@@ -407,7 +408,8 @@
     "First read-only review rejected a manually transcribed directory UUID before inspecting receipt content. User read-only directory query shows mismatch. V2 removes manual UUID pin, scans bounded v3-format directories and selects exactly one expected producer success receipt; duplicate expected producer receipts denied, never latest/first fallback. Tests use independent synthetic UUIDs; final ZIP 56 native tests passed with SHA256/mtime preserved and prior content/authority checks unchanged. Actual user v2 readonly review pending; no receipt content/external pin/current Docker state verification yet.",
     "User screenshot confirms v2 readonly inspector selected exactly one expected v3 producer receipt and verified four companions, displaying five SHA256 values without file writes, Docker or service starts. Reported stored preparation 101.004/Decimal/late lease/75s limit, key destruction and clone stop are consistent; 34 orders/4 unresolved and stored Nov13/weekNov9 preserved. Current Docker state, response bytes and external hash pin were explicitly not checked. Hashes are displayed in screenshot but are not transcribed as an independent external pin. Synthetic execution and local stored-record review completed; eight evidence requirements, remote identity and adoption/execution authority remain unresolved/false.",
     "Next authorized preparation is a local hash-only reference for later separate custody, following user offline-storage preference. Sealed package reuses byte-identical successful readonly reviewer, locks/rechecks five source records and creates only two new bounded private NTFS reference files with known facts and hashes, no raw receipts/keys/backup data. Source files untouched, CreateNew/no overwrite, readback and source rehash; partials retained without retry. Final ZIP 18 native tests passed; Windows destination/ACL substituted on Linux and actual Windows creation not yet observed. USB copy, independent custody, current Docker state and eight real-evidence requirements remain unperformed/unresolved.",
-    "User screenshot confirms successful readonly source check then LOCAL_REFERENCE_VERIFIED_EXTERNAL_CUSTODY_PENDING. Two hash-only reference JSON files created, five source records checked, no source changes/raw receipt copying/key material/Docker/service starts reported. This is local reference metadata, not a recovery backup. Manifest/receipt hashes are displayed but not transcribed as external pins. USB copy and independent separate custody remain false. Existing external cold-backup copies must not be overwritten in any later handoff."
+    "User screenshot confirms successful readonly source check then LOCAL_REFERENCE_VERIFIED_EXTERNAL_CUSTODY_PENDING. Two hash-only reference JSON files created, five source records checked, no source changes/raw receipt copying/key material/Docker/service starts reported. This is local reference metadata, not a recovery backup. Manifest/receipt hashes are displayed but not transcribed as external pins. USB copy and independent separate custody remain false. Existing external cold-backup copies must not be overwritten in any later handoff.",
+    "User screenshots show typed before/candidate/audit model validation, rejection as completed adoption, 89 baseline files, preserved 34 orders/4 unresolved, and normal copy stop. No actual source acceptance, audit write, token, original modification or execution approval. Next preparation uses synthetic pg_temp transaction rehearsal only; no new source policy or production writer is installed."
   ],
   "operator_activity_report_as_of_kst_day": "2026-11-18",
   "operator_activity_report_independently_verified": false,
@@ -499,8 +501,10 @@
   "trade_read_windows_http_attempts_reported": 5,
   "trade_read_windows_success_observed": true,
   "trade_read_zip_sha256": "db60543455d2ce449c161b9aa84c1bbdc9541474493f9b4fc8ef6c4256994337",
+  "typed_draft_models_validated_on_user_copy_reported": true,
   "typed_draft_prepared_and_native_tested": true,
-  "typed_draft_windows_execution_observed": false,
+  "typed_draft_windows_execution_observed": true,
+  "typed_draft_windows_success_observed": true,
   "unresolved_hold_synthetic_regression_added": 2,
   "unresolved_hold_synthetic_regression_tests_passed": 37,
   "usb_reconnection_required_for_runner": false,
