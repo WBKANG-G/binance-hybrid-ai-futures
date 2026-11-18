@@ -1,0 +1,13 @@
+{
+  "evidence_source": "EXPLICIT_USER_TEXT_REPLY_IN_CHAT",
+  "reported_on_kst_day": "2026-11-18",
+  "since_kst_day": "2026-11-16",
+  "question": "2026년 11월 16일 이후 이 데모 계정에서 직접 거래하거나, 다른 프로그램으로 BTCUSDT 이외 종목을 거래한 적이 있나요?",
+  "answer": "없음",
+  "interpretation": "NO_MANUAL_TRADING_OR_OTHER_PROGRAM_NON_BTC_SYMBOL_TRADING_REPORTED_FOR_PAST_INTERVAL",
+  "independently_verified": false,
+  "statement_exact_timestamp_captured": false,
+  "extended_to_future_query_end": false,
+  "baseline_source_acceptance": false,
+  "execution_approval": false
+}
