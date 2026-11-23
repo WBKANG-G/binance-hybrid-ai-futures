@@ -1,0 +1,36 @@
+{
+  "policy": "DEMO_PAUSED_PERIOD_SOURCE_ACCEPTANCE_V1",
+  "scope": "SOURCE_ACCEPTANCE_ONLY",
+  "review_id": "saved-wallet-source-review-20261118-455f05eb38e26b8a",
+  "proposal_sha256": "455f05eb38e26b8a495297ae867bf7667c2ed0330b285a8fa9d1c4ec68520da2",
+  "candidate": {
+    "day_kst": "2026-11-18",
+    "week_kst": "2026-11-16",
+    "daily_base_usdt": "4998.74183608",
+    "weekly_base_usdt": "4998.74183608",
+    "day_boundary_utc": "2026-11-17T15:00:00Z",
+    "week_boundary_utc": "2026-11-15T15:00:00Z"
+  },
+  "accepted_on_kst_date": "2026-11-18",
+  "exact_message_timestamp_available": false,
+  "acceptance_basis": "EXPLICIT_USER_REPLY_TO_BOUND_SOURCE_QUESTION",
+  "question_text": "이 한계를 인정하고, 위 금액을 해당 기간의 복구 기준금액 후보 출처로 수락하시겠습니까?",
+  "question_text_sha256": "23b48587477702b6cdd7e20503a6aeafe3ebe1e2396a9747261f57988a55890d",
+  "operator_reply": "응 알겠어 다음단계 진행해",
+  "source_accepted": true,
+  "acknowledged_unverified_facts": [
+    "EXACT_DAY_MIDNIGHT_EQUITY",
+    "EXACT_WEEK_MIDNIGHT_EQUITY",
+    "ACCOUNT_WIDE_HISTORICAL_TRADE_COMPLETENESS",
+    "INITIAL_USDT_FUNDING_OR_RESET_PROVENANCE"
+  ],
+  "original_database_write_authorized": false,
+  "original_database_start_authorized": false,
+  "original_owner_lease_takeover_authorized": false,
+  "existing_guard_bypass_authorized": false,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
