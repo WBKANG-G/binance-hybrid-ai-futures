@@ -1,0 +1,10 @@
+$script:AcceptedSource=$null
+function Assert-AcceptedSource([string]$Root,[object]$Source) {
+ $rp=Join-Path $Root 'SOURCE_ACCEPTANCE.json';$ep=Join-Path $Root 'SOURCE_PROPOSAL.json'
+ Inspect-Require ((Get-FileHash -LiteralPath $rp -Algorithm SHA256).Hash.ToLowerInvariant() -ceq '__RECEIPT_FILE_SHA__' -and (Get-FileHash -LiteralPath $ep -Algorithm SHA256).Hash.ToLowerInvariant() -ceq '__PROPOSAL_FILE_SHA__') 'CURRENT_ACCEPTANCE_HASH_MISMATCH'
+ $r=Inspect-Json ([IO.File]::ReadAllText($rp,[Text.Encoding]::UTF8));$e=Inspect-Json ([IO.File]::ReadAllText($ep,[Text.Encoding]::UTF8))
+ Inspect-Require ($r.policy -ceq 'DEMO_CONDITIONAL_SOURCE_ACCEPTANCE_V1' -and $r.scope -ceq 'SOURCE_ONLY_EXACT_CANDIDATE_AND_BOUNDED_SAME_WEEK_REUSE' -and $r.review_id -ceq '__REVIEW_ID__' -and $e.review_id -ceq $r.review_id -and $r.proposal_sha256 -ceq '__PROPOSAL_SHA__' -and $e.proposal_sha256 -ceq $r.proposal_sha256 -and $r.source_accepted -is [bool] -and $r.source_accepted -and $r.conditional_reuse_approved -is [bool] -and $r.conditional_reuse_approved) 'CURRENT_ACCEPTANCE_SCOPE_INVALID'
+ foreach($flag in @('original_database_write_authorized','original_database_start_authorized','original_owner_lease_takeover_authorized','existing_guard_bypass_authorized','request_resolution_authorized','resend_authorized','execution_approved','orders_enabled','live_trading_enabled')){Inspect-Require ($r.$flag -is [bool] -and -not $r.$flag) 'CURRENT_ACCEPTANCE_AUTHORITY_INVALID'}
+ Inspect-Require ($Source.day_key -ceq '2026-11-18' -and $Source.week_key -ceq '2026-11-16' -and $Source.wallet -ceq '4998.74183608' -and $r.candidate.day_kst -ceq '2026-11-24' -and $r.candidate.week_kst -ceq '2026-11-23' -and $r.candidate.daily_base_usdt -ceq $Source.wallet -and $r.candidate.weekly_base_usdt -ceq $Source.wallet) 'CURRENT_ACCEPTANCE_CANDIDATE_MISMATCH'
+ $script:AcceptedSource=[pscustomobject]@{review_id=$r.review_id;receipt_sha256='__RECEIPT_CANONICAL_SHA__';day_key=$r.candidate.day_kst;week_key=$r.candidate.week_kst;policy=$e.proposal.conditional_reuse;source_accepted=$true;original_database_write_authorized=$false}
+}

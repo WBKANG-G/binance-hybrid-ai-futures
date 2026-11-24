@@ -1,0 +1,36 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "source_reference": "4b441c0fbc9c1356a0d5c0dfa2404d546d51a0cb",
+  "source_refresh": "STOPPED_ORIGINAL_BYTES_AND_METADATA_MATCH_PINNED_BACKUP",
+  "manifest_sha256": "2a2af624a12c696868ec10ce2522a97b29c2824fe6571dc232840f22db3bdd9d",
+  "passes": 2,
+  "file_counts": {
+    "database": 1355,
+    "runtime": 30
+  },
+  "logical_bytes": {
+    "database": 190213973,
+    "runtime": 309255
+  },
+  "comparison_helper_id": "521b898bc3181998ab713728aa1a00910ae9059923beea520420cf268b4e9956",
+  "comparison_helper_reused": true,
+  "helper_stopped_verified": true,
+  "source_container_snapshots_rechecked": true,
+  "source_bytes_compared": true,
+  "source_data_written": false,
+  "current_original_sql_queried": false,
+  "current_original_fence_verified": false,
+  "original_services_started_by_tool": false,
+  "original_database_write_authorized": false,
+  "original_apply_ready": false,
+  "containers_created": 0,
+  "volumes_created": 0,
+  "actual_http_attempts": 0,
+  "order_writes": 0,
+  "baseline_adopted": false,
+  "request_states_changed": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "cloud_raw_receipt_independently_accessed": false
+}
