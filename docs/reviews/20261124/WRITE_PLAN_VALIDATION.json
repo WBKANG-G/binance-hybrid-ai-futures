@@ -1,0 +1,26 @@
+{
+  "source_reference": "9b80545936edc7aa91b965d44c98ce4efeac8768",
+  "artifact": "artifacts/windows-demo-write-plan-20261124/windows-demo-write-plan-20261124.zip",
+  "artifact_sha256": "60b8fe1d8fc0cee952d7f9ec37718d606d026e611342c9d12c5475bc7f0c86be",
+  "source_tests": {
+    "new_offline_and_synthetic_postgres": 42,
+    "existing_adoption_model_and_typed_bundle": 46
+  },
+  "final_zip_native_powershell_tests_passed": 17,
+  "reproducible_zip_bytes": true,
+  "ruff": "passed",
+  "original_windows_execution": "NOT_EXECUTED_IN_CLOUD_USER_RUN_REQUIRED",
+  "windows_powershell_5_1_and_ntfs_acl": "NOT_EXECUTED_IN_LINUX_RETAINED_EXISTING_ACL_GUARDS",
+  "native_test_scope": "PowerShell 7 on Linux with only NTFS directory ACL plumbing substituted",
+  "postgres_test_scope": "fresh synthetic network-none disposable database only",
+  "original_write_entry": "UNCONDITIONALLY_DISABLED_BEFORE_CONNECTION",
+  "original_host_write_adapter_verified": false,
+  "fresh_exchange_adapter_verified": false,
+  "original_write_approval_received": false,
+  "original_database_started_by_this_packet": false,
+  "original_ledger_written": false,
+  "baseline_adopted": false,
+  "order_writes": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
