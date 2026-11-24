@@ -1,0 +1,20 @@
+{
+  "policy": "PENDING_ORIGINAL_DATABASE_INSPECTION_ONLY_QUESTION_V1",
+  "review_id": "original-db-inspection-only-20261124-v1",
+  "proposal_file_sha256": "df6063c8f37613997a15ddd705184c141029a5ad1c197ececc3505f16854f10a",
+  "reviewed_source_reference": "24b3fde9586902110ec8dc515bc82f35ef5e6d17",
+  "artifact_sha256": "863c1ca8e5a03a0fb537c6325a4b95a3c8e6e21ecfdd87c6829e24fb99180ebc",
+  "question_text": "원본 DB 볼륨을 외부 네트워크 없는 임시 서버로 한 번 열어, 읽기 전용 조회 두 번 후 정상 종료하는 것을 승인하시나요? 시작·종료 중 WAL·복구 파일 기록은 허용하되, 원장·소유권·기준액·주문은 변경하지 않는 범위입니다.",
+  "question_text_sha256": "14602bf63210d0fda246092e28af458cc9920b72eb6a860bf614fa1a1f3b055e",
+  "operator_reply": null,
+  "approval_received": false,
+  "original_database_start_authorized": false,
+  "postgresql_startup_shutdown_storage_writes_authorized": false,
+  "original_ledger_write_authorized": false,
+  "owner_lease_takeover_authorized": false,
+  "baseline_adoption_authorized": false,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
