@@ -1,0 +1,33 @@
+{
+  "policy": "SOURCE_REVIEW_AND_PENDING_SAME_WEEK_REUSE_VALIDATION_20261124_V1",
+  "proposal_sha256": "f9bd837dff118698ad6be8bdd9ad38e5220bd330ae38ca5d12e1a240e4ec5143",
+  "review_id": "saved-wallet-source-review-20261124-f9bd837dff118698",
+  "canonical_hash_verified": true,
+  "utc_kst_boundaries_verified": true,
+  "old_accepted_receipt_unchanged": true,
+  "pure_policy_tests": {
+    "passed": 25,
+    "skipped": 0,
+    "seconds": 0.08
+  },
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "validation_input_scope": "SYNTHETIC_UNIT_DATA_AND_SCREENSHOT_REPORTED_METADATA",
+  "actual_user_raw_files_accessed": false,
+  "new_source_acceptance_received": false,
+  "conditional_reuse_approved": false,
+  "original_database_started": false,
+  "original_database_changed": false,
+  "original_apply_ready": false,
+  "actual_cloud_binance_requests": 0,
+  "order_writes": 0,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "No new external API read or independent raw receipt replay in this phase.",
+    "Freshness/reuse caller must supply hash-verified evidence and trusted server time; no production integration or authority grant exists.",
+    "Source reuse proposal is bounded toNov24-29 and same amount/week; not activated.",
+    "Midnight equity, account-wide historical completeness, initial-funding provenance and original current SQL/fence/ownership remain unverified."
+  ]
+}

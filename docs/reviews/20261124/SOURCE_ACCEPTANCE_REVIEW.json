@@ -1,0 +1,99 @@
+{
+  "review_id": "saved-wallet-source-review-20261124-f9bd837dff118698",
+  "proposal_sha256": "f9bd837dff118698ad6be8bdd9ad38e5220bd330ae38ca5d12e1a240e4ec5143",
+  "proposal": {
+    "policy": "SAVED_WALLET_SOURCE_ACCEPTANCE_REVIEW_V1",
+    "account_id": "DEMO-WINDOWS-ISOLATED-BTC-V1",
+    "scope": "SOURCE_ACCEPTANCE_ONLY_FOR_PAUSED_PERIOD_RECOVERY_REVIEW",
+    "candidate": {
+      "day_kst": "2026-11-24",
+      "week_kst": "2026-11-23",
+      "daily_base_usdt": "4998.74183608",
+      "weekly_base_usdt": "4998.74183608",
+      "day_boundary_utc": "2026-11-23T15:00:00Z",
+      "week_boundary_utc": "2026-11-22T15:00:00Z"
+    },
+    "source": {
+      "kind": "SAVED_USDT_WALLET_OBSERVATIONS",
+      "observations_end_utc": "2026-11-24T03:14:53.574Z",
+      "wallet_available_margin_usdt_reported": "4998.74183608",
+      "all_symbol_open_orders_and_nonzero_positions_reported": 0,
+      "cloud_raw_files_independently_accessed": false,
+      "observations_are_non_atomic": true,
+      "evidence_scope": "USER_SCREENSHOT_REPORTED_PREAPPLY_GET_RESULTS",
+      "producer_source_reference": "5b57085847c0eb6e02275c8018ca85fc999f143b",
+      "income_gap_rows_reported": 0,
+      "btc_trade_gap_rows_reported": 0,
+      "settings_stable_reported": true,
+      "issues_reported": [],
+      "source_raw_receipt_independently_read": false
+    },
+    "source_state_reference": {
+      "kind": "PRIOR_RESTORED_SQL_REFERENCE_NOT_CURRENT_ORIGINAL_QUERY",
+      "before_state_pg_text_sha256": "139d14f4234fd2d2a9dfa50425f135cf28b1d9576f9f4b19508fe3261dd07450",
+      "fence": 110,
+      "day_kst": "2026-11-13",
+      "week_kst": "2026-11-09",
+      "daily_base_usdt": "4998.74183608",
+      "weekly_base_usdt": "4998.74183608"
+    },
+    "preserve": {
+      "high_water_usdt": "5000.00000000",
+      "initial_usdt": "5000.00000000",
+      "realized_equity_residual_usdt": "-1.25816392",
+      "valuation_as_of_utc": "2026-11-06T07:25:25.109073Z",
+      "orders": 34,
+      "unresolved_requests": 4,
+      "all_requests_and_prior_operations": true,
+      "paused": true,
+      "reconciled_after": false,
+      "stream_ready_after": false
+    },
+    "unverified_facts": [
+      "EXACT_DAY_MIDNIGHT_EQUITY",
+      "EXACT_WEEK_MIDNIGHT_EQUITY",
+      "ACCOUNT_WIDE_HISTORICAL_TRADE_COMPLETENESS",
+      "INITIAL_USDT_FUNDING_OR_RESET_PROVENANCE"
+    ],
+    "acceptance_effect": "ACKNOWLEDGE_CURRENT_CANDIDATE_AND_CONDITIONAL_SAME_WEEK_SOURCE_REUSE_ONLY",
+    "acceptance_does_not_authorize": [
+      "ORIGINAL_DATABASE_START_OR_WRITE",
+      "ORIGINAL_OWNER_OR_LEASE_TAKEOVER",
+      "BYPASS_EXISTING_SEVEN_DAY_GUARD",
+      "MARK_UNVERIFIED_FACTS_TRUE",
+      "RESOLVE_OR_RESEND_HISTORICAL_REQUESTS",
+      "TRADING_OR_SERVICE_START"
+    ],
+    "subsequent_apply_prerequisites": [
+      "SEPARATE_ORIGINAL_WRITER_AND_OWNERSHIP_PROTOCOL_REVIEW",
+      "FRESH_ACCOUNT_OBSERVATIONS_AND_SOURCE_STATE_FENCE_RECHECK",
+      "REVIEWED_CANDIDATE_OR_CONDITIONAL_SAME_WEEK_DAY_WITH_NEW_VERIFIED_OBSERVATIONS",
+      "CONCRETE_ORIGINAL_APPLY_PAYLOAD_AND_APPROVAL"
+    ],
+    "operator_source_acceptance_received": false,
+    "source_acceptance_receipt_created": false,
+    "apply_token_created": false,
+    "original_commit_payload_verified": false,
+    "original_baseline_adopted": false,
+    "execution_approved": false,
+    "orders_enabled": false,
+    "live_trading_enabled": false,
+    "prior_accepted_review_id": "saved-wallet-source-review-20261118-455f05eb38e26b8a",
+    "conditional_reuse": {
+      "scope": "SOURCE_REVIEW_ONLY_WITHIN_SAME_WEEK",
+      "first_day_kst": "2026-11-24",
+      "last_day_kst": "2026-11-29",
+      "week_kst": "2026-11-23",
+      "fixed_usdt": "4998.74183608",
+      "max_observation_age_ms": 300000,
+      "max_verified_reference_gap_ms": 604800000,
+      "requires_new_verified_observation_for_each_day": true,
+      "requires_two_flat_stable_account_rounds": true,
+      "requires_no_income_or_btc_trade_gap_rows": true,
+      "requires_unsaturated_gap_pages": true,
+      "requires_verified_source_hashes": true,
+      "does_not_waive_existing_apply_guards": true,
+      "activated": false
+    }
+  }
+}
