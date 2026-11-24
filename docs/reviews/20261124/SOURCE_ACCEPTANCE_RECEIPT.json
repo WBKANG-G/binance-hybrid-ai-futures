@@ -1,0 +1,53 @@
+{
+  "policy": "DEMO_CONDITIONAL_SOURCE_ACCEPTANCE_V1",
+  "scope": "SOURCE_ONLY_EXACT_CANDIDATE_AND_BOUNDED_SAME_WEEK_REUSE",
+  "review_id": "saved-wallet-source-review-20261124-f9bd837dff118698",
+  "proposal_sha256": "f9bd837dff118698ad6be8bdd9ad38e5220bd330ae38ca5d12e1a240e4ec5143",
+  "candidate": {
+    "day_kst": "2026-11-24",
+    "week_kst": "2026-11-23",
+    "daily_base_usdt": "4998.74183608",
+    "weekly_base_usdt": "4998.74183608",
+    "day_boundary_utc": "2026-11-23T15:00:00Z",
+    "week_boundary_utc": "2026-11-22T15:00:00Z"
+  },
+  "conditional_reuse_terms": {
+    "scope": "SOURCE_REVIEW_ONLY_WITHIN_SAME_WEEK",
+    "first_day_kst": "2026-11-24",
+    "last_day_kst": "2026-11-29",
+    "week_kst": "2026-11-23",
+    "fixed_usdt": "4998.74183608",
+    "max_observation_age_ms": 300000,
+    "max_verified_reference_gap_ms": 604800000,
+    "requires_new_verified_observation_for_each_day": true,
+    "requires_two_flat_stable_account_rounds": true,
+    "requires_no_income_or_btc_trade_gap_rows": true,
+    "requires_unsaturated_gap_pages": true,
+    "requires_verified_source_hashes": true,
+    "does_not_waive_existing_apply_guards": true,
+    "activated": false
+  },
+  "conditional_reuse_approved": true,
+  "source_accepted": true,
+  "accepted_on_kst_date": "2026-11-24",
+  "exact_message_timestamp_available": false,
+  "question_text": "이번 후보와 위 조건부 재사용 범위로 출처를 수락하시겠습니까?",
+  "question_text_sha256": "71557c044c0e4e4cc44d28906575e784dde485efac1fffa1836406957f800b11",
+  "operator_reply": "다음 단계 진행해",
+  "acceptance_basis": "USER_DIRECTION_TO_PROCEED_IN_RESPONSE_TO_BOUND_SCOPE_QUESTION",
+  "acknowledged_unverified_facts": [
+    "EXACT_DAY_MIDNIGHT_EQUITY",
+    "EXACT_WEEK_MIDNIGHT_EQUITY",
+    "ACCOUNT_WIDE_HISTORICAL_TRADE_COMPLETENESS",
+    "INITIAL_USDT_FUNDING_OR_RESET_PROVENANCE"
+  ],
+  "original_database_write_authorized": false,
+  "original_database_start_authorized": false,
+  "original_owner_lease_takeover_authorized": false,
+  "existing_guard_bypass_authorized": false,
+  "request_resolution_authorized": false,
+  "resend_authorized": false,
+  "execution_approved": false,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}
