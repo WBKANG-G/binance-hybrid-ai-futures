@@ -436,7 +436,8 @@
     "User Nov24 screenshot confirms preapply18GET read success,stable flat all-symbol profile/wallet4998.74183608,gap income/BTC trades0,and distinct accepted18/16 versus observed24/23 periods. No tool setting/order/Docker/service/source changes. New exact-candidate source review24/23 prepared; old accepted18/16 receipt remains immutable and no new consent inferred. Original current SQL/fence/ownership and apply path remain unverified/unapproved.",
     "Pending Nov24 source review additionally proposes same-week same-amount reuse onlyNov24-29 with new hash-verified stable flat observations,5minute server-clock freshness,zero activity/unsaturated pages and verified gap<=7days.25 synthetic pure-function tests pass; output never grants consent/write authority. No user raw receipt replay, policy activation, original apply or new source acceptance recorded.",
     "Direct proceed reply to bound scope question recorded verbatim forNov24 candidate and conditional same-week reuse throughNov29. Fixed-digest consent binding plus pending-policy checks can bind source only to fresh verified evidence; no original-write/trading authority. Read-only original stop/identity/backup precheck prepared using byte-identical existing admission guards, without helper/clone/SQL or API paths.49 unit/native-fixture tests passed; actual user scope run pending.",
-    "User v1 scope screenshot shows transfer verified then genericSCOPE_CHECK_BLOCKED with no original start/change/orders. Missing COMPARE catch prefix reproduced using real reader/comparison guard against synthetic inadmissible helper; v2 preserves code and emits safe stage/basename/line/public exception kind. Actual user failure cause remains unknown; no guard relaxed and no raw error/path/identifier printed. Original guard files retained byte-identical."
+    "User v1 scope screenshot shows transfer verified then genericSCOPE_CHECK_BLOCKED with no original start/change/orders. Missing COMPARE catch prefix reproduced using real reader/comparison guard against synthetic inadmissible helper; v2 preserves code and emits safe stage/basename/line/public exception kind. Actual user failure cause remains unknown; no guard relaxed and no raw error/path/identifier printed. Original guard files retained byte-identical.",
+    "V2 final ZIP plus regressions56 passed: real Read-CopySources/Container-Ids/Assert-CompareHelper chain reproduces v1 generic masking and v2 COMPARE code preservation; native unknown property/method/command and early/final hash failures emit safe stage/basename/line/type without secret/path leakage. Actual user cause still unknown. No state/control/authority guard was relaxed and no original write/start/API operation added."
   ],
   "operator_activity_report_as_of_kst_day": "2026-11-18",
   "operator_activity_report_independently_verified": false,
@@ -451,7 +452,9 @@
   "original_scope_reader_prepared": true,
   "original_scope_reader_windows_execution_observed": true,
   "original_scope_reader_windows_success_observed": false,
+  "original_scope_v2_final_zip_and_regression_tests_passed": 56,
   "original_scope_v2_safe_diagnostics_prepared": true,
+  "original_scope_v2_windows_execution_observed": false,
   "pending_conditional_source_reuse_first_day_kst": "2026-11-24",
   "pending_conditional_source_reuse_last_day_kst": "2026-11-29",
   "pending_conditional_source_reuse_week_kst": "2026-11-23",

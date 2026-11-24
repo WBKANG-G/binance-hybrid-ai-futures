@@ -1,0 +1,40 @@
+{
+  "policy": "READONLY_ORIGINAL_SCOPE_SAFE_DIAGNOSTICS_V2_VALIDATION_20261124",
+  "source_reference": "34eb204bd85666949159375c2ec697877ae008d4",
+  "artifact": "artifacts/windows-demo-original-scope-v2-20261124/windows-demo-original-scope-v2-20261124.zip",
+  "sha256": "c048bb44d2a942a00be04a401904ae3774055a5254c35f4ae6f46fdee4fa74a4",
+  "final_zip_and_regression_tests": {
+    "passed": 56,
+    "skipped": 0,
+    "seconds": 8.02,
+    "scope_native_and_seal_cases": 15,
+    "source_consent_cases": 41
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "v1_comparison_guard_masking_reproduced": true,
+  "v2_comparison_guard_code_preserved": true,
+  "real_reader_and_comparison_guard_chain_used_in_reproduction": true,
+  "safe_stage_basename_line_public_exception_kind_tested": true,
+  "unknown_property_command_method_messages_and_paths_not_exposed": true,
+  "source_admission_guard_bytes_unchanged": true,
+  "guards_relaxed": false,
+  "actual_user_failure_cause_determined": false,
+  "actual_user_raw_error_or_files_accessed": false,
+  "actual_cloud_binance_requests": 0,
+  "windows_v2_execution_observed": false,
+  "original_database_started": false,
+  "original_database_changed": false,
+  "original_apply_ready": false,
+  "order_writes": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "This fixes confirmed error-code masking and adds safe diagnostics, not a confirmed fix for the actual user failure.",
+    "Synthetic inadmissible helper reproduction is not a diagnosis of the user helper state.",
+    "Native PowerShell7 and fixture Docker scope; actual Windows5.1/NTFS/live user container metadata await v2 output.",
+    "No original byte comparison, SQL/fence/owner check, fresh remote read, production apply or trading authority."
+  ]
+}
