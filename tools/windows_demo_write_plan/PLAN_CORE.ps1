@@ -1,0 +1,38 @@
+function Plan-Require([bool]$Condition,[string]$Code){if(-not $Condition){throw $Code}}
+function Plan-Bool([object]$Value,[bool]$Expected){return ($Value -is [bool] -and $Value -eq $Expected)}
+function Plan-Read([string]$Path,[object]$Streams) {
+ $s=Inspect-Open $Path 1048576;$h=Inspect-StreamHash $s;$null=$Streams.Add([pscustomobject]@{stream=$s;sha256=$h;name=[IO.Path]::GetFileName($Path)})
+ $reader=New-Object IO.StreamReader($s,(New-Object Text.UTF8Encoding($false,$true)),$true,1024,$true)
+ try{return Inspect-Json ($reader.ReadToEnd())}finally{$reader.Dispose()}
+}
+function Plan-Recheck([object]$Streams){foreach($s in $Streams){Plan-Require ((Inspect-StreamHash $s.stream) -ceq $s.sha256) 'PLAN_SOURCE_HASH_CHANGED'}}
+function Get-OriginalPlanEvidence([string]$Base,[object]$Streams) {
+ $path=Join-Path (Join-Path $Base 'WBKANG-DEMO-Backups') 'original-inspection-20261124-26b94531ce44b9cf5b5816fdf1d81447'
+ Reference-AssertPrivateDirectory $path
+ $r=Plan-Read (Join-Path $path 'ORIGINAL_INSPECTION_RECEIPT.json') $Streams
+ $resource=Plan-Read (Join-Path $path 'ORIGINAL_SERVER_RESOURCE.json') $Streams
+ $comparison=Plan-Read (Join-Path $path 'SOURCE_REFRESH_RECEIPT.json') $Streams
+ Plan-Require ($r.original_inspection -ceq 'ORIGINAL_SQL_READ_ONLY_OBSERVED_AND_TEMP_SERVER_CLEANLY_STOPPED') 'PLAN_INSPECTION_NOT_COMPLETE'
+ foreach($k in @('current_original_sql_queried','current_original_fence_verified','current_original_owner_observed','temporary_original_server_stopped')){Plan-Require (Plan-Bool $r.$k $true) 'PLAN_INSPECTION_SCOPE_INVALID'}
+ foreach($k in @('original_ledger_write_attempted','original_service_containers_started','original_owner_lease_changed_by_tool','original_fence_changed_by_tool','baseline_adopted','request_states_changed','original_apply_ready','apply_token_created','execution_approved','orders_enabled','live_trading_enabled')){Plan-Require (Plan-Bool $r.$k $false) 'PLAN_INSPECTION_SCOPE_INVALID'}
+ Plan-Require ($r.actual_http_attempts -eq 0 -and $r.order_writes -eq 0 -and $r.temporary_original_server_id -cmatch '^[0-9a-f]{64}$' -and $resource.container_id -ceq $r.temporary_original_server_id -and $resource.original_database_volume -ceq 'hybrid-windows_postgres_data' -and $resource.network -ceq 'none' -and (Plan-Bool $resource.original_runtime_mounted $false) -and (Plan-Bool $resource.logical_writes_authorized $false)) 'PLAN_RESOURCE_SCOPE_INVALID'
+ Plan-Require ($comparison.source_refresh -ceq 'STOPPED_ORIGINAL_BYTES_AND_METADATA_MATCH_PINNED_BACKUP' -and $comparison.passes -eq 2 -and $comparison.manifest_sha256 -ceq '2a2af624a12c696868ec10ce2522a97b29c2824fe6571dc232840f22db3bdd9d' -and (Plan-Bool $comparison.source_data_written $false)) 'PLAN_PRESTART_REFERENCE_INVALID'
+ Plan-Require ($r.account_state_pg_text_sha256 -ceq '139d14f4234fd2d2a9dfa50425f135cf28b1d9576f9f4b19508fe3261dd07450') 'PLAN_ORIGINAL_STATE_REFERENCE_CHANGED'
+ $o=$r.ownership;$p=$r.period_candidate
+ Plan-Require ($o.fence -eq 110 -and (Plan-Bool $o.owner_present $false) -and $null -eq $o.owner_sha256 -and (Plan-Bool $o.lease_present $true) -and $o.lease_state -ceq 'EXPIRED' -and $o.ownership_row_sha256 -cmatch '^[0-9a-f]{64}$' -and $o.lease_clock_scope -ceq 'ISOLATED_ORIGINAL_DATABASE_STATEMENT_TIMESTAMP' -and (Plan-Bool $o.original_owner_verified $true) -and (Plan-Bool $o.row_lock_acquired $false)) 'PLAN_OWNERSHIP_REFERENCE_INVALID'
+ $lease=$o.lease_until_utc
+ try{if($lease -is [DateTimeOffset]){$lease=$lease.ToUniversalTime()}elseif($lease -is [DateTime]){$lease=New-Object DateTimeOffset($lease.ToUniversalTime())}else{$lease=[DateTimeOffset]::Parse($lease,[Globalization.CultureInfo]::InvariantCulture)};$leaseText=$lease.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'Z'",[Globalization.CultureInfo]::InvariantCulture)}catch{throw 'PLAN_LEASE_REFERENCE_INVALID'}
+ Plan-Require ($leaseText -ceq '2026-11-12T00:40:54.427273Z') 'PLAN_LEASE_REFERENCE_CHANGED'
+ Plan-Require ($p.before_state_pg_text_sha256 -ceq $r.account_state_pg_text_sha256 -and $p.candidate_financial_pg_text_sha256 -cmatch '^[0-9a-f]{64}$' -and (@($p.changed_top_level_fields|Sort-Object)-join '|') -ceq 'daily_key|weekly_key') 'PLAN_CANDIDATE_REFERENCE_INVALID'
+ foreach($k in @('protected_jsonb_preserved','orders_requests_operations_preserved','paused_preserved','candidate_paused')){Plan-Require (Plan-Bool $p.$k $true) 'PLAN_PROTECTED_REFERENCE_INVALID'}
+ foreach($k in @('audit_record_created','commit_payload_verified','apply_token_created')){Plan-Require (Plan-Bool $p.$k $false) 'PLAN_DRAFT_AUTHORITY_INVALID'}
+ $f=$p.proposed_fields
+ Plan-Require ((@($f.PSObject.Properties.Name|Sort-Object)-join '|') -ceq 'daily_base|daily_key|reconciled|stream_ready|weekly_base|weekly_key' -and $f.daily_key -ceq '2026-11-24' -and $f.weekly_key -ceq '2026-11-23' -and $f.daily_base -ceq '4998.74183608' -and $f.weekly_base -ceq '4998.74183608' -and (Plan-Bool $f.reconciled $false) -and (Plan-Bool $f.stream_ready $false)) 'PLAN_PERIOD_FIELDS_INVALID'
+ Plan-Recheck $Streams
+ return [pscustomobject]@{receipt=$r;lease_until_utc=$leaseText;source_directory=$path}
+}
+function New-UnapprovedWritePlan([object]$Evidence,[object]$Streams) {
+ $r=$Evidence.receipt;$p=$r.period_candidate
+ $hashes=[ordered]@{};foreach($s in $Streams){$hashes[$s.name]=$s.sha256}
+ return [ordered]@{policy='UNAPPROVED_PAUSED_PERIOD_WRITE_PLAN_V1';operation_id=[Guid]::NewGuid().ToString('D');account_id='DEMO-WINDOWS-ISOLATED-BTC-V1';source_kind='LOCAL_ORIGINAL_INSPECTION_RECEIPT_NOT_A_FRESH_EXCHANGE_OR_DATABASE_READ';source_files_sha256=$hashes;temporary_inspection_server_id=$r.temporary_original_server_id;before_state_pg_text_sha256=$r.account_state_pg_text_sha256;expected_ownership_row_sha256=$r.ownership.ownership_row_sha256;expected_fence=110;proposed_fence=111;expected_owner_present=$false;expected_lease_until_utc=$Evidence.lease_until_utc;owner_and_lease_action='PRESERVE_EXACTLY_NO_TAKEOVER_OR_CLEANUP';candidate_financial_pg_text_sha256=$p.candidate_financial_pg_text_sha256;proposed_fields=$p.proposed_fields;account_jsonb_changes=@('daily_key','weekly_key','operations[one_new_audit_entry]');old_period_reference=[ordered]@{daily_key='2026-11-13';weekly_key='2026-11-09';source='PINNED_REFERENCE_WITH_MATCHING_CURRENT_ORIGINAL_SQL_STATE_HASH'};preserve=@('paused=true','initial=5000','high_water=5000','value_components_and_valuation_time','orders=34','all_request_states_including_unresolved_4','all_prior_operations','all_other_raw_jsonb_fields','owner_and_lease_until');required_atomic_records=@('ACCOUNT_JSONB','FENCE_CAS','COMPLETION_AUDIT','EVENT','OUTBOX');completion_time_rule='ACTUAL_DATABASE_CLOCK_DURING_FUTURE_AUTHORIZED_TRANSACTION';unknown_commit_rule='QUERY_ONLY_NO_AUTOMATIC_REAPPLY';blockers=@('NEW_POST_INSPECTION_BACKUP_AND_SCOPE_ADMISSION_REQUIRED','FRESH_BOUND_SOURCE_AND_REFERENCE_GAP_CHECK_REQUIRED','CURRENT_ORIGINAL_ROW_STATE_OWNERSHIP_AND_LOCKS_REQUIRED','ORIGINAL_HOST_WRITE_ADAPTER_AND_TYPED_FINAL_PAYLOAD_NOT_VERIFIED','SEPARATE_EXACT_WRITE_APPROVAL_NOT_RECEIVED');current_original_sql_requeried=$false;current_docker_scope_rechecked=$false;fresh_source_verified=$false;post_inspection_backup_verified=$false;original_start_approval_reused=$false;original_write_approval_received=$false;original_database_started=$false;original_files_written=$false;original_ledger_write_authorized=$false;commit_payload_verified=$false;apply_token_created=$false;baseline_adopted=$false;original_apply_ready=$false;request_resolution_authorized=$false;resend_authorized=$false;actual_http_attempts=0;order_writes=0;execution_approved=$false;orders_enabled=$false;live_trading_enabled=$false}
+}
