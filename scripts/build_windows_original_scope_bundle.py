@@ -14,7 +14,7 @@ from services.execution.demo_conditional_source_binding import (
 )
 
 PIN = "c5cc61073e1ac159317b20af13aa106414f80960"
-FOLDER = "windows-demo-original-scope-20261124"
+FOLDER = "windows-demo-original-scope-v2-20261124"
 
 
 def package_files(ref):

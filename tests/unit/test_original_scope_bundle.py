@@ -1,6 +1,7 @@
 """Read-only launcher lifecycle and no-start enforcement with native PowerShell."""
 
 import hashlib
+import io
 import json
 import os
 import zipfile
@@ -52,7 +53,10 @@ def test_package_preserves_existing_scope_admission_but_removes_creation_and_sto
 
 
 @pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
-@pytest.mark.parametrize("fault", ["none", "hash", "running", "scope"])
+@pytest.mark.parametrize(
+    "fault",
+    ["none", "hash", "running", "scope", "compare", "property", "method", "command", "hash-final"],
+)
 def test_native_launcher_only_reads_and_rechecks_inputs(tmp_path, fault):
     f = package()
     for n, b in f.items():
@@ -74,8 +78,8 @@ def test_native_launcher_only_reads_and_rechecks_inputs(tmp_path, fault):
         + f"""
 $script:ScopeHashCount=0
 function Find-RetainedBackup {{param($Config) return '{backup}'}}
-function Assert-InputHashes {{param($Directory,$Config,$Receipt) $script:ScopeHashCount++;if('{fault}' -ceq 'hash'){{throw 'RESTORE_INPUT_HASH_MISMATCH'}}}}
-function Read-CopySources {{param($Config,$Receipt,$State) if('{fault}' -ceq 'running'){{throw 'RESTORE_ORIGINAL_NOT_STOPPED'}};if('{fault}' -ceq 'scope'){{throw 'HANDOFF_HELPER_CONFIGURATION_CHANGED'}};$null=Backup-Docker @('inspect','readonly');return ,@([pscustomobject]@{{id=('b'*64)}})}}
+function Assert-InputHashes {{param($Directory,$Config,$Receipt) $script:ScopeHashCount++;if('{fault}' -ceq 'hash' -or ('{fault}' -ceq 'hash-final' -and $script:ScopeHashCount -eq 3)){{throw 'RESTORE_INPUT_HASH_MISMATCH'}}}}
+function Read-CopySources {{param($Config,$Receipt,$State) if('{fault}' -ceq 'compare'){{throw 'COMPARE_HELPER_SCOPE_INVALID'}};if('{fault}' -ceq 'property'){{$x=[pscustomobject]@{{}};$null=$x.PRIVATE_SECRET_SENTINEL}};if('{fault}' -ceq 'method'){{$null=[string]::PRIVATE_SECRET_SENTINEL()}};if('{fault}' -ceq 'command'){{PRIVATE_SECRET_SENTINEL}};if('{fault}' -ceq 'running'){{throw 'RESTORE_ORIGINAL_NOT_STOPPED'}};if('{fault}' -ceq 'scope'){{throw 'HANDOFF_HELPER_CONFIGURATION_CHANGED'}};$null=Backup-Docker @('inspect','readonly');return ,@([pscustomobject]@{{id=('b'*64)}})}}
 function Assert-RestoreSourceSnapshot {{param($Original,$Helpers,$Frozen) if($Frozen -or $Helpers.Count -ne 0 -or $script:ScopeHashCount -ne 2){{throw 'TEST_SCOPE_ORDER_INVALID'}};$null=Backup-Docker @('inspect','readonly')}}
 function Backup-Docker {{param($Arguments,$Maximum) if($Arguments[0] -cne 'inspect'){{throw 'TEST_MUTATION_FORBIDDEN'}};return 'SAFE'}}
 """
@@ -103,6 +107,22 @@ function Backup-Docker {{param($Arguments,$Maximum) if($Arguments[0] -cne 'inspe
         )
     else:
         assert "NO_START_NO_WRITES_NO_ORDERS" not in value.stdout
+        result = json.loads(value.stdout.splitlines()[1])
+        assert "PRIVATE_SECRET_SENTINEL" not in value.stdout
+        assert str(tmp_path) not in value.stdout
+        assert result["failure_stage"] == (
+            "VERIFY_BACKUP_INITIAL"
+            if fault == "hash"
+            else "VERIFY_BACKUP_FINAL"
+            if fault == "hash-final"
+            else "CHECK_ORIGINAL_SCOPE"
+        )
+        assert result["failure_script"] in {"RUN_SCOPE.ps1", "FINANCIAL_EXT.ps1"}
+        assert result["failure_line"] > 0
+        if fault == "compare":
+            assert result["failure_category"] == "COMPARE_HELPER_SCOPE_INVALID"
+        if fault in {"property", "method", "command"}:
+            assert result["exception_type"] != "UNKNOWN"
 
 
 @pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
@@ -123,3 +143,70 @@ def test_tamper_refused_before_any_scope_lookup(tmp_path, name):
     )
     assert value.returncode == 2 and not value.stderr
     assert "PRIVATE_SENTINEL" not in value.stdout and "SCOPE_TRANSFER_INVALID" in value.stdout
+
+
+@pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
+@pytest.mark.parametrize("version", ["v1", "v2"])
+def test_real_reader_and_comparison_guard_error_was_masked_in_v1(tmp_path, version):
+    f = package()
+    if version == "v1":
+        body = builder.git(
+            "show",
+            "07fc900811f218518c0e3f236796e71394db6e65:artifacts/windows-demo-original-scope-20261124/windows-demo-original-scope-20261124.zip",
+        )
+        with zipfile.ZipFile(io.BytesIO(body)) as z:
+            f["RUN_SCOPE.ps1"] = z.read("windows-demo-original-scope-20261124/RUN_SCOPE.ps1")
+    for n, b in f.items():
+        (tmp_path / n).write_bytes(b)
+    backup = tmp_path / "backup"
+    backup.mkdir()
+    for n in (
+        "BACKUP_RECEIPT.json",
+        "BACKUP_STATE.json",
+        "manifest.json",
+        "database.tar",
+        "runtime.tar",
+        "images.tar",
+    ):
+        (backup / n).write_text("{}")
+    (backup / "BACKUP_STATE.json").write_text(
+        json.dumps(dict(canonical_images=["sha256:" + "a" * 64, "sha256:" + "c" * 64]))
+    )
+    proof = tmp_path / "proof.json"
+    proof.write_text("{}")
+    config = json.loads(f["CONFIG.json"])
+    config["restore_receipt_sha256"] = hashlib.sha256(proof.read_bytes()).hexdigest()
+    (tmp_path / "CONFIG.json").write_text(json.dumps(config))
+    ext = tmp_path / "FINANCIAL_EXT.ps1"
+    # Keep actual Read-CopySources, Container-Ids, and Assert-CompareHelper. The
+    # synthetic handoff invokes the latter chain with an inadmissible running reader.
+    ext.write_text(
+        ext.read_text()
+        + f"""
+function Find-RetainedBackup {{param($Config) return '{backup}'}}
+function Assert-InputHashes {{param($Directory,$Config,$Receipt)}}
+function Find-RestoreEvidence {{param($Config) return '{proof}'}}
+function Assert-RestoreEvidence {{param($Value,$Config)}}
+function Financial-AllContainerIds {{return ,'{config["comparison_helper_id"]}'}}
+function Assert-HandoffStoppedScope {{param($Config,$Backup,$State,$Recovery) $null=Container-Ids;throw 'TEST_GUARD_NOT_CALLED'}}
+function Read-Container {{param($Id) return [pscustomobject]@{{image=('sha256:'+('a'*64));running=$true}}}}
+"""
+    )
+    manifest = json.loads(f["TRANSFER_MANIFEST.json"])
+    for n in ("FINANCIAL_EXT.ps1", "CONFIG.json", "RUN_SCOPE.ps1"):
+        manifest["files"][n] = hashlib.sha256((tmp_path / n).read_bytes()).hexdigest()
+    raw = json.dumps(manifest).encode()
+    (tmp_path / "TRANSFER_MANIFEST.json").write_bytes(raw)
+    value = launch(
+        tmp_path,
+        f"& '{tmp_path}/RUN_SCOPE.ps1' -ManifestSHA256 '{hashlib.sha256(raw).hexdigest()}'\nexit $LASTEXITCODE",
+    )
+    assert value.returncode == 2 and not value.stderr, value.stdout + value.stderr
+    r = json.loads(value.stdout.splitlines()[1])
+    assert r["failure_category"] == (
+        "SCOPE_CHECK_BLOCKED" if version == "v1" else "COMPARE_HELPER_SCOPE_INVALID"
+    )
+    if version == "v2":
+        assert r["failure_stage"] == "CHECK_ORIGINAL_SCOPE"
+        assert r["failure_script"] == "COMPARE_ADMISSION.ps1" and r["failure_line"] > 0
+    assert not r["original_database_started"] and not r["original_database_changed"]
