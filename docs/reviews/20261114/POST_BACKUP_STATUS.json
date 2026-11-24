@@ -439,7 +439,8 @@
     "Direct proceed reply to bound scope question recorded verbatim forNov24 candidate and conditional same-week reuse throughNov29. Fixed-digest consent binding plus pending-policy checks can bind source only to fresh verified evidence; no original-write/trading authority. Read-only original stop/identity/backup precheck prepared using byte-identical existing admission guards, without helper/clone/SQL or API paths.49 unit/native-fixture tests passed; actual user scope run pending.",
     "User v1 scope screenshot shows transfer verified then genericSCOPE_CHECK_BLOCKED with no original start/change/orders. Missing COMPARE catch prefix reproduced using real reader/comparison guard against synthetic inadmissible helper; v2 preserves code and emits safe stage/basename/line/public exception kind. Actual user failure cause remains unknown; no guard relaxed and no raw error/path/identifier printed. Original guard files retained byte-identical.",
     "V2 final ZIP plus regressions56 passed: real Read-CopySources/Container-Ids/Assert-CompareHelper chain reproduces v1 generic masking and v2 COMPARE code preservation; native unknown property/method/command and early/final hash failures emit safe stage/basename/line/type without secret/path leakage. Actual user cause still unknown. No state/control/authority guard was relaxed and no original write/start/API operation added.",
-    "V2 screenshot locates generic failure at CONTEXT.ps1 line7 native Docker invocation. Actual stderr/exit/daemon availability remain unknown. V3 uses managed read-only CLI process capture, structured argv, bounded wait/output and safe exit classification; no shell, mutation commands or engine/container starts. Existing stdout/identity/stop guards retained; native stderr0/nonzero/timeout/missing CLI/argv/no-mutation fixtures passed. Actual Windows5.1 pending."
+    "V2 screenshot locates generic failure at CONTEXT.ps1 line7 native Docker invocation. Actual stderr/exit/daemon availability remain unknown. V3 uses managed read-only CLI process capture, structured argv, bounded wait/output and safe exit classification; no shell, mutation commands or engine/container starts. Existing stdout/identity/stop guards retained; native stderr0/nonzero/timeout/missing CLI/argv/no-mutation fixtures passed. Actual Windows5.1 pending.",
+    "V3 final ZIP73 tests passed: managed stdout/stderr/exit capture, warning+success,daemon/nonzero/start/missing/timeout/output limits, exact argv and mutation refusal,plus56 scope/consent regressions. Context/Common native wrappers changed only; existing default limits128/256 and guard functions retained. No actual Windows5.1/daemon/user-root-cause claim; original write/start/API authority unchanged false."
   ],
   "operator_activity_report_as_of_kst_day": "2026-11-18",
   "operator_activity_report_independently_verified": false,
@@ -459,6 +460,7 @@
   "original_scope_v2_safe_diagnostics_prepared": true,
   "original_scope_v2_windows_execution_observed": true,
   "original_scope_v2_windows_success_observed": false,
+  "original_scope_v3_final_zip_and_regression_tests_passed": 73,
   "original_scope_v3_managed_docker_reader_prepared": true,
   "original_scope_v3_windows_execution_observed": false,
   "pending_conditional_source_reuse_first_day_kst": "2026-11-24",
