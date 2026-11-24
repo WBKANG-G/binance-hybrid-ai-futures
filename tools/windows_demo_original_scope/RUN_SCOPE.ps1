@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$ManifestSHA256)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-$handles=@();$stage='TRANSFER';$loadedModule='NONE';$required=@()
+$handles=@();$stage='TRANSFER';$loadedModule='NONE';$required=@();$script:ScopeDockerDiagnostic=$null
 try {
  $path=Join-Path $PSScriptRoot 'TRANSFER_MANIFEST.json'
  if($ManifestSHA256 -cnotmatch '^[0-9a-f]{64}$' -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ManifestSHA256){throw 'SCOPE_TRANSFER_INVALID'}
@@ -11,7 +11,7 @@ try {
  foreach($p in $manifest.files.PSObject.Properties){if($p.Value -cnotmatch '^[0-9a-f]{64}$' -or (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot $p.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -cne $p.Value){throw 'SCOPE_TRANSFER_INVALID'}}
  Write-Output 'TRANSFER_FILES_VERIFIED'
  $stage='LOAD_MODULES'
- foreach($name in @('CONTEXT.ps1','COMMON.ps1','SUPPORT.ps1','SOURCE_SCOPE.ps1','COPY_CORE.ps1','COPY_EXT.ps1','COMPARE_ADMISSION.ps1','READ_CORE.ps1','BASELINE_CORE.ps1','PLAN_CORE.ps1','FINANCIAL_EXT.ps1')){$loadedModule=$name;. (Join-Path $PSScriptRoot $name)}
+ foreach($name in @('DOCKER_READ.ps1','CONTEXT.ps1','COMMON.ps1','SUPPORT.ps1','SOURCE_SCOPE.ps1','COPY_CORE.ps1','COPY_EXT.ps1','COMPARE_ADMISSION.ps1','READ_CORE.ps1','BASELINE_CORE.ps1','PLAN_CORE.ps1','FINANCIAL_EXT.ps1')){$loadedModule=$name;. (Join-Path $PSScriptRoot $name)}
  $stage='READ_CONFIG'
  $config=Read-RestoreJson (Join-Path $PSScriptRoot 'CONFIG.json')
  $stage='CHECK_ACCEPTANCE'
@@ -42,14 +42,14 @@ try {
  Write-Output 'ORIGINAL_SCOPE_CHECK_COMPLETE_NO_START_NO_WRITES_NO_ORDERS'
  exit 0
 } catch {
- $reason='SCOPE_CHECK_BLOCKED';if($_.Exception.Message -cmatch '^(SCOPE|RESTORE|COLD|HANDOFF|FINANCIAL|COMPARE|BASELINE|INSPECT|READ|REFERENCE|INCOME)_[A-Z0-9_]{1,100}$'){$reason=$_.Exception.Message}
+ $reason='SCOPE_CHECK_BLOCKED';if($_.Exception.Message -cmatch '^(SCOPE|RESTORE|COLD|HANDOFF|FINANCIAL|COMPARE|BACKUP_PLAN|BASELINE|INSPECT|READ|REFERENCE|INCOME)_[A-Z0-9_]{1,100}$'){$reason=$_.Exception.Message}
  $file='UNKNOWN';$line=0;$type='UNKNOWN'
  if($null -ne $_.InvocationInfo){
   $baseName=[IO.Path]::GetFileName($_.InvocationInfo.ScriptName)
   if(@($required) -ccontains $baseName){$file=$baseName;$line=[int]$_.InvocationInfo.ScriptLineNumber}
  }
- if($null -ne $_.Exception){$typeName=$_.Exception.GetType().Name;if(@('RuntimeException','PropertyNotFoundException','CommandNotFoundException','MethodException','MethodInvocationException','PSArgumentException','ParameterBindingException','ItemNotFoundException','UnauthorizedAccessException','IOException','InvalidOperationException') -ccontains $typeName){$type=$typeName}}
- [pscustomobject]@{scope_check='BLOCKED_KEEP_STOPPED_NO_RETRY';failure_category=$reason;failure_stage=$stage;loading_module=$(if($stage -ceq 'LOAD_MODULES' -and @($required) -ccontains $loadedModule){$loadedModule}else{$null});failure_script=$file;failure_line=$line;exception_type=$type;original_database_started=$false;original_database_changed=$false;original_apply_ready=$false;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}|ConvertTo-Json -Compress|Write-Output
+ if($null -ne $_.Exception){$typeName=$_.Exception.GetType().Name;if(@('RuntimeException','RemoteException','PropertyNotFoundException','CommandNotFoundException','MethodException','MethodInvocationException','PSArgumentException','ParameterBindingException','ItemNotFoundException','UnauthorizedAccessException','IOException','InvalidOperationException') -ccontains $typeName){$type=$typeName}}
+ [pscustomobject]@{scope_check='BLOCKED_KEEP_STOPPED_NO_RETRY';failure_category=$reason;docker_read_diagnostic=$script:ScopeDockerDiagnostic;failure_stage=$stage;loading_module=$(if($stage -ceq 'LOAD_MODULES' -and @($required) -ccontains $loadedModule){$loadedModule}else{$null});failure_script=$file;failure_line=$line;exception_type=$type;original_database_started=$false;original_database_changed=$false;original_apply_ready=$false;order_writes=0;orders_enabled=$false;live_trading_enabled=$false}|ConvertTo-Json -Depth 5 -Compress|Write-Output
  exit 2
 } finally {
  foreach($handle in $handles){$handle.Dispose()}

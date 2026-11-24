@@ -1,0 +1,20 @@
+{
+  "evidence_source": "USER_WINDOWS_CONSOLE_SCREENSHOT",
+  "transfer_verified": true,
+  "scope_check": "BLOCKED_KEEP_STOPPED_NO_RETRY",
+  "failure_category": "SCOPE_CHECK_BLOCKED",
+  "failure_stage": "CHECK_ORIGINAL_SCOPE",
+  "failure_script": "CONTEXT.ps1",
+  "failure_line": 7,
+  "exception_type_reported": "UNKNOWN",
+  "narrowed_operation": "NATIVE_DOCKER_INVOCATION",
+  "actual_stderr_or_exit_code_available": false,
+  "daemon_availability_determined": false,
+  "actual_root_cause_determined": false,
+  "original_database_started": false,
+  "original_database_changed": false,
+  "original_apply_ready": false,
+  "order_writes": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false
+}

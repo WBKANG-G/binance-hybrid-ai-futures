@@ -14,7 +14,7 @@ from services.execution.demo_conditional_source_binding import (
 )
 
 PIN = "c5cc61073e1ac159317b20af13aa106414f80960"
-FOLDER = "windows-demo-original-scope-v2-20261124"
+FOLDER = "windows-demo-original-scope-v3-20261124"
 
 
 def package_files(ref):
@@ -37,8 +37,25 @@ def package_files(ref):
     files = {n: old[n] for n in names}
     files["COPY_CORE.ps1"] = files["COPY_CORE.ps1"].split(b"function Assert-NewClone(", 1)[0]
     files["COPY_EXT.ps1"] = files["COPY_EXT.ps1"].split(b"function Assert-NewClone(", 1)[0]
+    for name, function, next_function in [
+        ("CONTEXT.ps1", "Docker-Lines", "Set-TopologyProbe"),
+        ("COMMON.ps1", "Backup-Docker", "Write-BackupJson"),
+    ]:
+        text = files[name].decode()
+        start = text.index("function " + function + "(")
+        end = text.index("function " + next_function + "(", start)
+        maximum = 128 if name == "CONTEXT.ps1" else 256
+        replacement = (
+            "function "
+            + function
+            + "([string[]]$Arguments,[int]$Maximum="
+            + str(maximum)
+            + ") { return @(Invoke-ScopeDockerRead $Arguments $Maximum) }\n"
+        )
+        files[name] = (text[:start] + replacement + text[end:]).encode()
     for n, path in [
         ("RUN_SCOPE.ps1", "tools/windows_demo_original_scope/RUN_SCOPE.ps1"),
+        ("DOCKER_READ.ps1", "tools/windows_demo_original_scope/DOCKER_READ.ps1"),
         ("README_KO.md", "tools/windows_demo_original_scope/README_KO.md"),
         ("SOURCE_ACCEPTANCE.json", "docs/reviews/20261124/SOURCE_ACCEPTANCE_RECEIPT.json"),
         ("SOURCE_PROPOSAL.json", "docs/reviews/20261124/SOURCE_ACCEPTANCE_REVIEW.json"),

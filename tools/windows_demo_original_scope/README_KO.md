@@ -1,18 +1,27 @@
-# 원본 정지 범위 점검 v2 — 안전한 오류 진단
+# 원본 정지 범위 점검 v3 — Docker 네이티브 조회 호환성
 
-이전 Windows 실행은 TRANSFER_FILES_VERIFIED 뒤 SCOPE_CHECK_BLOCKED로 멈췄다.
-원본 시작/변경/주문은 없다고 보고됐다. 아직 실제 중단 원인은 확정되지 않았다.
+v2 결과가 CHECK_ORIGINAL_SCOPE / CONTEXT.ps1 7번째 줄로 중단 위치를 좁혔다.
+그 줄은 & docker 실행이다. 실제 엔진 연결 상태나 stderr 내용은 아직 확인되지 않았다.
+Windows PowerShell5.1은 Stop 설정에서 네이티브 stderr를 예외로 바꿀 수 있으므로,
+v3는 .NET Process로 stdout/stderr와 종료 코드를 직접 받는다. stderr 원문은 출력하지 않는다.
+Docker가 실제로 실패하면 성공으로 넘기지 않는다. 종료0의 정상 stdout에도 기존 내용/범위
+검사를 그대로 적용한다. 네이티브 호출과 UTF8 디코딩 외의 guard 조건은 바꾸지 않는다.
 
-v1은 COMPARE_... guard 오류를 일반 오류로 가리는 문제가 있었다. v2는 이를 그대로 표시하고,
-failure_stage/failure_script/failure_line/exception_type을 추가한다. script는 패키지 파일 이름만,
-exception은 허용한 공개 종류만 표시한다. 원문 오류·전체 경로·명령/속성 원문·키/식별자는
-출력하지 않는다. 일반 오류여도 단계와 줄 번호로 원인을 더 좁힐 수 있다.
+허용 명령은 ps 전체ID조회와 container/image/volume inspect뿐이다. start/create/kill/rm 등은
+프로세스 시작 전 거부한다. 실행 파일을 직접 선택하고 shell을 사용하지 않으며 Windows
+인자 인용을 처리한다. API 키·시크릿·환경변수/호출자 입력은 인자로 전달하지 않는다.
+stdout/행 수/행 길이를 제한하고15초 초과 시 방금 만든 Docker CLI 프로세스만 종료한다.
+Docker Desktop/엔진/원본 컨테이너를 자동 시작하거나 현재 context를 바꾸지 않는다.
 
-기존 폴더를 수정하지 말고 이 v2 폴더에서 RUN_SCOPE_CHECK.cmd 한 번을 실행한다.
-원본/이전 사본/보조 컨테이너는 수동 시작·삭제하지 않는다. API 키/USB는 필요 없다.
-재현 테스트로 비교 guard 오류의 v1 마스킹/v2 코드 표시와 일반 속성/메서드/명령 오류,
-입력 해시 실패/전송 변조/원문 비노출을 검사했다. 사용자 실제 원인은 v2 결과로 확인해야 한다.
-이 수정은 guard를 완화하거나 위험한 상태를 허용하는 변경이 아니다.
+기존 폴더를 두고 이 v3 폴더에서 RUN_SCOPE_CHECK.cmd 한 번을 실행한다.
+SCOPE_DOCKER_DAEMON_UNAVAILABLE이면 엔진/연결 대상 사용 가능 여부를 확인해야 한다.
+SCOPE_DOCKER_CLI_NOT_FOUND이면 Docker CLI 설치/검색 경로 확인 대상이다.
+이 코드가 특정 원인을 확정하는 것은 아니므로 원본 컨테이너를 임의로 시작하지 않는다.
+
+오류 정보에는 Docker 조회 종류/실행 파일 발견 여부/CLI 실행 여부/종료 코드/stderr 유무만
+추가한다. 실제 stderr/사용자 전체 경로/명령 인자/원문 응답은 출력하지 않는다.
+BACKUP_PLAN 오류도 숨기지 않고 표시한다. RemoteException은 공개 예외 종류로만 표시한다.
+실제 사용자Windows5.1/엔진 상태는 v3 실행 결과를 관측하기 전까지 미검증이다.
 
 고정 백업 영수증·manifest·database/runtime/images 아카이브 해시를 읽고 파일을 RO로 잠근다.
 기존 검증된 원본 컨테이너 식별/마운트/이미지/재시작 정책/정지 범위와 보존/복원 helper를

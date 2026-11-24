@@ -25,6 +25,7 @@ def package():
         if args[0] == "show" and args[1].split(":", 1)[-1] in {
             "tools/windows_demo_original_scope/RUN_SCOPE.ps1",
             "tools/windows_demo_original_scope/README_KO.md",
+            "tools/windows_demo_original_scope/DOCKER_READ.ps1",
             "docs/reviews/20261124/SOURCE_ACCEPTANCE_RECEIPT.json",
         }:
             return (ROOT / args[1].split(":", 1)[1]).read_bytes()
@@ -38,13 +39,24 @@ def test_package_preserves_existing_scope_admission_but_removes_creation_and_sto
     f = package()
     old = builder.financial_files(builder.PIN)
     for n in (
-        "CONTEXT.ps1",
         "SUPPORT.ps1",
         "SOURCE_SCOPE.ps1",
         "COMPARE_ADMISSION.ps1",
         "FINANCIAL_EXT.ps1",
     ):
         assert f[n] == old[n]
+    assert (
+        f["CONTEXT.ps1"].split(b"function Set-TopologyProbe", 1)[1]
+        == old["CONTEXT.ps1"].split(b"function Set-TopologyProbe", 1)[1]
+    )
+    assert (
+        f["COMMON.ps1"].split(b"function Write-BackupJson", 1)[1]
+        == old["COMMON.ps1"].split(b"function Write-BackupJson", 1)[1]
+    )
+    assert (
+        b"Invoke-ScopeDockerRead" in f["CONTEXT.ps1"]
+        and b"Invoke-ScopeDockerRead" in f["COMMON.ps1"]
+    )
     assert b"function Invoke-IsolatedRestore" not in f["COPY_CORE.ps1"]
     assert b"function Stop-OwnedClone" not in f["COPY_CORE.ps1"]
     assert "restore_worker.py" not in f and "account_check.sql" not in f
@@ -155,7 +167,8 @@ def test_real_reader_and_comparison_guard_error_was_masked_in_v1(tmp_path, versi
             "07fc900811f218518c0e3f236796e71394db6e65:artifacts/windows-demo-original-scope-20261124/windows-demo-original-scope-20261124.zip",
         )
         with zipfile.ZipFile(io.BytesIO(body)) as z:
-            f["RUN_SCOPE.ps1"] = z.read("windows-demo-original-scope-20261124/RUN_SCOPE.ps1")
+            prefix = "windows-demo-original-scope-20261124/"
+            f = {name[len(prefix) :]: z.read(name) for name in z.namelist()}
     for n, b in f.items():
         (tmp_path / n).write_bytes(b)
     backup = tmp_path / "backup"
