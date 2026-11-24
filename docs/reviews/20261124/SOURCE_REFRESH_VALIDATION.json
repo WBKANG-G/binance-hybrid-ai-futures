@@ -1,0 +1,50 @@
+{
+  "policy": "RETAINED_READONLY_SOURCE_REFRESH_VALIDATION_20261124",
+  "source_reference": "4b441c0fbc9c1356a0d5c0dfa2404d546d51a0cb",
+  "artifact": "artifacts/windows-demo-source-refresh-20261124/windows-demo-source-refresh-20261124.zip",
+  "sha256": "927628781e60c9dfab456683c5cf230497510f056f1df08194ffb421a9964f83",
+  "final_zip_tests": {
+    "passed": 51,
+    "skipped": 0,
+    "seconds": 23.65
+  },
+  "related_regression_tests": {
+    "passed": 32,
+    "skipped": 0
+  },
+  "combined_source_and_regression_tests": {
+    "passed": 83,
+    "seconds": 69.64
+  },
+  "zip_reproduced_from_source": true,
+  "manifest_hashes_verified": true,
+  "ruff": "PASSED",
+  "format": "PASSED",
+  "unchanged_source_worker_and_read_library": true,
+  "unchanged_exact_helper_and_source_scope_guards": true,
+  "retained_reader_restart_twice_tested_on_synthetic_docker": true,
+  "real_worker_readonly_file_bytes_and_metadata_preserved": true,
+  "actual_docker_client_argv_bound_to_one_id": true,
+  "native_stdin_exit_tty_guard_faults_tested": true,
+  "native_pre_post_scope_hash_count_and_worker_faults_tested": true,
+  "tamper_rejected_before_source_access": true,
+  "raw_stderr_and_worker_payload_not_printed": true,
+  "powershell7_linux_tested": true,
+  "actual_windows51_execution_observed": false,
+  "actual_user_source_bytes_read": false,
+  "current_original_sql_queried": false,
+  "current_original_fence_verified": false,
+  "original_database_started": false,
+  "original_database_changed": false,
+  "original_apply_ready": false,
+  "actual_cloud_binance_requests": 0,
+  "order_writes": 0,
+  "orders_enabled": false,
+  "live_trading_enabled": false,
+  "limitations": [
+    "Real Docker stdin/reuse test uses synthetic RO bind roots and a stub admission; exact volume/image/isolation guards are tested independently with native PowerShell fault cases.",
+    "Windows original-byte match remains unobserved; previous screenshot only verified stopped scope and pinned backup inputs.",
+    "No fresh exchange observation, SQL/fence, owner lease, source conditional reuse evaluation, original writer, baseline adoption, or trading authority is added.",
+    "On a client timeout only its Docker CLI can be terminated; helper stopped state may remain unverified, and no automatic retry or status reset occurs."
+  ]
+}
