@@ -138,7 +138,17 @@ function New-PrivateBackupDirectory {{param($Token) throw 'TEST_DIRECTORY_CREATI
 @pytest.mark.skipif(not PWSH.exists(), reason="PowerShell unavailable")
 @pytest.mark.parametrize(
     "fault",
-    ["valid", "missing", "wrong-hash", "storage", "logical", "takeover", "retry", "proposal"],
+    [
+        "valid",
+        "missing",
+        "wrong-hash",
+        "storage",
+        "logical",
+        "takeover",
+        "retry",
+        "proposal",
+        "backup-config",
+    ],
 )
 def test_start_consent_is_separate_exact_and_cannot_expand_to_logical_writes(tmp_path, fault):
     f = write(tmp_path)
@@ -173,6 +183,8 @@ def test_start_consent_is_separate_exact_and_cannot_expand_to_logical_writes(tmp
         r["single_attempt_only"] = False
     elif fault == "proposal":
         r["proposal_file_sha256"] = "f" * 64
+    if fault == "backup-config":
+        c["manifest_sha256"] = "f" * 64
     b = json.dumps(r).encode()
     (tmp_path / "ORIGINAL_START_ACCEPTANCE.json").write_bytes(b)
     c["inspection_approval_receipt_file_sha256"] = (
@@ -350,6 +362,13 @@ def test_synthetic_volume_actual_start_read_twice_stop_without_account_changes(
         .strip()
         .split(":")
     )
+    subprocess.run(
+        args,
+        input="UPDATE demo_accounts SET owner=NULL,lease_until='2026-11-12T00:40:54.427273Z';",
+        text=True,
+        check=True,
+        capture_output=True,
+    )
     snap = "SELECT state::text || '|' || fence::text || '|' || coalesce(owner,'NULL') || '|' || coalesce(lease_until::text,'NULL') FROM demo_accounts;"
     before = subprocess.check_output(args, input=snap, text=True)
     subprocess.run(["docker", "kill", "--signal=SIGINT", original], check=True, capture_output=True)
@@ -391,6 +410,9 @@ try{{Invoke-OriginalInspection '{tmp_path}' ([pscustomobject]@{{comparison_helpe
             assert r["original_database_ever_running"] and r["temporary_original_server_stopped"]
             assert not r["original_ledger_write_attempted"] and not r["original_apply_ready"]
             assert r["original_database_files_may_have_changed"]
+            assert (
+                r["ownership"]["lease_state"] == "EXPIRED" and not r["ownership"]["owner_present"]
+            )
         else:
             r = json.loads(v.stdout)
             assert (
